@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Central TATTVA AI Star Emblem -->
+    <path
+        android:pathData="M54,26 C55.5,41 67,52.5 82,54 C67,55.5 55.5,67 54,82 C52.5,67 41,55.5 26,54 C41,52.5 52.5,41 54,26 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="26"
+                android:startY="26"
+                android:endX="82"
+                android:endY="82"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#38BDF8" />
+                <item android:offset="0.5" android:color="#818CF8" />
+                <item android:offset="1.0" android:color="#C084FC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    
+    <!-- Inner Core Sparkle -->
+    <path
+        android:pathData="M54,42 C54.8,49.5 58.5,53.2 66,54 C58.5,54.8 54.8,58.5 54,66 C53.2,58.5 49.5,54.8 42,54 C49.5,53.2 53.2,49.5 54,42 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Corner Accents -->
+    <path
+        android:pathData="M73,35 C73.5,39 77,42.5 81,43 C77,43.5 73.5,47 73,51 C72.5,47 69,43.5 65,43 C69,42.5 72.5,39 73,35 Z"
+        android:fillColor="#67E8F9" />
+</vector>

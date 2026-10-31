@@ -41,3 +41,6 @@
 .DS_Store
 Thumbs.db
 *.log
+
+# Android APK binaries
+*.apk
