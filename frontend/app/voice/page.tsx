@@ -116,11 +116,20 @@ export default function LiveVoiceAssistantPage() {
   const voiceBufferRef = useRef<string>("");
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // Mount setup
+  // Mount setup & voice warming for Android WebView
   useEffect(() => {
     const savedTheme = localStorage.getItem("tattva_theme");
     if (savedTheme === "dark" || savedTheme === "light") {
       setTheme(savedTheme);
+    }
+
+    // Warm voices for Android Chrome & WebView
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const loadVoices = () => {
+        window.speechSynthesis.getVoices();
+      };
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
     }
   }, []);
 
@@ -429,12 +438,15 @@ export default function LiveVoiceAssistantPage() {
 
       recognition.onend = () => {
         // Automatically restart to keep voice session active if not explicitly ended or muted
+        // 300ms backoff avoids Android InvalidStateError when audio hardware is transitioning
         if (isSessionActive && !isMuted) {
-          try {
-            recognition.start();
-          } catch {
-            // ignore
-          }
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch {
+              // ignore
+            }
+          }, 300);
         }
       };
 

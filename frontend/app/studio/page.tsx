@@ -33,6 +33,7 @@ import {
   FolderArchive,
   Volume2,
 } from "lucide-react";
+import { triggerDownload } from "../lib/download-helper";
 
 type StudioTab = "generate" | "edit";
 
@@ -383,12 +384,7 @@ export default function StudioPage() {
 
   function downloadImage(url = activeImage) {
     if (!url) return;
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `tattva-studio-${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    triggerDownload(url, `tattva-studio-${Date.now()}.png`, "image/png");
   }
 
   function copyPromptToClipboard() {

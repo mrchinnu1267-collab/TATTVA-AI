@@ -55,7 +55,16 @@ export function middleware(request: NextRequest) {
       if (origin && host) {
         try {
           const originHost = new URL(origin).host;
-          if (originHost !== host && !originHost.includes("localhost") && !originHost.includes("127.0.0.1")) {
+          const isLocalOrLan =
+            originHost === host ||
+            originHost.includes("localhost") ||
+            originHost.includes("127.0.0.1") ||
+            originHost.startsWith("192.168.") ||
+            originHost.startsWith("10.") ||
+            originHost.startsWith("172.") ||
+            originHost.includes("10.0.2.2");
+
+          if (!isLocalOrLan) {
             return new NextResponse(
               JSON.stringify({ error: "Cross-Origin Request Blocked: CSRF validation failed." }),
               { status: 403, headers: { "Content-Type": "application/json" } }
@@ -73,15 +82,15 @@ export function middleware(request: NextRequest) {
   // 3. Prepare response with Comprehensive HTTP Security Headers for pages
   const response = NextResponse.next();
 
-  // Content Security Policy (Strict Zero Trust)
+  // Content Security Policy (Strict Zero Trust with Android LAN & local dev support)
   const cspHeader = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com http://127.0.0.1:8000 https://openrouter.ai https://api.pollinations.ai",
-    "frame-ancestors 'none'",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://api.pollinations.ai",
+    "frame-ancestors 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

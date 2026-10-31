@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Radio,
 } from "lucide-react";
+import { triggerDownload } from "../lib/download-helper";
 
 type DocFormat = "pdf" | "docx" | "pptx" | "xlsx" | "csv" | "txt" | "md";
 
@@ -226,12 +227,7 @@ export default function MediaDocumentPage() {
 
   function downloadDoc(item: DocumentHistoryItem | null = currentDoc) {
     if (!item || !item.dataUri) return;
-    const link = document.createElement("a");
-    link.href = item.dataUri;
-    link.download = item.filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    triggerDownload(item.dataUri, item.filename);
   }
 
   return (

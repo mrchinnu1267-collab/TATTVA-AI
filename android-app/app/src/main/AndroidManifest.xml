@@ -30,6 +30,7 @@
         android:theme="@style/Theme.TATTVAAI">
         <activity
             android:name=".MainActivity"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:theme="@style/Theme.TATTVAAI">

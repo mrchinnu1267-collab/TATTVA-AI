@@ -1,19 +1,42 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#0b0f19",
+};
+
 export const metadata: Metadata = {
-  title: "TATTVA AI | Sign In",
+  title: {
+    default: "TATTVA AI - Advanced Multi-Model AI Assistant",
+    template: "%s | TATTVA AI",
+  },
   description:
-    "Sign in to TATTVA AI to compare AI models and explore stronger answers."
+    "Next-generation multi-model AI assistant with real-time voice, document generation, image synthesis, and personalized intelligence.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TATTVA AI",
+  },
+  applicationName: "TATTVA AI",
 };
 
 export default function RootLayout({
-  children
+  children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=no" />
+      </head>
       <body>{children}</body>
     </html>
   );

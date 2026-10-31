@@ -69,6 +69,7 @@ import type {
   FeedbackCategory,
 } from "../lib/memory-types";
 import { DEFAULT_PERSONALIZATION_SETTINGS } from "../lib/memory-types";
+import { triggerDownload } from "../lib/download-helper";
 
 type Role = "user" | "assistant";
 
@@ -224,12 +225,8 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
       if (res.ok) {
         const data = await res.json();
         if (data?.success && data.data_uri) {
-          const a = document.createElement("a");
-          a.href = data.data_uri;
-          a.download = data.filename || explicitFilename || `tattva_${targetFormat}_${Date.now()}.${targetFormat}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          const finalFilename = data.filename || explicitFilename || `tattva_${targetFormat}_${Date.now()}.${targetFormat}`;
+          triggerDownload(data.data_uri, finalFilename, `application/${targetFormat}`);
           return;
         }
       }
@@ -387,13 +384,8 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
   const finalName = explicitFilename ? explicitFilename : `tattva-${normalized || "file"}-${Date.now()}.${ext}`;
   const blob = new Blob([blobData], { type: mimeType });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = finalName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerDownload(url, finalName, mimeType);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 /**
@@ -1933,12 +1925,7 @@ export default function ChatPage() {
   }
 
   function downloadImage(dataUri: string, filename = "tattva-artwork.png") {
-    const a = document.createElement("a");
-    a.href = dataUri;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    triggerDownload(dataUri, filename, "image/png");
     showToast("Image downloaded ✦");
   }
 
@@ -4677,11 +4664,8 @@ export default function ChatPage() {
                           type: "application/json",
                         });
                         const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `tattva_memories_${Date.now()}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                        triggerDownload(url, `tattva_memories_${Date.now()}.json`, "application/json");
+                        setTimeout(() => URL.revokeObjectURL(url), 60000);
                         showToast("Memories exported successfully 📁");
                       }}
                       className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-100"
