@@ -1,7 +1,5 @@
-"use client";
-
-import { AuthPage } from "../page";
+import { redirect } from "next/navigation";
 
 export default function SignupPage() {
-  return <AuthPage initialMode="signup" />;
+  redirect("/");
 }

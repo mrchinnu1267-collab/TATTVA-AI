@@ -1082,7 +1082,7 @@ export default function ChatPage() {
     }
   }, [loadUserSessions, router]);
 
-  // Secure Supabase Logout Handler
+  // Session Reset Handler
   async function handleLogout() {
     try {
       setIsProfileMenuOpen(false);
@@ -1090,7 +1090,7 @@ export default function ChatPage() {
       const supabase = createClient();
       await supabase.auth.signOut().catch(() => {});
     } catch (err) {
-      console.warn("Logout error:", err);
+      console.warn("Reset session error:", err);
     } finally {
       // 1. Clear application-level authentication state
       setCurrentUser(null);
@@ -1105,11 +1105,9 @@ export default function ChatPage() {
       // 3. Reset in-memory sessions
       loadUserSessions(null);
 
-      // 4. Show toast notification
-      showToast("Logged out successfully 👋");
-
-      // 5. Redirect to login page
-      router.push("/");
+      // 4. Show toast notification & start fresh chat
+      showToast("Session reset successfully ✦");
+      createNewChat();
     }
   }
 
@@ -1660,17 +1658,6 @@ export default function ChatPage() {
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
     if (!rawPrompt && attachments.length === 0) return;
 
-    // Check guest chat limits (authenticated users are NEVER locked out)
-    const isActuallyGuest =
-      !currentUser &&
-      !userEmail &&
-      !(typeof window !== "undefined" && localStorage.getItem("tattva_user_session_email"));
-    if (isActuallyGuest && guestChatCount >= GUEST_CHAT_LIMIT) {
-      setAuthMode("signin");
-      setShowAuthModal(true);
-      return;
-    }
-
     // Check 1 Lakh words limit per chat
     const currentWordCount = calculateChatWordCount(messages);
     if (currentWordCount >= CHAT_WORD_LIMIT) {
@@ -1715,15 +1702,6 @@ export default function ChatPage() {
     // Setup AbortController for instant stop generation
     const controller = new AbortController();
     abortControllerRef.current = controller;
-
-    // Update guest usage
-    if (isActuallyGuest) {
-      const nextCount = guestChatCount + 1;
-      setGuestChatCount(nextCount);
-      localStorage.setItem("tattva_guest_count", nextCount.toString());
-    } else {
-      setGuestChatCount(0);
-    }
 
     const wantsImage = activeTool === "image" || isImageGenerationPrompt(rawPrompt, attachedImages.length > 0);
 
@@ -2028,8 +2006,8 @@ export default function ChatPage() {
     userEmail ||
     (typeof window !== "undefined" && localStorage.getItem("tattva_user_session_email"))
   );
-  const isGuest = !isUserAuthenticated;
-  const remainingGuestChats = isGuest ? Math.max(0, GUEST_CHAT_LIMIT - guestChatCount) : GUEST_CHAT_LIMIT;
+  const isGuest = false;
+  const remainingGuestChats = Infinity;
   const activeWordCount = calculateChatWordCount(messages);
 
   return (
@@ -2156,39 +2134,6 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Guest Action: Create Free Account Button (Prominent in Top Nav) */}
-            {isGuest && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setShowAuthModal(true);
-                  }}
-                  className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-bold text-xs px-3.5 py-1.5 shadow-sm hover:opacity-90 transition"
-                  title="Create a free account to unlock limitless chats and memory"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Create Account</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signin");
-                    setShowAuthModal(true);
-                  }}
-                  className={`hidden sm:flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-                    isDark
-                      ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
-                      : "border-black/10 bg-white text-black hover:bg-neutral-100"
-                  }`}
-                  title="Log in to your existing account"
-                >
-                  <span>Log In</span>
-                </button>
-              </div>
-            )}
-
             {/* 1. Live Voice Assistant (ChatGPT-Style Live Voice Mode) */}
             <a
               href="/voice"
@@ -2361,28 +2306,6 @@ export default function ChatPage() {
                 ⌘K
               </kbd>
             </button>
-            {/* Create Free Account Banner for Guests */}
-            {isGuest && (
-              <div className="mt-2 p-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 text-xs space-y-2">
-                <div className="flex items-center gap-1.5 font-bold text-neutral-900 dark:text-neutral-100">
-                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>Free Guest Mode ({remainingGuestChats} left)</span>
-                </div>
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-tight">
-                  Unlock unlimited conversations, image generation, and memory.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setShowAuthModal(true);
-                  }}
-                  className="w-full py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-semibold text-xs shadow-xs hover:opacity-90 transition text-center"
-                >
-                  Create Free Account
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Scrollable Chat History */}
@@ -2721,12 +2644,7 @@ export default function ChatPage() {
                     type="button"
                     onClick={() => {
                       setIsProfileMenuOpen(false);
-                      if (isGuest) {
-                        setAuthMode("signin");
-                        setShowAuthModal(true);
-                      } else {
-                        setIsManageAccountModalOpen(true);
-                      }
+                      setIsManageAccountModalOpen(true);
                     }}
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
                   >
@@ -2750,44 +2668,28 @@ export default function ChatPage() {
 
                 <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800/80" />
 
-                {/* Option 5: Log Out / Sign In */}
-                {isGuest ? (
-                  <div className="space-y-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        setAuthMode("signup");
-                        setShowAuthModal(true);
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-500" />
-                      <span>Create Account (Unlimited)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        setAuthMode("signin");
-                        setShowAuthModal(true);
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                    >
-                      <UserIcon className="w-4 h-4" />
-                      <span>Log In</span>
-                    </button>
-                  </div>
-                ) : (
+                {/* Option 5: New Conversation & Reset */}
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      createNewChat();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                  >
+                    <Plus className="w-4 h-4 text-neutral-500" />
+                    <span>New Conversation</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span>Log Out</span>
+                    <RefreshCw className="w-4 h-4 text-neutral-500" />
+                    <span>Reset Session</span>
                   </button>
-                )}
+                </div>
               </div>
             )}
 
@@ -2805,15 +2707,15 @@ export default function ChatPage() {
               <div className="flex items-center gap-2.5 min-w-0">
                 {/* User Avatar with Initials */}
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-neutral-800 to-black text-white text-xs font-bold shadow-xs ring-1 ring-black/10 dark:ring-white/20">
-                  {userEmail ? userEmail[0].toUpperCase() : "G"}
+                  {userEmail ? userEmail[0].toUpperCase() : "T"}
                 </div>
                 {/* Display Name and Registered Email */}
                 <div className="text-left min-w-0">
                   <div className="text-xs font-semibold truncate text-neutral-900 dark:text-neutral-100">
-                    {userEmail ? (currentUser?.user_metadata?.full_name || userEmail.split("@")[0]) : "Guest User"}
+                    {userEmail ? (currentUser?.user_metadata?.full_name || userEmail.split("@")[0]) : "TATTVA User"}
                   </div>
                   <div className="text-[10px] text-neutral-400 truncate max-w-[130px]">
-                    {userEmail || `${remainingGuestChats} chats left`}
+                    {userEmail || "Unlimited Access ✦"}
                   </div>
                 </div>
               </div>
@@ -3280,27 +3182,6 @@ export default function ChatPage() {
           ========================================================================= */}
           <div className="sticky bottom-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#0d0e11] dark:via-[#0d0e11]/95 dark:to-transparent pointer-events-none">
             <div className="mx-auto max-w-3xl w-full pointer-events-auto">
-              {/* Guest Limit Warning Banner */}
-              {isGuest && remainingGuestChats === 0 && (
-                <div className="mb-2.5 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs shadow-xs backdrop-blur-md">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span className="text-neutral-800 dark:text-neutral-200">
-                      You have used your <strong>5 free guest chats</strong>. Sign in or create a free account to unlock limitless conversations!
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode("signup");
-                      setShowAuthModal(true);
-                    }}
-                    className="shrink-0 rounded-xl bg-black dark:bg-white text-white dark:text-black px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition shadow-xs"
-                  >
-                    Unlock Free
-                  </button>
-                </div>
-              )}
 
               {/* Status / Interim Voice Banner */}
               {(statusMessage || interimSpeech || isListening) && (
@@ -3503,11 +3384,8 @@ export default function ChatPage() {
                     }
                   }}
                   rows={1}
-                  disabled={isGuest && remainingGuestChats === 0}
                   placeholder={
-                    isGuest && remainingGuestChats === 0
-                      ? "5 free chats reached. Sign in for limitless chats..."
-                      : isListening
+                    isListening
                       ? "Listening to voice input..."
                       : activeTool === "image"
                       ? "Describe the visual or modification with pin-to-pin accuracy..."
@@ -4935,213 +4813,6 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          5. AUTHENTICATION MODAL (FOR GUESTS AFTER 5 CHATS)
-      ========================================================================= */}
-      {showAuthModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-          <div
-            className={`w-full max-w-md rounded-3xl border p-7 shadow-2xl backdrop-blur-2xl animate-scale-in ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
-            }`}
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
-              <h3 className="text-lg font-bold">
-                {authMode === "signin"
-                  ? "Sign In to TATTVA AI"
-                  : authMode === "signup"
-                  ? "Create Free Account"
-                  : "Reset Password"}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowAuthModal(false)}
-                className="text-neutral-400 hover:text-black dark:hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="mt-4 flex p-1 rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-800/70">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("signin");
-                  setAuthMessage("");
-                }}
-                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
-                  authMode === "signin" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
-                }`}
-              >
-                Log In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("signup");
-                  setAuthMessage("");
-                }}
-                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
-                  authMode === "signup" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
-                }`}
-              >
-                Create Account
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("forgot");
-                  setAuthMessage("");
-                }}
-                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
-                  authMode === "forgot" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
-                }`}
-              >
-                Reset
-              </button>
-            </div>
-
-            {authMessage && (
-              <div className="mt-3 rounded-xl border border-black/10 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs">
-                {authMessage}
-              </div>
-            )}
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setAuthLoading(true);
-                setAuthMessage("");
-                const normEmail = authEmailInput.trim();
-
-                try {
-                  if (authMode === "forgot") {
-                    try {
-                      const supabase = createClient();
-                      const { error } = await supabase.auth.resetPasswordForEmail(normEmail, {
-                        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-                      });
-                      if (error) throw error;
-                      setAuthMessage("Reset link sent! Please check your inbox ✉️.");
-                    } catch (err: unknown) {
-                      setAuthMessage(err instanceof Error ? err.message : "Failed to send reset link.");
-                    }
-                    return;
-                  }
-
-                  if (authMode === "signup") {
-                    if (authPasswordInput !== authConfirmPassword) {
-                      setAuthMessage("Passwords do not match.");
-                      setAuthLoading(false);
-                      return;
-                    }
-                    if (authPasswordInput.length < 6) {
-                      setAuthMessage("Password must contain at least 6 characters.");
-                      setAuthLoading(false);
-                      return;
-                    }
-
-                    const res = await createAccount(normEmail, authPasswordInput);
-                    if (!res.success) {
-                      setAuthMessage(res.error || "Failed to create account. Please try again.");
-                      setAuthLoading(false);
-                      return;
-                    }
-
-                    saveActiveSession(normEmail);
-                    setUserEmail(normEmail);
-                    resetGuestCount();
-                    setGuestChatCount(0);
-                    loadUserSessions(normEmail);
-                    setShowAuthModal(false);
-                    showToast("Account created! Limitless chats unlocked ✦");
-                    return;
-                  }
-
-                  // Sign In
-                  const res = await loginUser(normEmail, authPasswordInput);
-                  if (res.success) {
-                    saveActiveSession(normEmail);
-                    setUserEmail(normEmail);
-                    resetGuestCount();
-                    setGuestChatCount(0);
-                    loadUserSessions(normEmail);
-                    setShowAuthModal(false);
-                    showToast("Welcome back! Limitless chats unlocked ✦");
-                    return;
-                  }
-
-                  setAuthMessage(res.error || "Invalid credentials. Please verify your email and password.");
-                } catch (err: unknown) {
-                  setAuthMessage(err instanceof Error ? err.message : "Authentication failed.");
-                } finally {
-                  setAuthLoading(false);
-                }
-              }}
-              className="mt-4 space-y-3"
-            >
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Email</label>
-                <input
-                  type="email"
-                  required
-                  value={authEmailInput}
-                  onChange={(e) => setAuthEmailInput(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs outline-none"
-                />
-              </div>
-
-              {authMode !== "forgot" && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Password</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={authPasswordInput}
-                    onChange={(e) => setAuthPasswordInput(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs outline-none"
-                  />
-                </div>
-              )}
-
-              {authMode === "signup" && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-400 mb-1">
-                    Confirm Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={authConfirmPassword}
-                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs outline-none"
-                  />
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="mt-3 flex h-10 w-full items-center justify-center rounded-xl bg-black dark:bg-white text-xs font-semibold text-white dark:text-black shadow-sm transition hover:opacity-90 disabled:opacity-50"
-              >
-                {authLoading
-                  ? "Processing..."
-                  : authMode === "signin"
-                  ? "Sign In & Unlock Limitless Chats"
-                  : authMode === "signup"
-                  ? "Create Account & Unlock Limitless Chats"
-                  : "Send Password Reset Link"}
-              </button>
-            </form>
           </div>
         </div>
       )}
