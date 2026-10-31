@@ -2028,7 +2028,7 @@ export default function ChatPage() {
     userEmail ||
     (typeof window !== "undefined" && localStorage.getItem("tattva_user_session_email"))
   );
-  const isGuest = authReady ? !isUserAuthenticated : false;
+  const isGuest = !isUserAuthenticated;
   const remainingGuestChats = isGuest ? Math.max(0, GUEST_CHAT_LIMIT - guestChatCount) : GUEST_CHAT_LIMIT;
   const activeWordCount = calculateChatWordCount(messages);
 
@@ -2156,6 +2156,39 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Guest Action: Create Free Account Button (Prominent in Top Nav) */}
+            {isGuest && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setShowAuthModal(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-bold text-xs px-3.5 py-1.5 shadow-sm hover:opacity-90 transition"
+                  title="Create a free account to unlock limitless chats and memory"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Create Account</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setShowAuthModal(true);
+                  }}
+                  className={`hidden sm:flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                    isDark
+                      ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
+                      : "border-black/10 bg-white text-black hover:bg-neutral-100"
+                  }`}
+                  title="Log in to your existing account"
+                >
+                  <span>Log In</span>
+                </button>
+              </div>
+            )}
+
             {/* 1. Live Voice Assistant (ChatGPT-Style Live Voice Mode) */}
             <a
               href="/voice"
@@ -2328,6 +2361,28 @@ export default function ChatPage() {
                 ⌘K
               </kbd>
             </button>
+            {/* Create Free Account Banner for Guests */}
+            {isGuest && (
+              <div className="mt-2 p-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-neutral-900 dark:text-neutral-100">
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Free Guest Mode ({remainingGuestChats} left)</span>
+                </div>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-tight">
+                  Unlock unlimited conversations, image generation, and memory.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setShowAuthModal(true);
+                  }}
+                  className="w-full py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-semibold text-xs shadow-xs hover:opacity-90 transition text-center"
+                >
+                  Create Free Account
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Scrollable Chat History */}
@@ -2697,18 +2752,32 @@ export default function ChatPage() {
 
                 {/* Option 5: Log Out / Sign In */}
                 {isGuest ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setAuthMode("signin");
-                      setShowAuthModal(true);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition"
-                  >
-                    <UserIcon className="w-4 h-4" />
-                    <span>Sign In or Register</span>
-                  </button>
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        setAuthMode("signup");
+                        setShowAuthModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span>Create Account (Unlimited)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        setAuthMode("signin");
+                        setShowAuthModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                    >
+                      <UserIcon className="w-4 h-4" />
+                      <span>Log In</span>
+                    </button>
+                  </div>
                 ) : (
                   <button
                     type="button"
@@ -4897,18 +4966,18 @@ export default function ChatPage() {
               </button>
             </div>
 
-            <div className="mt-4 flex rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-800/70 p-1">
+            <div className="mt-4 flex p-1 rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-800/70">
               <button
                 type="button"
                 onClick={() => {
                   setAuthMode("signin");
                   setAuthMessage("");
                 }}
-                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
                   authMode === "signin" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
                 }`}
               >
-                Sign In
+                Log In
               </button>
               <button
                 type="button"
@@ -4916,11 +4985,11 @@ export default function ChatPage() {
                   setAuthMode("signup");
                   setAuthMessage("");
                 }}
-                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
                   authMode === "signup" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
                 }`}
               >
-                Register
+                Create Account
               </button>
               <button
                 type="button"
@@ -4928,7 +4997,7 @@ export default function ChatPage() {
                   setAuthMode("forgot");
                   setAuthMessage("");
                 }}
-                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition ${
                   authMode === "forgot" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
                 }`}
               >

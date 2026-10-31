@@ -31,9 +31,9 @@ import {
 type AuthMode = "signin" | "signup" | "forgot";
 type ActiveModal = "terms" | "privacy" | "help" | null;
 
-export default function Home() {
+export function AuthPage({ initialMode = "signin" }: { initialMode?: AuthMode }) {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,12 +48,17 @@ export default function Home() {
 
   const hasCheckedAuth = useRef(false);
 
-  // Auto session check and redirect if already logged in
+  // Auto session check and redirect if already logged in (never block users wanting to sign up)
   useEffect(() => {
+    if (initialMode === "signup") {
+      setMode("signup");
+      return;
+    }
+
     if (hasCheckedAuth.current) return;
     hasCheckedAuth.current = true;
 
-    // Check for query error params
+    // Check for query error params or requested mode
     if (typeof window !== "undefined" && window.location.search) {
       const params = new URLSearchParams(window.location.search);
       if (params.get("error")) {
@@ -61,6 +66,16 @@ export default function Home() {
         setMessage(desc.replace(/\+/g, " "));
         setMessageType("error");
         window.history.replaceState({}, "", window.location.pathname);
+        return;
+      }
+
+      const reqMode = params.get("mode") || params.get("tab") || params.get("action");
+      if (reqMode === "signup" || reqMode === "create-account" || reqMode === "register" || params.get("signup") !== null) {
+        setMode("signup");
+        return; // User explicitly requested Create Account - stay on form!
+      }
+
+      if (params.get("logout") === "true" || params.get("switch") === "true") {
         return;
       }
     }
@@ -248,17 +263,44 @@ export default function Home() {
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            resetGuestCount();
-            router.push("/chat");
-          }}
-          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 shadow-2xs"
-        >
-          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-          <span>Guest Trial (5 free chats) →</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {mode === "signin" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setMessage("");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-black text-white px-3.5 py-1.5 text-xs font-semibold hover:bg-neutral-800 transition shadow-xs"
+            >
+              <span>Create Account</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setMessage("");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 bg-white text-neutral-800 px-3.5 py-1.5 text-xs font-semibold hover:bg-neutral-50 transition shadow-xs"
+            >
+              <span>Log In</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              resetGuestCount();
+              router.push("/chat");
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 shadow-2xs"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            <span className="hidden sm:inline">Guest Trial (5 free chats) →</span>
+            <span className="sm:hidden">Trial →</span>
+          </button>
+        </div>
       </header>
 
       {/* CENTERED CHATGPT-STYLE AUTHENTICATION CARD */}
@@ -513,8 +555,8 @@ export default function Home() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !email.trim() || (mode !== "forgot" && password.length < 6)}
-              className="flex h-11 w-full items-center justify-center rounded-xl bg-black text-sm font-semibold text-white shadow-xs transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={loading}
+              className="flex h-11 w-full items-center justify-center rounded-xl bg-black text-sm font-semibold text-white shadow-xs transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -804,4 +846,8 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+export default function Home() {
+  return <AuthPage initialMode='signin' />;
 }
