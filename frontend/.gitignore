@@ -18,6 +18,7 @@ dist/
 # Local Secure Vault & Memory Stores
 .tattva_secure_vault/
 .tattva_memory_data/
+.tattva_secure_accounts.json
 
 # Logs & Debug
 npm-debug.log*

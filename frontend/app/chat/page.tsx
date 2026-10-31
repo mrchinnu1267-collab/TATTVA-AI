@@ -61,6 +61,7 @@ import {
   AlignLeft,
   AlertTriangle,
   Layers,
+  Lock,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -70,7 +71,13 @@ import type {
 } from "../lib/memory-types";
 import { DEFAULT_PERSONALIZATION_SETTINGS } from "../lib/memory-types";
 import { triggerDownload } from "../lib/download-helper";
-import { registerLocalAccount, verifyLocalAccount, saveActiveSession } from "../lib/local-auth";
+import {
+  createAccount,
+  loginUser,
+  logoutUser,
+  saveActiveSession,
+  resetGuestCount,
+} from "../lib/local-auth";
 
 type Role = "user" | "assistant";
 
@@ -531,8 +538,21 @@ export default function ChatPage() {
   const isDark = theme === "dark";
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userEmail, setUserEmail] = useState("");
-  const [guestChatCount, setGuestChatCount] = useState(0);
+  const [userEmail, setUserEmail] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("tattva_user_session_email") || "";
+    }
+    return "";
+  });
+  const [guestChatCount, setGuestChatCount] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const email = localStorage.getItem("tattva_user_session_email");
+      if (email) return 0;
+      return parseInt(localStorage.getItem("tattva_guest_count") || "0", 10);
+    }
+    return 0;
+  });
+  const [authReady, setAuthReady] = useState(false);
 
   // Auth modal states
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -988,9 +1008,18 @@ export default function ChatPage() {
       setTheme(savedTheme);
     }
 
-    // Load guest chat count
-    const count = parseInt(localStorage.getItem("tattva_guest_count") || "0", 10);
-    setGuestChatCount(count);
+    // Check active local user session
+    const cachedEmail = localStorage.getItem("tattva_user_session_email");
+    if (cachedEmail) {
+      setUserEmail(cachedEmail);
+      resetGuestCount();
+      setGuestChatCount(0);
+      loadUserSessions(cachedEmail);
+    } else {
+      const count = parseInt(localStorage.getItem("tattva_guest_count") || "0", 10);
+      setGuestChatCount(count);
+      loadUserSessions(null);
+    }
 
     // Supabase auth check
     try {
@@ -1005,17 +1034,19 @@ export default function ChatPage() {
       supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
         if (data.session?.user) {
           setCurrentUser(data.session.user);
-          setUserEmail(data.session.user.email || "");
-          loadUserSessions(data.session.user.email);
-        } else {
-          const cachedEmail = localStorage.getItem("tattva_user_session_email");
-          if (cachedEmail) {
-            setUserEmail(cachedEmail);
-            loadUserSessions(cachedEmail);
-          } else {
-            loadUserSessions(null);
-          }
+          const email = data.session.user.email || "";
+          setUserEmail(email);
+          localStorage.setItem("tattva_user_session_email", email);
+          resetGuestCount();
+          setGuestChatCount(0);
+          loadUserSessions(email);
+        } else if (cachedEmail) {
+          resetGuestCount();
+          setGuestChatCount(0);
         }
+        setAuthReady(true);
+      }).catch(() => {
+        setAuthReady(true);
       });
 
       const { data: authListener } = supabase.auth.onAuthStateChange((event: string, session: any) => {
@@ -1025,12 +1056,17 @@ export default function ChatPage() {
         }
         if (event === "SIGNED_IN" && session?.user) {
           setCurrentUser(session.user);
-          setUserEmail(session.user.email || "");
-          localStorage.setItem("tattva_user_session_email", session.user.email || "");
+          const email = session.user.email || "";
+          setUserEmail(email);
+          localStorage.setItem("tattva_user_session_email", email);
+          resetGuestCount();
+          setGuestChatCount(0);
         }
         if (event === "SIGNED_OUT") {
           setCurrentUser(null);
           setUserEmail("");
+          resetGuestCount();
+          setGuestChatCount(0);
           localStorage.removeItem("tattva_user_session_email");
           localStorage.removeItem("supabase.auth.token");
           loadUserSessions(null);
@@ -1041,6 +1077,7 @@ export default function ChatPage() {
         authListener.subscription.unsubscribe();
       };
     } catch {
+      setAuthReady(true);
       loadUserSessions(null);
     }
   }, [loadUserSessions, router]);
@@ -1049,17 +1086,17 @@ export default function ChatPage() {
   async function handleLogout() {
     try {
       setIsProfileMenuOpen(false);
+      await logoutUser();
       const supabase = createClient();
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn("Supabase signOut error:", error.message);
-      }
+      await supabase.auth.signOut().catch(() => {});
     } catch (err) {
       console.warn("Logout error:", err);
     } finally {
       // 1. Clear application-level authentication state
       setCurrentUser(null);
       setUserEmail("");
+      resetGuestCount();
+      setGuestChatCount(0);
 
       // 2. Clear user-specific cached data
       localStorage.removeItem("tattva_user_session_email");
@@ -1623,9 +1660,12 @@ export default function ChatPage() {
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
     if (!rawPrompt && attachments.length === 0) return;
 
-    // Check guest chat limits
-    const isGuest = !currentUser && !userEmail;
-    if (isGuest && guestChatCount >= GUEST_CHAT_LIMIT) {
+    // Check guest chat limits (authenticated users are NEVER locked out)
+    const isActuallyGuest =
+      !currentUser &&
+      !userEmail &&
+      !(typeof window !== "undefined" && localStorage.getItem("tattva_user_session_email"));
+    if (isActuallyGuest && guestChatCount >= GUEST_CHAT_LIMIT) {
       setAuthMode("signin");
       setShowAuthModal(true);
       return;
@@ -1677,10 +1717,12 @@ export default function ChatPage() {
     abortControllerRef.current = controller;
 
     // Update guest usage
-    if (isGuest) {
+    if (isActuallyGuest) {
       const nextCount = guestChatCount + 1;
       setGuestChatCount(nextCount);
       localStorage.setItem("tattva_guest_count", nextCount.toString());
+    } else {
+      setGuestChatCount(0);
     }
 
     const wantsImage = activeTool === "image" || isImageGenerationPrompt(rawPrompt, attachedImages.length > 0);
@@ -1980,8 +2022,14 @@ export default function ChatPage() {
     }
   }
 
-  const isGuest = !currentUser && !userEmail;
-  const remainingGuestChats = Math.max(0, GUEST_CHAT_LIMIT - guestChatCount);
+  // User authentication status & limitless access verification
+  const isUserAuthenticated = Boolean(
+    currentUser ||
+    userEmail ||
+    (typeof window !== "undefined" && localStorage.getItem("tattva_user_session_email"))
+  );
+  const isGuest = authReady ? !isUserAuthenticated : false;
+  const remainingGuestChats = isGuest ? Math.max(0, GUEST_CHAT_LIMIT - guestChatCount) : GUEST_CHAT_LIMIT;
   const activeWordCount = calculateChatWordCount(messages);
 
   return (
@@ -3165,19 +3213,22 @@ export default function ChatPage() {
             <div className="mx-auto max-w-3xl w-full pointer-events-auto">
               {/* Guest Limit Warning Banner */}
               {isGuest && remainingGuestChats === 0 && (
-                <div className="mb-2.5 flex items-center justify-between rounded-2xl border border-black/15 bg-neutral-50 dark:bg-neutral-900 p-3 text-xs shadow-xs">
-                  <span className="text-neutral-700 dark:text-neutral-300">
-                    🔒 You have reached your <strong>5 free guest chats</strong>. Sign in for limitless chats!
-                  </span>
+                <div className="mb-2.5 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs shadow-xs backdrop-blur-md">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="text-neutral-800 dark:text-neutral-200">
+                      You have used your <strong>5 free guest chats</strong>. Sign in or create a free account to unlock limitless conversations!
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
-                      setAuthMode("signin");
+                      setAuthMode("signup");
                       setShowAuthModal(true);
                     }}
-                    className="rounded-lg bg-black text-white px-3 py-1 font-semibold hover:bg-neutral-800 transition"
+                    className="shrink-0 rounded-xl bg-black dark:bg-white text-white dark:text-black px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition shadow-xs"
                   >
-                    Sign In / Register
+                    Unlock Free
                   </button>
                 </div>
               )}
@@ -4899,14 +4950,17 @@ export default function ChatPage() {
                 const normEmail = authEmailInput.trim();
 
                 try {
-                  const supabase = createClient();
-
                   if (authMode === "forgot") {
-                    const { error } = await supabase.auth.resetPasswordForEmail(normEmail, {
-                      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-                    });
-                    if (error) throw error;
-                    setAuthMessage("Reset link sent! Please check your inbox ✉️.");
+                    try {
+                      const supabase = createClient();
+                      const { error } = await supabase.auth.resetPasswordForEmail(normEmail, {
+                        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+                      });
+                      if (error) throw error;
+                      setAuthMessage("Reset link sent! Please check your inbox ✉️.");
+                    } catch (err: unknown) {
+                      setAuthMessage(err instanceof Error ? err.message : "Failed to send reset link.");
+                    }
                     return;
                   }
 
@@ -4921,20 +4975,18 @@ export default function ChatPage() {
                       setAuthLoading(false);
                       return;
                     }
-                    await registerLocalAccount(normEmail, authPasswordInput);
-                    try {
-                      await supabase.auth.signUp({
-                        email: normEmail,
-                        password: authPasswordInput,
-                        options: {
-                          emailRedirectTo: `${window.location.origin}/auth/callback?next=/chat`,
-                        },
-                      });
-                    } catch (e) {
-                      console.warn("Supabase background signup notice:", e);
+
+                    const res = await createAccount(normEmail, authPasswordInput);
+                    if (!res.success) {
+                      setAuthMessage(res.error || "Failed to create account. Please try again.");
+                      setAuthLoading(false);
+                      return;
                     }
+
                     saveActiveSession(normEmail);
                     setUserEmail(normEmail);
+                    resetGuestCount();
+                    setGuestChatCount(0);
                     loadUserSessions(normEmail);
                     setShowAuthModal(false);
                     showToast("Account created! Limitless chats unlocked ✦");
@@ -4942,40 +4994,19 @@ export default function ChatPage() {
                   }
 
                   // Sign In
-                  let signedIn = false;
-                  try {
-                    const { data, error } = await supabase.auth.signInWithPassword({
-                      email: normEmail,
-                      password: authPasswordInput,
-                    });
-                    if (!error && data?.user?.email) {
-                      saveActiveSession(data.user.email);
-                      signedIn = true;
-                    } else if (error && (error.message.toLowerCase().includes("confirm") || error.message.toLowerCase().includes("invalid"))) {
-                      const valid = await verifyLocalAccount(normEmail, authPasswordInput);
-                      if (valid) {
-                        saveActiveSession(normEmail);
-                        signedIn = true;
-                      }
-                    }
-                  } catch {
-                    const valid = await verifyLocalAccount(normEmail, authPasswordInput);
-                    if (valid) {
-                      saveActiveSession(normEmail);
-                      signedIn = true;
-                    }
-                  }
-
-                  if (signedIn) {
+                  const res = await loginUser(normEmail, authPasswordInput);
+                  if (res.success) {
                     saveActiveSession(normEmail);
                     setUserEmail(normEmail);
+                    resetGuestCount();
+                    setGuestChatCount(0);
                     loadUserSessions(normEmail);
                     setShowAuthModal(false);
                     showToast("Welcome back! Limitless chats unlocked ✦");
                     return;
                   }
 
-                  setAuthMessage("Invalid credentials. Please verify your email and password.");
+                  setAuthMessage(res.error || "Invalid credentials. Please verify your email and password.");
                 } catch (err: unknown) {
                   setAuthMessage(err instanceof Error ? err.message : "Authentication failed.");
                 } finally {

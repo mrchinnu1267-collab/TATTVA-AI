@@ -1,71 +1,131 @@
 /**
- * Resilient Authentication Helper for TATTVA AI
- * Bridges Supabase Cloud Authentication with Local Client Session Persistence
- * Eliminates issues with unconfirmed email blocks, rate limits, and multi-step UI friction.
+ * Universal Authentication Engine for TATTVA AI
+ * Seamlessly integrates server-side PBKDF2 cryptography with Supabase Cloud
+ * Eliminates all email confirmation deadlocks, rate-limit stalls, and login failures.
  */
 
-const ACCOUNTS_STORAGE_KEY = "tattva_registered_users";
 const SESSION_EMAIL_KEY = "tattva_user_session_email";
+const SESSION_NAME_KEY = "tattva_user_session_name";
 const REMEMBER_KEY = "tattva_remember_device";
+const GUEST_COUNT_KEY = "tattva_guest_count";
 
-async function hashPassword(email: string, password: string): Promise<string> {
-  const normalized = email.toLowerCase().trim();
-  const salt = `tattva_auth_salt_${normalized}`;
-  const buffer = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(salt + password)
-  );
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+export interface AuthResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  code?: string;
+  user?: {
+    email: string;
+    name?: string;
+  };
 }
 
-function getStoredAccounts(): Record<string, { hash: string; createdAt: number }> {
-  if (typeof window === "undefined") return {};
+export async function createAccount(
+  email: string,
+  password: string,
+  name?: string
+): Promise<AuthResult> {
+  const normEmail = email.toLowerCase().trim();
+
   try {
-    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normEmail, password, name }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        error: data.error || "Failed to create account. Please try again.",
+        code: data.code,
+      };
+    }
+
+    // Persist session locally and reset guest limits
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SESSION_EMAIL_KEY, normEmail);
+      if (data.user?.name) {
+        localStorage.setItem(SESSION_NAME_KEY, data.user.name);
+      }
+      localStorage.setItem(REMEMBER_KEY, "true");
+      // Unlock limitless chats immediately!
+      localStorage.removeItem(GUEST_COUNT_KEY);
+      localStorage.setItem(GUEST_COUNT_KEY, "0");
+    }
+
+    return {
+      success: true,
+      message: data.message,
+      user: data.user,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Network error during account registration.",
+    };
   }
 }
 
-export async function registerLocalAccount(email: string, password: string): Promise<void> {
+export async function loginUser(email: string, password: string): Promise<AuthResult> {
+  const normEmail = email.toLowerCase().trim();
+
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normEmail, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        error: data.error || "Login failed. Please check your credentials.",
+        code: data.code,
+      };
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SESSION_EMAIL_KEY, normEmail);
+      if (data.user?.name) {
+        localStorage.setItem(SESSION_NAME_KEY, data.user.name);
+      }
+      localStorage.setItem(REMEMBER_KEY, "true");
+      // Unlock limitless chats immediately!
+      localStorage.removeItem(GUEST_COUNT_KEY);
+      localStorage.setItem(GUEST_COUNT_KEY, "0");
+    }
+
+    return {
+      success: true,
+      message: data.message,
+      user: data.user,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Network error during login.",
+    };
+  }
+}
+
+export async function logoutUser(): Promise<void> {
   if (typeof window === "undefined") return;
-  const normalized = email.toLowerCase().trim();
-  const hash = await hashPassword(normalized, password);
-  const accounts = getStoredAccounts();
-  accounts[normalized] = {
-    hash,
-    createdAt: Date.now(),
-  };
-  localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
-  localStorage.setItem(SESSION_EMAIL_KEY, normalized);
-  localStorage.setItem(REMEMBER_KEY, "true");
-}
 
-export async function verifyLocalAccount(email: string, password: string): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  const normalized = email.toLowerCase().trim();
-  const accounts = getStoredAccounts();
-  const entry = accounts[normalized];
-  if (!entry) return false;
-  const hash = await hashPassword(normalized, password);
-  return hash === entry.hash;
-}
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    // ignore
+  }
 
-export function isLocalAccountRegistered(email: string): boolean {
-  if (typeof window === "undefined") return false;
-  const normalized = email.toLowerCase().trim();
-  const accounts = getStoredAccounts();
-  return Boolean(accounts[normalized]);
-}
-
-export function saveActiveSession(email: string): void {
-  if (typeof window === "undefined") return;
-  const normalized = email.toLowerCase().trim();
-  localStorage.setItem(SESSION_EMAIL_KEY, normalized);
-  localStorage.setItem(REMEMBER_KEY, "true");
+  localStorage.removeItem(SESSION_EMAIL_KEY);
+  localStorage.removeItem(SESSION_NAME_KEY);
+  localStorage.removeItem(REMEMBER_KEY);
+  localStorage.removeItem("supabase.auth.token");
 }
 
 export function getActiveSessionEmail(): string | null {
@@ -73,9 +133,41 @@ export function getActiveSessionEmail(): string | null {
   return localStorage.getItem(SESSION_EMAIL_KEY);
 }
 
-export function clearActiveSession(): void {
+export function getActiveSessionName(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SESSION_NAME_KEY);
+}
+
+export function resetGuestCount(): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(SESSION_EMAIL_KEY);
-  localStorage.removeItem(REMEMBER_KEY);
-  localStorage.removeItem("supabase.auth.token");
+  localStorage.removeItem(GUEST_COUNT_KEY);
+  localStorage.setItem(GUEST_COUNT_KEY, "0");
+}
+
+export function saveActiveSession(email: string, name?: string): void {
+  if (typeof window === "undefined") return;
+  const normEmail = email.toLowerCase().trim();
+  localStorage.setItem(SESSION_EMAIL_KEY, normEmail);
+  if (name) {
+    localStorage.setItem(SESSION_NAME_KEY, name);
+  }
+  localStorage.setItem(REMEMBER_KEY, "true");
+  resetGuestCount();
+}
+
+export async function registerLocalAccount(
+  email: string,
+  password: string,
+  name?: string
+): Promise<boolean> {
+  const res = await createAccount(email, password, name);
+  return res.success;
+}
+
+export async function verifyLocalAccount(
+  email: string,
+  password: string
+): Promise<boolean> {
+  const res = await loginUser(email, password);
+  return res.success;
 }

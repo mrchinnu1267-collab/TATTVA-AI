@@ -17,14 +17,15 @@ import {
   CheckCircle2,
   AlertCircle,
   User as UserIcon,
+  Check,
 } from "lucide-react";
 import { createClient } from "./lib/supabase";
 import {
-  registerLocalAccount,
-  verifyLocalAccount,
-  isLocalAccountRegistered,
-  saveActiveSession,
+  createAccount,
+  loginUser,
   getActiveSessionEmail,
+  saveActiveSession,
+  resetGuestCount,
 } from "./lib/local-auth";
 
 type AuthMode = "signin" | "signup" | "forgot";
@@ -47,11 +48,12 @@ export default function Home() {
 
   const hasCheckedAuth = useRef(false);
 
-  // Auto session check and redirect
+  // Auto session check and redirect if already logged in
   useEffect(() => {
     if (hasCheckedAuth.current) return;
     hasCheckedAuth.current = true;
 
+    // Check for query error params
     if (typeof window !== "undefined" && window.location.search) {
       const params = new URLSearchParams(window.location.search);
       if (params.get("error")) {
@@ -63,27 +65,24 @@ export default function Home() {
       }
     }
 
-    // Check active session (Supabase or verified local session)
+    // Check active session
     try {
+      const localEmail = getActiveSessionEmail();
+      const remember = localStorage.getItem("tattva_remember_device");
+      if (localEmail && remember === "true") {
+        router.replace("/chat");
+        return;
+      }
+
       const supabase = createClient();
       supabase.auth.getSession().then((res: { data: { session: { user?: { email?: string } } | null } }) => {
         if (res.data?.session?.user?.email) {
           saveActiveSession(res.data.session.user.email);
           router.replace("/chat");
-          return;
-        }
-
-        const localEmail = getActiveSessionEmail();
-        const remember = localStorage.getItem("tattva_remember_device");
-        if (localEmail && remember === "true") {
-          router.replace("/chat");
         }
       });
     } catch {
-      const localEmail = getActiveSessionEmail();
-      if (localEmail) {
-        router.replace("/chat");
-      }
+      // offline / client-only fallback
     }
   }, [router]);
 
@@ -110,7 +109,7 @@ export default function Home() {
     e.preventDefault();
     setMessage("");
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !trimmedEmail.includes("@") || !trimmedEmail.includes(".")) {
       setMessage("Please enter a valid email address.");
       setMessageType("error");
@@ -131,121 +130,76 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-
       // ==========================================
-      // CREATE ACCOUNT (SIGN UP)
+      // CREATE FREE ACCOUNT (SIGN UP)
       // ==========================================
       if (mode === "signup") {
         if (password !== confirmPassword) {
-          setMessage("Passwords do not match. Please verify your password.");
+          setMessage("Passwords do not match. Please verify your confirm password.");
           setMessageType("error");
           setLoading(false);
           return;
         }
 
-        // 1. Register local verified credentials
-        await registerLocalAccount(trimmedEmail, password);
+        const res = await createAccount(trimmedEmail, password, fullName.trim());
 
-        // 2. Call Supabase auth signUp with redirect URL
-        try {
-          const { data, error } = await supabase.auth.signUp({
-            email: trimmedEmail,
-            password,
-            options: {
-              data: {
-                full_name: fullName.trim() || trimmedEmail.split("@")[0],
-              },
-              emailRedirectTo: `${window.location.origin}/auth/callback?next=/chat`,
-            },
-          });
-
-          if (error) {
-            const errLower = error.message.toLowerCase();
-            if (errLower.includes("already registered") || errLower.includes("exists")) {
-              setMessage("An account with this email already exists. Please log in with your password.");
-              setMessageType("error");
-              setMode("signin");
-              setLoading(false);
-              return;
-            }
-            console.warn("Supabase background signup notice:", error.message);
-          } else if (data?.session?.user?.email) {
-            saveActiveSession(data.session.user.email);
+        if (!res.success) {
+          if (res.code === "ACCOUNT_EXISTS" || res.error?.toLowerCase().includes("already registered")) {
+            setMessage("An account with this email already exists. Please log in with your password.");
+            setMessageType("error");
+            setMode("signin");
+          } else {
+            setMessage(res.error || "Failed to create account. Please check your credentials.");
+            setMessageType("error");
           }
-        } catch (supaErr) {
-          console.warn("Supabase signup network fallback:", supaErr);
+          setLoading(false);
+          return;
         }
 
-        // Save active session & unlock app
-        saveActiveSession(trimmedEmail);
-        router.replace("/chat");
+        // Account created successfully! Reset guest count and transition to chat
+        resetGuestCount();
+        setMessage("Account created successfully! Welcome to TATTVA AI ✦");
+        setMessageType("success");
+
+        setTimeout(() => {
+          router.replace("/chat");
+        }, 300);
         return;
       }
 
       // ==========================================
       // LOG IN (SIGN IN)
       // ==========================================
-      let isAuthSuccess = false;
+      const res = await loginUser(trimmedEmail, password);
 
-      // 1. Try Supabase Cloud Sign-In
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: trimmedEmail,
-          password,
-        });
-
-        if (!error && data?.user?.email) {
-          saveActiveSession(data.user.email);
-          isAuthSuccess = true;
-        } else if (error) {
-          console.warn("Supabase signin notice:", error.message);
-          // If Supabase reports email not confirmed, check verified local account
-          if (
-            error.message.toLowerCase().includes("email not confirmed") ||
-            error.message.toLowerCase().includes("confirm")
-          ) {
-            const localValid = await verifyLocalAccount(trimmedEmail, password);
-            if (localValid) {
-              saveActiveSession(trimmedEmail);
-              isAuthSuccess = true;
-            }
-          }
+      if (!res.success) {
+        if (res.code === "ACCOUNT_NOT_FOUND" || res.error?.toLowerCase().includes("not found")) {
+          setMessage("No account found with this email. Click 'Create Account' above to sign up.");
+        } else if (res.code === "INVALID_PASSWORD" || res.error?.toLowerCase().includes("incorrect password")) {
+          setMessage("Incorrect password. Please verify your password or use 'Forgot password?'.");
+        } else {
+          setMessage(res.error || "Invalid login credentials. Please try again.");
         }
-      } catch {
-        // Network offline fallback
-      }
-
-      // 2. If Supabase didn't succeed directly, check local verified account
-      if (!isAuthSuccess) {
-        const localValid = await verifyLocalAccount(trimmedEmail, password);
-        if (localValid) {
-          saveActiveSession(trimmedEmail);
-          isAuthSuccess = true;
-        }
-      }
-
-      if (isAuthSuccess) {
-        router.replace("/chat");
+        setMessageType("error");
+        setLoading(false);
         return;
       }
 
-      // If neither matched:
-      const isRegistered = isLocalAccountRegistered(trimmedEmail);
-      if (isRegistered) {
-        setMessage("Incorrect password. Please verify your password or use 'Forgot password?'.");
-      } else {
-        setMessage("No account found with this email. Click 'Create Account' above to sign up.");
-      }
-      setMessageType("error");
+      // Login success!
+      resetGuestCount();
+      setMessage("Logged in successfully! Redirecting to TATTVA...");
+      setMessageType("success");
+
+      setTimeout(() => {
+        router.replace("/chat");
+      }, 300);
     } catch (err: unknown) {
       setMessage(
         err instanceof Error
           ? err.message
-          : "Authentication failed. Please verify your credentials."
+          : "Authentication encountered an error. Please verify your network."
       );
       setMessageType("error");
-    } finally {
       setLoading(false);
     }
   }
@@ -270,15 +224,17 @@ export default function Home() {
       setMessage(
         err instanceof Error
           ? `${providerTitle} authentication: ${err.message}`
-          : `${providerTitle} sign-in failed. Please verify OAuth provider settings in Supabase.`
+          : `${providerTitle} sign-in failed. Please verify OAuth settings.`
       );
       setMessageType("error");
       setOauthLoading(null);
     }
   }
 
+  const passwordsMatch = password.length >= 6 && confirmPassword.length >= 6 && password === confirmPassword;
+
   return (
-    <main className="min-h-screen bg-white text-neutral-900 font-sans selection:bg-black selection:text-white flex flex-col justify-between antialiased">
+    <main className="min-h-screen bg-gradient-to-b from-white via-neutral-50/50 to-white text-neutral-900 font-sans selection:bg-black selection:text-white flex flex-col justify-between antialiased">
       {/* TOP HEADER */}
       <header className="w-full px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -292,21 +248,25 @@ export default function Home() {
           </span>
         </div>
 
-        <a
-          href="/chat"
+        <button
+          type="button"
+          onClick={() => {
+            resetGuestCount();
+            router.push("/chat");
+          }}
           className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 shadow-2xs"
         >
-          <Sparkles className="h-3.5 w-3.5 text-neutral-800" />
-          <span>Guest Mode (5 free chats)</span>
-        </a>
+          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+          <span>Guest Trial (5 free chats) →</span>
+        </button>
       </header>
 
-      {/* CENTERED CHATGPT-INSPIRED AUTH CONTAINER */}
+      {/* CENTERED CHATGPT-STYLE AUTHENTICATION CARD */}
       <div className="flex-1 flex items-center justify-center px-4 py-8 sm:px-6">
-        <div className="w-full max-w-[390px] mx-auto">
-          {/* Centered Brand Emblem */}
-          <div className="text-center mb-5">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-sm transition-transform hover:scale-105 duration-200">
+        <div className="w-full max-w-[400px] mx-auto bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)]">
+          {/* Centered Brand Icon */}
+          <div className="text-center mb-6">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-md transition-transform hover:scale-105 duration-200">
               <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
@@ -320,14 +280,14 @@ export default function Home() {
             </h1>
             <p className="mt-1 text-xs text-neutral-500 leading-normal">
               {mode === "forgot"
-                ? "Enter your email to receive a secure password reset link"
+                ? "Enter your email to receive a password reset link"
                 : mode === "signup"
-                ? "Sign up for limitless AI conversations, voice assistant & media studio"
-                : "Log in to access your encrypted conversations & personalization"}
+                ? "Sign up for limitless AI conversations, voice assistant & image studio"
+                : "Log in to access your models, personalized memory & file vault"}
             </p>
           </div>
 
-          {/* MODE SEGMENTED CONTROL TABS */}
+          {/* TOP SEGMENTED CONTROL TABS (SIGN IN vs CREATE ACCOUNT) */}
           {mode !== "forgot" && (
             <div className="flex p-1 mb-5 bg-neutral-100 rounded-xl border border-neutral-200/60">
               <button
@@ -367,9 +327,9 @@ export default function Home() {
               role="alert"
               className={`mb-4 flex items-start gap-2.5 rounded-xl border p-3.5 text-xs leading-relaxed transition ${
                 messageType === "error"
-                  ? "border-red-200 bg-red-50/70 text-red-900"
+                  ? "border-red-200 bg-red-50/80 text-red-900"
                   : messageType === "success"
-                  ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
+                  ? "border-emerald-200 bg-emerald-50/80 text-emerald-900"
                   : "border-neutral-200 bg-neutral-50 text-neutral-700"
               }`}
             >
@@ -412,13 +372,16 @@ export default function Home() {
 
           {/* MAIN AUTHENTICATION FORM */}
           <form onSubmit={handleAuthSubmit} className="space-y-3.5">
-            {/* Optional Full Name for Sign Up */}
+            {/* Full Name for Sign Up */}
             {mode === "signup" && (
               <div>
                 <label htmlFor="auth-name-input" className="block text-xs font-medium text-neutral-700 mb-1">
                   Full Name <span className="text-neutral-400 font-normal">(optional)</span>
                 </label>
                 <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
                   <input
                     id="auth-name-input"
                     type="text"
@@ -427,7 +390,7 @@ export default function Home() {
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Gowtham Chowdary"
                     disabled={loading}
-                    className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
+                    className="w-full rounded-xl border border-neutral-300 bg-white pl-10 pr-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -439,6 +402,9 @@ export default function Home() {
                 Email address
               </label>
               <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                  <Mail className="h-4 w-4" />
+                </div>
                 <input
                   id="auth-email-input"
                   type="email"
@@ -448,12 +414,12 @@ export default function Home() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
                   disabled={loading}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
+                  className="w-full rounded-xl border border-neutral-300 bg-white pl-10 pr-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
                 />
               </div>
             </div>
 
-            {/* Password Input (Sign In & Sign Up) */}
+            {/* Password Input */}
             {mode !== "forgot" && (
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -474,6 +440,9 @@ export default function Home() {
                   )}
                 </div>
                 <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                    <Lock className="h-4 w-4" />
+                  </div>
                   <input
                     id="auth-password-input"
                     type={showPassword ? "text" : "password"}
@@ -482,9 +451,9 @@ export default function Home() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder={mode === "signup" ? "Create a password (min 6 chars)" : "Enter your password"}
+                    placeholder={mode === "signup" ? "Create a password (min 6 chars)" : "Enter password"}
                     disabled={loading}
-                    className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 pr-11 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
+                    className="w-full rounded-xl border border-neutral-300 bg-white pl-10 pr-11 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
                   />
                   <button
                     type="button"
@@ -501,21 +470,43 @@ export default function Home() {
             {/* Confirm Password (Sign Up only) */}
             {mode === "signup" && (
               <div>
-                <label htmlFor="auth-confirm-password" className="block text-xs font-medium text-neutral-700 mb-1">
-                  Confirm Password
-                </label>
-                <input
-                  id="auth-confirm-password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={6}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat your password"
-                  disabled={loading}
-                  className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="auth-confirm-password" className="text-xs font-medium text-neutral-700">
+                    Confirm Password
+                  </label>
+                  {confirmPassword && (
+                    <span className="text-[11px] flex items-center gap-1 font-medium">
+                      {passwordsMatch ? (
+                        <span className="text-emerald-600 flex items-center gap-0.5">
+                          <Check className="w-3 h-3" /> Matching
+                        </span>
+                      ) : (
+                        <span className="text-red-500">Passwords don&apos;t match</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="auth-confirm-password"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat your password"
+                    disabled={loading}
+                    className={`w-full rounded-xl border bg-white pl-10 pr-4 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:ring-1 disabled:opacity-50 ${
+                      confirmPassword && !passwordsMatch
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                        : "border-neutral-300 focus:border-neutral-900 focus:ring-neutral-900"
+                    }`}
+                  />
+                </div>
               </div>
             )}
 
@@ -523,7 +514,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading || !email.trim() || (mode !== "forgot" && password.length < 6)}
-              className="flex h-12 w-full items-center justify-center rounded-xl bg-black text-sm font-medium text-white shadow-xs transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 w-full items-center justify-center rounded-xl bg-black text-sm font-semibold text-white shadow-xs transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -537,13 +528,20 @@ export default function Home() {
                   </span>
                 </span>
               ) : mode === "signup" ? (
-                "Create Account"
+                "Create Free Account"
               ) : mode === "forgot" ? (
-                "Send Reset Link"
+                "Send Password Reset Link"
               ) : (
-                "Log In to TATTVA"
+                "Log In to TATTVA AI"
               )}
             </button>
+
+            {/* Sub-text info */}
+            {mode === "signup" && (
+              <p className="text-[11px] text-center text-neutral-400">
+                Limitless chats • Real-time voice • Media studio
+              </p>
+            )}
 
             {/* Mode Switcher Links */}
             <div className="text-center pt-1 text-xs text-neutral-600">
@@ -558,7 +556,7 @@ export default function Home() {
                     }}
                     className="font-semibold text-neutral-900 hover:underline"
                   >
-                    Sign up
+                    Create free account
                   </button>
                 </span>
               ) : mode === "signup" ? (
@@ -601,13 +599,13 @@ export default function Home() {
           </div>
 
           {/* SOCIAL AUTHENTICATION BUTTONS */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {/* Continue with Google */}
             <button
               type="button"
               onClick={() => handleOAuthSignIn("google")}
               disabled={loading || oauthLoading !== null}
-              className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:border-neutral-400 disabled:opacity-50 shadow-2xs"
+              className="flex h-10 w-full items-center justify-center gap-2.5 rounded-xl border border-neutral-300 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:border-neutral-400 disabled:opacity-50 shadow-2xs"
             >
               {oauthLoading === "google" ? (
                 <span className="h-4 w-4 rounded-full border-2 border-neutral-300 border-t-neutral-800 animate-spin" />
@@ -639,7 +637,7 @@ export default function Home() {
               type="button"
               onClick={() => handleOAuthSignIn("apple")}
               disabled={loading || oauthLoading !== null}
-              className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:border-neutral-400 disabled:opacity-50 shadow-2xs"
+              className="flex h-10 w-full items-center justify-center gap-2.5 rounded-xl border border-neutral-300 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:border-neutral-400 disabled:opacity-50 shadow-2xs"
             >
               {oauthLoading === "apple" ? (
                 <span className="h-4 w-4 rounded-full border-2 border-neutral-300 border-t-neutral-800 animate-spin" />
@@ -656,7 +654,7 @@ export default function Home() {
               type="button"
               onClick={() => handleOAuthSignIn("azure")}
               disabled={loading || oauthLoading !== null}
-              className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:border-neutral-400 disabled:opacity-50 shadow-2xs"
+              className="flex h-10 w-full items-center justify-center gap-2.5 rounded-xl border border-neutral-300 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:border-neutral-400 disabled:opacity-50 shadow-2xs"
             >
               {oauthLoading === "microsoft" ? (
                 <span className="h-4 w-4 rounded-full border-2 border-neutral-300 border-t-neutral-800 animate-spin" />
@@ -702,7 +700,7 @@ export default function Home() {
           </button>
         </div>
         <div className="mt-2 text-center text-[11px] text-neutral-400">
-          TATTVA AI • Crafted with minimalist precision by kotapati Gowtham Chowdary
+          TATTVA AI • Created by kotapati Gowtham Chowdary
         </div>
       </footer>
 
