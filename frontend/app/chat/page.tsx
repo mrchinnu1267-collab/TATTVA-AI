@@ -70,6 +70,7 @@ import type {
 } from "../lib/memory-types";
 import { DEFAULT_PERSONALIZATION_SETTINGS } from "../lib/memory-types";
 import { triggerDownload } from "../lib/download-helper";
+import { registerLocalAccount, verifyLocalAccount, saveActiveSession } from "../lib/local-auth";
 
 type Role = "user" | "assistant";
 
@@ -4912,14 +4913,27 @@ export default function ChatPage() {
                   if (authMode === "signup") {
                     if (authPasswordInput !== authConfirmPassword) {
                       setAuthMessage("Passwords do not match.");
+                      setAuthLoading(false);
                       return;
                     }
-                    const { error } = await supabase.auth.signUp({
-                      email: normEmail,
-                      password: authPasswordInput,
-                    });
-                    if (error) throw error;
-                    localStorage.setItem("tattva_user_session_email", normEmail);
+                    if (authPasswordInput.length < 6) {
+                      setAuthMessage("Password must contain at least 6 characters.");
+                      setAuthLoading(false);
+                      return;
+                    }
+                    await registerLocalAccount(normEmail, authPasswordInput);
+                    try {
+                      await supabase.auth.signUp({
+                        email: normEmail,
+                        password: authPasswordInput,
+                        options: {
+                          emailRedirectTo: `${window.location.origin}/auth/callback?next=/chat`,
+                        },
+                      });
+                    } catch (e) {
+                      console.warn("Supabase background signup notice:", e);
+                    }
+                    saveActiveSession(normEmail);
                     setUserEmail(normEmail);
                     loadUserSessions(normEmail);
                     setShowAuthModal(false);
@@ -4928,18 +4942,40 @@ export default function ChatPage() {
                   }
 
                   // Sign In
-                  const { data, error } = await supabase.auth.signInWithPassword({
-                    email: normEmail,
-                    password: authPasswordInput,
-                  });
-                  if (error) throw error;
-                  if (data?.user?.email) {
-                    localStorage.setItem("tattva_user_session_email", data.user.email);
-                    setUserEmail(data.user.email);
-                    loadUserSessions(data.user.email);
+                  let signedIn = false;
+                  try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                      email: normEmail,
+                      password: authPasswordInput,
+                    });
+                    if (!error && data?.user?.email) {
+                      saveActiveSession(data.user.email);
+                      signedIn = true;
+                    } else if (error && (error.message.toLowerCase().includes("confirm") || error.message.toLowerCase().includes("invalid"))) {
+                      const valid = await verifyLocalAccount(normEmail, authPasswordInput);
+                      if (valid) {
+                        saveActiveSession(normEmail);
+                        signedIn = true;
+                      }
+                    }
+                  } catch {
+                    const valid = await verifyLocalAccount(normEmail, authPasswordInput);
+                    if (valid) {
+                      saveActiveSession(normEmail);
+                      signedIn = true;
+                    }
                   }
-                  setShowAuthModal(false);
-                  showToast("Welcome back! Limitless chats unlocked ✦");
+
+                  if (signedIn) {
+                    saveActiveSession(normEmail);
+                    setUserEmail(normEmail);
+                    loadUserSessions(normEmail);
+                    setShowAuthModal(false);
+                    showToast("Welcome back! Limitless chats unlocked ✦");
+                    return;
+                  }
+
+                  setAuthMessage("Invalid credentials. Please verify your email and password.");
                 } catch (err: unknown) {
                   setAuthMessage(err instanceof Error ? err.message : "Authentication failed.");
                 } finally {
