@@ -2185,6 +2185,21 @@ export default function ChatPage() {
               <span>Sare Voice {sareEnabled ? "ON" : "OFF"}</span>
             </button>
 
+            {/* 5. Download Android APK */}
+            <a
+              href="/TATTVA_AI.apk"
+              download="TATTVA_AI.apk"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
+                isDark
+                  ? "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+                  : "border-blue-600/30 bg-blue-50 text-blue-800 hover:bg-blue-100"
+              }`}
+              title="Download Android APK for phone & WhatsApp sharing"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-500" />
+              <span className="hidden sm:inline">Get APK</span>
+            </a>
+
             {/* Share Chat Button */}
             <button
               type="button"
