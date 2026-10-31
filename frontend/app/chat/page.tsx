@@ -1,0 +1,5030 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
+import { createClient } from "../lib/supabase";
+import {
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Send,
+  Paperclip,
+  Download,
+  Share2,
+  Sparkles,
+  Moon,
+  Sun,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  AlertCircle,
+  Maximize2,
+  RefreshCw,
+  X,
+  FileCode,
+  Radio,
+  Pin,
+  PinOff,
+  Search,
+  MoreVertical,
+  Edit2,
+  FolderArchive,
+  User as UserIcon,
+  Settings,
+  ShieldCheck,
+  HelpCircle,
+  LogOut,
+  ChevronUp,
+  KeyRound,
+  Menu,
+  ArrowUp,
+  Square,
+  Globe,
+  FileText,
+  FileSpreadsheet,
+  Code2,
+  Compass,
+  UploadCloud,
+  Image as ImageIcon,
+  ThumbsUp,
+  ThumbsDown,
+  Brain,
+  Sliders,
+  Languages,
+  AlignLeft,
+  AlertTriangle,
+  Layers,
+} from "lucide-react";
+import type {
+  MemoryItem,
+  MemoryCategory,
+  PersonalizationSettings,
+  FeedbackCategory,
+} from "../lib/memory-types";
+import { DEFAULT_PERSONALIZATION_SETTINGS } from "../lib/memory-types";
+
+type Role = "user" | "assistant";
+
+type ChatAttachment = {
+  name: string;
+  type: string;
+  data: string; // base64 data URI
+  preview?: string;
+  size?: number;
+};
+
+type ImageMetadata = {
+  model?: string;
+  provider?: string;
+  seed?: number;
+  generation_time_seconds?: number;
+  width?: number;
+  height?: number;
+  isEdit?: boolean;
+};
+
+type ChatMessage = {
+  id: string;
+  role: Role;
+  content: string;
+  image?: string;
+  kind?: "text" | "image";
+  imageMetadata?: ImageMetadata;
+  attachments?: ChatAttachment[];
+  timestamp?: number;
+  recalledMemories?: Array<{ id?: string; content: string; category?: string; importance?: number }>;
+  userFeedback?: { rating: "positive" | "negative"; category?: string; comment?: string };
+};
+
+type ChatSession = {
+  id: string;
+  title: string;
+  userEmail?: string;
+  messages: ChatMessage[];
+  updatedAt: number;
+  is_pinned?: boolean;
+  pinned_at?: number;
+};
+
+type EngineStatus = {
+  localOnline: boolean;
+  engine: string;
+  models?: Array<{ id: string; name: string; loaded?: boolean }>;
+  current_model?: string | null;
+  gpu?: {
+    available?: boolean;
+    device?: string;
+    total_vram_gb?: number;
+    allocated_vram_gb?: number;
+  };
+};
+
+const GUEST_CHAT_LIMIT = 5;
+const CHAT_WORD_LIMIT = 100000; // 1 lakh words limit per chat
+
+const STARTER_PROMPTS = [
+  {
+    icon: "✦",
+    title: "Meditating Monk at Alpine Dawn",
+    prompt:
+      "Generate an image of a serene monk in deep meditation beside a cascading mountain river at dawn, golden hour light filtering through morning mist, photorealistic volumetric rays.",
+  },
+  {
+    icon: "◈",
+    title: "Python Async Architecture",
+    prompt:
+      "Write a high-performance Python concurrent worker system using asyncio, worker pools, structured error handling, and type annotations.",
+  },
+  {
+    icon: "✧",
+    title: "Multilingual Reasoning & Poetry",
+    prompt:
+      "एक गहरी और सुंदर कविता लिखो जिसमें समय, ब्रह्मांड और मानव चेतना के संबंध को दर्शाया गया हो।",
+  },
+  {
+    icon: "❖",
+    title: "Futuristic Glasshouse",
+    prompt:
+      "Draw a massive futuristic botanical greenhouse on a snowy mountain, glowing bioluminescent flora under shattered geometric glass panels, cinematic twilight reflections.",
+  },
+];
+
+function getStorageKey(email?: string | null) {
+  if (!email || !email.trim()) return "tattva_guest_chats";
+  return `tattva_encrypted_chats_${email.toLowerCase().trim().replace(/[^a-z0-9]/g, "_")}`;
+}
+
+function formatChatDate(timestamp?: number) {
+  if (!timestamp) return "Today";
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return `Today • ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Yesterday • ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  }
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function calculateChatWordCount(msgs: ChatMessage[]): number {
+  return msgs.reduce((total, m) => {
+    const text = m.content.trim();
+    if (!text) return total;
+    return total + text.split(/\s+/).filter(Boolean).length;
+  }, 0);
+}
+
+/**
+ * Universal File Download Helper: creates and downloads any file type instantly
+ * Supports: .txt, .pdf, .xlsx, .xls, .docx, .doc, .dox, .pptx, .ppt, .pages, .xps, .numbers, .ods, .odp, .key, .rtf, .jpg, .png, etc.
+ */
+async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFilename?: string) {
+  const normalized = rawTag.toLowerCase().trim();
+
+  // If the user requests a document format, route to backend Document Engine for genuine compiled binary (ReportLab, python-docx, python-pptx, openpyxl, pandas)
+  const isBinaryDoc = ["pdf", "docx", "doc", "dox", "pptx", "ppt", "xlsx", "xls", "csv"].some((fmt) => normalized.includes(fmt));
+  if (isBinaryDoc && !content.startsWith("data:") && !content.startsWith("%PDF")) {
+    try {
+      const targetFormat = normalized.includes("pdf")
+        ? "pdf"
+        : normalized.includes("docx") || normalized.includes("doc") || normalized.includes("dox")
+        ? "docx"
+        : normalized.includes("pptx") || normalized.includes("ppt")
+        ? "pptx"
+        : normalized.includes("xlsx") || normalized.includes("xls")
+        ? "xlsx"
+        : "csv";
+
+      const res = await fetch("/api/generate-document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: content.slice(0, 2000),
+          format: targetFormat,
+          title: explicitFilename ? explicitFilename.replace(/\.[^/.]+$/, "") : undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success && data.data_uri) {
+          const a = document.createElement("a");
+          a.href = data.data_uri;
+          a.download = data.filename || explicitFilename || `tattva_${targetFormat}_${Date.now()}.${targetFormat}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Real document compilation fallback triggered:", e);
+    }
+  }
+
+  let ext = "txt";
+  let mimeType = "text/plain";
+  let blobData: BlobPart = content;
+
+  // 1. PDF Documents (.pdf)
+  if (normalized.includes("pdf")) {
+    ext = "pdf";
+    mimeType = "application/pdf";
+    if (content.startsWith("%PDF")) {
+      blobData = content;
+    } else {
+      // Build a standard valid PDF 1.4 document
+      const escaped = content
+        .replace(/\\/g, "\\\\")
+        .replace(/\(/g, "\\(")
+        .replace(/\)/g, "\\)")
+        .replace(/\r/g, "");
+      const lines = escaped.split("\n");
+      let streamText = "BT /F1 12 Tf 50 780 Td 15 TL\n";
+      for (const line of lines.slice(0, 50)) {
+        streamText += `(${line.slice(0, 85)}) '\n`;
+      }
+      streamText += "ET";
+      const pdfString = `%PDF-1.4\n1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj\n3 0 obj <</Type /Page /Parent 2 0 R /Resources <</Font <</F1 4 0 R>>>> /MediaBox [0 0 595 842] /Contents 5 0 R>> endobj\n4 0 obj <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>> endobj\n5 0 obj <</Length ${streamText.length}>> stream\n${streamText}\nendstream endobj\nxref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000117 00000 n \n0000000227 00000 n \n0000000305 00000 n \ntrailer <</Size 6 /Root 1 0 R>>\nstartxref\n${400 + streamText.length}\n%%EOF`;
+      blobData = pdfString;
+    }
+  }
+  // 2. Excel Spreadsheets (.xlsx, .xls)
+  else if (normalized.includes("xlsx") || normalized.includes("xls") || normalized.includes("excel") || normalized.includes("spreadsheet")) {
+    ext = normalized.includes("xls") && !normalized.includes("xlsx") ? "xls" : "xlsx";
+    mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    if (!content.trim().startsWith("<?xml")) {
+      const rows = content.trim().split("\n");
+      let xmlRows = "";
+      for (const row of rows) {
+        const cells = row.split(/,|\t|\|/).map((c) => c.trim().replace(/^\||\|$/g, "")).filter(Boolean);
+        if (cells.length) {
+          xmlRows += "   <Row>\n";
+          for (const cell of cells) {
+            xmlRows += `    <Cell><Data ss:Type="String">${cell.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>\n`;
+          }
+          xmlRows += "   </Row>\n";
+        }
+      }
+      blobData = `<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n xmlns:o="urn:schemas-microsoft-com:office:office"\n xmlns:x="urn:schemas-microsoft-com:office:excel"\n xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n <Worksheet ss:Name="TATTVA_Sheet">\n  <Table>\n${xmlRows}  </Table>\n </Worksheet>\n</Workbook>`;
+    }
+  }
+  // 3. Word Documents (.docx, .doc, .dox)
+  else if (normalized.includes("docx") || normalized.includes("doc") || normalized.includes("dox")) {
+    ext = normalized.includes("dox") ? "docx" : normalized.includes("doc") && !normalized.includes("docx") ? "doc" : "docx";
+    mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const paragraphs = content
+      .split("\n\n")
+      .map((p) => `<p style="margin-bottom:12pt;font-family:Calibri,sans-serif;font-size:11pt;line-height:1.5;">${p.replace(/\n/g, "<br/>")}</p>`)
+      .join("");
+    blobData = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>\n<head><meta charset='utf-8'><title>TATTVA Document</title></head>\n<body style="padding:40pt;font-family:Calibri,sans-serif;">${paragraphs}</body>\n</html>`;
+  }
+  // 4. Rich Text Format (.rtf)
+  else if (normalized.includes("rtf")) {
+    ext = "rtf";
+    mimeType = "application/rtf";
+    const rtfEscaped = content.replace(/\\/g, "\\\\").replace(/\{/g, "\\{").replace(/\}/g, "\\}").replace(/\n/g, "\\par\n");
+    blobData = `{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0\\fnil\\fcharset0 Calibri;}}\\viewkind4\\uc1\\pard\\lang1033\\f0\\fs22 ${rtfEscaped}}`;
+  }
+  // 5. PowerPoint Presentations (.pptx, .ppt, .odp, .key)
+  else if (normalized.includes("pptx") || normalized.includes("ppt") || normalized.includes("odp") || normalized.includes("key")) {
+    ext = normalized.includes("ppt") && !normalized.includes("pptx") ? "ppt" : normalized.includes("odp") ? "odp" : normalized.includes("key") ? "key" : "pptx";
+    mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    const slides = content.split(/---|\n#{1,2}\s+/).filter(Boolean);
+    const htmlSlides = slides
+      .map((s, idx) => `<div style="page-break-after:always;padding:30pt;border:1px solid #ccc;margin-bottom:20pt;height:500pt;background:#fff;font-family:Arial,sans-serif;"><h2>Slide ${idx + 1}</h2><p>${s.replace(/\n/g, "<br/>")}</p></div>`)
+      .join("");
+    blobData = `<html><head><meta charset='utf-8'><title>TATTVA Presentation</title></head><body>${htmlSlides}</body></html>`;
+  }
+  // 6. Apple Pages & Apple Numbers
+  else if (normalized.includes("pages")) {
+    ext = "pages";
+    mimeType = "application/x-iwork-pages-sffpages";
+    blobData = content;
+  } else if (normalized.includes("numbers") || normalized.includes("ods")) {
+    ext = normalized.includes("ods") ? "ods" : "numbers";
+    mimeType = "application/vnd.oasis.opendocument.spreadsheet";
+    blobData = content;
+  }
+  // 7. XML Paper Specification (.xps)
+  else if (normalized.includes("xps")) {
+    ext = "xps";
+    mimeType = "application/vnd.ms-xpsdocument";
+    blobData = content;
+  }
+  // 8. Image files (.jpg, .jpeg, .png)
+  else if (normalized.includes("jpg") || normalized.includes("jpeg")) {
+    ext = "jpg";
+    mimeType = "image/jpeg";
+    blobData = content;
+  } else if (normalized.includes("png")) {
+    ext = "png";
+    mimeType = "image/png";
+    blobData = content;
+  }
+  // 9. Structured Data & Code files
+  else if (normalized.includes("csv")) {
+    ext = "csv";
+    mimeType = "text/csv;charset=utf-8;";
+    blobData = "\uFEFF" + content;
+  } else if (normalized.includes("python") || normalized === "py") {
+    ext = "py";
+    mimeType = "text/x-python";
+  } else if (normalized.includes("javascript") || normalized === "js") {
+    ext = "js";
+    mimeType = "text/javascript";
+  } else if (normalized.includes("typescript") || normalized === "ts") {
+    ext = "ts";
+    mimeType = "text/typescript";
+  } else if (normalized.includes("tsx") || normalized.includes("jsx")) {
+    ext = "tsx";
+    mimeType = "text/typescript";
+  } else if (normalized.includes("html")) {
+    ext = "html";
+    mimeType = "text/html";
+  } else if (normalized.includes("css")) {
+    ext = "css";
+    mimeType = "text/css";
+  } else if (normalized.includes("json")) {
+    ext = "json";
+    mimeType = "application/json";
+  } else if (normalized.includes("sql")) {
+    ext = "sql";
+    mimeType = "application/sql";
+  } else if (normalized.includes("svg")) {
+    ext = "svg";
+    mimeType = "image/svg+xml";
+  } else if (normalized.includes("markdown") || normalized === "md") {
+    ext = "md";
+    mimeType = "text/markdown";
+  } else if (normalized.includes("sh") || normalized.includes("bash")) {
+    ext = "sh";
+    mimeType = "application/x-sh";
+  } else if (normalized.includes("yaml") || normalized.includes("yml")) {
+    ext = "yaml";
+    mimeType = "text/yaml";
+  } else {
+    ext = "txt";
+    mimeType = "text/plain";
+  }
+
+  const finalName = explicitFilename ? explicitFilename : `tattva-${normalized || "file"}-${Date.now()}.${ext}`;
+  const blob = new Blob([blobData], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = finalName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Minimalist Markdown Renderer with Clean Code Blocks (NO EMOJIS IN CODE), Copy & Universal File Download
+ */
+function MarkdownView({ content, isDark }: { content: string; isDark: boolean }) {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  function copyCode(code: string, index: number) {
+    navigator.clipboard.writeText(code);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  }
+
+  // Matches ```ext:filename or ```ext or ```filename.ext
+  const codeBlockRegex = /```([a-zA-Z0-9_.:-]*)\n([\s\S]*?)```/g;
+  const parts: Array<{ type: "code" | "text"; lang?: string; filename?: string; code?: string; text?: string }> = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: "text", text: content.slice(lastIndex, match.index) });
+    }
+    const rawTag = (match[1] || "").trim();
+    let lang = rawTag;
+    let filename = "";
+    if (rawTag.includes(":")) {
+      const [l, f] = rawTag.split(":");
+      lang = l.trim();
+      filename = f.trim();
+    } else if (rawTag.includes(".")) {
+      filename = rawTag;
+      lang = rawTag.split(".").pop() || "txt";
+    }
+
+    const cleanCode = (match[2] || "").trimEnd();
+    parts.push({ type: "code", lang: lang || "file", filename, code: cleanCode });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < content.length) {
+    parts.push({ type: "text", text: content.slice(lastIndex) });
+  }
+
+  return (
+    <div className="space-y-3 leading-relaxed text-[15px]">
+      {parts.map((part, idx) => {
+        if (part.type === "code" && part.code) {
+          const isCopied = copiedIndex === idx;
+          const displayLang = part.filename || part.lang || "file";
+          return (
+            <div
+              key={idx}
+              className={`my-3 overflow-hidden rounded-xl border shadow-sm ${
+                isDark ? "border-neutral-800 bg-neutral-950 text-neutral-100" : "border-neutral-300 bg-neutral-950 text-neutral-100"
+              }`}
+            >
+              <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900/90 px-4 py-2 text-xs text-neutral-400">
+                <span className="font-mono uppercase tracking-wider text-[11px] font-semibold">{displayLang}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => downloadGeneratedFile(part.code!, part.lang, part.filename)}
+                    className="flex items-center gap-1.5 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-white"
+                    title={`Download ${part.filename || `${part.lang} file`}`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download {part.filename || `${(part.lang || "file").toUpperCase()}`}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => copyCode(part.code!, idx)}
+                    className="flex items-center gap-1.5 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-white"
+                  >
+                    {isCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{isCopied ? "Copied" : "Copy code"}</span>
+                  </button>
+                </div>
+              </div>
+              <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-neutral-200">
+                <code>{part.code}</code>
+              </pre>
+            </div>
+          );
+        }
+
+        const lines = (part.text || "").split("\n");
+        return (
+          <div key={idx} className="space-y-2">
+            {lines.map((line, lIdx) => {
+              const trimmed = line.trim();
+              if (trimmed.startsWith("### ")) {
+                return (
+                  <h3 key={lIdx} className="text-base font-bold text-inherit mt-3 mb-1">
+                    {trimmed.replace(/^### /, "")}
+                  </h3>
+                );
+              }
+              if (trimmed.startsWith("## ")) {
+                return (
+                  <h2 key={lIdx} className="text-lg font-bold text-inherit mt-4 mb-2">
+                    {trimmed.replace(/^## /, "")}
+                  </h2>
+                );
+              }
+              if (trimmed.startsWith("# ")) {
+                return (
+                  <h1 key={lIdx} className="text-xl font-extrabold text-inherit mt-4 mb-2">
+                    {trimmed.replace(/^# /, "")}
+                  </h1>
+                );
+              }
+              if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                return (
+                  <div key={lIdx} className="flex items-start gap-2 pl-2">
+                    <span className="text-inherit opacity-60">•</span>
+                    <span>{trimmed.replace(/^[-*]\s+/, "")}</span>
+                  </div>
+                );
+              }
+              if (!trimmed) {
+                return <div key={lIdx} className="h-1.5" />;
+              }
+              return (
+                <p key={lIdx} className="leading-relaxed">
+                  {line}
+                </p>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function ChatPage() {
+  const router = useRouter();
+
+  // Dark & Light Theme State
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const isDark = theme === "dark";
+
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [guestChatCount, setGuestChatCount] = useState(0);
+
+  // Auth modal states
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "signup" | "forgot">("signin");
+  const [authEmailInput, setAuthEmailInput] = useState("");
+  const [authPasswordInput, setAuthPasswordInput] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Voice Assistant: "Sare" states
+  const [sareEnabled, setSareEnabled] = useState(false);
+  const [sareStatus, setSareStatus] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [error, setError] = useState("");
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
+
+  // Long press menu state for images
+  const [imageMenuOpen, setImageMenuOpen] = useState<{ image: string; x: number; y: number } | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Gesture detection for swiping from bottom to top to open new chat
+  const touchStartY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const sheetInputRef = useRef<HTMLInputElement>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const recognitionRef = useRef<unknown>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const voiceBufferRef = useRef<string>("");
+  const initialLoadDone = useRef(false);
+
+  // Advanced AI Chat Composer State
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
+  const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
+  const [activeTool, setActiveTool] = useState<"none" | "web" | "image" | "research" | "file" | "code">("none");
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [interimSpeech, setInterimSpeech] = useState("");
+
+  // User Profile & Logout System (ChatGPT-Style)
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isManageAccountModalOpen, setIsManageAccountModalOpen] = useState(false);
+
+  // Self-Personalizing Memory & Feedback System (ChatGPT-Style)
+  const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
+  const [memoryTab, setMemoryTab] = useState<"memories" | "preferences" | "analytics" | "privacy">("memories");
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [personalizationSettings, setPersonalizationSettings] = useState<PersonalizationSettings>(DEFAULT_PERSONALIZATION_SETTINGS);
+  const [feedbackSummary, setFeedbackSummary] = useState<{ total: number; positive: number; negative: number; positivePercentage: number; categoriesCount: Record<string, number> } | null>(null);
+  const [selectedMemoryCategory, setSelectedMemoryCategory] = useState<string>("all");
+  const [newMemoryContent, setNewMemoryContent] = useState("");
+  const [newMemoryCategory, setNewMemoryCategory] = useState<MemoryCategory>("preference");
+  const [newMemoryImportance, setNewMemoryImportance] = useState(7);
+  const [isAddingMemory, setIsAddingMemory] = useState(false);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editMemoryContent, setEditMemoryContent] = useState("");
+
+  // Per-Message Feedback modal state
+  const [feedbackModalTarget, setFeedbackModalTarget] = useState<{ messageId: string; initialRating?: "positive" | "negative" } | null>(null);
+  const [selectedFeedbackCategory, setSelectedFeedbackCategory] = useState<FeedbackCategory>("helpful");
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  // Global Search state (ChatGPT-style)
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    Array<{
+      session: ChatSession;
+      matchType: "title" | "user" | "assistant";
+      matchedSnippet: string;
+      messageId?: string;
+      timestamp: number;
+    }>
+  >([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+
+  // Contextual dropdown menu & rename state
+  const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+
+  // Keyboard shortcut Ctrl+K / Cmd+K for global search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchModalOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setSearchModalOpen(false);
+        setActiveMenuSessionId(null);
+        setRenamingSessionId(null);
+        setIsAttachmentMenuOpen(false);
+        setIsToolsMenuOpen(false);
+        setIsProfileMenuOpen(false);
+        setIsProfileModalOpen(false);
+        setIsSettingsModalOpen(false);
+        setIsHelpModalOpen(false);
+        setIsManageAccountModalOpen(false);
+        setIsMemoryModalOpen(false);
+        setFeedbackModalTarget(null);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-attachment-menu]")) {
+        setIsAttachmentMenuOpen(false);
+      }
+      if (!target.closest("[data-tools-menu]")) {
+        setIsToolsMenuOpen(false);
+      }
+      if (!target.closest("[data-profile-menu]")) {
+        setIsProfileMenuOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 300ms Debounced Global Search across all conversation titles, user messages, and AI responses
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      const q = searchQuery.toLowerCase().trim();
+      const results: Array<{
+        session: ChatSession;
+        matchType: "title" | "user" | "assistant";
+        matchedSnippet: string;
+        messageId?: string;
+        timestamp: number;
+      }> = [];
+
+      sessions.forEach((s) => {
+        // 1. Search in Title
+        if (s.title && s.title.toLowerCase().includes(q)) {
+          results.push({
+            session: s,
+            matchType: "title",
+            matchedSnippet: s.title,
+            timestamp: s.updatedAt,
+          });
+        }
+
+        // 2. Search in all messages
+        (s.messages || []).forEach((m) => {
+          if (m.content && m.content.toLowerCase().includes(q)) {
+            const idx = m.content.toLowerCase().indexOf(q);
+            const start = Math.max(0, idx - 45);
+            const end = Math.min(m.content.length, idx + q.length + 45);
+            const snippet =
+              (start > 0 ? "..." : "") +
+              m.content.slice(start, end) +
+              (end < m.content.length ? "..." : "");
+
+            results.push({
+              session: s,
+              matchType: m.role === "user" ? "user" : "assistant",
+              matchedSnippet: snippet,
+              messageId: m.id,
+              timestamp: m.timestamp || s.updatedAt,
+            });
+          }
+        });
+      });
+
+      setSearchResults(results);
+      setIsSearching(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, sessions]);
+
+  // Toggle Pin/Unpin chat
+  function togglePinSession(sessionId: string, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setActiveMenuSessionId(null);
+
+    setSessions((prev) => {
+      const target = prev.find((s) => s.id === sessionId);
+      const isNowPinned = !target?.is_pinned;
+      const updated = prev.map((s) =>
+        s.id === sessionId
+          ? { ...s, is_pinned: isNowPinned, pinned_at: isNowPinned ? Date.now() : undefined }
+          : s
+      );
+
+      const key = getStorageKey(userEmail);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
+      return updated;
+    });
+  }
+
+  // Rename chat
+  function startRenameSession(s: ChatSession, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setActiveMenuSessionId(null);
+    setRenamingSessionId(s.id);
+    setRenameInput(s.title || "New Conversation");
+  }
+
+  function submitRenameSession(sessionId: string, e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const newTitle = renameInput.trim();
+    if (!newTitle) {
+      setRenamingSessionId(null);
+      return;
+    }
+
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
+      );
+      const key = getStorageKey(userEmail);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      showToast("Conversation renamed ✏️");
+      return updated;
+    });
+    setRenamingSessionId(null);
+  }
+
+  // Select Search Result and navigate to message
+  function selectSearchResult(result: { session: ChatSession; messageId?: string }) {
+    selectSession(result.session);
+    setSearchModalOpen(false);
+    if (result.messageId) {
+      setHighlightedMessageId(result.messageId);
+      setTimeout(() => {
+        const el = document.getElementById(`msg-${result.messageId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 200);
+      setTimeout(() => setHighlightedMessageId(null), 3000);
+    }
+  }
+
+  // Show auto-dismissing toast
+  function showToast(msg: string) {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 2500);
+  }
+
+  // Toggle Theme
+  function toggleTheme() {
+    const nextTheme = theme === "light" ? "dark" : "light";
+    setTheme(nextTheme);
+    localStorage.setItem("tattva_theme", nextTheme);
+  }
+
+  // Load chat sessions for a specific user email
+  // REQUIREMENT: For every open or login, ALWAYS start with a fresh new chat session,
+  // while preserving all previous sessions in the sidebar history!
+  const loadUserSessions = useCallback((email?: string | null) => {
+    const key = getStorageKey(email);
+    let existingSessions: ChatSession[] = [];
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        existingSessions = JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Always create a clean new chat session for this fresh session
+    const freshSession: ChatSession = {
+      id: crypto.randomUUID(),
+      title: "New Conversation",
+      userEmail: email || undefined,
+      messages: [],
+      updatedAt: Date.now(),
+    };
+
+    const combined = [freshSession, ...existingSessions];
+    setSessions(combined);
+    setCurrentSessionId(freshSession.id);
+    setMessages([]);
+  }, []);
+
+  // Save current active session
+  const saveCurrentSession = useCallback((updatedMsgs: ChatMessage[]) => {
+    if (!currentSessionId) return;
+
+    setSessions((prev) => {
+      const existing = prev.find((s) => s.id === currentSessionId);
+      const title =
+        existing && existing.title !== "New Conversation"
+          ? existing.title
+          : updatedMsgs[0]?.content.slice(0, 36).trim() || "New Conversation";
+
+      const updated = prev.map((s) =>
+        s.id === currentSessionId
+          ? { ...s, messages: updatedMsgs, title, updatedAt: Date.now() }
+          : s
+      );
+
+      const key = getStorageKey(userEmail);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {
+        // quota exceeded fallback
+      }
+      return updated;
+    });
+  }, [currentSessionId, userEmail]);
+
+  // Create a brand new chat session
+  function createNewChat() {
+    if (speakingMessageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+    }
+    const fresh: ChatSession = {
+      id: crypto.randomUUID(),
+      title: "New Conversation",
+      userEmail: userEmail || undefined,
+      messages: [],
+      updatedAt: Date.now(),
+    };
+
+    setSessions((prev) => [fresh, ...prev]);
+    setCurrentSessionId(fresh.id);
+    setMessages([]);
+    setAttachments([]);
+    setInput("");
+    setError("");
+    showToast("Started fresh chat session ✦");
+  }
+
+  // Switch to another conversation
+  function selectSession(session: ChatSession) {
+    if (speakingMessageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+    }
+    setCurrentSessionId(session.id);
+    setMessages(session.messages || []);
+    setAttachments([]);
+    setInput("");
+    setError("");
+  }
+
+  // Delete a session
+  function deleteSession(sessionId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const updated = sessions.filter((s) => s.id !== sessionId);
+    setSessions(updated);
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    if (sessionId === currentSessionId) {
+      if (updated.length > 0) {
+        setCurrentSessionId(updated[0].id);
+        setMessages(updated[0].messages || []);
+      } else {
+        createNewChat();
+      }
+    }
+    showToast("Chat deleted");
+  }
+
+  // Share chat session
+  function shareChat(session?: ChatSession) {
+    const targetSession = session || sessions.find((s) => s.id === currentSessionId);
+    if (!targetSession || !targetSession.messages.length) {
+      showToast("Cannot share empty conversation.");
+      return;
+    }
+
+    const transcript = targetSession.messages
+      .map((m) => `${m.role === "user" ? "User" : "TATTVA AI"}:\n${m.content}\n`)
+      .join("\n---\n\n");
+
+    const fullShareText = `TATTVA AI Chat — "${targetSession.title}"\nCreated by kotapati Gowtham Chowdary\n\n${transcript}`;
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator
+        .share({
+          title: `TATTVA AI — ${targetSession.title}`,
+          text: fullShareText,
+          url: window.location.href,
+        })
+        .catch(() => {
+          navigator.clipboard.writeText(fullShareText);
+          showToast("Chat transcript copied to clipboard! 📋");
+        });
+    } else {
+      navigator.clipboard.writeText(fullShareText);
+      showToast("Chat transcript copied to clipboard! 📋");
+    }
+  }
+
+  // Single mount effect: Theme, Supabase auth check, recovery redirect, guest count
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem("tattva_theme");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+    }
+
+    // Load guest chat count
+    const count = parseInt(localStorage.getItem("tattva_guest_count") || "0", 10);
+    setGuestChatCount(count);
+
+    // Supabase auth check
+    try {
+      const supabase = createClient();
+
+      // Check if user arrived via recovery link
+      if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
+        router.replace("/reset-password");
+        return;
+      }
+
+      supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
+        if (data.session?.user) {
+          setCurrentUser(data.session.user);
+          setUserEmail(data.session.user.email || "");
+          loadUserSessions(data.session.user.email);
+        } else {
+          const cachedEmail = localStorage.getItem("tattva_user_session_email");
+          if (cachedEmail) {
+            setUserEmail(cachedEmail);
+            loadUserSessions(cachedEmail);
+          } else {
+            loadUserSessions(null);
+          }
+        }
+      });
+
+      const { data: authListener } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+        if (event === "PASSWORD_RECOVERY") {
+          router.replace("/reset-password");
+          return;
+        }
+        if (event === "SIGNED_IN" && session?.user) {
+          setCurrentUser(session.user);
+          setUserEmail(session.user.email || "");
+          localStorage.setItem("tattva_user_session_email", session.user.email || "");
+        }
+        if (event === "SIGNED_OUT") {
+          setCurrentUser(null);
+          setUserEmail("");
+          localStorage.removeItem("tattva_user_session_email");
+          localStorage.removeItem("supabase.auth.token");
+          loadUserSessions(null);
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    } catch {
+      loadUserSessions(null);
+    }
+  }, [loadUserSessions, router]);
+
+  // Secure Supabase Logout Handler
+  async function handleLogout() {
+    try {
+      setIsProfileMenuOpen(false);
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.warn("Supabase signOut error:", error.message);
+      }
+    } catch (err) {
+      console.warn("Logout error:", err);
+    } finally {
+      // 1. Clear application-level authentication state
+      setCurrentUser(null);
+      setUserEmail("");
+
+      // 2. Clear user-specific cached data
+      localStorage.removeItem("tattva_user_session_email");
+      localStorage.removeItem("supabase.auth.token");
+
+      // 3. Reset in-memory sessions
+      loadUserSessions(null);
+
+      // 4. Show toast notification
+      showToast("Logged out successfully 👋");
+
+      // 5. Redirect to login page
+      router.push("/");
+    }
+  }
+
+  // =========================================================================
+  // SELF-PERSONALIZING MEMORY & FEEDBACK ENGINE HANDLERS
+  // =========================================================================
+  const loadUserMemoryData = useCallback(async (email?: string | null) => {
+    try {
+      const res = await fetch(`/api/memory?email=${encodeURIComponent(email || "guest_user")}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.memories)) setMemories(data.memories);
+        if (data.settings) setPersonalizationSettings(data.settings);
+        if (data.feedbackSummary) setFeedbackSummary(data.feedbackSummary);
+      }
+    } catch (e) {
+      console.warn("Could not load user memory profile:", e);
+    }
+  }, []);
+
+  // Sync memories whenever user email changes
+  useEffect(() => {
+    loadUserMemoryData(userEmail);
+  }, [userEmail, loadUserMemoryData]);
+
+  async function handleSaveNewMemory() {
+    if (!newMemoryContent.trim()) {
+      showToast("Memory content cannot be empty.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail || "guest_user",
+          content: newMemoryContent.trim(),
+          category: newMemoryCategory,
+          importance: newMemoryImportance,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.memory) {
+          setMemories((prev) => [data.memory, ...prev.filter((m) => m.id !== data.memory.id)]);
+          setNewMemoryContent("");
+          setIsAddingMemory(false);
+          showToast("New memory preserved in long-term memory 🧠");
+        }
+      }
+    } catch {
+      showToast("Failed to save memory.");
+    }
+  }
+
+  async function handleUpdateMemory(memoryId: string, updates: Partial<MemoryItem>) {
+    try {
+      const res = await fetch("/api/memory", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail || "guest_user",
+          id: memoryId,
+          updates,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.memory) {
+          setMemories((prev) => prev.map((m) => (m.id === memoryId ? data.memory : m)));
+          setEditingMemoryId(null);
+          showToast("Memory updated ✏️");
+        }
+      }
+    } catch {
+      showToast("Failed to update memory.");
+    }
+  }
+
+  async function handleDeleteMemory(memoryId: string) {
+    try {
+      const res = await fetch(`/api/memory?email=${encodeURIComponent(userEmail || "guest_user")}&id=${encodeURIComponent(memoryId)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMemories((prev) => prev.filter((m) => m.id !== memoryId));
+        showToast("Memory forgotten 🗑️");
+      }
+    } catch {
+      showToast("Failed to delete memory.");
+    }
+  }
+
+  async function handleClearAllMemories() {
+    if (!confirm("Are you sure you want to clear all stored memories? TATTVA will forget all saved preferences and project context.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/memory?email=${encodeURIComponent(userEmail || "guest_user")}&all=true`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMemories([]);
+        showToast("All memories cleared 🧹");
+      }
+    } catch {
+      showToast("Failed to clear memories.");
+    }
+  }
+
+  async function handleUpdatePersonalizationSettings(updates: Partial<PersonalizationSettings>) {
+    const nextSettings = { ...personalizationSettings, ...updates };
+    setPersonalizationSettings(nextSettings);
+    try {
+      await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail || "guest_user",
+          action: "update_settings",
+          settings: nextSettings,
+        }),
+      });
+      showToast("Personalization preferences updated ✨");
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleQuickFeedback(messageId: string, rating: "positive" | "negative") {
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId,
+          sessionId: currentSessionId,
+          userEmail: userEmail || "guest_user",
+          rating,
+          category: rating === "positive" ? "helpful" : "not_helpful",
+        }),
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, userFeedback: { rating, category: rating === "positive" ? "helpful" : "not_helpful" } }
+            : m
+        )
+      );
+      showToast(rating === "positive" ? "Thanks for your feedback! 👍" : "Feedback noted. Tell us how to improve 💡");
+      if (rating === "negative") {
+        setFeedbackModalTarget({ messageId, initialRating: "negative" });
+        setSelectedFeedbackCategory("not_helpful");
+        setFeedbackComment("");
+      }
+    } catch {
+      showToast("Could not record feedback.");
+    }
+  }
+
+  function openFeedbackModal(messageId: string, initialRating: "positive" | "negative" = "negative") {
+    setFeedbackModalTarget({ messageId, initialRating });
+    setSelectedFeedbackCategory(initialRating === "positive" ? "helpful" : "not_helpful");
+    setFeedbackComment("");
+  }
+
+  async function handleSubmitFeedback() {
+    if (!feedbackModalTarget) return;
+    setIsSubmittingFeedback(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId: feedbackModalTarget.messageId,
+          sessionId: currentSessionId,
+          userEmail: userEmail || "guest_user",
+          rating: feedbackModalTarget.initialRating || "negative",
+          category: selectedFeedbackCategory,
+          comment: feedbackComment.trim() || undefined,
+        }),
+      });
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === feedbackModalTarget.messageId
+            ? {
+                ...m,
+                userFeedback: {
+                  rating: feedbackModalTarget.initialRating || "negative",
+                  category: selectedFeedbackCategory,
+                  comment: feedbackComment.trim(),
+                },
+              }
+            : m
+        )
+      );
+
+      if (selectedFeedbackCategory === "too_detailed") {
+        setPersonalizationSettings((prev) => ({ ...prev, responseLength: "concise" }));
+        showToast("Feedback recorded! TATTVA adapted: more concise responses prioritized 🧠");
+      } else if (selectedFeedbackCategory === "too_short") {
+        setPersonalizationSettings((prev) => ({ ...prev, responseLength: "detailed" }));
+        showToast("Feedback recorded! TATTVA adapted: detailed responses prioritized 🧠");
+      } else {
+        showToast("Feedback submitted! TATTVA has adapted your preferences 🧠");
+      }
+
+      setFeedbackModalTarget(null);
+    } catch {
+      showToast("Failed to submit feedback.");
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  }
+
+  // Polling for local image engine status every 30s
+  useEffect(() => {
+    let mounted = true;
+    async function checkEngine() {
+      try {
+        const res = await fetch("/api/generate-image", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted) {
+          setEngineStatus((prev) => {
+            if (
+              prev?.localOnline === data.localOnline &&
+              prev?.current_model === data.current_model &&
+              prev?.engine === data.engine
+            ) {
+              return prev;
+            }
+            return data;
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+    checkEngine();
+    const interval = setInterval(checkEngine, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, statusMessage]);
+
+  // Language detection helper for native fluency in Telugu, Southern languages, Hindi, and English
+  function detectLanguage(text: string): { lang: string; name: string } {
+    // Telugu script: \u0C00 - \u0C7F
+    if (/[\u0C00-\u0C7F]/.test(text)) {
+      return { lang: "te-IN", name: "Telugu" };
+    }
+    // Tamil script: \u0B80 - \u0BFF
+    if (/[\u0B80-\u0BFF]/.test(text)) {
+      return { lang: "ta-IN", name: "Tamil" };
+    }
+    // Kannada script: \u0C80 - \u0CFF
+    if (/[\u0C80-\u0CFF]/.test(text)) {
+      return { lang: "kn-IN", name: "Kannada" };
+    }
+    // Malayalam script: \u0D00 - \u0D7F
+    if (/[\u0D00-\u0D7F]/.test(text)) {
+      return { lang: "ml-IN", name: "Malayalam" };
+    }
+    // Hindi / Devanagari: \u0900 - \u097F
+    if (/[\u0900-\u097F]/.test(text)) {
+      return { lang: "hi-IN", name: "Hindi" };
+    }
+    return { lang: "en-IN", name: "English" };
+  }
+
+  // Select a natural female voice strictly prioritizing the matching language
+  function selectFemaleVoice(langCode: string): SpeechSynthesisVoice | null {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+
+    const femaleKeywords = [
+      "female", "woman", "swara", "heera", "chitra", "shruti", "priya",
+      "samantha", "victoria", "karen", "jenny", "eva", "moira", "fiona",
+      "tessa", "veena", "neerja", "pallavi", "geeta", "vani", "ananya",
+      "zira", "google uk english female", "google us english", "natural"
+    ];
+
+    const prefix = langCode.slice(0, 2).toLowerCase();
+    const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
+
+    // 1. Language-matching female voice
+    const exactFemale = langVoices.find((v) =>
+      femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
+    );
+    if (exactFemale) return exactFemale;
+    if (langVoices.length > 0) return langVoices[0];
+
+    // 2. Indian female voice for Southern languages & regional cadence
+    const indianFemale = voices.find(
+      (v) =>
+        (v.lang.includes("IN") || v.name.includes("India")) &&
+        femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
+    );
+    if (indianFemale) return indianFemale;
+
+    // 3. Any high-quality female voice
+    const anyFemale = voices.find((v) =>
+      femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
+    );
+    if (anyFemale) return anyFemale;
+
+    return voices[0] || null;
+  }
+
+  // Voice Assistant: Text-to-Speech synthesis with FEMALE VOICE and TELUGU / REGIONAL FLUENCY
+  const speakText = useCallback((text: string, msgId: string, onEnd?: () => void) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      alert("Text-to-speech is not supported on this browser.");
+      return;
+    }
+
+    if (speakingMessageId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      setSareStatus("idle");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    // Clean narration: strip code blocks, markdown links, asterisks, bullet points
+    const cleanSpokenText = text
+      .replace(/```[\s\S]*?```/g, "Code block provided in chat.")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/#{1,6}\s+/g, "")
+      .replace(/[-*]\s+/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .trim();
+
+    if (!cleanSpokenText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanSpokenText);
+    const { lang: detectedLang } = detectLanguage(cleanSpokenText);
+    utterance.lang = detectedLang;
+
+    // Explicit female voice selection
+    const femaleVoice = selectFemaleVoice(detectedLang);
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    utterance.pitch = 1.15; // Natural pleasant female voice pitch
+    utterance.rate = 1.0;
+
+    utterance.onstart = () => {
+      setSpeakingMessageId(msgId);
+      setSareStatus("speaking");
+    };
+
+    utterance.onend = () => {
+      setSpeakingMessageId(null);
+      setSareStatus("idle");
+      if (onEnd) onEnd();
+    };
+
+    utterance.onerror = () => {
+      setSpeakingMessageId(null);
+      setSareStatus("idle");
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }, [speakingMessageId]);
+
+  // Voice Recognition with 2-SECOND SILENCE AUTO-RESPONSE for Sare
+  const startVoiceRecognition = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    if (isListening && recognitionRef.current) {
+      try {
+        (recognitionRef.current as { stop: () => void }).stop();
+      } catch {
+        // ignore
+      }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      setIsListening(false);
+      setSareStatus("idle");
+      return;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const recognition = new (SpeechRecognition as any)();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || "en-US";
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onresult = (event: any) => {
+        let interimText = "";
+        let finalChunk = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalChunk += event.results[i][0].transcript;
+          } else {
+            interimText += event.results[i][0].transcript;
+          }
+        }
+
+        setInterimSpeech(interimText.trim());
+
+        const clean = finalChunk.trim();
+        if (clean) {
+          voiceBufferRef.current = voiceBufferRef.current
+            ? `${voiceBufferRef.current} ${clean}`
+            : clean;
+
+          const accumulated = voiceBufferRef.current.trim();
+          setInput(accumulated);
+          setInterimSpeech("");
+
+          if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 220)}px`;
+          }
+
+          // In Sare Voice Conversation, if user stops speaking after 2 seconds,
+          // Sare automatically responds quickly!
+          if (sareEnabled) {
+            if (silenceTimerRef.current) {
+              clearTimeout(silenceTimerRef.current);
+            }
+            silenceTimerRef.current = setTimeout(() => {
+              const textToSend = voiceBufferRef.current.trim();
+              if (textToSend) {
+                stopVoiceRecognition();
+                setSareStatus("thinking");
+                voiceBufferRef.current = "";
+                sendMessage(textToSend);
+              }
+            }, 2000); // 2 seconds of silence
+          }
+        }
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+        setInterimSpeech("");
+        setSareStatus("idle");
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimSpeech("");
+        if (sareStatus === "listening") {
+          setSareStatus("idle");
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+      setIsListening(true);
+      setSareStatus("listening");
+    } catch {
+      setIsListening(false);
+      setSareStatus("idle");
+    }
+  }, [isListening, sareEnabled, sareStatus]);
+
+  function stopVoiceRecognition() {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        (recognitionRef.current as { stop: () => void }).stop();
+      } catch {
+        // ignore
+      }
+    }
+    setIsListening(false);
+    setSareStatus("idle");
+  }
+
+  // Toggle Sare Voice Assistant
+  function toggleSareVoiceMode() {
+    if (sareEnabled) {
+      setSareEnabled(false);
+      stopVoiceRecognition();
+      voiceBufferRef.current = "";
+      if (speakingMessageId) {
+        window.speechSynthesis.cancel();
+        setSpeakingMessageId(null);
+      }
+      setSareStatus("idle");
+      showToast("Sare Voice Assistant paused");
+    } else {
+      setSareEnabled(true);
+      voiceBufferRef.current = "";
+      showToast("Sare Voice Assistant activated ✦ Female voice & 2s auto-response ready!");
+      startVoiceRecognition();
+    }
+  }
+
+  // Auto-detect image generation request in prompt (inbuilt into text bar)
+  function isImageGenerationPrompt(text: string, hasImgAttachment: boolean): boolean {
+    if (hasImgAttachment) return true;
+    const lower = text.toLowerCase().trim();
+    return (
+      lower.startsWith("generate image") ||
+      lower.startsWith("generate an image") ||
+      lower.startsWith("create image") ||
+      lower.startsWith("create an image") ||
+      lower.startsWith("draw ") ||
+      lower.startsWith("draw an ") ||
+      lower.startsWith("paint ") ||
+      lower.startsWith("render ") ||
+      lower.includes("generate an image of") ||
+      lower.includes("make an image of") ||
+      lower.includes("draw an image of") ||
+      lower.includes("photo of ") ||
+      lower.includes("picture of ")
+    );
+  }
+
+  // Send message handler (supports text, code, image generation, and editing)
+  async function sendMessage(explicitPrompt?: string) {
+    const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
+    if (!rawPrompt && attachments.length === 0) return;
+
+    // Check guest chat limits
+    const isGuest = !currentUser && !userEmail;
+    if (isGuest && guestChatCount >= GUEST_CHAT_LIMIT) {
+      setAuthMode("signin");
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Check 1 Lakh words limit per chat
+    const currentWordCount = calculateChatWordCount(messages);
+    if (currentWordCount >= CHAT_WORD_LIMIT) {
+      showToast("Chat reached 100,000 words limit. Auto-starting new chat session ✦");
+      createNewChat();
+      return;
+    }
+
+    const userMsgId = crypto.randomUUID();
+    let promptToSend = rawPrompt;
+    if (activeTool === "web") {
+      promptToSend = `[Mode: Web Search & Fact Retrieval]: ${rawPrompt}`;
+    } else if (activeTool === "research") {
+      promptToSend = `[Mode: Deep Research & Comprehensive Analysis]: ${rawPrompt}`;
+    } else if (activeTool === "file") {
+      promptToSend = `[Mode: File & Document Analysis]: ${rawPrompt}`;
+    } else if (activeTool === "code") {
+      promptToSend = `[Mode: Code Architecture & Production Programming - Zero emojis in code]: ${rawPrompt}`;
+    }
+
+    const userMsg: ChatMessage = {
+      id: userMsgId,
+      role: "user",
+      content: rawPrompt,
+      attachments: attachments.length > 0 ? [...attachments] : undefined,
+      timestamp: Date.now(),
+    };
+
+    const updatedWithUser = [...messages, userMsg];
+    setMessages(updatedWithUser);
+    saveCurrentSession(updatedWithUser);
+
+    setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+    const attachedImages = attachments.filter((a) => a.type.startsWith("image/"));
+    setAttachments([]);
+    setLoading(true);
+    setError("");
+
+    // Setup AbortController for instant stop generation
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Update guest usage
+    if (isGuest) {
+      const nextCount = guestChatCount + 1;
+      setGuestChatCount(nextCount);
+      localStorage.setItem("tattva_guest_count", nextCount.toString());
+    }
+
+    const wantsImage = activeTool === "image" || isImageGenerationPrompt(rawPrompt, attachedImages.length > 0);
+
+    if (wantsImage) {
+      setStatusMessage(
+        attachedImages.length > 0
+          ? "Targeting image modifications with pin-to-pin accuracy..."
+          : "Rendering master-quality image via Realistic Vision V5.1 (DPMSolver++ Karras)..."
+      );
+
+      try {
+        const payload: Record<string, unknown> = {
+          prompt: rawPrompt,
+          model: "realistic",
+        };
+
+        if (attachedImages.length > 0) {
+          payload.image = attachedImages[0].data;
+          payload.strength = 0.65;
+        }
+
+        const res = await fetch("/api/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Image generation failed with HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        const assistantMsgId = crypto.randomUUID();
+        const assistantMsg: ChatMessage = {
+          id: assistantMsgId,
+          role: "assistant",
+          content: rawPrompt,
+          image: data.image,
+          kind: "image",
+          imageMetadata: {
+            model: data.model || "Realistic Vision V5.1",
+            provider: data.provider || "TATTVA Local Engine",
+            seed: data.seed,
+            generation_time_seconds: data.generation_time_seconds,
+            isEdit: attachedImages.length > 0,
+          },
+          timestamp: Date.now(),
+        };
+
+        const updatedWithAssistant = [...updatedWithUser, assistantMsg];
+        setMessages(updatedWithAssistant);
+        saveCurrentSession(updatedWithAssistant);
+
+        // Sare Voice narration for image
+        if (sareEnabled) {
+          speakText("I have created your image as requested.", assistantMsgId, () => {
+            if (sareEnabled) startVoiceRecognition();
+          });
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to generate image.");
+      } finally {
+        setLoading(false);
+        setStatusMessage("");
+        abortControllerRef.current = null;
+      }
+      return;
+    }
+
+    // Standard Chat & Code & File Maker flow
+    setStatusMessage("TATTVA Intelligence reasoning...");
+    try {
+      const apiMessages = updatedWithUser.map((m) => ({
+        role: m.role,
+        content: m.id === userMsgId ? promptToSend : m.content,
+      }));
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: apiMessages,
+          mode: activeTool === "code" ? "chat" : undefined,
+          userEmail: userEmail || "guest_user",
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Chat failed with HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const assistantMsgId = crypto.randomUUID();
+      const assistantMsg: ChatMessage = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: data.content || "I am ready to assist you further.",
+        kind: "text",
+        timestamp: Date.now(),
+        recalledMemories: data.recalledMemories,
+      };
+
+      const updatedWithAssistant = [...updatedWithUser, assistantMsg];
+      setMessages(updatedWithAssistant);
+      saveCurrentSession(updatedWithAssistant);
+
+      // Refresh memory profile after response in case new memories were extracted
+      loadUserMemoryData(userEmail);
+      saveCurrentSession(updatedWithAssistant);
+
+      // Check if word limit reached after assistant response
+      const wordCountAfter = calculateChatWordCount(updatedWithAssistant);
+      if (wordCountAfter >= CHAT_WORD_LIMIT) {
+        showToast("Word limit of 100,000 reached. Next message will continue in new chat ✦");
+      }
+
+      // Voice Assistant Sare: speak aloud automatically if enabled
+      if (sareEnabled) {
+        speakText(assistantMsg.content, assistantMsgId, () => {
+          // Once Sare finishes speaking, resume listening for next user voice command
+          if (sareEnabled) {
+            startVoiceRecognition();
+          }
+        });
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Failed to complete request.");
+    } finally {
+      setLoading(false);
+      setStatusMessage("");
+      abortControllerRef.current = null;
+    }
+  }
+
+  function stopGeneration() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setStatusMessage("");
+    showToast("Generation stopped ⏹️");
+  }
+
+  function formatFileSize(bytes?: number): string {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function processFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (!list || list.length === 0) return;
+
+    setAttachmentUploading(true);
+    let loadedCount = 0;
+
+    list.forEach((file) => {
+      // 25MB file size limit validation
+      if (file.size > 25 * 1024 * 1024) {
+        showToast(`"${file.name}" exceeds 25MB limit ⚠️`);
+        loadedCount++;
+        if (loadedCount >= list.length) setAttachmentUploading(false);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            data: result,
+            preview: file.type.startsWith("image/") ? result : undefined,
+            size: file.size,
+          },
+        ]);
+        loadedCount++;
+        if (loadedCount >= list.length) {
+          setAttachmentUploading(false);
+          showToast(`Attached ${list.length === 1 ? file.name : `${list.length} files`} 📎`);
+        }
+      };
+      reader.onerror = () => {
+        loadedCount++;
+        if (loadedCount >= list.length) setAttachmentUploading(false);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Handle file picker attachments
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
+    }
+    e.target.value = "";
+    setIsAttachmentMenuOpen(false);
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const filesToUpload: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === "file") {
+        const file = items[i].getAsFile();
+        if (file) filesToUpload.push(file);
+      }
+    }
+
+    if (filesToUpload.length > 0) {
+      e.preventDefault();
+      processFiles(filesToUpload);
+    }
+  }
+
+  function handleTextareaChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 220)}px`;
+    }
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function downloadImage(dataUri: string, filename = "tattva-artwork.png") {
+    const a = document.createElement("a");
+    a.href = dataUri;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast("Image downloaded ✦");
+  }
+
+  function copyMessage(text: string, msgId: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedMessageId(msgId);
+    showToast("Copied to clipboard 📋");
+    setTimeout(() => setCopiedMessageId(null), 2000);
+  }
+
+  // Swipe gesture handlers on chat container (bottom to top swipe opens new chat)
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartY.current === null || touchStartX.current === null) return;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+
+    const container = chatContainerRef.current;
+    const isAtBottom = container
+      ? container.scrollHeight - container.scrollTop - container.clientHeight < 50
+      : true;
+
+    // Upward swipe (deltaY < -70px) when at the bottom of chat
+    if (isAtBottom && deltaY < -70 && Math.abs(deltaY) > Math.abs(deltaX) * 1.4) {
+      if (messages.length > 0) {
+        createNewChat();
+      }
+    }
+    touchStartY.current = null;
+    touchStartX.current = null;
+  }
+
+  // Long press handler for images
+  function handleImageTouchStart(imgSrc: string, e: React.TouchEvent | React.MouseEvent) {
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    longPressTimerRef.current = setTimeout(() => {
+      setImageMenuOpen({ image: imgSrc, x: clientX, y: clientY });
+    }, 500);
+  }
+
+  function handleImageTouchEnd() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  const isGuest = !currentUser && !userEmail;
+  const remainingGuestChats = Math.max(0, GUEST_CHAT_LIMIT - guestChatCount);
+  const activeWordCount = calculateChatWordCount(messages);
+
+  return (
+    <div
+      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-black selection:text-white ${
+        isDark ? "bg-[#0d0e11] text-neutral-100" : "bg-white text-black"
+      }`}
+    >
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-2xl border border-black/10 bg-black text-white px-4 py-2 text-xs font-medium shadow-xl backdrop-blur-xl animate-fade-in">
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Image Context Menu (Long-press / right click) */}
+      {imageMenuOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs"
+          onClick={() => setImageMenuOpen(null)}
+        >
+          <div
+            className={`w-64 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl animate-scale-in ${
+              isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-white text-black"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-2 border-b border-black/[0.06] text-xs font-semibold text-neutral-400">
+              Image Actions
+            </div>
+            <div className="space-y-1 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  downloadImage(imageMenuOpen.image);
+                  setImageMenuOpen(null);
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
+                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                }`}
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Image</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({ title: "TATTVA AI Image", url: imageMenuOpen.image }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(imageMenuOpen.image);
+                    showToast("Image URI copied 📋");
+                  }
+                  setImageMenuOpen(null);
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
+                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                }`}
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Share Image</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAttachments([
+                    {
+                      name: "modify-target.png",
+                      type: "image/png",
+                      data: imageMenuOpen.image,
+                      preview: imageMenuOpen.image,
+                    },
+                  ]);
+                  setImageMenuOpen(null);
+                  textareaRef.current?.focus();
+                  showToast("Image loaded for targeted modification ✦");
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
+                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Modify This Image</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          1. TOP NAVIGATION BAR (MINIMALIST + LIQUID ACCENTS)
+      ========================================================================= */}
+      <header
+        className={`sticky top-0 z-30 border-b backdrop-blur-xl ${
+          isDark ? "border-neutral-800/80 bg-[#0d0e11]/85" : "border-black/[0.06] bg-white/85"
+        }`}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={`p-2 rounded-xl transition ${
+                isDark ? "text-neutral-400 hover:text-white hover:bg-neutral-800" : "text-neutral-500 hover:text-black hover:bg-neutral-100"
+              }`}
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarOpen ? (
+                <ChevronLeft className="w-4 h-4" />
+              ) : (
+                <Menu className="w-4 h-4" />
+              )}
+            </button>
+
+            <a href="/" className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-sm font-bold text-white shadow-sm">
+                T
+              </div>
+              <div className="leading-tight">
+                <span className="text-sm font-bold tracking-tight">TATTVA AI</span>
+                <span className="block text-[10px] text-neutral-400">by kotapati Gowtham Chowdary</span>
+              </div>
+            </a>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* 1. Live Voice Assistant (ChatGPT-Style Live Voice Mode) */}
+            <a
+              href="/voice"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
+                isDark
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                  : "border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              }`}
+              title="Open ChatGPT-Style Real-Time Live Voice Assistant"
+            >
+              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
+              <span>Live Voice Mode</span>
+            </a>
+
+            {/* 2. AI Image Studio */}
+            <a
+              href="/studio"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
+                isDark
+                  ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
+                  : "border-black/10 bg-white text-black hover:bg-neutral-100"
+              }`}
+              title="Open TATTVA AI Image Generation Studio"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-black dark:text-white" />
+              <span className="hidden sm:inline">Image Studio</span>
+            </a>
+
+            {/* 3. AI Document & Media Studio (The requested files/media option in the same place) */}
+            <a
+              href="/media"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
+                isDark
+                  ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
+                  : "border-black/10 bg-white text-black hover:bg-neutral-100"
+              }`}
+              title="Open TATTVA AI Document & Media Studio (PDF, DOCX, PPTX, XLSX, CSV)"
+            >
+              <FolderArchive className="w-3.5 h-3.5 text-black dark:text-white" />
+              <span className="hidden sm:inline">Media</span>
+            </a>
+
+            {/* 4. Sare Voice Mode Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleSareVoiceMode}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
+                sareEnabled
+                  ? "bg-black text-white ring-2 ring-neutral-400 animate-pulse"
+                  : isDark
+                  ? "border border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
+                  : "border border-black/10 bg-white text-black hover:bg-neutral-100"
+              }`}
+              title="Toggle Sare Voice Assistant (Voice-only chat)"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Sare Voice {sareEnabled ? "ON" : "OFF"}</span>
+            </button>
+
+            {/* Share Chat Button */}
+            <button
+              type="button"
+              onClick={() => shareChat()}
+              className={`p-2 rounded-xl border transition ${
+                isDark
+                  ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
+                  : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
+              }`}
+              title="Share this chat"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Light / Night Mode Switch (Right-Aligned) */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`p-2 rounded-xl border transition ${
+                isDark
+                  ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
+                  : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
+              }`}
+              title={isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-neutral-700" />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* =========================================================================
+          2. MAIN CONTENT AREA: SIDEBAR + CHAT STREAM
+      ========================================================================= */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Backdrop for Sidebar */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Left Sidebar: ChatGPT-Inspired Collapsible Sidebar */}
+        <aside
+          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col border-r transition-all duration-300 ease-in-out ${
+            sidebarOpen
+              ? "w-[260px] translate-x-0"
+              : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden pointer-events-none"
+          } ${
+            isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
+          } backdrop-blur-xl shadow-xl md:shadow-none`}
+        >
+          {/* Sidebar Top: Logo + Close Button */}
+          <div className="p-3 border-b border-black/[0.06] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black text-white text-xs font-bold">
+                T
+              </div>
+              <span className="text-xs font-bold tracking-tight text-neutral-800 dark:text-neutral-200">
+                TATTVA AI
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className={`p-1.5 rounded-lg transition ${
+                isDark ? "hover:bg-neutral-800 text-neutral-400 hover:text-white" : "hover:bg-neutral-200 text-neutral-600 hover:text-black"
+              }`}
+              title="Close sidebar"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Action Buttons: New Chat & Global Search */}
+          <div className="p-2 space-y-1.5 border-b border-black/[0.06]">
+            {/* New Chat Button */}
+            <button
+              type="button"
+              onClick={createNewChat}
+              className={`flex items-center justify-between w-full rounded-xl px-3 py-2 text-xs font-semibold transition shadow-xs ${
+                isDark
+                  ? "bg-neutral-800 text-white hover:bg-neutral-700"
+                  : "bg-black text-white hover:bg-neutral-800"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                <span>New Chat</span>
+              </div>
+              <span className="text-[10px] font-mono opacity-80">✦</span>
+            </button>
+
+            {/* Search Conversations Button */}
+            <button
+              type="button"
+              onClick={() => setSearchModalOpen(true)}
+              className={`flex items-center justify-between w-full rounded-xl border px-3 py-2 text-xs font-medium transition ${
+                isDark
+                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
+              }`}
+              title="Search all conversations (Ctrl+K)"
+            >
+              <div className="flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Search chats</span>
+              </div>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-500">
+                ⌘K
+              </kbd>
+            </button>
+          </div>
+
+          {/* Scrollable Chat History */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-3">
+            {/* 1. PINNED CONVERSATIONS SECTION */}
+            {sessions.filter((s) => s.is_pinned).length > 0 && (
+              <div>
+                <div className="px-2 pb-1.5 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                  <div className="flex items-center gap-1 text-neutral-600 dark:text-neutral-300">
+                    <Pin className="w-3 h-3 text-neutral-500" />
+                    <span>Pinned</span>
+                  </div>
+                  <span>{sessions.filter((s) => s.is_pinned).length}</span>
+                </div>
+
+                <div className="space-y-1">
+                  {sessions
+                    .filter((s) => s.is_pinned)
+                    .sort((a, b) => (b.pinned_at || 0) - (a.pinned_at || 0))
+                    .map((s) => {
+                      const active = s.id === currentSessionId;
+                      const isRenaming = renamingSessionId === s.id;
+                      const menuOpen = activeMenuSessionId === s.id;
+
+                      return (
+                        <div key={s.id} className="relative group">
+                          {isRenaming ? (
+                            <form
+                              onSubmit={(e) => submitRenameSession(s.id, e)}
+                              className="flex items-center gap-1 p-1"
+                            >
+                              <input
+                                type="text"
+                                autoFocus
+                                value={renameInput}
+                                onChange={(e) => setRenameInput(e.target.value)}
+                                onBlur={() => submitRenameSession(s.id)}
+                                className="w-full text-xs rounded-lg border border-black/20 bg-white dark:bg-neutral-800 px-2 py-1 outline-none"
+                              />
+                            </form>
+                          ) : (
+                            <div
+                              onClick={() => selectSession(s)}
+                              className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${
+                                active
+                                  ? isDark
+                                    ? "bg-neutral-800 text-white font-semibold"
+                                    : "bg-white text-black font-semibold shadow-xs border border-black/5"
+                                  : isDark
+                                  ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
+                                  : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <Pin className="w-3 h-3 flex-shrink-0 text-neutral-500 fill-neutral-400/30" />
+                                <span className="truncate">{s.title || "New Conversation"}</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuSessionId(menuOpen ? null : s.id);
+                                }}
+                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition ${
+                                  menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                }`}
+                                title="Conversation options"
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Contextual Three-Dot Popover Menu */}
+                          {menuOpen && (
+                            <div
+                              className={`absolute right-1 top-full mt-1 z-50 w-36 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
+                                isDark
+                                  ? "border-neutral-700 bg-neutral-900 text-neutral-200"
+                                  : "border-black/10 bg-white text-neutral-800"
+                              }`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => togglePinSession(s.id, e)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                              >
+                                <PinOff className="w-3.5 h-3.5" />
+                                <span>Unpin chat</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => startRenameSession(s, e)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Rename chat</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  shareChat(s);
+                                  setActiveMenuSessionId(null);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                                <span>Share chat</span>
+                              </button>
+                              <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  setActiveMenuSessionId(null);
+                                  deleteSession(s.id, e);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete chat</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* 2. RECENT CHATS SECTION */}
+            <div>
+              <div className="px-2 pb-1.5 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                <span>Recent Chats</span>
+                <span>{sessions.filter((s) => !s.is_pinned).length}</span>
+              </div>
+
+              <div className="space-y-1">
+                {sessions
+                  .filter((s) => !s.is_pinned)
+                  .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+                  .map((s) => {
+                    const active = s.id === currentSessionId;
+                    const isRenaming = renamingSessionId === s.id;
+                    const menuOpen = activeMenuSessionId === s.id;
+
+                    return (
+                      <div key={s.id} className="relative group">
+                        {isRenaming ? (
+                          <form
+                            onSubmit={(e) => submitRenameSession(s.id, e)}
+                            className="flex items-center gap-1 p-1"
+                          >
+                            <input
+                              type="text"
+                              autoFocus
+                              value={renameInput}
+                              onChange={(e) => setRenameInput(e.target.value)}
+                              onBlur={() => submitRenameSession(s.id)}
+                              className="w-full text-xs rounded-lg border border-black/20 bg-white dark:bg-neutral-800 px-2 py-1 outline-none"
+                            />
+                          </form>
+                        ) : (
+                          <div
+                            onClick={() => selectSession(s)}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${
+                              active
+                                ? isDark
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "bg-white text-black font-semibold shadow-xs border border-black/5"
+                                : isDark
+                                ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
+                                : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+                              <span className="truncate">{s.title || "New Conversation"}</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuSessionId(menuOpen ? null : s.id);
+                              }}
+                              className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition ${
+                                menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                              }`}
+                              title="Conversation options"
+                            >
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Contextual Three-Dot Popover Menu */}
+                        {menuOpen && (
+                          <div
+                            className={`absolute right-1 top-full mt-1 z-50 w-36 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
+                              isDark
+                                ? "border-neutral-700 bg-neutral-900 text-neutral-200"
+                                : "border-black/10 bg-white text-neutral-800"
+                            }`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => togglePinSession(s.id, e)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                            >
+                              <Pin className="w-3.5 h-3.5" />
+                              <span>Pin chat</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => startRenameSession(s, e)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Rename chat</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                shareChat(s);
+                                setActiveMenuSessionId(null);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>Share chat</span>
+                            </button>
+                            <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                setActiveMenuSessionId(null);
+                                deleteSession(s.id, e);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete chat</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+
+          {/* =========================================================================
+              SIDEBAR PROFILE FOOTER (CHATGPT-STYLE USER PROFILE & DROPDOWN TRIGGER)
+          ========================================================================= */}
+          <div className="relative p-2 border-t border-black/[0.06] dark:border-neutral-800" data-profile-menu>
+            {/* Profile Dropdown Menu (Floats upwards) */}
+            {isProfileMenuOpen && (
+              <div
+                className={`absolute bottom-full left-2 right-2 mb-2 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
+                    : "border-black/10 bg-white/95 text-neutral-800"
+                }`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header item with email & account status */}
+                <div className="px-3 py-2 border-b border-black/[0.06] dark:border-neutral-800/80">
+                  <p className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                    {isGuest ? "Guest Access" : "Account"}
+                  </p>
+                  <p className="font-semibold text-xs truncate mt-0.5 text-neutral-900 dark:text-white">
+                    {userEmail || "Guest User"}
+                  </p>
+                  <p className="text-[10px] text-neutral-500 flex items-center gap-1 mt-0.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
+                    <span>{isGuest ? `${remainingGuestChats} free chats left` : "Pro Encrypted Session"}</span>
+                  </p>
+                </div>
+
+                <div className="py-1 space-y-0.5">
+                  {/* Option 1: My Profile */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsProfileModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                  >
+                    <UserIcon className="w-4 h-4 text-neutral-500" />
+                    <span>My Profile</span>
+                  </button>
+
+                  {/* Option 2: Settings */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsSettingsModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                  >
+                    <Settings className="w-4 h-4 text-neutral-500" />
+                    <span>Settings</span>
+                  </button>
+
+                  {/* Option: Memory & Personalization */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsMemoryModalOpen(true);
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Brain className="w-4 h-4 text-purple-500" />
+                      <span>Memory &amp; Personalization</span>
+                    </div>
+                    {memories.length > 0 && (
+                      <span className="rounded-full bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-300">
+                        {memories.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Option 3: Manage Account */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      if (isGuest) {
+                        setAuthMode("signin");
+                        setShowAuthModal(true);
+                      } else {
+                        setIsManageAccountModalOpen(true);
+                      }
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-neutral-500" />
+                    <span>Manage Account</span>
+                  </button>
+
+                  {/* Option 4: Help & Support */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsHelpModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                  >
+                    <HelpCircle className="w-4 h-4 text-neutral-500" />
+                    <span>Help &amp; Support</span>
+                  </button>
+                </div>
+
+                <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800/80" />
+
+                {/* Option 5: Log Out / Sign In */}
+                {isGuest ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setAuthMode("signin");
+                      setShowAuthModal(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition"
+                  >
+                    <UserIcon className="w-4 h-4" />
+                    <span>Sign In or Register</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Log Out</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Profile Trigger Button in Sidebar Footer */}
+            <button
+              type="button"
+              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+              className={`flex w-full items-center justify-between p-2 rounded-2xl transition-all ${
+                isProfileMenuOpen
+                  ? "bg-neutral-200 dark:bg-neutral-800"
+                  : "hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
+              }`}
+              title="Open profile & account menu"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* User Avatar with Initials */}
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-neutral-800 to-black text-white text-xs font-bold shadow-xs ring-1 ring-black/10 dark:ring-white/20">
+                  {userEmail ? userEmail[0].toUpperCase() : "G"}
+                </div>
+                {/* Display Name and Registered Email */}
+                <div className="text-left min-w-0">
+                  <div className="text-xs font-semibold truncate text-neutral-900 dark:text-neutral-100">
+                    {userEmail ? (currentUser?.user_metadata?.full_name || userEmail.split("@")[0]) : "Guest User"}
+                  </div>
+                  <div className="text-[10px] text-neutral-400 truncate max-w-[130px]">
+                    {userEmail || `${remainingGuestChats} chats left`}
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile Menu Trigger Indicator */}
+              <div className="text-neutral-400 p-1">
+                <MoreVertical className="w-4 h-4" />
+              </div>
+            </button>
+          </div>
+        </aside>
+
+        {/* =========================================================================
+            GLOBAL SEARCH MODAL (ChatGPT-Style Instant Search)
+        ========================================================================= */}
+        {searchModalOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/50 backdrop-blur-xs transition-opacity"
+            onClick={() => setSearchModalOpen(false)}
+          >
+            <div
+              className={`w-full max-w-xl rounded-2xl border p-4 shadow-2xl transition-all ${
+                isDark ? "border-neutral-800 bg-[#18181b] text-white" : "border-neutral-200 bg-white text-neutral-900"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Search Input Bar */}
+              <div className="flex items-center gap-3 border-b pb-3 border-neutral-200 dark:border-neutral-800">
+                <Search className="w-4 h-4 text-neutral-400 shrink-0" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search across all conversations, messages, or topics..."
+                  className={`w-full bg-transparent text-sm outline-none placeholder-neutral-400 ${
+                    isDark ? "text-white" : "text-black"
+                  }`}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="text-neutral-400 hover:text-neutral-600 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <kbd className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-500">
+                  ESC
+                </kbd>
+              </div>
+
+              {/* Results Status Header */}
+              <div className="flex items-center justify-between py-2 text-xs text-neutral-400">
+                <span>
+                  {isSearching
+                    ? "Searching..."
+                    : searchQuery
+                    ? `${searchResults.length} results found`
+                    : "Type to search complete chat history"}
+                </span>
+                <span className="text-[11px]">Click to jump to conversation</span>
+              </div>
+
+              {/* Results Container */}
+              <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1">
+                {searchQuery.trim().length === 0 ? (
+                  <div className="py-8 text-center text-xs text-neutral-400">
+                    <Search className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                    <p>Search titles, questions, code snippets, or document creation history.</p>
+                  </div>
+                ) : searchResults.length === 0 && !isSearching ? (
+                  <div className="py-8 text-center text-xs text-neutral-400">
+                    <p>No conversations found matching &quot;{searchQuery}&quot;</p>
+                  </div>
+                ) : (
+                  searchResults.map((r, idx) => (
+                    <div
+                      key={`${r.session.id}_${idx}`}
+                      onClick={() => selectSearchResult(r)}
+                      className={`p-3 rounded-xl border text-xs cursor-pointer transition ${
+                        isDark
+                          ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 hover:border-neutral-700"
+                          : "border-neutral-200 bg-neutral-50/70 hover:bg-white hover:border-neutral-300 shadow-2xs"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 font-bold truncate">
+                          <MessageSquare className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                          <span className="truncate">{r.session.title}</span>
+                        </div>
+                        <span
+                          className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${
+                            r.matchType === "title"
+                              ? "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300"
+                              : r.matchType === "user"
+                              ? "bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300"
+                              : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          }`}
+                        >
+                          {r.matchType === "title"
+                            ? "Title Match"
+                            : r.matchType === "user"
+                            ? "User Prompt"
+                            : "AI Answer"}
+                        </span>
+                      </div>
+                      <p className="text-neutral-600 dark:text-neutral-300 line-clamp-2 leading-relaxed">
+                        {r.matchedSnippet}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Central Chat Stream */}
+        <main
+          ref={chatContainerRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="flex-1 flex flex-col justify-between overflow-y-auto relative"
+        >
+          {/* Sare Voice Status Banner */}
+          {sareEnabled && (
+            <div
+              className={`sticky top-0 z-20 flex items-center justify-between px-6 py-2.5 text-xs font-semibold backdrop-blur-md transition-colors ${
+                sareStatus === "listening"
+                  ? "bg-black text-white animate-pulse"
+                  : sareStatus === "speaking"
+                  ? "bg-neutral-800 text-white"
+                  : isDark
+                  ? "bg-neutral-900/90 text-neutral-300"
+                  : "bg-neutral-100/90 text-black"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>
+                  {sareStatus === "listening"
+                    ? "Sare is listening to your voice... Speak anytime"
+                    : sareStatus === "speaking"
+                    ? "Sare is speaking..."
+                    : sareStatus === "thinking"
+                    ? "Sare is processing your voice..."
+                    : "Sare Voice Assistant active"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSareVoiceMode}
+                className="text-[11px] underline opacity-80 hover:opacity-100"
+              >
+                Turn off
+              </button>
+            </div>
+          )}
+
+          {/* Messages list */}
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
+            {messages.length === 0 ? (
+              <div className="py-12 sm:py-20 text-center max-w-xl mx-auto">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white text-2xl font-black shadow-md mb-4">
+                  T
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight">How can TATTVA AI help you today?</h2>
+                <p className="mt-2 text-xs sm:text-sm text-neutral-500 leading-relaxed">
+                  Ask complex questions in any language, write robust code without emojis, generate photorealistic
+                  artworks, or talk directly using voice.
+                </p>
+
+                {/* Starter Prompts */}
+                <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  {STARTER_PROMPTS.map((starter, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => sendMessage(starter.prompt)}
+                      className={`group rounded-2xl border p-4 text-xs transition shadow-xs ${
+                        isDark
+                          ? "border-neutral-800 bg-neutral-900/70 hover:bg-neutral-800 text-neutral-300 hover:text-white"
+                          : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-700 hover:text-black"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 font-semibold mb-1">
+                        <span>{starter.icon}</span>
+                        <span>{starter.title}</span>
+                      </div>
+                      <p className="line-clamp-2 text-neutral-400 leading-relaxed group-hover:text-neutral-500">
+                        {starter.prompt}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((msg, idx) => {
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const isUser = msg.role === "user";
+                const showDate =
+                  !prevMsg ||
+                  new Date(msg.timestamp || Date.now()).toDateString() !==
+                    new Date(prevMsg.timestamp || Date.now()).toDateString();
+
+                return (
+                  <div key={msg.id}>
+                    {/* Non-disturbing centered chat date divider */}
+                    {showDate && (
+                      <div className="my-6 flex items-center justify-center select-none">
+                        <span
+                          className={`rounded-full border px-3.5 py-1 text-[11px] font-medium shadow-xs backdrop-blur-md ${
+                            isDark
+                              ? "border-neutral-800 bg-neutral-900 text-neutral-400"
+                              : "border-black/[0.08] bg-neutral-100/80 text-neutral-500"
+                          }`}
+                        >
+                          {formatChatDate(msg.timestamp)}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
+                      {!isUser && (
+                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-black text-white font-black text-xs shadow-sm mt-1">
+                          T
+                        </div>
+                      )}
+
+                      <div
+                        className={`relative max-w-2xl sm:max-w-3xl rounded-2xl px-5 py-4 shadow-sm ${
+                          isUser
+                            ? "bg-black text-white rounded-tr-none"
+                            : isDark
+                            ? "bg-neutral-900 border border-neutral-800 text-neutral-100 rounded-tl-none shadow-[0_6px_24px_rgba(0,0,0,0.2)]"
+                            : "bg-white border border-black/[0.08] text-neutral-900 rounded-tl-none shadow-[0_6px_24px_rgba(0,0,0,0.03)]"
+                        }`}
+                      >
+                        {/* Attachments */}
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {msg.attachments.map((att, aIdx) => (
+                              <div
+                                key={aIdx}
+                                className="overflow-hidden rounded-xl border border-neutral-300 bg-neutral-100"
+                              >
+                                {att.preview ? (
+                                  <Image
+                                    src={att.preview}
+                                    alt={att.name}
+                                    width={100}
+                                    height={100}
+                                    className="h-20 w-20 object-cover"
+                                  />
+                                ) : (
+                                  <div className="p-2 text-xs text-neutral-700">📄 {att.name}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Markdown / Text content */}
+                        <MarkdownView content={msg.content} isDark={isDark} />
+
+                        {/* Descriptive sentence quick copy & Voice speak button & Feedback Controls */}
+                        {!isUser && (
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/[0.05] dark:border-white/[0.05] pt-2 text-[11px] text-neutral-400">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono">TATTVA Intelligence</span>
+                              {/* Recalled Memory Badge */}
+                              {msg.recalledMemories && msg.recalledMemories.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setIsMemoryModalOpen(true)}
+                                  className="flex items-center gap-1 rounded-md bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 transition"
+                                  title={msg.recalledMemories.map((m) => `• [${m.category || "memory"}] ${m.content}`).join("\n")}
+                                >
+                                  <Brain className="w-3 h-3 text-purple-500" />
+                                  <span>{msg.recalledMemories.length} recalled</span>
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              {/* Feedback Thumbs Up / Down */}
+                              <div className="flex items-center gap-0.5 border-r border-black/[0.06] dark:border-white/[0.06] pr-1.5 mr-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickFeedback(msg.id, "positive")}
+                                  className={`p-1 rounded-md transition-colors ${
+                                    msg.userFeedback?.rating === "positive"
+                                      ? "text-emerald-500 bg-emerald-500/10 font-bold"
+                                      : "text-neutral-400 hover:text-emerald-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                  }`}
+                                  title="Helpful response"
+                                >
+                                  <ThumbsUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openFeedbackModal(msg.id, "negative")}
+                                  className={`p-1 rounded-md transition-colors ${
+                                    msg.userFeedback?.rating === "negative"
+                                      ? "text-red-500 bg-red-500/10 font-bold"
+                                      : "text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                  }`}
+                                  title="Provide feedback (too detailed, too short, incorrect answer, wrong language, etc.)"
+                                >
+                                  <ThumbsDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => speakText(msg.content, msg.id)}
+                                className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                  speakingMessageId === msg.id
+                                    ? "bg-black text-white font-bold"
+                                    : "text-neutral-500 hover:text-black dark:hover:text-white"
+                                }`}
+                                title="Listen to this response"
+                              >
+                                {speakingMessageId === msg.id ? (
+                                  <VolumeX className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Volume2 className="w-3.5 h-3.5" />
+                                )}
+                                <span>{speakingMessageId === msg.id ? "Stop" : "Speak"}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => copyMessage(msg.content, msg.id)}
+                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+                                title="Copy descriptive text"
+                              >
+                                {copiedMessageId === msg.id ? (
+                                  <Check className="w-3.5 h-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                                <span>{copiedMessageId === msg.id ? "Copied" : "Copy text"}</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generated Image Card with Symbol & Long-Press Support */}
+                        {msg.image && (
+                          <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
+                            <div
+                              className="relative group cursor-pointer overflow-hidden bg-black/5"
+                              onClick={() => setLightboxImage(msg.image!)}
+                              onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
+                              onTouchEnd={handleImageTouchEnd}
+                              onMouseDown={(e) => handleImageTouchStart(msg.image!, e)}
+                              onMouseUp={handleImageTouchEnd}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
+                              }}
+                            >
+                              <Image
+                                src={msg.image}
+                                alt={msg.content}
+                                width={600}
+                                height={600}
+                                unoptimized
+                                className="w-full h-auto max-h-[500px] object-contain transition-transform duration-300 group-hover:scale-[1.01]"
+                              />
+
+                              {/* Overlay Download & Share Symbol Icons */}
+                              <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(msg.image!);
+                                  }}
+                                  className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                  title="Download Image"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
+                                  }}
+                                  className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                  title="Share / Actions"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Minimalist Image Metadata */}
+                            <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
+                              <div className="text-neutral-500 font-mono text-[11px]">
+                                <span>{msg.imageMetadata?.model || "Realistic Vision V5.1"}</span>
+                                {msg.imageMetadata?.generation_time_seconds && (
+                                  <span> • {msg.imageMetadata.generation_time_seconds}s</span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-neutral-400">Long-press image for options</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {isUser && (
+                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white font-bold text-xs mt-1">
+                          {userEmail ? userEmail.charAt(0).toUpperCase() : "U"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* Loading pulse indicator */}
+            {loading && (
+              <div className="flex items-center gap-3">
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-black text-white font-black text-xs shadow-sm animate-pulse">
+                  T
+                </div>
+                <div
+                  className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs shadow-sm ${
+                    isDark ? "border-neutral-800 bg-neutral-900 text-neutral-200" : "border-black/[0.08] bg-white text-neutral-800"
+                  }`}
+                >
+                  <span className="inline-block h-2 w-2 rounded-full bg-black dark:bg-white animate-ping" />
+                  <span className="font-medium">{statusMessage || "Processing with TATTVA Intelligence..."}</span>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
+                ⚠️ {error}
+              </div>
+            )}
+
+            {/* Swipe Up for New Chat Hint (visible at the bottom of messages) */}
+            {messages.length > 0 && (
+              <div className="py-4 text-center select-none text-[11px] text-neutral-400 hover:text-neutral-500 transition cursor-pointer" onClick={createNewChat}>
+                ↑ Swipe up from the bottom to start a new chat
+              </div>
+            )}
+
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* =========================================================================
+              3. ADVANCED AI CHAT COMPOSER (CHATGPT-INSPIRED FLOATING COMPOSER)
+          ========================================================================= */}
+          <div className="sticky bottom-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#0d0e11] dark:via-[#0d0e11]/95 dark:to-transparent pointer-events-none">
+            <div className="mx-auto max-w-3xl w-full pointer-events-auto">
+              {/* Guest Limit Warning Banner */}
+              {isGuest && remainingGuestChats === 0 && (
+                <div className="mb-2.5 flex items-center justify-between rounded-2xl border border-black/15 bg-neutral-50 dark:bg-neutral-900 p-3 text-xs shadow-xs">
+                  <span className="text-neutral-700 dark:text-neutral-300">
+                    🔒 You have reached your <strong>5 free guest chats</strong>. Sign in for limitless chats!
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("signin");
+                      setShowAuthModal(true);
+                    }}
+                    className="rounded-lg bg-black text-white px-3 py-1 font-semibold hover:bg-neutral-800 transition"
+                  >
+                    Sign In / Register
+                  </button>
+                </div>
+              )}
+
+              {/* Status / Interim Voice Banner */}
+              {(statusMessage || interimSpeech || isListening) && (
+                <div className="mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-800/90 text-xs backdrop-blur-md border border-black/5 dark:border-neutral-700 shadow-2xs">
+                  <div className="flex items-center gap-2 truncate">
+                    {isListening ? (
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5 text-neutral-500 animate-spin" />
+                    )}
+                    <span className="truncate text-neutral-700 dark:text-neutral-300">
+                      {interimSpeech
+                        ? `Listening: "${interimSpeech}"`
+                        : isListening
+                        ? "Listening for voice input... Speak naturally"
+                        : statusMessage}
+                    </span>
+                  </div>
+                  {isListening && (
+                    <button
+                      type="button"
+                      onClick={stopVoiceRecognition}
+                      className="text-[11px] font-semibold text-red-500 dark:text-red-400 hover:underline"
+                    >
+                      Done
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Active Tool Badge Pill */}
+              {activeTool !== "none" && (
+                <div className="mb-2 flex items-center gap-1.5 px-1">
+                  <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-black/10 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 shadow-2xs">
+                    {activeTool === "web" && <Globe className="w-3.5 h-3.5 text-blue-500" />}
+                    {activeTool === "image" && <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
+                    {activeTool === "research" && <Compass className="w-3.5 h-3.5 text-purple-500" />}
+                    {activeTool === "file" && <FileText className="w-3.5 h-3.5 text-emerald-500" />}
+                    {activeTool === "code" && <Code2 className="w-3.5 h-3.5 text-cyan-500" />}
+                    <span className="font-semibold">
+                      {activeTool === "web" && "Web Search Active"}
+                      {activeTool === "image" && "Image Generation Active"}
+                      {activeTool === "research" && "Deep Research Active"}
+                      {activeTool === "file" && "File Analysis Active"}
+                      {activeTool === "code" && "Code Assistance Active"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTool("none")}
+                      className="ml-1 p-0.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-400 hover:text-black dark:hover:text-white"
+                      title="Clear tool mode"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Main Floating Input Card */}
+              <div
+                className={`relative rounded-3xl border p-2.5 sm:p-3 backdrop-blur-2xl transition-all shadow-[0_10px_35px_-10px_rgba(0,0,0,0.08)] dark:shadow-[0_10px_35px_-10px_rgba(0,0,0,0.6)] ${
+                  isDark
+                    ? "border-neutral-700/80 bg-[#1a1b1f]/95 focus-within:border-neutral-500"
+                    : "border-black/[0.1] bg-white/95 focus-within:border-black/30"
+                }`}
+              >
+                {/* Attachment Preview Chips */}
+                {attachments.length > 0 && (
+                  <div className="mb-2.5 flex flex-wrap gap-2 px-1">
+                    {attachments.map((att, idx) => {
+                      const isImg = att.type.startsWith("image/");
+                      const isPdf = att.type.includes("pdf") || att.name.endsWith(".pdf");
+                      const isSheet =
+                        att.type.includes("sheet") ||
+                        att.type.includes("csv") ||
+                        att.name.endsWith(".xlsx") ||
+                        att.name.endsWith(".csv");
+                      const isDoc =
+                        att.type.includes("word") ||
+                        att.name.endsWith(".docx") ||
+                        att.name.endsWith(".doc") ||
+                        att.name.endsWith(".txt");
+
+                      return (
+                        <div
+                          key={idx}
+                          className="group relative flex items-center gap-2 rounded-2xl border border-black/10 dark:border-neutral-700 bg-neutral-100/80 dark:bg-neutral-800/80 p-1.5 pr-2.5 text-xs shadow-2xs transition hover:border-black/20"
+                        >
+                          {isImg && att.preview ? (
+                            <div className="relative h-9 w-9 overflow-hidden rounded-xl border border-black/5">
+                              <Image
+                                src={att.preview}
+                                alt={att.name}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white dark:bg-neutral-700 border border-black/5 text-neutral-600 dark:text-neutral-200">
+                              {isPdf ? (
+                                <FileText className="w-4 h-4 text-red-500" />
+                              ) : isSheet ? (
+                                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                              ) : isDoc ? (
+                                <FileText className="w-4 h-4 text-blue-600" />
+                              ) : (
+                                <FileCode className="w-4 h-4 text-neutral-500" />
+                              )}
+                            </div>
+                          )}
+
+                          <div className="max-w-[130px] sm:max-w-[180px] truncate">
+                            <span className="block truncate font-medium text-neutral-800 dark:text-neutral-200 text-xs">
+                              {att.name}
+                            </span>
+                            {att.size ? (
+                              <span className="block text-[10px] text-neutral-400">
+                                {formatFileSize(att.size)}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(idx)}
+                            className="p-1 rounded-full text-neutral-400 hover:text-red-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
+                            title="Remove file"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Hidden Categorized File Inputs */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  multiple
+                  accept=".docx,.doc,.txt,.rtf,.odt"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={sheetInputRef}
+                  type="file"
+                  multiple
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={codeInputRef}
+                  type="file"
+                  multiple
+                  accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                {/* Multiline Auto-Expanding Textarea with Paste & Drag-and-Drop */}
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={handleTextareaChange}
+                  onPaste={handlePaste}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  rows={1}
+                  disabled={isGuest && remainingGuestChats === 0}
+                  placeholder={
+                    isGuest && remainingGuestChats === 0
+                      ? "5 free chats reached. Sign in for limitless chats..."
+                      : isListening
+                      ? "Listening to voice input..."
+                      : activeTool === "image"
+                      ? "Describe the visual or modification with pin-to-pin accuracy..."
+                      : activeTool === "code"
+                      ? "Describe the program, algorithm, or architecture you need..."
+                      : activeTool === "research"
+                      ? "Enter topic or question for in-depth structured research..."
+                      : activeTool === "web"
+                      ? "Enter query to search real-time web with citations..."
+                      : attachments.length > 0
+                      ? "Ask anything about attached files, or describe changes..."
+                      : "Ask anything, create files, write code, or generate images..."
+                  }
+                  className={`w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-neutral-400 max-h-56 min-h-[40px] ${
+                    isDark ? "text-white" : "text-black"
+                  }`}
+                />
+
+                {/* Bottom Controls Bar inside Composer */}
+                <div className="flex items-center justify-between pt-1 px-1">
+                  {/* Left Controls: Attachment (+) Button & AI Tools Selector */}
+                  <div className="flex items-center gap-1.5">
+                    {/* Attachment (+) Button */}
+                    <div className="relative" data-attachment-menu>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+                          setIsToolsMenuOpen(false);
+                        }}
+                        className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all ${
+                          isAttachmentMenuOpen
+                            ? "rotate-45 bg-black text-white dark:bg-white dark:text-black border-transparent shadow-xs"
+                            : isDark
+                            ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700"
+                            : "border-black/10 bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200"
+                        }`}
+                        title="Attach images, PDFs, Word docs, sheets, or code"
+                      >
+                        <Plus className="w-4 h-4 transition-transform duration-200" />
+                      </button>
+
+                      {/* Attachment Categorized Dropdown Popover */}
+                      {isAttachmentMenuOpen && (
+                        <div
+                          className={`absolute bottom-full left-0 mb-2 w-56 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                            isDark
+                              ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
+                              : "border-black/10 bg-white/95 text-neutral-800"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              imageInputRef.current?.click();
+                              setIsAttachmentMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                          >
+                            <ImageIcon className="w-4 h-4 text-amber-500" />
+                            <span>Upload Images</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              pdfInputRef.current?.click();
+                              setIsAttachmentMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                          >
+                            <FileText className="w-4 h-4 text-red-500" />
+                            <span>Upload PDFs</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              docInputRef.current?.click();
+                              setIsAttachmentMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                          >
+                            <FileText className="w-4 h-4 text-blue-500" />
+                            <span>Upload Documents</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sheetInputRef.current?.click();
+                              setIsAttachmentMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                            <span>Upload Spreadsheets</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              codeInputRef.current?.click();
+                              setIsAttachmentMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                          >
+                            <Code2 className="w-4 h-4 text-cyan-500" />
+                            <span>Upload Code &amp; Data</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* AI Tools Menu Button & Popover */}
+                    <div className="relative" data-tools-menu>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsMenuOpen(!isToolsMenuOpen);
+                          setIsAttachmentMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-all ${
+                          activeTool !== "none" || isToolsMenuOpen
+                            ? "border-black dark:border-white bg-black dark:bg-white text-white dark:text-black shadow-2xs"
+                            : isDark
+                            ? "border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:text-white hover:bg-neutral-700"
+                            : "border-black/10 bg-neutral-100/80 text-neutral-700 hover:text-black hover:bg-neutral-200"
+                        }`}
+                        title="AI Tools & Capabilities"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Tools</span>
+                      </button>
+
+                      {/* AI Tools Popover */}
+                      {isToolsMenuOpen && (
+                        <div
+                          className={`absolute bottom-full left-0 mb-2 w-64 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                            isDark
+                              ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
+                              : "border-black/10 bg-white/95 text-neutral-800"
+                          }`}
+                        >
+                          <div className="px-2.5 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                            AI Capabilities
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTool(activeTool === "web" ? "none" : "web");
+                              setIsToolsMenuOpen(false);
+                            }}
+                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
+                              activeTool === "web"
+                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
+                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            }`}
+                          >
+                            <Globe className="w-4 h-4 text-blue-500 mt-0.5" />
+                            <div>
+                              <div className="font-medium">Web Search</div>
+                              <div className="text-[10px] text-neutral-400">Search real-time web for citations</div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTool(activeTool === "image" ? "none" : "image");
+                              setIsToolsMenuOpen(false);
+                            }}
+                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
+                              activeTool === "image"
+                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
+                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            }`}
+                          >
+                            <Sparkles className="w-4 h-4 text-amber-500 mt-0.5" />
+                            <div>
+                              <div className="font-medium">Image Generation</div>
+                              <div className="text-[10px] text-neutral-400">Realistic Vision &amp; FLUX visuals</div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTool(activeTool === "research" ? "none" : "research");
+                              setIsToolsMenuOpen(false);
+                            }}
+                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
+                              activeTool === "research"
+                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
+                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            }`}
+                          >
+                            <Compass className="w-4 h-4 text-purple-500 mt-0.5" />
+                            <div>
+                              <div className="font-medium">Deep Research</div>
+                              <div className="text-[10px] text-neutral-400">Exhaustive structured synthesis</div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTool(activeTool === "file" ? "none" : "file");
+                              setIsToolsMenuOpen(false);
+                            }}
+                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
+                              activeTool === "file"
+                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
+                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            }`}
+                          >
+                            <FileText className="w-4 h-4 text-emerald-500 mt-0.5" />
+                            <div>
+                              <div className="font-medium">File Analysis</div>
+                              <div className="text-[10px] text-neutral-400">Inspect PDFs, docs &amp; sheets</div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTool(activeTool === "code" ? "none" : "code");
+                              setIsToolsMenuOpen(false);
+                            }}
+                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
+                              activeTool === "code"
+                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
+                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            }`}
+                          >
+                            <Code2 className="w-4 h-4 text-cyan-500 mt-0.5" />
+                            <div>
+                              <div className="font-medium">Code Assistance</div>
+                              <div className="text-[10px] text-neutral-400">Production code, zero emojis</div>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Controls: Voice Input & Dynamic Send / Stop Button */}
+                  <div className="flex items-center gap-2">
+                    {/* Speech-to-Text Microphone Button with Live Status Indicator */}
+                    <button
+                      type="button"
+                      onClick={startVoiceRecognition}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
+                        isListening
+                          ? "bg-red-500 text-white shadow-md animate-pulse ring-2 ring-red-400/50"
+                          : isDark
+                          ? "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                          : "text-neutral-500 hover:text-black hover:bg-neutral-100"
+                      }`}
+                      title={isListening ? "Stop voice listening" : "Voice input (Speech-to-Text)"}
+                    >
+                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+
+                    {/* Dynamic Send / Stop Generation Button */}
+                    {loading ? (
+                      <button
+                        type="button"
+                        onClick={stopGeneration}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-md hover:scale-105 active:scale-95 transition-all ring-2 ring-neutral-400/30"
+                        title="Stop generation"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!input.trim() && attachments.length === 0}
+                        onClick={() => sendMessage()}
+                        className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
+                          input.trim() || attachments.length > 0
+                            ? "bg-black text-white dark:bg-white dark:text-black shadow-md hover:scale-105 active:scale-95 cursor-pointer"
+                            : "bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
+                        }`}
+                        title="Send message"
+                      >
+                        <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Small Friendly Disclaimer Description at the Bottom of Message Bar */}
+              <p className="mt-2 text-center text-[11px] text-neutral-400 leading-normal max-w-xl mx-auto select-none">
+                Notice: AI image generation is continuously learning. While we work to bring you 100% perfect images soon,
+                we always deliver the best possible quality for your prompt.
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* =========================================================================
+          4. LIGHTBOX / FULLSCREEN MODAL (WITH DOWNLOAD & SHARE SYMBOLS)
+      ========================================================================= */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-8 animate-fade-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-h-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            <Image
+              src={lightboxImage}
+              alt="Fullscreen view"
+              width={1024}
+              height={1024}
+              unoptimized
+              className="max-h-[85vh] w-auto rounded-2xl object-contain shadow-2xl"
+            />
+
+            {/* Floating Top Control Symbols */}
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => downloadImage(lightboxImage)}
+                className="flex items-center gap-2 rounded-xl bg-black/80 text-white px-3 py-2 text-xs font-semibold backdrop-blur-md hover:bg-black transition"
+                title="Download PNG"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({ title: "TATTVA AI Artwork", url: lightboxImage }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(lightboxImage);
+                    showToast("Image URI copied 📋");
+                  }
+                }}
+                className="flex items-center gap-2 rounded-xl bg-black/80 text-white px-3 py-2 text-xs font-semibold backdrop-blur-md hover:bg-black transition"
+                title="Share image"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Share</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="p-2 rounded-xl bg-black/80 text-white hover:bg-black transition"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          PROFILE, SETTINGS, MANAGE ACCOUNT & HELP MODALS (CHATGPT-STYLE)
+      ========================================================================= */}
+
+      {/* 1. MY PROFILE MODAL */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsProfileModalOpen(false)}>
+          <div
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white dark:bg-white dark:text-black">
+                  <UserIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">My Profile</h3>
+                  <p className="text-[11px] text-neutral-400">Personal details &amp; credentials</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {/* User Avatar & Name Banner */}
+              <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-neutral-800 to-black text-white text-base font-bold shadow-sm">
+                  {userEmail ? userEmail[0].toUpperCase() : "G"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm truncate text-neutral-900 dark:text-white">
+                    {userEmail ? (currentUser?.user_metadata?.full_name || userEmail.split("@")[0]) : "Guest User"}
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                    {userEmail || "Guest Session"}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                    isGuest ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
+                    {isGuest ? "Guest" : "Verified Pro"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Account Metadata Grid */}
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div className="p-3 rounded-xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                  <span className="block text-[10px] font-medium text-neutral-400 uppercase tracking-wider">Conversations</span>
+                  <span className="block text-sm font-bold mt-1 text-neutral-900 dark:text-white">{sessions.length} chats</span>
+                </div>
+                <div className="p-3 rounded-xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                  <span className="block text-[10px] font-medium text-neutral-400 uppercase tracking-wider">Security Tier</span>
+                  <span className="block text-sm font-bold mt-1 text-emerald-600 dark:text-emerald-400">Supabase RLS</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="rounded-xl border border-black/10 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
+                >
+                  Close
+                </button>
+                {!isGuest && (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-red-700 transition"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. SETTINGS MODAL */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsSettingsModalOpen(false)}>
+          <div
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white dark:bg-white dark:text-black">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Preferences &amp; Settings</h3>
+                  <p className="text-[11px] text-neutral-400">Customize your TATTVA AI experience</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-xs">
+              {/* Setting 1: Theme Switcher */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-white">Color Theme</p>
+                  <p className="text-[11px] text-neutral-400">Current: {isDark ? "Dark Modern" : "Light Minimalist"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50"
+                >
+                  {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-neutral-600" />}
+                  <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+                </button>
+              </div>
+
+              {/* Setting 2: Sare Voice Assistant Narration */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-white">Sare Voice Auto-Narration</p>
+                  <p className="text-[11px] text-neutral-400">Speak AI responses aloud automatically</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleSareVoiceMode}
+                  className={`rounded-xl px-3 py-1.5 font-semibold transition ${
+                    sareEnabled
+                      ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
+                      : "border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400"
+                  }`}
+                >
+                  {sareEnabled ? "Enabled (ON)" : "Disabled (OFF)"}
+                </button>
+              </div>
+
+              {/* Setting 3: Clear All Conversation History */}
+              <div className="flex items-center justify-between p-3 rounded-2xl border border-red-500/20 bg-red-500/5">
+                <div>
+                  <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>
+                  <p className="text-[11px] text-neutral-400">Permanently delete stored messages</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Are you sure you want to clear all conversation history? This cannot be undone.")) {
+                      setMessages([]);
+                      setSessions([]);
+                      localStorage.removeItem(getStorageKey(userEmail));
+                      createNewChat();
+                      setIsSettingsModalOpen(false);
+                      showToast("All conversation history cleared 🗑️");
+                    }
+                  }}
+                  className="rounded-xl border border-red-500/30 bg-red-600 text-white px-3 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="rounded-xl bg-black dark:bg-white text-white dark:text-black px-4 py-2 text-xs font-semibold shadow-xs hover:opacity-90 transition"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. MANAGE ACCOUNT MODAL */}
+      {isManageAccountModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsManageAccountModalOpen(false)}>
+          <div
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white dark:bg-white dark:text-black">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Manage Account &amp; Security</h3>
+                  <p className="text-[11px] text-neutral-400">Authentication &amp; credential security</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageAccountModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-xs">
+              <div className="p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <label className="block text-[10px] uppercase font-bold text-neutral-400 mb-1">Registered Account Email</label>
+                <p className="font-semibold text-neutral-900 dark:text-white text-sm">{userEmail}</p>
+                <p className="text-[11px] text-neutral-500 mt-0.5">Encrypted with Supabase JWT &amp; Row Level Security</p>
+              </div>
+
+              {/* Password Reset Trigger */}
+              <div className="p-3 rounded-2xl border border-black/10 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-neutral-900 dark:text-white">Password &amp; Access Recovery</p>
+                    <p className="text-[11px] text-neutral-400">Receive a secure reset link in your email</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!userEmail) return;
+                      try {
+                        const supabase = createClient();
+                        const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+                          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+                        });
+                        if (error) throw error;
+                        showToast("Password reset link sent to your email ✉️");
+                        setIsManageAccountModalOpen(false);
+                      } catch (err: unknown) {
+                        showToast(err instanceof Error ? err.message : "Failed to send reset link");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-100 dark:hover:bg-neutral-700 transition"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Reset Link</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Logout Button */}
+              <div className="pt-2 flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setIsManageAccountModalOpen(false)}
+                  className="rounded-xl border border-black/10 dark:border-neutral-700 px-4 py-2 font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 font-semibold text-white shadow-xs hover:bg-red-700 transition"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. HELP & SUPPORT MODAL */}
+      {isHelpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsHelpModalOpen(false)}>
+          <div
+            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white dark:bg-white dark:text-black">
+                  <HelpCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Help &amp; Documentation</h3>
+                  <p className="text-[11px] text-neutral-400">TATTVA AI Quick Reference &amp; Shortcuts</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHelpModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3.5 text-xs">
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-neutral-900 dark:text-white">Keyboard Shortcuts</h4>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-between">
+                    <span>Global Search</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 font-mono text-[10px]">Ctrl + K</kbd>
+                  </div>
+                  <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-between">
+                    <span>Send Message</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 font-mono text-[10px]">Enter</kbd>
+                  </div>
+                  <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-between">
+                    <span>New Line in Chat</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 font-mono text-[10px]">Shift + Enter</kbd>
+                  </div>
+                  <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-between">
+                    <span>Dismiss Popups</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 font-mono text-[10px]">Escape</kbd>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-neutral-900 dark:text-white">Supported Binary File Generation</h4>
+                <p className="text-[11px] text-neutral-500">
+                  Ask TATTVA AI to generate files in natural language: <strong>PDF (ReportLab)</strong>, <strong>DOCX (Word)</strong>, <strong>PPTX (PowerPoint)</strong>, <strong>XLSX (Excel with formulas)</strong>, and <strong>CSV</strong>.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">Creator &amp; Architectural Attribution</p>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  TATTVA AI was proudly conceptualized, engineered, and developed by <strong>kotapati Gowtham Chowdary</strong>.
+                </p>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsHelpModalOpen(false)}
+                  className="rounded-xl bg-black dark:bg-white text-white dark:text-black px-4 py-2 text-xs font-semibold shadow-xs hover:opacity-90 transition"
+                >
+                  Got It
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          5. SELF-PERSONALIZING MEMORY & INTELLIGENCE DASHBOARD MODAL
+      ========================================================================= */}
+      {isMemoryModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => setIsMemoryModalOpen(false)}
+        >
+          <div
+            className={`w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all overflow-hidden ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-black/[0.06] dark:border-neutral-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-md">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold">Memory &amp; Personalization Engine</h3>
+                    <span className="rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 px-2 py-0.5 text-[10px] font-bold">
+                      Self-Adapting AI
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    TATTVA continuously learns your technical level, projects, and style to tailor answers
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMemoryModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-1 px-5 pt-3 border-b border-black/[0.06] dark:border-neutral-800 shrink-0 bg-neutral-50/50 dark:bg-neutral-900/50 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setMemoryTab("memories")}
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
+                  memoryTab === "memories"
+                    ? "border-purple-600 text-purple-600 dark:text-purple-400"
+                    : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Brain className="w-3.5 h-3.5" />
+                <span>Memories ({memories.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMemoryTab("preferences")}
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
+                  memoryTab === "preferences"
+                    ? "border-purple-600 text-purple-600 dark:text-purple-400"
+                    : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Personalization Rules</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMemoryTab("analytics")}
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
+                  memoryTab === "analytics"
+                    ? "border-purple-600 text-purple-600 dark:text-purple-400"
+                    : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Feedback Insights</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMemoryTab("privacy")}
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
+                  memoryTab === "privacy"
+                    ? "border-purple-600 text-purple-600 dark:text-purple-400"
+                    : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Privacy &amp; Data</span>
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* TAB 1: MEMORIES LIST & ADD */}
+              {memoryTab === "memories" && (
+                <div className="space-y-4">
+                  {/* Category Filter Chips & Add Button */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { id: "all", label: "All" },
+                        { id: "preference", label: "Preferences" },
+                        { id: "project", label: "Projects" },
+                        { id: "technical_level", label: "Tech Level" },
+                        { id: "language", label: "Language" },
+                        { id: "instruction", label: "Directives" },
+                      ].map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setSelectedMemoryCategory(cat.id)}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                            selectedMemoryCategory === cat.id
+                              ? "bg-purple-600 text-white shadow-xs"
+                              : "border border-black/10 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200"
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingMemory(!isAddingMemory)}
+                      className="flex items-center gap-1 rounded-xl bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-purple-700 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Memory</span>
+                    </button>
+                  </div>
+
+                  {/* Add Memory Form Card */}
+                  {isAddingMemory && (
+                    <div className="rounded-2xl border border-purple-500/30 bg-purple-50/40 dark:bg-purple-950/20 p-4 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">New Long-Term Memory</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingMemory(false)}
+                          className="text-neutral-400 hover:text-black dark:hover:text-white"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <textarea
+                        rows={2}
+                        value={newMemoryContent}
+                        onChange={(e) => setNewMemoryContent(e.target.value)}
+                        placeholder="e.g. Always provide strict TypeScript types, or My project is called FoodFlow..."
+                        className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2.5 text-xs outline-none focus:border-purple-500 placeholder-neutral-400"
+                      />
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <label className="text-[11px] text-neutral-500 font-medium">Category:</label>
+                          <select
+                            value={newMemoryCategory}
+                            onChange={(e) => setNewMemoryCategory(e.target.value as MemoryCategory)}
+                            className="rounded-lg border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1 text-xs outline-none"
+                          >
+                            <option value="preference">Preference</option>
+                            <option value="project">Project Context</option>
+                            <option value="technical_level">Technical Level</option>
+                            <option value="language">Language Preference</option>
+                            <option value="instruction">Strict Directive</option>
+                            <option value="formatting">Formatting Style</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="text-[11px] text-neutral-500 font-medium">Importance:</label>
+                          <select
+                            value={newMemoryImportance}
+                            onChange={(e) => setNewMemoryImportance(Number(e.target.value))}
+                            className="rounded-lg border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs outline-none"
+                          >
+                            {[10, 9, 8, 7, 6, 5, 4, 3].map((num) => (
+                              <option key={num} value={num}>
+                                {num}/10 {num >= 9 ? "Critical" : num >= 7 ? "High" : "Normal"}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveNewMemory}
+                          className="rounded-xl bg-purple-600 px-4 py-1.5 font-semibold text-white shadow-xs hover:bg-purple-700 transition ml-auto"
+                        >
+                          Save Memory
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of Stored Memories */}
+                  {memories.length === 0 ? (
+                    <div className="text-center py-10 space-y-2 border border-dashed border-black/10 dark:border-neutral-800 rounded-2xl">
+                      <Brain className="w-8 h-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                      <p className="text-xs font-semibold text-neutral-500">No long-term memories stored yet</p>
+                      <p className="text-[11px] text-neutral-400 max-w-sm mx-auto">
+                        TATTVA will automatically remember your preferred tools, frameworks, and projects as you chat, or you can add them manually above.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {memories
+                        .filter(
+                          (m) =>
+                            selectedMemoryCategory === "all" || m.category === selectedMemoryCategory
+                        )
+                        .map((item) => {
+                          const isEditing = editingMemoryId === item.id;
+                          const categoryColors: Record<string, string> = {
+                            preference: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+                            project: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+                            technical_level: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+                            language: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+                            instruction: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+                            formatting: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+                          };
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`p-3.5 rounded-2xl border transition-all ${
+                                !item.active
+                                  ? "opacity-50 border-black/[0.04] dark:border-neutral-800/50 bg-neutral-100/40 dark:bg-neutral-900/40"
+                                  : isDark
+                                  ? "border-neutral-800 bg-[#18191d] hover:border-neutral-700"
+                                  : "border-black/[0.06] bg-neutral-50/70 hover:border-black/15 shadow-2xs"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1.5 flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border uppercase tracking-wider ${
+                                        categoryColors[item.category] || categoryColors.preference
+                                      }`}
+                                    >
+                                      {item.category.replace("_", " ")}
+                                    </span>
+                                    <span className="text-[10px] text-neutral-400 font-mono">
+                                      ✦ {item.importance}/10 importance
+                                    </span>
+                                    <span className="text-[10px] text-neutral-400">
+                                      • {item.source === "extracted" ? "Auto-Learned" : "Manual"}
+                                    </span>
+                                  </div>
+
+                                  {isEditing ? (
+                                    <div className="space-y-2 pt-1">
+                                      <textarea
+                                        rows={2}
+                                        value={editMemoryContent}
+                                        onChange={(e) => setEditMemoryContent(e.target.value)}
+                                        className="w-full rounded-xl border border-black/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-xs outline-none focus:border-purple-500"
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateMemory(item.id, { content: editMemoryContent })}
+                                          className="rounded-lg bg-purple-600 px-3 py-1 text-[11px] font-semibold text-white shadow-xs"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingMemoryId(null)}
+                                          className="rounded-lg border px-3 py-1 text-[11px] font-semibold text-neutral-400"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs font-medium leading-relaxed text-neutral-900 dark:text-neutral-100">
+                                      {item.content}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Memory Actions */}
+                                {!isEditing && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateMemory(item.id, { active: !item.active })}
+                                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
+                                        item.active
+                                          ? "text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20"
+                                          : "text-neutral-400 bg-neutral-200 dark:bg-neutral-800"
+                                      }`}
+                                      title={item.active ? "Pause memory" : "Activate memory"}
+                                    >
+                                      {item.active ? "Active" : "Paused"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingMemoryId(item.id);
+                                        setEditMemoryContent(item.content);
+                                      }}
+                                      className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white"
+                                      title="Edit memory"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteMemory(item.id)}
+                                      className="p-1 rounded-lg text-neutral-400 hover:text-red-500"
+                                      title="Delete memory"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {memories.length > 0 && (
+                    <div className="pt-2 flex justify-between items-center text-xs text-neutral-400">
+                      <span>Showing {memories.length} preserved memories</span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllMemories}
+                        className="text-red-500 hover:text-red-600 font-semibold text-[11px]"
+                      >
+                        Clear All Memories
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: PERSONALIZATION SETTINGS */}
+              {memoryTab === "preferences" && (
+                <div className="space-y-4 text-xs">
+                  {/* Master Toggle */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                    <div>
+                      <p className="font-bold text-sm text-neutral-900 dark:text-white">Enable Self-Personalization</p>
+                      <p className="text-[11px] text-neutral-400">
+                        Allow TATTVA AI to continuously adapt answers based on recalled context
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdatePersonalizationSettings({ enabled: !personalizationSettings.enabled })
+                      }
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        personalizationSettings.enabled ? "bg-purple-600" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          personalizationSettings.enabled ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Technical Knowledge Depth */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                      Technical Knowledge Depth
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: "beginner", label: "Beginner", desc: "Intuitive analogies, minimal jargon" },
+                        { id: "intermediate", label: "Intermediate", desc: "Clear practical depth and code" },
+                        { id: "advanced", label: "Advanced", desc: "Architectural context & edge cases" },
+                        { id: "expert", label: "Expert Architect", desc: "Zero fluff, high performance rigor" },
+                      ].map((lvl) => (
+                        <button
+                          key={lvl.id}
+                          type="button"
+                          onClick={() => handleUpdatePersonalizationSettings({ technicalDepth: lvl.id as any })}
+                          className={`p-2.5 rounded-xl border text-left transition ${
+                            personalizationSettings.technicalDepth === lvl.id
+                              ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 shadow-xs"
+                              : "border-black/[0.08] dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                          }`}
+                        >
+                          <p className="font-bold">{lvl.label}</p>
+                          <p className="text-[10px] text-neutral-400 mt-0.5">{lvl.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Response Length */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                      Explanation Length
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: "concise", label: "Concise" },
+                        { id: "balanced", label: "Balanced" },
+                        { id: "detailed", label: "Detailed" },
+                        { id: "deep_dive", label: "Deep Dive" },
+                      ].map((len) => (
+                        <button
+                          key={len.id}
+                          type="button"
+                          onClick={() => handleUpdatePersonalizationSettings({ responseLength: len.id as any })}
+                          className={`p-2 rounded-xl border text-center transition font-semibold text-xs ${
+                            personalizationSettings.responseLength === len.id
+                              ? "border-purple-600 bg-purple-600 text-white shadow-xs"
+                              : "border-black/[0.08] dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                          }`}
+                        >
+                          {len.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Conversational Tone & Language */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                        Conversational Tone
+                      </label>
+                      <select
+                        value={personalizationSettings.tone}
+                        onChange={(e) => handleUpdatePersonalizationSettings({ tone: e.target.value as any })}
+                        className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-xs outline-none"
+                      >
+                        <option value="conversational">Warm &amp; Conversational</option>
+                        <option value="direct">Direct &amp; Professional</option>
+                        <option value="technical">Technical &amp; Academic</option>
+                        <option value="empathic">Empathic &amp; Supportive</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                        Language Override
+                      </label>
+                      <select
+                        value={personalizationSettings.preferredLanguage}
+                        onChange={(e) => handleUpdatePersonalizationSettings({ preferredLanguage: e.target.value })}
+                        className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-xs outline-none"
+                      >
+                        <option value="auto">Auto-Detect Language</option>
+                        <option value="en">English</option>
+                        <option value="te">Telugu (తేట తెలుగు పాండిత్యం)</option>
+                        <option value="hi">Hindi (हिन्दी)</option>
+                        <option value="ta">Tamil (தமிழ்)</option>
+                        <option value="kn">Kannada (ಕನ್ನಡ)</option>
+                        <option value="es">Spanish (Español)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Custom Permanent Directives */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                      Custom Permanent Directives
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={personalizationSettings.customInstructions || ""}
+                      onChange={(e) =>
+                        setPersonalizationSettings((prev) => ({ ...prev, customInstructions: e.target.value }))
+                      }
+                      onBlur={() =>
+                        handleUpdatePersonalizationSettings({
+                          customInstructions: personalizationSettings.customInstructions,
+                        })
+                      }
+                      placeholder="e.g. Always write code with Tailwind CSS v4, avoid using class components, prioritize async/await..."
+                      className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2.5 text-xs outline-none focus:border-purple-500 placeholder-neutral-400"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: FEEDBACK INSIGHTS */}
+              {memoryTab === "analytics" && (
+                <div className="space-y-4 text-xs">
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                      <p className="text-[10px] uppercase font-bold text-neutral-400">Helpful Rating</p>
+                      <p className="text-xl font-bold mt-1 text-emerald-500">
+                        {feedbackSummary?.positivePercentage ?? 100}%
+                      </p>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">Satisfaction score</p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                      <p className="text-[10px] uppercase font-bold text-neutral-400">Total Feedback</p>
+                      <p className="text-xl font-bold mt-1 text-neutral-900 dark:text-white">
+                        {feedbackSummary?.total ?? 0}
+                      </p>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">Responses evaluated</p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                      <p className="text-[10px] uppercase font-bold text-neutral-400">Issues Flagged</p>
+                      <p className="text-xl font-bold mt-1 text-amber-500">
+                        {feedbackSummary?.negative ?? 0}
+                      </p>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">Adjustments made</p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-purple-500/20 bg-purple-500/5 space-y-2">
+                    <h4 className="font-bold text-purple-700 dark:text-purple-300">How TATTVA Learns Safely</h4>
+                    <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                      When you submit feedback on a message (e.g. flagging an answer as <strong>Too detailed</strong> or <strong>Too short</strong>), TATTVA automatically updates your personal preference profile to deliver the right depth next time. Core model weights remain untouched and your private data is never shared.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: PRIVACY & DATA EXPORT */}
+              {memoryTab === "privacy" && (
+                <div className="space-y-4 text-xs">
+                  <div className="p-4 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 space-y-2">
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Encrypted &amp; User-Scoped Storage</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500 leading-relaxed">
+                      All your recalled memories and preferences are strictly isolated to your authenticated account. They are never pooled, leaked to other users, or used to train shared public models.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                    <div>
+                      <p className="font-bold text-neutral-900 dark:text-white">Export My Memory Profile</p>
+                      <p className="text-[11px] text-neutral-400">Download your personal memories in JSON format</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify({ memories, settings: personalizationSettings }, null, 2)], {
+                          type: "application/json",
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `tattva_memories_${Date.now()}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        showToast("Memories exported successfully 📁");
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-100"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export JSON</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-red-500/20 bg-red-500/5">
+                    <div>
+                      <p className="font-bold text-red-600 dark:text-red-400">Purge All Memory Data</p>
+                      <p className="text-[11px] text-neutral-400">Permanently delete all stored facts, projects, and directives</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearAllMemories}
+                      className="rounded-xl border border-red-500/30 bg-red-600 text-white px-3.5 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs"
+                    >
+                      Purge Data
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          6. MESSAGE FEEDBACK MODAL (HOW WAS THIS RESPONSE?)
+      ========================================================================= */}
+      {feedbackModalTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setFeedbackModalTarget(null)}
+        >
+          <div
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl text-white ${
+                    feedbackModalTarget.initialRating === "positive"
+                      ? "bg-emerald-600"
+                      : "bg-neutral-800 dark:bg-neutral-700"
+                  }`}
+                >
+                  {feedbackModalTarget.initialRating === "positive" ? (
+                    <ThumbsUp className="w-4 h-4" />
+                  ) : (
+                    <ThumbsDown className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">Feedback &amp; Personalization</h3>
+                  <p className="text-[11px] text-neutral-400">Help TATTVA AI adapt to your preferences</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackModalTarget(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+                  Select what describes this answer best:
+                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { id: "helpful", label: "Helpful", icon: ThumbsUp },
+                    { id: "not_helpful", label: "Not helpful", icon: ThumbsDown },
+                    { id: "too_detailed", label: "Too detailed", icon: AlignLeft },
+                    { id: "too_short", label: "Too short", icon: Maximize2 },
+                    { id: "incorrect_answer", label: "Incorrect answer", icon: AlertTriangle },
+                    { id: "wrong_language", label: "Wrong language", icon: Languages },
+                    { id: "other", label: "Other feedback", icon: MessageSquare },
+                  ].map((opt) => {
+                    const IconComponent = opt.icon;
+                    const isSelected = selectedFeedbackCategory === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSelectedFeedbackCategory(opt.id as FeedbackCategory)}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition font-medium ${
+                          isSelected
+                            ? "border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 shadow-xs"
+                            : "border-black/[0.08] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+                  Additional Details (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={feedbackComment}
+                  onChange={(e) => setFeedbackComment(e.target.value)}
+                  placeholder="Tell us what you expected, or how TATTVA should adjust for you..."
+                  className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 p-2.5 text-xs outline-none focus:border-purple-600 placeholder-neutral-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-black/[0.06] dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackModalTarget(null)}
+                  className="rounded-xl border border-black/10 dark:border-neutral-800 px-3.5 py-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingFeedback}
+                  onClick={handleSubmitFeedback}
+                  className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {isSubmittingFeedback ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <span>Submit &amp; Adapt</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          5. AUTHENTICATION MODAL (FOR GUESTS AFTER 5 CHATS)
+      ========================================================================= */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+          <div
+            className={`w-full max-w-md rounded-3xl border p-7 shadow-2xl backdrop-blur-2xl animate-scale-in ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            }`}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
+              <h3 className="text-lg font-bold">
+                {authMode === "signin"
+                  ? "Sign In to TATTVA AI"
+                  : authMode === "signup"
+                  ? "Create Free Account"
+                  : "Reset Password"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAuthModal(false)}
+                className="text-neutral-400 hover:text-black dark:hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 flex rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-800/70 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signin");
+                  setAuthMessage("");
+                }}
+                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+                  authMode === "signin" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signup");
+                  setAuthMessage("");
+                }}
+                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+                  authMode === "signup" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
+                }`}
+              >
+                Register
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("forgot");
+                  setAuthMessage("");
+                }}
+                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+                  authMode === "forgot" ? "bg-white dark:bg-black text-black dark:text-white shadow-xs" : "text-neutral-500"
+                }`}
+              >
+                Reset
+              </button>
+            </div>
+
+            {authMessage && (
+              <div className="mt-3 rounded-xl border border-black/10 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs">
+                {authMessage}
+              </div>
+            )}
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthLoading(true);
+                setAuthMessage("");
+                const normEmail = authEmailInput.trim();
+
+                try {
+                  const supabase = createClient();
+
+                  if (authMode === "forgot") {
+                    const { error } = await supabase.auth.resetPasswordForEmail(normEmail, {
+                      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+                    });
+                    if (error) throw error;
+                    setAuthMessage("Reset link sent! Please check your inbox ✉️.");
+                    return;
+                  }
+
+                  if (authMode === "signup") {
+                    if (authPasswordInput !== authConfirmPassword) {
+                      setAuthMessage("Passwords do not match.");
+                      return;
+                    }
+                    const { error } = await supabase.auth.signUp({
+                      email: normEmail,
+                      password: authPasswordInput,
+                    });
+                    if (error) throw error;
+                    localStorage.setItem("tattva_user_session_email", normEmail);
+                    setUserEmail(normEmail);
+                    loadUserSessions(normEmail);
+                    setShowAuthModal(false);
+                    showToast("Account created! Limitless chats unlocked ✦");
+                    return;
+                  }
+
+                  // Sign In
+                  const { data, error } = await supabase.auth.signInWithPassword({
+                    email: normEmail,
+                    password: authPasswordInput,
+                  });
+                  if (error) throw error;
+                  if (data?.user?.email) {
+                    localStorage.setItem("tattva_user_session_email", data.user.email);
+                    setUserEmail(data.user.email);
+                    loadUserSessions(data.user.email);
+                  }
+                  setShowAuthModal(false);
+                  showToast("Welcome back! Limitless chats unlocked ✦");
+                } catch (err: unknown) {
+                  setAuthMessage(err instanceof Error ? err.message : "Authentication failed.");
+                } finally {
+                  setAuthLoading(false);
+                }
+              }}
+              className="mt-4 space-y-3"
+            >
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={authEmailInput}
+                  onChange={(e) => setAuthEmailInput(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs outline-none"
+                />
+              </div>
+
+              {authMode !== "forgot" && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={authPasswordInput}
+                    onChange={(e) => setAuthPasswordInput(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs outline-none"
+                  />
+                </div>
+              )}
+
+              {authMode === "signup" && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-400 mb-1">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={authConfirmPassword}
+                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-black/10 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 p-2.5 text-xs outline-none"
+                  />
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="mt-3 flex h-10 w-full items-center justify-center rounded-xl bg-black dark:bg-white text-xs font-semibold text-white dark:text-black shadow-sm transition hover:opacity-90 disabled:opacity-50"
+              >
+                {authLoading
+                  ? "Processing..."
+                  : authMode === "signin"
+                  ? "Sign In & Unlock Limitless Chats"
+                  : authMode === "signup"
+                  ? "Create Account & Unlock Limitless Chats"
+                  : "Send Password Reset Link"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

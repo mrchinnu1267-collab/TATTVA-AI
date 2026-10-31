@@ -1,0 +1,43 @@
+﻿# =============================================================================
+# TATTVA AI - Root .gitignore
+# Conceptualized & Engineered by kotapati Gowtham Chowdary
+# =============================================================================
+
+# Environments & Sensitive Credentials (STRICT)
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.secret
+
+# Node.js
+**/node_modules/
+**/.next/
+**/build/
+**/dist/
+**/out/
+**/*.tsbuildinfo
+
+# Python
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+
+# AI Model Binaries & Checkpoints (Heavy Artifacts)
+**/models/
+**/*.safetensors
+**/*.pt
+**/*.pth
+**/*.bin
+**/*.onnx
+**/.cache/
+
+# Local Secure Vault & Memory Stores
+**/.tattva_secure_vault/
+**/.tattva_memory_data/
+
+# OS / Editor Files
+.DS_Store
+Thumbs.db
+*.log
