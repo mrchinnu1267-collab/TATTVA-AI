@@ -554,14 +554,6 @@ export default function ChatPage() {
   });
   const [authReady, setAuthReady] = useState(false);
 
-  // Auth modal states
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup" | "forgot">("signin");
-  const [authEmailInput, setAuthEmailInput] = useState("");
-  const [authPasswordInput, setAuthPasswordInput] = useState("");
-  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authMessage, setAuthMessage] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 

@@ -48,40 +48,52 @@ export async function generateWithCloud(params: {
   const seed = params.seed ?? Math.floor(Math.random() * 2147483647);
   const fullPrompt = params.prompt.trim();
 
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${w}&height=${h}&seed=${seed}&nologo=true&model=flux`;
-
+  const candidateModels = ["flux", "turbo", "flux-realism", "default"];
+  let lastError: Error | null = null;
   const started = Date.now();
-  const res = await fetch(url, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(60000),
-  });
 
-  if (!res.ok) {
-    throw new Error(`Cloud image generation failed with HTTP ${res.status}`);
+  for (const model of candidateModels) {
+    try {
+      const modelParam = model === "default" ? "" : `&model=${model}`;
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${w}&height=${h}&seed=${seed}&nologo=true${modelParam}`;
+
+      const res = await fetch(url, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(45000),
+      });
+
+      if (res.ok) {
+        const arrayBuffer = await res.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        const contentType = res.headers.get("content-type") || "image/jpeg";
+        const elapsed = Math.round((Date.now() - started) / 10) / 100;
+
+        return {
+          success: true,
+          image: `data:${contentType};base64,${base64Data}`,
+          prompt: params.prompt,
+          original_prompt: params.prompt,
+          enhanced_prompt: fullPrompt,
+          prompt_enhanced: false,
+          provider: `TATTVA AI Cloud Engine (${model.toUpperCase()})`,
+          model: `FLUX / SDXL Cloud (${model})`,
+          model_id: "cloud",
+          width: w,
+          height: h,
+          steps: 25,
+          guidance_scale: 7.0,
+          seed,
+          generation_time_seconds: elapsed,
+        };
+      } else {
+        lastError = new Error(`Cloud model '${model}' returned HTTP ${res.status}`);
+      }
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const arrayBuffer = await res.arrayBuffer();
-  const base64Data = Buffer.from(arrayBuffer).toString("base64");
-  const contentType = res.headers.get("content-type") || "image/jpeg";
-  const elapsed = Math.round((Date.now() - started) / 10) / 100;
-
-  return {
-    success: true,
-    image: `data:${contentType};base64,${base64Data}`,
-    prompt: params.prompt,
-    original_prompt: params.prompt,
-    enhanced_prompt: fullPrompt,
-    prompt_enhanced: false,
-    provider: "TATTVA AI Cloud Engine (FLUX/SDXL)",
-    model: "FLUX / SDXL Cloud",
-    model_id: "cloud",
-    width: w,
-    height: h,
-    steps: 25,
-    guidance_scale: 7.0,
-    seed,
-    generation_time_seconds: elapsed,
-  };
+  throw lastError || new Error("All cloud image generation models failed.");
 }
 
 export async function executeImageGeneration(params: {
