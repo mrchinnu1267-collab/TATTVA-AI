@@ -62,10 +62,7 @@ export function middleware(request: NextRequest) {
             originHost.startsWith("192.168.") ||
             originHost.startsWith("10.") ||
             originHost.startsWith("172.") ||
-            originHost.includes("10.0.2.2") ||
-            originHost.endsWith(".trycloudflare.com") ||
-            originHost.endsWith(".vercel.app") ||
-            originHost.endsWith(".localtunnel.me");
+            originHost.includes("10.0.2.2");
 
           if (!isAllowedHost) {
             return new NextResponse(
@@ -85,14 +82,14 @@ export function middleware(request: NextRequest) {
   // 3. Prepare response with Comprehensive HTTP Security Headers for pages
   const response = NextResponse.next();
 
-  // Content Security Policy (Strict Zero Trust with Android LAN, Public Tunnel & Cloud support)
+  // Content Security Policy (Strict Zero Trust with Localhost & Android LAN support only)
   const cspHeader = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.trycloudflare.com https://*.vercel.app https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://api.pollinations.ai",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://api.pollinations.ai",
     "frame-ancestors 'self'",
     "object-src 'none'",
     "base-uri 'self'",

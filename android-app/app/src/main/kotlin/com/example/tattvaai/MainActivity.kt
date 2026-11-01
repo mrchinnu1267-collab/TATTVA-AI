@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val PREFS_NAME = "TattvaPrefs"
         private const val KEY_SERVER_URL = "server_url"
-        private const val DEFAULT_URL = "https://parade-predictions-bride-delhi.trycloudflare.com"
+        private const val DEFAULT_URL = "http://10.0.2.2:3000"
     }
 
     private val filePickerLauncher = registerForActivityResult(
