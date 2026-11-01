@@ -1,17 +1,59 @@
 {
-  "name": "TATTVA AI",
+  "name": "TATTVA AI - Advanced Multi-Model AI Assistant",
   "short_name": "TATTVA AI",
+  "id": "/?source=pwa",
   "description": "Next-generation multi-model AI assistant with real-time voice, document generation, image synthesis, and personalized intelligence.",
   "start_url": "/chat",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0b0f19",
-  "theme_color": "#0b0f19",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "background_color": "#0d0e11",
+  "theme_color": "#0d0e11",
+  "categories": ["productivity", "utilities", "business", "education"],
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "url": "/chat",
+      "description": "Start a fresh AI conversation",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Live Voice Assistant",
+      "url": "/voice",
+      "description": "Talk to Sare Voice Assistant in real-time",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Image Studio",
+      "url": "/studio",
+      "description": "Create and edit AI images",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

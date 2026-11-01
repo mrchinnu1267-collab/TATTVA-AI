@@ -1,0 +1,19 @@
+﻿{
+  "appId": "com.tattva.ai.ios",
+  "appName": "TATTVA AI",
+  "webDir": "public",
+  "server": {
+    "url": "https://disco-care-buyers-copyright.trycloudflare.com",
+    "cleartext": false,
+    "allowNavigation": [
+      "https://disco-care-buyers-copyright.trycloudflare.com",
+      "https://*.vercel.app",
+      "https://*.supabase.co"
+    ]
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "scheme": "TATTVA AI"
+  }
+}
