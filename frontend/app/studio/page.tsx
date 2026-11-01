@@ -24,6 +24,7 @@ import {
   UploadCloud,
   Palette,
   Sun,
+  Moon,
   Camera,
   Compass,
   Heart,
@@ -141,8 +142,26 @@ export default function StudioPage() {
     online: true,
   });
 
-  // Load history from localStorage
+  // Dark & Light Theme State
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const isDark = theme === "dark";
+
+  // Load saved theme and history from localStorage
   useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("tattva_theme");
+      if (savedTheme === "dark" || savedTheme === "light") {
+        setTheme(savedTheme);
+        if (savedTheme === "dark") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     try {
       const stored = localStorage.getItem("tattva_studio_history");
       if (stored) {
@@ -171,6 +190,21 @@ export default function StudioPage() {
         setEngineInfo({ gpu: "Cloud FLUX Engine", online: true });
       });
   }, []);
+
+  function toggleTheme() {
+    const nextTheme = theme === "light" ? "dark" : "light";
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem("tattva_theme", nextTheme);
+    } catch {
+      // ignore
+    }
+    if (nextTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }
 
   function saveToHistory(item: GeneratedItem) {
     setHistory((prev) => {
@@ -397,7 +431,13 @@ export default function StudioPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-neutral-900 font-sans selection:bg-black selection:text-white antialiased flex flex-col justify-between">
+    <main
+      className={`min-h-screen font-sans antialiased flex flex-col justify-between transition-colors duration-200 ${
+        isDark
+          ? "bg-[#0d0e11] text-white selection:bg-white selection:text-black"
+          : "bg-[#fafafa] text-neutral-900 selection:bg-black selection:text-white"
+      }`}
+    >
       {/* FULLSCREEN LIGHTBOX MODAL */}
       {fullscreenImage && (
         <div
@@ -439,66 +479,114 @@ export default function StudioPage() {
       )}
 
       {/* TOP HEADER */}
-      <header className="sticky top-0 z-30 border-b border-neutral-200/80 bg-white/80 backdrop-blur-xl">
+      <header
+        className={`sticky top-0 z-30 border-b backdrop-blur-xl transition-colors duration-200 ${
+          isDark
+            ? "border-white/10 bg-[#0d0e11]/85 text-white"
+            : "border-neutral-200/80 bg-white/80 text-neutral-900"
+        }`}
+      >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-6">
             <a href="/" className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black text-white shadow-xs">
+              <div
+                className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-xs ${
+                  isDark ? "bg-white text-black" : "bg-black text-white"
+                }`}
+              >
                 <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                 </svg>
               </div>
               <div className="leading-tight">
-                <span className="text-sm font-bold tracking-tight text-neutral-900">TATTVA AI</span>
-                <span className="block text-[10px] font-medium text-neutral-400">Image Generation Studio</span>
+                <span className={`text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-neutral-900"}`}>
+                  TATTVA AI
+                </span>
+                <span className={`block text-[10px] font-medium ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>
+                  Image Generation Studio
+                </span>
               </div>
             </a>
-
           </div>
 
-          {/* ALL 4 OPTIONS IN SAME PLACE AS IN THE NAVIGATION */}
+          {/* TOP CONTROLS & NAVIGATION */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             {/* 1. Live Voice Mode */}
             <a
               href="/voice"
-              className="flex items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 shadow-xs"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-xs ${
+                isDark
+                  ? "border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50"
+                  : "border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              }`}
               title="ChatGPT-Style Live Voice Mode"
             >
-              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
+              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
               <span>Live Voice Mode</span>
             </a>
 
             {/* 2. Image Studio (Active) */}
             <div
-              className="flex items-center gap-1.5 rounded-xl border border-black bg-black px-3 py-1.5 text-xs font-semibold text-white shadow-xs"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-xs ${
+                isDark ? "border-white bg-white text-black" : "border-black bg-black text-white"
+              }`}
               title="AI Image Generation Studio"
             >
-              <Sparkles className="w-3.5 h-3.5 text-white" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Image Studio</span>
             </div>
 
             {/* 3. Media / Document Studio */}
             <a
               href="/media"
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-50 shadow-xs"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-xs ${
+                isDark
+                  ? "border-white/10 bg-[#16171b] text-neutral-200 hover:bg-[#202127]"
+                  : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
+              }`}
               title="AI Document & Media Studio (PDF, DOCX, PPTX, XLSX, CSV)"
             >
-              <FolderArchive className="w-3.5 h-3.5 text-black" />
+              <FolderArchive className={`w-3.5 h-3.5 ${isDark ? "text-white" : "text-black"}`} />
               <span>Media</span>
             </a>
 
             {/* 4. Sare Voice / Chat */}
             <a
               href="/chat"
-              className="flex items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-neutral-100 transition shadow-xs"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-xs ${
+                isDark
+                  ? "border-white/10 bg-[#16171b] text-neutral-200 hover:bg-[#202127]"
+                  : "border-black/10 bg-white text-black hover:bg-neutral-100"
+              }`}
               title="Open Chat & Sare Voice"
             >
-              <Volume2 className="w-3.5 h-3.5 text-neutral-700" />
+              <Volume2 className={`w-3.5 h-3.5 ${isDark ? "text-neutral-400" : "text-neutral-700"}`} />
               <span>Sare Voice OFF</span>
             </a>
 
+            {/* 5. Day & Night Mode Toggle */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-xs ${
+                isDark
+                  ? "border-amber-400/40 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"
+                  : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"
+              }`}
+              title={isDark ? "Switch to Day Mode (Light)" : "Switch to Night Mode (Dark)"}
+            >
+              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-neutral-600" />}
+              <span className="hidden sm:inline">{isDark ? "Day Mode" : "Night Mode"}</span>
+            </button>
+
             {/* GPU Tag */}
-            <div className="hidden lg:flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs text-neutral-600">
+            <div
+              className={`hidden lg:flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs ${
+                isDark
+                  ? "border-white/10 bg-[#16171b] text-neutral-300"
+                  : "border-neutral-200 bg-neutral-50 text-neutral-600"
+              }`}
+            >
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <Cpu className="h-3 w-3 text-neutral-500" />
               <span>{engineInfo.gpu}</span>
@@ -510,8 +598,8 @@ export default function StudioPage() {
       {/* MAIN STUDIO CONTAINER */}
       <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 py-6 flex-1">
         {/* MODE SWITCHER TABS */}
-        <div className="flex items-center justify-between border-b border-neutral-200 pb-4 mb-6">
-          <div className="flex rounded-xl border border-neutral-200 bg-neutral-100/80 p-1">
+        <div className={`flex items-center justify-between border-b pb-4 mb-6 ${isDark ? "border-white/10" : "border-neutral-200"}`}>
+          <div className={`flex rounded-xl border p-1 ${isDark ? "border-white/10 bg-[#16171b]" : "border-neutral-200 bg-neutral-100/80"}`}>
             <button
               type="button"
               onClick={() => {
@@ -520,8 +608,12 @@ export default function StudioPage() {
               }}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition ${
                 tab === "generate"
-                  ? "bg-white text-black shadow-xs"
-                  : "text-neutral-500 hover:text-black"
+                  ? isDark
+                    ? "bg-white text-black shadow-xs"
+                    : "bg-white text-black shadow-xs"
+                  : isDark
+                    ? "text-neutral-400 hover:text-white"
+                    : "text-neutral-500 hover:text-black"
               }`}
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -535,8 +627,12 @@ export default function StudioPage() {
               }}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition ${
                 tab === "edit"
-                  ? "bg-white text-black shadow-xs"
-                  : "text-neutral-500 hover:text-black"
+                  ? isDark
+                    ? "bg-white text-black shadow-xs"
+                    : "bg-white text-black shadow-xs"
+                  : isDark
+                    ? "text-neutral-400 hover:text-white"
+                    : "text-neutral-500 hover:text-black"
               }`}
             >
               <Wand2 className="h-3.5 w-3.5" />
@@ -548,7 +644,9 @@ export default function StudioPage() {
             <button
               type="button"
               onClick={clearHistory}
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-red-600 transition"
+              className={`hidden sm:inline-flex items-center gap-1.5 text-xs transition ${
+                isDark ? "text-neutral-500 hover:text-red-400" : "text-neutral-400 hover:text-red-600"
+              }`}
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Clear History</span>
@@ -564,17 +662,30 @@ export default function StudioPage() {
           <div className="space-y-6">
             {/* TAB 1: TEXT TO IMAGE CONTROLS */}
             {tab === "generate" && (
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <div
+                className={`rounded-3xl border p-6 shadow-sm transition-colors ${
+                  isDark ? "border-white/10 bg-[#16171b]" : "border-neutral-200 bg-white"
+                }`}
+              >
                 {/* Header with Enhance button */}
                 <div className="flex items-center justify-between mb-3">
-                  <label htmlFor="studio-prompt-input" className="text-xs font-bold uppercase tracking-wider text-neutral-600">
+                  <label
+                    htmlFor="studio-prompt-input"
+                    className={`text-xs font-bold uppercase tracking-wider ${
+                      isDark ? "text-neutral-400" : "text-neutral-600"
+                    }`}
+                  >
                     Prompt Input
                   </label>
                   <button
                     type="button"
                     onClick={handleEnhancePrompt}
                     disabled={isEnhancing || !prompt.trim()}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 disabled:opacity-40"
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition disabled:opacity-40 ${
+                      isDark
+                        ? "border-white/10 bg-[#202127] text-neutral-200 hover:bg-[#282a32]"
+                        : "border-neutral-200 bg-neutral-50 text-neutral-800 hover:bg-neutral-100"
+                    }`}
                     title="Let AI extract subject, lighting, composition & expand diffusion fidelity"
                   >
                     <Sparkles className="h-3.5 w-3.5 text-amber-500" />
@@ -596,50 +707,134 @@ export default function StudioPage() {
                   }}
                   disabled={isGenerating}
                   placeholder="Describe your scene in full detail: subjects, setting, lighting, materials, dynamic action, camera optics, and atmosphere... (Supports English, Hindi, and any natural language)"
-                  className="w-full resize-none rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4 text-sm leading-relaxed text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-black focus:bg-white focus:ring-1 focus:ring-black disabled:opacity-50"
+                  className={`w-full resize-none rounded-2xl border p-4 text-sm leading-relaxed outline-none transition disabled:opacity-50 ${
+                    isDark
+                      ? "border-white/10 bg-[#101114] text-white placeholder-neutral-500 focus:border-white/40 focus:bg-[#141519]"
+                      : "border-neutral-200 bg-neutral-50/50 text-neutral-900 placeholder-neutral-400 focus:border-black focus:bg-white focus:ring-1 focus:ring-black"
+                  }`}
                 />
 
                 {/* 10-Dimension Breakdown Tags (if available) */}
                 {breakdown && (
-                  <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-neutral-600 mb-2.5">
+                  <div
+                    className={`mt-4 rounded-2xl border p-4 ${
+                      isDark ? "border-white/10 bg-[#101114]" : "border-neutral-200 bg-neutral-50/70"
+                    }`}
+                  >
+                    <span
+                      className={`block text-[11px] font-bold uppercase tracking-wider mb-2.5 ${
+                        isDark ? "text-neutral-400" : "text-neutral-600"
+                      }`}
+                    >
                       AI Extracted Prompt Dimensions
                     </span>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       {breakdown.main_subject && (
-                        <div className="rounded-lg bg-white p-2 border border-neutral-200/80">
-                          <span className="font-semibold text-neutral-500 block">Subject</span>
-                          <span className="text-neutral-800 line-clamp-2">{breakdown.main_subject}</span>
+                        <div
+                          className={`rounded-lg p-2 border ${
+                            isDark
+                              ? "bg-[#18191f] border-white/10 text-neutral-200"
+                              : "bg-white border-neutral-200/80 text-neutral-800"
+                          }`}
+                        >
+                          <span
+                            className={`font-semibold block ${
+                              isDark ? "text-neutral-400" : "text-neutral-500"
+                            }`}
+                          >
+                            Subject
+                          </span>
+                          <span className="line-clamp-2">{breakdown.main_subject}</span>
                         </div>
                       )}
                       {breakdown.lighting && (
-                        <div className="rounded-lg bg-white p-2 border border-neutral-200/80">
-                          <span className="font-semibold text-neutral-500 block">Lighting</span>
-                          <span className="text-neutral-800 line-clamp-2">{breakdown.lighting}</span>
+                        <div
+                          className={`rounded-lg p-2 border ${
+                            isDark
+                              ? "bg-[#18191f] border-white/10 text-neutral-200"
+                              : "bg-white border-neutral-200/80 text-neutral-800"
+                          }`}
+                        >
+                          <span
+                            className={`font-semibold block ${
+                              isDark ? "text-neutral-400" : "text-neutral-500"
+                            }`}
+                          >
+                            Lighting
+                          </span>
+                          <span className="line-clamp-2">{breakdown.lighting}</span>
                         </div>
                       )}
                       {breakdown.environment && (
-                        <div className="rounded-lg bg-white p-2 border border-neutral-200/80">
-                          <span className="font-semibold text-neutral-500 block">Environment</span>
-                          <span className="text-neutral-800 line-clamp-2">{breakdown.environment}</span>
+                        <div
+                          className={`rounded-lg p-2 border ${
+                            isDark
+                              ? "bg-[#18191f] border-white/10 text-neutral-200"
+                              : "bg-white border-neutral-200/80 text-neutral-800"
+                          }`}
+                        >
+                          <span
+                            className={`font-semibold block ${
+                              isDark ? "text-neutral-400" : "text-neutral-500"
+                            }`}
+                          >
+                            Environment
+                          </span>
+                          <span className="line-clamp-2">{breakdown.environment}</span>
                         </div>
                       )}
                       {breakdown.composition && (
-                        <div className="rounded-lg bg-white p-2 border border-neutral-200/80">
-                          <span className="font-semibold text-neutral-500 block">Composition</span>
-                          <span className="text-neutral-800 line-clamp-2">{breakdown.composition}</span>
+                        <div
+                          className={`rounded-lg p-2 border ${
+                            isDark
+                              ? "bg-[#18191f] border-white/10 text-neutral-200"
+                              : "bg-white border-neutral-200/80 text-neutral-800"
+                          }`}
+                        >
+                          <span
+                            className={`font-semibold block ${
+                              isDark ? "text-neutral-400" : "text-neutral-500"
+                            }`}
+                          >
+                            Composition
+                          </span>
+                          <span className="line-clamp-2">{breakdown.composition}</span>
                         </div>
                       )}
                       {breakdown.mood && (
-                        <div className="rounded-lg bg-white p-2 border border-neutral-200/80">
-                          <span className="font-semibold text-neutral-500 block">Mood</span>
-                          <span className="text-neutral-800 line-clamp-2">{breakdown.mood}</span>
+                        <div
+                          className={`rounded-lg p-2 border ${
+                            isDark
+                              ? "bg-[#18191f] border-white/10 text-neutral-200"
+                              : "bg-white border-neutral-200/80 text-neutral-800"
+                          }`}
+                        >
+                          <span
+                            className={`font-semibold block ${
+                              isDark ? "text-neutral-400" : "text-neutral-500"
+                            }`}
+                          >
+                            Mood
+                          </span>
+                          <span className="line-clamp-2">{breakdown.mood}</span>
                         </div>
                       )}
                       {breakdown.color_palette && (
-                        <div className="rounded-lg bg-white p-2 border border-neutral-200/80">
-                          <span className="font-semibold text-neutral-500 block">Color Palette</span>
-                          <span className="text-neutral-800 line-clamp-2">{breakdown.color_palette}</span>
+                        <div
+                          className={`rounded-lg p-2 border ${
+                            isDark
+                              ? "bg-[#18191f] border-white/10 text-neutral-200"
+                              : "bg-white border-neutral-200/80 text-neutral-800"
+                          }`}
+                        >
+                          <span
+                            className={`font-semibold block ${
+                              isDark ? "text-neutral-400" : "text-neutral-500"
+                            }`}
+                          >
+                            Color Palette
+                          </span>
+                          <span className="line-clamp-2">{breakdown.color_palette}</span>
                         </div>
                       )}
                     </div>
@@ -648,7 +843,11 @@ export default function StudioPage() {
 
                 {/* VISUAL STYLE SELECTION */}
                 <div className="mt-5">
-                  <span className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-2.5">
+                  <span
+                    className={`block text-xs font-bold uppercase tracking-wider mb-2.5 ${
+                      isDark ? "text-neutral-400" : "text-neutral-600"
+                    }`}
+                  >
                     Visual Style
                   </span>
                   <div className="grid grid-cols-3 gap-2">
@@ -660,8 +859,12 @@ export default function StudioPage() {
                         disabled={isGenerating}
                         className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition ${
                           selectedStyle === st.id
-                            ? "border-black bg-black text-white shadow-xs"
-                            : "border-neutral-200 bg-neutral-50/60 text-neutral-800 hover:border-neutral-300 hover:bg-neutral-100"
+                            ? isDark
+                              ? "border-white bg-white text-black shadow-xs"
+                              : "border-black bg-black text-white shadow-xs"
+                            : isDark
+                              ? "border-white/10 bg-[#101114] text-neutral-300 hover:border-white/20 hover:bg-[#18191f]"
+                              : "border-neutral-200 bg-neutral-50/60 text-neutral-800 hover:border-neutral-300 hover:bg-neutral-100"
                         }`}
                       >
                         <div className="flex items-center gap-1.5 font-semibold text-xs">
@@ -670,7 +873,13 @@ export default function StudioPage() {
                         </div>
                         <span
                           className={`text-[10px] mt-0.5 line-clamp-1 ${
-                            selectedStyle === st.id ? "text-neutral-300" : "text-neutral-400"
+                            selectedStyle === st.id
+                              ? isDark
+                                ? "text-neutral-700"
+                                : "text-neutral-300"
+                              : isDark
+                                ? "text-neutral-500"
+                                : "text-neutral-400"
                           }`}
                         >
                           {st.desc}
@@ -682,7 +891,11 @@ export default function StudioPage() {
 
                 {/* ASPECT RATIO SELECTION */}
                 <div className="mt-5">
-                  <span className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-2.5">
+                  <span
+                    className={`block text-xs font-bold uppercase tracking-wider mb-2.5 ${
+                      isDark ? "text-neutral-400" : "text-neutral-600"
+                    }`}
+                  >
                     Aspect Ratio
                   </span>
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
@@ -694,14 +907,24 @@ export default function StudioPage() {
                         disabled={isGenerating}
                         className={`flex flex-col items-center justify-center rounded-xl border p-2.5 text-xs transition ${
                           aspectIndex === idx
-                            ? "border-black bg-black text-white shadow-xs"
-                            : "border-neutral-200 bg-neutral-50/60 text-neutral-800 hover:border-neutral-300 hover:bg-neutral-100"
+                            ? isDark
+                              ? "border-white bg-white text-black shadow-xs"
+                              : "border-black bg-black text-white shadow-xs"
+                            : isDark
+                              ? "border-white/10 bg-[#101114] text-neutral-300 hover:border-white/20 hover:bg-[#18191f]"
+                              : "border-neutral-200 bg-neutral-50/60 text-neutral-800 hover:border-neutral-300 hover:bg-neutral-100"
                         }`}
                       >
                         <span className="font-semibold">{ratio.label.split(" ")[0]}</span>
                         <span
                           className={`text-[10px] ${
-                            aspectIndex === idx ? "text-neutral-300" : "text-neutral-400"
+                            aspectIndex === idx
+                              ? isDark
+                                ? "text-neutral-700"
+                                : "text-neutral-300"
+                              : isDark
+                                ? "text-neutral-500"
+                                : "text-neutral-400"
                           }`}
                         >
                           {ratio.width}×{ratio.height}
@@ -712,14 +935,28 @@ export default function StudioPage() {
                 </div>
 
                 {/* BATCH COUNT SELECTOR */}
-                <div className="mt-5 flex items-center justify-between border-t border-neutral-100 pt-4">
+                <div
+                  className={`mt-5 flex items-center justify-between border-t pt-4 ${
+                    isDark ? "border-white/10" : "border-neutral-100"
+                  }`}
+                >
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-600">
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider ${
+                        isDark ? "text-neutral-400" : "text-neutral-600"
+                      }`}
+                    >
                       Batch Quantity
                     </span>
-                    <p className="text-[11px] text-neutral-400">Generate multiple variations simultaneously</p>
+                    <p className={`text-[11px] ${isDark ? "text-neutral-500" : "text-neutral-400"}`}>
+                      Generate multiple variations simultaneously
+                    </p>
                   </div>
-                  <div className="flex rounded-xl border border-neutral-200 bg-neutral-100 p-1">
+                  <div
+                    className={`flex rounded-xl border p-1 ${
+                      isDark ? "border-white/10 bg-[#101114]" : "border-neutral-200 bg-neutral-100"
+                    }`}
+                  >
                     {([1, 2, 4] as const).map((num) => (
                       <button
                         key={num}
@@ -729,7 +966,9 @@ export default function StudioPage() {
                         className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
                           batchCount === num
                             ? "bg-white text-black shadow-xs"
-                            : "text-neutral-500 hover:text-black"
+                            : isDark
+                              ? "text-neutral-400 hover:text-white"
+                              : "text-neutral-500 hover:text-black"
                         }`}
                       >
                         {num}x
@@ -739,22 +978,30 @@ export default function StudioPage() {
                 </div>
 
                 {/* ADVANCED PARAMETERS DRAWER */}
-                <div className="mt-4 border-t border-neutral-100 pt-3">
+                <div className={`mt-4 border-t pt-3 ${isDark ? "border-white/10" : "border-neutral-100"}`}>
                   <button
                     type="button"
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-black transition"
+                    className={`flex items-center gap-1.5 text-xs font-medium transition ${
+                      isDark ? "text-neutral-400 hover:text-white" : "text-neutral-500 hover:text-black"
+                    }`}
                   >
                     {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     <span>Advanced Tuning (Inference Steps, Guidance Scale, Seed, Negative Prompt)</span>
                   </button>
 
                   {showAdvanced && (
-                    <div className="mt-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
+                    <div
+                      className={`mt-4 space-y-4 rounded-2xl border p-4 ${
+                        isDark ? "border-white/10 bg-[#101114]" : "border-neutral-200 bg-neutral-50/70"
+                      }`}
+                    >
                       <div>
                         <div className="flex justify-between text-xs font-medium mb-1.5">
-                          <span className="text-neutral-700">Inference Steps</span>
-                          <span className="font-mono font-bold text-neutral-900">{steps}</span>
+                          <span className={isDark ? "text-neutral-300" : "text-neutral-700"}>Inference Steps</span>
+                          <span className={`font-mono font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                            {steps}
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -764,14 +1011,16 @@ export default function StudioPage() {
                           value={steps}
                           disabled={isGenerating}
                           onChange={(e) => setSteps(Number(e.target.value))}
-                          className="w-full accent-black cursor-pointer"
+                          className={`w-full cursor-pointer ${isDark ? "accent-white" : "accent-black"}`}
                         />
                       </div>
 
                       <div>
                         <div className="flex justify-between text-xs font-medium mb-1.5">
-                          <span className="text-neutral-700">Guidance Scale (CFG)</span>
-                          <span className="font-mono font-bold text-neutral-900">{guidanceScale.toFixed(1)}</span>
+                          <span className={isDark ? "text-neutral-300" : "text-neutral-700"}>Guidance Scale (CFG)</span>
+                          <span className={`font-mono font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                            {guidanceScale.toFixed(1)}
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -781,12 +1030,12 @@ export default function StudioPage() {
                           value={guidanceScale}
                           disabled={isGenerating}
                           onChange={(e) => setGuidanceScale(Number(e.target.value))}
-                          className="w-full accent-black cursor-pointer"
+                          className={`w-full cursor-pointer ${isDark ? "accent-white" : "accent-black"}`}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-neutral-700 mb-1">
+                        <label className={`block text-xs font-medium mb-1 ${isDark ? "text-neutral-300" : "text-neutral-700"}`}>
                           Seed (Leave empty for random generation)
                         </label>
                         <input
@@ -795,12 +1044,16 @@ export default function StudioPage() {
                           value={seed}
                           disabled={isGenerating}
                           onChange={(e) => setSeed(e.target.value)}
-                          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-black"
+                          className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${
+                            isDark
+                              ? "border-white/10 bg-[#18191f] text-white placeholder-neutral-500 focus:border-white/40"
+                              : "border-neutral-200 bg-white text-neutral-900 focus:border-black"
+                          }`}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-neutral-700 mb-1">
+                        <label className={`block text-xs font-medium mb-1 ${isDark ? "text-neutral-300" : "text-neutral-700"}`}>
                           Negative Prompt
                         </label>
                         <textarea
@@ -808,7 +1061,11 @@ export default function StudioPage() {
                           value={negativePrompt}
                           disabled={isGenerating}
                           onChange={(e) => setNegativePrompt(e.target.value)}
-                          className="w-full resize-none rounded-xl border border-neutral-200 bg-white p-2.5 text-xs outline-none focus:border-black"
+                          className={`w-full resize-none rounded-xl border p-2.5 text-xs outline-none ${
+                            isDark
+                              ? "border-white/10 bg-[#18191f] text-white focus:border-white/40"
+                              : "border-neutral-200 bg-white text-neutral-900 focus:border-black"
+                          }`}
                         />
                       </div>
                     </div>
@@ -820,11 +1077,15 @@ export default function StudioPage() {
                   type="button"
                   onClick={() => void handleGenerate(false)}
                   disabled={isGenerating || prompt.trim().length < 3}
-                  className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-semibold text-white shadow-md transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  className={`mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold shadow-md transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                    isDark
+                      ? "bg-white text-black hover:bg-neutral-200"
+                      : "bg-black text-white hover:bg-neutral-800"
+                  }`}
                 >
                   {isGenerating ? (
                     <>
-                      <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                      <span className={`h-4 w-4 rounded-full border-2 animate-spin ${isDark ? "border-black/20 border-t-black" : "border-white/20 border-t-white"}`} />
                       <span>{progressStage || "Synthesizing artwork on GPU..."}</span>
                     </>
                   ) : (
@@ -839,12 +1100,20 @@ export default function StudioPage() {
 
             {/* TAB 2: IMAGE EDITING & MODIFICATION CONTROLS */}
             {tab === "edit" && (
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm space-y-5">
+              <div
+                className={`rounded-3xl border p-6 shadow-sm space-y-5 transition-colors ${
+                  isDark ? "border-white/10 bg-[#16171b]" : "border-neutral-200 bg-white"
+                }`}
+              >
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                  <h3
+                    className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+                      isDark ? "text-neutral-400" : "text-neutral-600"
+                    }`}
+                  >
                     Image-to-Image &amp; Targeted Editing
                   </h3>
-                  <p className="text-xs text-neutral-500">
+                  <p className={`text-xs ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>
                     Upload an existing artwork or photo, and describe what to change while preserving the core subject.
                   </p>
                 </div>
@@ -860,22 +1129,34 @@ export default function StudioPage() {
                   />
 
                   {editImageBase64 ? (
-                    <div className="relative rounded-2xl border border-neutral-200 overflow-hidden bg-neutral-50 p-2 flex items-center gap-4">
+                    <div
+                      className={`relative rounded-2xl border overflow-hidden p-2 flex items-center gap-4 ${
+                        isDark ? "border-white/10 bg-[#101114]" : "border-neutral-200 bg-neutral-50"
+                      }`}
+                    >
                       <Image
                         src={editImageBase64}
                         alt="Reference image"
                         width={90}
                         height={90}
                         unoptimized
-                        className="h-20 w-20 rounded-xl object-cover border border-neutral-200"
+                        className={`h-20 w-20 rounded-xl object-cover border ${
+                          isDark ? "border-white/10" : "border-neutral-200"
+                        }`}
                       />
                       <div className="flex-1 text-xs">
-                        <span className="font-semibold text-neutral-900 block">Reference Image Loaded</span>
-                        <span className="text-[11px] text-neutral-500 block mt-0.5">Ready for modification instructions</span>
+                        <span className={`font-semibold block ${isDark ? "text-white" : "text-neutral-900"}`}>
+                          Reference Image Loaded
+                        </span>
+                        <span className={`text-[11px] block mt-0.5 ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>
+                          Ready for modification instructions
+                        </span>
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="mt-2 text-xs font-medium text-neutral-800 underline hover:text-black"
+                          className={`mt-2 text-xs font-medium underline ${
+                            isDark ? "text-neutral-300 hover:text-white" : "text-neutral-800 hover:text-black"
+                          }`}
                         >
                           Change Reference Image
                         </button>
@@ -883,7 +1164,7 @@ export default function StudioPage() {
                       <button
                         type="button"
                         onClick={() => setEditImageBase64("")}
-                        className="p-2 text-neutral-400 hover:text-red-600 transition"
+                        className={`p-2 transition ${isDark ? "text-neutral-400 hover:text-red-400" : "text-neutral-400 hover:text-red-600"}`}
                         title="Remove"
                       >
                         <X className="h-4 w-4" />
@@ -892,13 +1173,17 @@ export default function StudioPage() {
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="cursor-pointer rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50/70 p-6 text-center transition hover:border-black hover:bg-neutral-50"
+                      className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${
+                        isDark
+                          ? "border-white/20 bg-[#101114] text-neutral-300 hover:border-white/40 hover:bg-[#141519]"
+                          : "border-neutral-300 bg-neutral-50/70 text-neutral-800 hover:border-black hover:bg-neutral-50"
+                      }`}
                     >
-                      <UploadCloud className="mx-auto h-8 w-8 text-neutral-400" />
-                      <span className="mt-2 block text-xs font-semibold text-neutral-800">
+                      <UploadCloud className={`mx-auto h-8 w-8 ${isDark ? "text-neutral-500" : "text-neutral-400"}`} />
+                      <span className={`mt-2 block text-xs font-semibold ${isDark ? "text-neutral-200" : "text-neutral-800"}`}>
                         Upload Reference Image to Modify
                       </span>
-                      <span className="mt-0.5 block text-[11px] text-neutral-400">
+                      <span className={`mt-0.5 block text-[11px] ${isDark ? "text-neutral-500" : "text-neutral-400"}`}>
                         PNG, JPG, WebP up to 10MB
                       </span>
                     </div>
@@ -908,14 +1193,21 @@ export default function StudioPage() {
                 {/* Modification Prompt */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label htmlFor="edit-prompt-input" className="text-xs font-bold uppercase tracking-wider text-neutral-600">
+                    <label
+                      htmlFor="edit-prompt-input"
+                      className={`text-xs font-bold uppercase tracking-wider ${
+                        isDark ? "text-neutral-400" : "text-neutral-600"
+                      }`}
+                    >
                       Describe Modifications
                     </label>
                     <button
                       type="button"
                       onClick={handleEnhancePrompt}
                       disabled={isEnhancing || !editPrompt.trim()}
-                      className="inline-flex items-center gap-1.5 text-xs text-neutral-600 hover:text-black transition"
+                      className={`inline-flex items-center gap-1.5 text-xs transition ${
+                        isDark ? "text-neutral-300 hover:text-white" : "text-neutral-600 hover:text-black"
+                      }`}
                     >
                       <Sparkles className="h-3 w-3 text-amber-500" />
                       <span>Enhance edit prompt</span>
@@ -928,13 +1220,17 @@ export default function StudioPage() {
                     onChange={(e) => setEditPrompt(e.target.value)}
                     disabled={isGenerating}
                     placeholder="e.g. Change the background into an illuminated futuristic skyline, change attire to a formal tuxedo, improve lighting with golden ambient backlight..."
-                    className="w-full resize-none rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4 text-sm leading-relaxed text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-black focus:bg-white focus:ring-1 focus:ring-black disabled:opacity-50"
+                    className={`w-full resize-none rounded-2xl border p-4 text-sm leading-relaxed outline-none transition disabled:opacity-50 ${
+                      isDark
+                        ? "border-white/10 bg-[#101114] text-white placeholder-neutral-500 focus:border-white/40 focus:bg-[#141519]"
+                        : "border-neutral-200 bg-neutral-50/50 text-neutral-900 placeholder-neutral-400 focus:border-black focus:bg-white focus:ring-1 focus:ring-black"
+                    }`}
                   />
                 </div>
 
                 {/* Quick Edit Suggestion Chips */}
                 <div>
-                  <span className="block text-[11px] font-semibold text-neutral-500 mb-2">
+                  <span className={`block text-[11px] font-semibold mb-2 ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>
                     Quick Modification Ideas
                   </span>
                   <div className="flex flex-wrap gap-1.5">
@@ -943,7 +1239,11 @@ export default function StudioPage() {
                         key={qp}
                         type="button"
                         onClick={() => setEditPrompt(qp)}
-                        className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-700 transition hover:border-neutral-300 hover:bg-white"
+                        className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                          isDark
+                            ? "border-white/10 bg-[#101114] text-neutral-300 hover:border-white/30 hover:bg-[#18191f]"
+                            : "border-neutral-200 bg-neutral-50 text-neutral-700 hover:border-neutral-300 hover:bg-white"
+                        }`}
                       >
                         {qp}
                       </button>
@@ -952,10 +1252,12 @@ export default function StudioPage() {
                 </div>
 
                 {/* Modification Strength Slider */}
-                <div className="border-t border-neutral-100 pt-4">
+                <div className={`border-t pt-4 ${isDark ? "border-white/10" : "border-neutral-100"}`}>
                   <div className="flex justify-between text-xs font-medium mb-1.5">
-                    <span className="text-neutral-700">Modification Strength (Influence)</span>
-                    <span className="font-mono font-bold text-neutral-900">{Math.round(editStrength * 100)}%</span>
+                    <span className={isDark ? "text-neutral-300" : "text-neutral-700"}>Modification Strength (Influence)</span>
+                    <span className={`font-mono font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                      {Math.round(editStrength * 100)}%
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -965,9 +1267,9 @@ export default function StudioPage() {
                     value={editStrength}
                     disabled={isGenerating}
                     onChange={(e) => setEditStrength(Number(e.target.value))}
-                    className="w-full accent-black cursor-pointer"
+                    className={`w-full cursor-pointer ${isDark ? "accent-white" : "accent-black"}`}
                   />
-                  <div className="flex justify-between text-[10px] text-neutral-400 mt-1">
+                  <div className={`flex justify-between text-[10px] mt-1 ${isDark ? "text-neutral-500" : "text-neutral-400"}`}>
                     <span>Subtle Tweak (20%)</span>
                     <span>Balanced (65%)</span>
                     <span>Radical Reimagining (90%)</span>
@@ -979,11 +1281,15 @@ export default function StudioPage() {
                   type="button"
                   onClick={() => void handleGenerate(true)}
                   disabled={isGenerating || !editImageBase64 || editPrompt.trim().length < 3}
-                  className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-semibold text-white shadow-md transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  className={`mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold shadow-md transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                    isDark
+                      ? "bg-white text-black hover:bg-neutral-200"
+                      : "bg-black text-white hover:bg-neutral-800"
+                  }`}
                 >
                   {isGenerating ? (
                     <>
-                      <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                      <span className={`h-4 w-4 rounded-full border-2 animate-spin ${isDark ? "border-black/20 border-t-black" : "border-white/20 border-t-white"}`} />
                       <span>Applying AI edits to image...</span>
                     </>
                   ) : (
@@ -998,7 +1304,12 @@ export default function StudioPage() {
 
             {/* Error Notification */}
             {error && (
-              <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs text-red-900 flex items-start gap-3">
+              <div
+                role="alert"
+                className={`rounded-2xl border p-4 text-xs flex items-start gap-3 ${
+                  isDark ? "border-red-500/30 bg-red-950/40 text-red-200" : "border-red-200 bg-red-50 text-red-900"
+                }`}
+              >
                 <span className="font-bold">Error:</span>
                 <span className="flex-1">{error}</span>
               </div>
@@ -1009,12 +1320,22 @@ export default function StudioPage() {
               RIGHT COLUMN: STUDIO CANVAS & PREVIEW GALLERY
           ========================================================================= */}
           <div className="space-y-6">
-            <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+            <div
+              className={`overflow-hidden rounded-3xl border shadow-sm transition-colors ${
+                isDark ? "border-white/10 bg-[#16171b]" : "border-neutral-200 bg-white"
+              }`}
+            >
               {/* Canvas Header */}
-              <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-4">
+              <div
+                className={`flex items-center justify-between border-b px-6 py-4 ${
+                  isDark ? "border-white/10" : "border-neutral-100"
+                }`}
+              >
                 <div>
-                  <h2 className="text-sm font-bold text-neutral-900">Studio Canvas</h2>
-                  <p className="text-[11px] text-neutral-400">High-resolution GPU render stage</p>
+                  <h2 className={`text-sm font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>Studio Canvas</h2>
+                  <p className={`text-[11px] ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
+                    High-resolution GPU render stage
+                  </p>
                 </div>
 
                 {activeImage && (
@@ -1022,7 +1343,11 @@ export default function StudioPage() {
                     <button
                       type="button"
                       onClick={() => setFullscreenImage(activeImage)}
-                      className="rounded-lg border border-neutral-200 p-1.5 text-neutral-600 hover:bg-neutral-50 transition"
+                      className={`rounded-lg border p-1.5 transition ${
+                        isDark
+                          ? "border-white/10 text-neutral-300 hover:bg-[#202127]"
+                          : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                      }`}
                       title="Fullscreen Zoom"
                     >
                       <Maximize2 className="h-4 w-4" />
@@ -1030,7 +1355,9 @@ export default function StudioPage() {
                     <button
                       type="button"
                       onClick={() => downloadImage(activeImage)}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 transition"
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                        isDark ? "bg-white text-black hover:bg-neutral-200" : "bg-black text-white hover:bg-neutral-800"
+                      }`}
                     >
                       <Download className="h-3.5 w-3.5" />
                       <span>Download</span>
@@ -1040,19 +1367,29 @@ export default function StudioPage() {
               </div>
 
               {/* Main Canvas Area */}
-              <div className="relative flex min-h-[460px] items-center justify-center bg-neutral-50/60 p-6">
+              <div
+                className={`relative flex min-h-[460px] items-center justify-center p-6 ${
+                  isDark ? "bg-[#101114]" : "bg-neutral-50/60"
+                }`}
+              >
                 {isGenerating ? (
                   <div className="flex flex-col items-center justify-center p-8 text-center" role="status">
-                    <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl border border-neutral-200 bg-white shadow-sm">
-                      <div className="absolute inset-0 rounded-3xl border border-black animate-ping opacity-20" />
-                      <Sparkles className="h-7 w-7 text-black animate-pulse" />
+                    <div
+                      className={`relative flex h-20 w-20 items-center justify-center rounded-3xl border shadow-sm ${
+                        isDark ? "border-white/10 bg-[#18191f]" : "border-neutral-200 bg-white"
+                      }`}
+                    >
+                      <div className={`absolute inset-0 rounded-3xl border animate-ping opacity-20 ${isDark ? "border-white" : "border-black"}`} />
+                      <Sparkles className={`h-7 w-7 animate-pulse ${isDark ? "text-white" : "text-black"}`} />
                     </div>
-                    <h3 className="mt-5 text-sm font-bold text-neutral-900">Synthesizing Artwork</h3>
-                    <p className="mt-1.5 max-w-xs text-xs text-neutral-500 leading-relaxed">
+                    <h3 className={`mt-5 text-sm font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                      Synthesizing Artwork
+                    </h3>
+                    <p className={`mt-1.5 max-w-xs text-xs leading-relaxed ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>
                       {progressStage || "Your CUDA GPU is executing denoising iterations..."}
                     </p>
-                    <div className="mt-5 h-1.5 w-48 overflow-hidden rounded-full bg-neutral-200">
-                      <div className="h-full w-2/3 animate-pulse bg-black rounded-full" />
+                    <div className={`mt-5 h-1.5 w-48 overflow-hidden rounded-full ${isDark ? "bg-[#252730]" : "bg-neutral-200"}`}>
+                      <div className={`h-full w-2/3 animate-pulse rounded-full ${isDark ? "bg-white" : "bg-black"}`} />
                     </div>
                   </div>
                 ) : activeImage ? (
@@ -1072,36 +1409,58 @@ export default function StudioPage() {
                       <button
                         type="button"
                         onClick={() => sendToEditMode(activeImage)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 shadow-2xs"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition shadow-2xs ${
+                          isDark
+                            ? "border-white/10 bg-[#1c1d22] text-neutral-200 hover:bg-[#23242b]"
+                            : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-100"
+                        }`}
                       >
-                        <Wand2 className="h-3.5 w-3.5 text-black" />
+                        <Wand2 className={`h-3.5 w-3.5 ${isDark ? "text-white" : "text-black"}`} />
                         <span>Edit This Image</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleGenerate(false)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 shadow-2xs"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition shadow-2xs ${
+                          isDark
+                            ? "border-white/10 bg-[#1c1d22] text-neutral-200 hover:bg-[#23242b]"
+                            : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-100"
+                        }`}
                       >
-                        <RefreshCw className="h-3.5 w-3.5 text-black" />
+                        <RefreshCw className={`h-3.5 w-3.5 ${isDark ? "text-white" : "text-black"}`} />
                         <span>Regenerate</span>
                       </button>
                       <button
                         type="button"
                         onClick={copyPromptToClipboard}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 shadow-2xs"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition shadow-2xs ${
+                          isDark
+                            ? "border-white/10 bg-[#1c1d22] text-neutral-200 hover:bg-[#23242b]"
+                            : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-100"
+                        }`}
                       >
-                        {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-black" />}
+                        {copied ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className={`h-3.5 w-3.5 ${isDark ? "text-white" : "text-black"}`} />
+                        )}
                         <span>{copied ? "Copied" : "Copy Prompt"}</span>
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="max-w-xs text-center p-8">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-neutral-200 bg-white text-black shadow-xs">
+                    <div
+                      className={`mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border shadow-xs ${
+                        isDark ? "border-white/10 bg-[#18191f] text-white" : "border-neutral-200 bg-white text-black"
+                      }`}
+                    >
                       <Sparkles className="h-6 w-6" />
                     </div>
-                    <h3 className="mt-4 text-sm font-bold text-neutral-900">Awaiting Generation</h3>
-                    <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
+                    <h3 className={`mt-4 text-sm font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                      Awaiting Generation
+                    </h3>
+                    <p className={`mt-1 text-xs leading-relaxed ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
                       Type your description or upload an image to begin producing high-fidelity visual artwork.
                     </p>
                   </div>
@@ -1110,8 +1469,16 @@ export default function StudioPage() {
 
               {/* Batch Images Gallery (if batch generated) */}
               {batchImages.length > 1 && (
-                <div className="border-t border-neutral-100 bg-neutral-50/50 p-4">
-                  <span className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-2">
+                <div
+                  className={`border-t p-4 ${
+                    isDark ? "border-white/10 bg-[#101114]" : "border-neutral-100 bg-neutral-50/50"
+                  }`}
+                >
+                  <span
+                    className={`block text-xs font-bold uppercase tracking-wider mb-2 ${
+                      isDark ? "text-neutral-400" : "text-neutral-600"
+                    }`}
+                  >
                     Batch Variations ({batchImages.length})
                   </span>
                   <div className="grid grid-cols-4 gap-2">
@@ -1121,7 +1488,13 @@ export default function StudioPage() {
                         type="button"
                         onClick={() => setActiveImage(bImg)}
                         className={`relative rounded-xl overflow-hidden border-2 transition ${
-                          activeImage === bImg ? "border-black shadow-xs" : "border-neutral-200 opacity-70 hover:opacity-100"
+                          activeImage === bImg
+                            ? isDark
+                              ? "border-white shadow-xs"
+                              : "border-black shadow-xs"
+                            : isDark
+                              ? "border-white/10 opacity-70 hover:opacity-100"
+                              : "border-neutral-200 opacity-70 hover:opacity-100"
                         }`}
                       >
                         <Image
@@ -1140,48 +1513,108 @@ export default function StudioPage() {
 
               {/* Generation Telemetry Details */}
               {currentMeta && activeImage && !isGenerating && (
-                <div className="border-t border-neutral-100 p-5 bg-white space-y-3">
+                <div
+                  className={`border-t p-5 space-y-3 ${
+                    isDark ? "border-white/10 bg-[#16171b]" : "border-neutral-100 bg-white"
+                  }`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider ${
+                        isDark ? "text-neutral-400" : "text-neutral-500"
+                      }`}
+                    >
                       Generation Telemetry
                     </span>
-                    <span className="font-mono text-xs font-semibold text-neutral-700">
+                    <span
+                      className={`font-mono text-xs font-semibold ${
+                        isDark ? "text-neutral-300" : "text-neutral-700"
+                      }`}
+                    >
                       {currentMeta.generationTime}s latency
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-2.5">
-                      <span className="block text-[10px] text-neutral-400">Model</span>
-                      <span className="font-semibold text-neutral-900 truncate block mt-0.5">
+                    <div
+                      className={`rounded-xl border p-2.5 ${
+                        isDark ? "border-white/10 bg-[#101114]" : "border-neutral-100 bg-neutral-50"
+                      }`}
+                    >
+                      <span className={`block text-[10px] ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
+                        Model
+                      </span>
+                      <span
+                        className={`font-semibold truncate block mt-0.5 ${
+                          isDark ? "text-white" : "text-neutral-900"
+                        }`}
+                      >
                         {currentMeta.model}
                       </span>
                     </div>
-                    <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-2.5">
-                      <span className="block text-[10px] text-neutral-400">Dimensions</span>
-                      <span className="font-semibold text-neutral-900 block mt-0.5">
+                    <div
+                      className={`rounded-xl border p-2.5 ${
+                        isDark ? "border-white/10 bg-[#101114]" : "border-neutral-100 bg-neutral-50"
+                      }`}
+                    >
+                      <span className={`block text-[10px] ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
+                        Dimensions
+                      </span>
+                      <span className={`font-semibold block mt-0.5 ${isDark ? "text-white" : "text-neutral-900"}`}>
                         {currentMeta.dimensions?.width}×{currentMeta.dimensions?.height}
                       </span>
                     </div>
-                    <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-2.5">
-                      <span className="block text-[10px] text-neutral-400">Style</span>
-                      <span className="font-semibold text-neutral-900 block mt-0.5 truncate">
+                    <div
+                      className={`rounded-xl border p-2.5 ${
+                        isDark ? "border-white/10 bg-[#101114]" : "border-neutral-100 bg-neutral-50"
+                      }`}
+                    >
+                      <span className={`block text-[10px] ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
+                        Style
+                      </span>
+                      <span
+                        className={`font-semibold block mt-0.5 truncate ${
+                          isDark ? "text-white" : "text-neutral-900"
+                        }`}
+                      >
                         {currentMeta.style}
                       </span>
                     </div>
-                    <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-2.5">
-                      <span className="block text-[10px] text-neutral-400">Seed</span>
-                      <span className="font-semibold text-neutral-900 block mt-0.5 truncate">
+                    <div
+                      className={`rounded-xl border p-2.5 ${
+                        isDark ? "border-white/10 bg-[#101114]" : "border-neutral-100 bg-neutral-50"
+                      }`}
+                    >
+                      <span className={`block text-[10px] ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
+                        Seed
+                      </span>
+                      <span
+                        className={`font-semibold block mt-0.5 truncate ${
+                          isDark ? "text-white" : "text-neutral-900"
+                        }`}
+                      >
                         {currentMeta.seed}
                       </span>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-3">
-                    <span className="block text-[10px] font-semibold text-neutral-500 mb-1">
+                  <div
+                    className={`rounded-xl border p-3 ${
+                      isDark ? "border-white/10 bg-[#101114]" : "border-neutral-100 bg-neutral-50"
+                    }`}
+                  >
+                    <span
+                      className={`block text-[10px] font-semibold mb-1 ${
+                        isDark ? "text-neutral-400" : "text-neutral-500"
+                      }`}
+                    >
                       Full Diffusion Prompt:
                     </span>
-                    <p className="text-xs text-neutral-800 leading-relaxed font-mono">
+                    <p
+                      className={`text-xs leading-relaxed font-mono ${
+                        isDark ? "text-neutral-200" : "text-neutral-800"
+                      }`}
+                    >
                       {currentMeta.enhancedPrompt || currentMeta.prompt}
                     </p>
                   </div>
@@ -1191,15 +1624,25 @@ export default function StudioPage() {
 
             {/* RECENT IMAGE HISTORY GALLERY */}
             {history.length > 0 && (
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <div
+                className={`rounded-3xl border p-6 shadow-sm transition-colors ${
+                  isDark ? "border-white/10 bg-[#16171b]" : "border-neutral-200 bg-white"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <History className="h-4 w-4 text-neutral-700" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-600">
+                    <History className={`h-4 w-4 ${isDark ? "text-neutral-300" : "text-neutral-700"}`} />
+                    <h3
+                      className={`text-xs font-bold uppercase tracking-wider ${
+                        isDark ? "text-neutral-300" : "text-neutral-600"
+                      }`}
+                    >
                       Studio History ({history.length})
                     </h3>
                   </div>
-                  <span className="text-[11px] text-neutral-400">Click to preview</span>
+                  <span className={`text-[11px] ${isDark ? "text-neutral-400" : "text-neutral-400"}`}>
+                    Click to preview
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[280px] overflow-y-auto pr-1">
@@ -1214,8 +1657,12 @@ export default function StudioPage() {
                       }}
                       className={`group relative rounded-xl overflow-hidden border transition ${
                         activeImage === item.url
-                          ? "border-black ring-2 ring-black"
-                          : "border-neutral-200 hover:border-neutral-400"
+                          ? isDark
+                            ? "border-white ring-2 ring-white"
+                            : "border-black ring-2 ring-black"
+                          : isDark
+                            ? "border-white/10 hover:border-white/40"
+                            : "border-neutral-200 hover:border-neutral-400"
                       }`}
                     >
                       <Image
@@ -1241,15 +1688,27 @@ export default function StudioPage() {
       </div>
 
       {/* FOOTER */}
-      <footer className="w-full py-5 px-6 border-t border-neutral-100 bg-white text-xs text-neutral-500">
+      <footer
+        className={`w-full py-5 px-6 border-t text-xs transition-colors ${
+          isDark
+            ? "border-white/10 bg-[#0d0e11] text-neutral-400"
+            : "border-neutral-100 bg-white text-neutral-500"
+        }`}
+      >
         <div className="mx-auto flex max-w-7xl flex-col sm:flex-row items-center justify-between gap-3">
           <span>TATTVA AI Studio • Crafted with minimalist precision by kotapati Gowtham Chowdary ✨</span>
           <div className="flex items-center gap-4 text-[11px]">
-            <a href="/chat" className="hover:text-black transition">Chat</a>
+            <a href="/chat" className={`${isDark ? "hover:text-white" : "hover:text-black"} transition`}>
+              Chat
+            </a>
             <span>•</span>
-            <a href="/voice" className="hover:text-black transition">Voice Assistant</a>
+            <a href="/voice" className={`${isDark ? "hover:text-white" : "hover:text-black"} transition`}>
+              Voice Assistant
+            </a>
             <span>•</span>
-            <a href="/dashboard" className="hover:text-black transition">Dashboard</a>
+            <a href="/dashboard" className={`${isDark ? "hover:text-white" : "hover:text-black"} transition`}>
+              Dashboard
+            </a>
           </div>
         </div>
       </footer>

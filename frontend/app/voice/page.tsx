@@ -42,43 +42,59 @@ function detectLanguage(text: string): { lang: string; name: string } {
   return { lang: "en-IN", name: "English" };
 }
 
-// Select natural female voice prioritizing matching language and regional phonetics
+// Select a natural, fluent female voice strictly excluding male voices across all OS and browsers
 function selectFemaleVoice(langCode: string): SpeechSynthesisVoice | null {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) return null;
 
-  const femaleKeywords = [
-    "female", "woman", "swara", "heera", "chitra", "shruti", "priya",
-    "samantha", "victoria", "karen", "jenny", "eva", "moira", "fiona",
-    "tessa", "veena", "neerja", "pallavi", "geeta", "vani", "ananya",
-    "zira", "google uk english female", "google us english", "natural"
+  // Names and tokens to strictly reject to prevent any robotic male voice
+  const maleKeywords = [
+    "david", "george", "mark", "richard", "james", "john", "ravi", "madhav",
+    "male", "guy", "man", "sean", "stefan", "paul", "microsoft david", "microsoft mark",
+    "microsoft george", "microsoft ravi", "microsoft stefan", "microsoft james",
+    "microsoft richard", "heera - male"
   ];
 
+  // Priority fluent female voice models (Edge Natural, Chrome, Siri, WebSpeech)
+  const femaleKeywords = [
+    "jenny", "aria", "zira", "neerja", "swara", "heera", "chitra", "shruti",
+    "priya", "samantha", "victoria", "karen", "eva", "moira", "fiona", "tessa",
+    "veena", "pallavi", "geeta", "vani", "ananya", "female", "woman",
+    "google uk english female", "google us english", "natural"
+  ];
+
+  const isMale = (name: string) => {
+    const lower = name.toLowerCase();
+    return maleKeywords.some((kw) => lower.includes(kw));
+  };
+
+  const isFemale = (name: string) => {
+    const lower = name.toLowerCase();
+    return femaleKeywords.some((kw) => lower.includes(kw));
+  };
+
+  // Filter out male voices completely
+  const nonMaleVoices = voices.filter((v) => !isMale(v.name));
+
   const prefix = langCode.slice(0, 2).toLowerCase();
-  const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
+  const langNonMale = nonMaleVoices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
 
-  // 1. Language-matching female voice
-  const exactFemale = langVoices.find((v) =>
-    femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
-  );
+  // 1. Language-matching verified female voice
+  const exactFemale = langNonMale.find((v) => isFemale(v.name));
   if (exactFemale) return exactFemale;
-  if (langVoices.length > 0) return langVoices[0];
 
-  // 2. Indian female voice for Southern languages & regional cadence
-  const indianFemale = voices.find(
-    (v) =>
-      (v.lang.includes("IN") || v.name.includes("India")) &&
-      femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
-  );
-  if (indianFemale) return indianFemale;
+  // 2. Any language-matching non-male voice
+  if (langNonMale.length > 0) return langNonMale[0];
 
-  // 3. Any high-quality female voice
-  const anyFemale = voices.find((v) =>
-    femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
-  );
-  if (anyFemale) return anyFemale;
+  // 3. Indian / English verified female voice
+  const verifiedFemale = nonMaleVoices.find((v) => isFemale(v.name));
+  if (verifiedFemale) return verifiedFemale;
 
+  // 4. Any remaining non-male voice
+  if (nonMaleVoices.length > 0) return nonMaleVoices[0];
+
+  // 5. Ultimate fallback if system only has 1 voice
   return voices[0] || null;
 }
 

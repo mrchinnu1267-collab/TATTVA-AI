@@ -109,23 +109,23 @@ def generate_image(request: ImageRequest):
         raise HTTPException(status_code=400, detail="Please enter a longer image prompt.")
 
     cfg = models.get_model(request.model)
-    if request.enhance_prompt:
-        enhanced = enhancer.enhance(prompt, request.style)
-        final_prompt = enhanced["enhanced_prompt"]
-        final_negative = ", ".join(
-            p for p in [request.negative_prompt.strip(), enhanced["negative_prompt"].strip()] if p
-        )
-    else:
-        final_prompt = prompt
-        final_negative = request.negative_prompt.strip()
+    enhanced = enhancer.enhance(prompt, request.style)
+    final_prompt = enhanced["enhanced_prompt"]
+    final_negative = ", ".join(
+        p for p in [request.negative_prompt.strip(), enhanced["negative_prompt"].strip()] if p
+    )
 
     # Turbo is designed for 1-4 inference steps and guidance_scale=0.
     if request.model == "turbo":
-        actual_steps = min(request.steps or cfg["steps"], 4)
+        actual_steps = min(request.steps or 4, 4)
         actual_guidance = 0.0
     else:
-        actual_steps = request.steps or cfg["steps"]
-        actual_guidance = request.guidance_scale if request.guidance_scale is not None else cfg["guidance"]
+        actual_steps = request.steps or enhanced.get("recommended_steps", cfg["steps"])
+        actual_guidance = (
+            request.guidance_scale
+            if request.guidance_scale is not None
+            else enhanced.get("recommended_guidance", cfg["guidance"])
+        )
 
     # Align dimensions to multiples of 64
     w = (request.width // 64) * 64 if request.width else WIDTH
@@ -214,22 +214,22 @@ def edit_image(request: EditImageRequest):
         raise HTTPException(status_code=400, detail=f"Invalid base64 reference image: {exc}") from exc
 
     cfg = models.get_model(request.model)
-    if request.enhance_prompt:
-        enhanced = enhancer.enhance(prompt, request.style)
-        final_prompt = enhanced["enhanced_prompt"]
-        final_negative = ", ".join(
-            p for p in [request.negative_prompt.strip(), enhanced["negative_prompt"].strip()] if p
-        )
-    else:
-        final_prompt = prompt
-        final_negative = request.negative_prompt.strip()
+    enhanced = enhancer.enhance(prompt, request.style)
+    final_prompt = enhanced["enhanced_prompt"]
+    final_negative = ", ".join(
+        p for p in [request.negative_prompt.strip(), enhanced["negative_prompt"].strip()] if p
+    )
 
     if request.model == "turbo":
         actual_steps = min(request.steps or 4, 4)
         actual_guidance = 0.0
     else:
-        actual_steps = request.steps or cfg["steps"]
-        actual_guidance = request.guidance_scale if request.guidance_scale is not None else cfg["guidance"]
+        actual_steps = request.steps or enhanced.get("recommended_steps", cfg["steps"])
+        actual_guidance = (
+            request.guidance_scale
+            if request.guidance_scale is not None
+            else enhanced.get("recommended_guidance", cfg["guidance"])
+        )
 
     seed = request.seed if request.seed is not None else secrets.randbelow(2**31)
     generator = torch.Generator(device="cpu").manual_seed(seed)

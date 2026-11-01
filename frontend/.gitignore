@@ -4,6 +4,7 @@ node_modules/
 out/
 build/
 dist/
+.vercel/
 
 # Security & Secrets (Zero Trust: Never commit credentials)
 .env
@@ -33,3 +34,5 @@ Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
 *.apk
+
+.vercel

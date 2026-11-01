@@ -844,6 +844,13 @@ export default function ChatPage() {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
     localStorage.setItem("tattva_theme", nextTheme);
+    if (typeof document !== "undefined") {
+      if (nextTheme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
   }
 
   // Load chat sessions for a specific user email
@@ -1002,6 +1009,15 @@ export default function ChatPage() {
     const savedTheme = localStorage.getItem("tattva_theme");
     if (savedTheme === "dark" || savedTheme === "light") {
       setTheme(savedTheme);
+      if (typeof document !== "undefined") {
+        if (savedTheme === "dark") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      }
+    } else if (typeof document !== "undefined") {
+      document.documentElement.classList.remove("dark");
     }
 
     // Check active local user session
@@ -1394,43 +1410,59 @@ export default function ChatPage() {
     return { lang: "en-IN", name: "English" };
   }
 
-  // Select a natural female voice strictly prioritizing the matching language
+  // Select a natural, fluent female voice strictly excluding male voices across all OS and browsers
   function selectFemaleVoice(langCode: string): SpeechSynthesisVoice | null {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return null;
 
-    const femaleKeywords = [
-      "female", "woman", "swara", "heera", "chitra", "shruti", "priya",
-      "samantha", "victoria", "karen", "jenny", "eva", "moira", "fiona",
-      "tessa", "veena", "neerja", "pallavi", "geeta", "vani", "ananya",
-      "zira", "google uk english female", "google us english", "natural"
+    // Names and tokens to strictly reject to prevent any robotic male voice
+    const maleKeywords = [
+      "david", "george", "mark", "richard", "james", "john", "ravi", "madhav",
+      "male", "guy", "man", "sean", "stefan", "paul", "microsoft david", "microsoft mark",
+      "microsoft george", "microsoft ravi", "microsoft stefan", "microsoft james",
+      "microsoft richard", "heera - male"
     ];
 
+    // Priority fluent female voice models (Edge Natural, Chrome, Siri, WebSpeech)
+    const femaleKeywords = [
+      "jenny", "aria", "zira", "neerja", "swara", "heera", "chitra", "shruti",
+      "priya", "samantha", "victoria", "karen", "eva", "moira", "fiona", "tessa",
+      "veena", "pallavi", "geeta", "vani", "ananya", "female", "woman",
+      "google uk english female", "google us english", "natural"
+    ];
+
+    const isMale = (name: string) => {
+      const lower = name.toLowerCase();
+      return maleKeywords.some((kw) => lower.includes(kw));
+    };
+
+    const isFemale = (name: string) => {
+      const lower = name.toLowerCase();
+      return femaleKeywords.some((kw) => lower.includes(kw));
+    };
+
+    // Filter out male voices completely
+    const nonMaleVoices = voices.filter((v) => !isMale(v.name));
+
     const prefix = langCode.slice(0, 2).toLowerCase();
-    const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
+    const langNonMale = nonMaleVoices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
 
-    // 1. Language-matching female voice
-    const exactFemale = langVoices.find((v) =>
-      femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
-    );
+    // 1. Language-matching verified female voice
+    const exactFemale = langNonMale.find((v) => isFemale(v.name));
     if (exactFemale) return exactFemale;
-    if (langVoices.length > 0) return langVoices[0];
 
-    // 2. Indian female voice for Southern languages & regional cadence
-    const indianFemale = voices.find(
-      (v) =>
-        (v.lang.includes("IN") || v.name.includes("India")) &&
-        femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
-    );
-    if (indianFemale) return indianFemale;
+    // 2. Any language-matching non-male voice
+    if (langNonMale.length > 0) return langNonMale[0];
 
-    // 3. Any high-quality female voice
-    const anyFemale = voices.find((v) =>
-      femaleKeywords.some((kw) => v.name.toLowerCase().includes(kw))
-    );
-    if (anyFemale) return anyFemale;
+    // 3. Indian / English verified female voice
+    const verifiedFemale = nonMaleVoices.find((v) => isFemale(v.name));
+    if (verifiedFemale) return verifiedFemale;
 
+    // 4. Any remaining non-male voice
+    if (nonMaleVoices.length > 0) return nonMaleVoices[0];
+
+    // 5. Ultimate fallback if system only has 1 voice
     return voices[0] || null;
   }
 
@@ -3292,12 +3324,24 @@ export default function ChatPage() {
           {/* =========================================================================
               3. ADVANCED AI CHAT COMPOSER (CHATGPT-INSPIRED FLOATING COMPOSER)
           ========================================================================= */}
-          <div className="sticky bottom-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#0d0e11] dark:via-[#0d0e11]/95 dark:to-transparent pointer-events-none">
+          <div
+            className={`sticky bottom-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 pointer-events-none transition-colors duration-200 ${
+              isDark
+                ? "bg-gradient-to-t from-[#0d0e11] via-[#0d0e11]/95 to-transparent"
+                : "bg-gradient-to-t from-white via-white/95 to-transparent"
+            }`}
+          >
             <div className="mx-auto max-w-3xl w-full pointer-events-auto">
 
               {/* Status / Interim Voice Banner */}
               {(statusMessage || interimSpeech || isListening) && (
-                <div className="mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-800/90 text-xs backdrop-blur-md border border-black/5 dark:border-neutral-700 shadow-2xs">
+                <div
+                  className={`mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-2xs ${
+                    isDark
+                      ? "bg-neutral-800/90 border-neutral-700 text-neutral-300"
+                      : "bg-neutral-100 border-neutral-200 text-neutral-700"
+                  }`}
+                >
                   <div className="flex items-center gap-2 truncate">
                     {isListening ? (
                       <span className="flex h-2 w-2 relative">
@@ -3307,7 +3351,7 @@ export default function ChatPage() {
                     ) : (
                       <Sparkles className="w-3.5 h-3.5 text-neutral-500 animate-spin" />
                     )}
-                    <span className="truncate text-neutral-700 dark:text-neutral-300">
+                    <span className="truncate">
                       {interimSpeech
                         ? `Listening: "${interimSpeech}"`
                         : isListening
@@ -3330,7 +3374,13 @@ export default function ChatPage() {
               {/* Active Tool Badge Pill */}
               {activeTool !== "none" && (
                 <div className="mb-2 flex items-center gap-1.5 px-1">
-                  <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border border-black/10 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 shadow-2xs">
+                  <div
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border shadow-2xs ${
+                      isDark
+                        ? "border-neutral-700 bg-neutral-800 text-neutral-200"
+                        : "border-neutral-200 bg-neutral-100 text-neutral-800"
+                    }`}
+                  >
                     {activeTool === "web" && <Globe className="w-3.5 h-3.5 text-blue-500" />}
                     {activeTool === "image" && <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
                     {activeTool === "research" && <Compass className="w-3.5 h-3.5 text-purple-500" />}
@@ -3357,10 +3407,10 @@ export default function ChatPage() {
 
               {/* Main Floating Input Card */}
               <div
-                className={`relative rounded-3xl border p-2.5 sm:p-3 backdrop-blur-2xl transition-all shadow-[0_10px_35px_-10px_rgba(0,0,0,0.08)] dark:shadow-[0_10px_35px_-10px_rgba(0,0,0,0.6)] ${
+                className={`relative rounded-3xl border p-2.5 sm:p-3 backdrop-blur-2xl transition-all ${
                   isDark
-                    ? "border-neutral-700/80 bg-[#1a1b1f]/95 focus-within:border-neutral-500"
-                    : "border-black/[0.1] bg-white/95 focus-within:border-black/30"
+                    ? "border-neutral-700/80 bg-[#1a1b1f]/95 focus-within:border-neutral-500 shadow-[0_10px_35px_-10px_rgba(0,0,0,0.6)]"
+                    : "border-neutral-200/90 bg-white/95 focus-within:border-neutral-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
                 }`}
               >
                 {/* Attachment Preview Chips */}
@@ -3530,7 +3580,9 @@ export default function ChatPage() {
                         }}
                         className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all ${
                           isAttachmentMenuOpen
-                            ? "rotate-45 bg-black text-white dark:bg-white dark:text-black border-transparent shadow-xs"
+                            ? isDark
+                              ? "rotate-45 bg-white text-black border-transparent shadow-xs"
+                              : "rotate-45 bg-neutral-900 text-white border-transparent shadow-xs"
                             : isDark
                             ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700"
                             : "border-black/10 bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200"
@@ -3555,7 +3607,9 @@ export default function ChatPage() {
                               imageInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
                             }}
-                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            }`}
                           >
                             <ImageIcon className="w-4 h-4 text-amber-500" />
                             <span>Upload Images</span>
@@ -3566,7 +3620,9 @@ export default function ChatPage() {
                               pdfInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
                             }}
-                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            }`}
                           >
                             <FileText className="w-4 h-4 text-red-500" />
                             <span>Upload PDFs</span>
@@ -3577,7 +3633,9 @@ export default function ChatPage() {
                               docInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
                             }}
-                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            }`}
                           >
                             <FileText className="w-4 h-4 text-blue-500" />
                             <span>Upload Documents</span>
@@ -3588,7 +3646,9 @@ export default function ChatPage() {
                               sheetInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
                             }}
-                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            }`}
                           >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
                             <span>Upload Spreadsheets</span>
@@ -3599,7 +3659,9 @@ export default function ChatPage() {
                               codeInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
                             }}
-                            className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            }`}
                           >
                             <Code2 className="w-4 h-4 text-cyan-500" />
                             <span>Upload Code &amp; Data</span>
@@ -3618,7 +3680,9 @@ export default function ChatPage() {
                         }}
                         className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-all ${
                           activeTool !== "none" || isToolsMenuOpen
-                            ? "border-black dark:border-white bg-black dark:bg-white text-white dark:text-black shadow-2xs"
+                            ? isDark
+                              ? "border-neutral-600 bg-white text-black shadow-2xs"
+                              : "border-neutral-900 bg-neutral-900 text-white shadow-2xs"
                             : isDark
                             ? "border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:text-white hover:bg-neutral-700"
                             : "border-black/10 bg-neutral-100/80 text-neutral-700 hover:text-black hover:bg-neutral-200"
@@ -3649,8 +3713,12 @@ export default function ChatPage() {
                             }}
                             className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
                               activeTool === "web"
-                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
-                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                ? isDark
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "bg-neutral-100 text-black font-semibold"
+                                : isDark
+                                ? "hover:bg-neutral-800 text-neutral-300"
+                                : "hover:bg-neutral-100 text-neutral-700"
                             }`}
                           >
                             <Globe className="w-4 h-4 text-blue-500 mt-0.5" />
@@ -3667,8 +3735,12 @@ export default function ChatPage() {
                             }}
                             className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
                               activeTool === "image"
-                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
-                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                ? isDark
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "bg-neutral-100 text-black font-semibold"
+                                : isDark
+                                ? "hover:bg-neutral-800 text-neutral-300"
+                                : "hover:bg-neutral-100 text-neutral-700"
                             }`}
                           >
                             <Sparkles className="w-4 h-4 text-amber-500 mt-0.5" />
@@ -3685,8 +3757,12 @@ export default function ChatPage() {
                             }}
                             className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
                               activeTool === "research"
-                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
-                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                ? isDark
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "bg-neutral-100 text-black font-semibold"
+                                : isDark
+                                ? "hover:bg-neutral-800 text-neutral-300"
+                                : "hover:bg-neutral-100 text-neutral-700"
                             }`}
                           >
                             <Compass className="w-4 h-4 text-purple-500 mt-0.5" />
@@ -3703,8 +3779,12 @@ export default function ChatPage() {
                             }}
                             className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
                               activeTool === "file"
-                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
-                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                ? isDark
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "bg-neutral-100 text-black font-semibold"
+                                : isDark
+                                ? "hover:bg-neutral-800 text-neutral-300"
+                                : "hover:bg-neutral-100 text-neutral-700"
                             }`}
                           >
                             <FileText className="w-4 h-4 text-emerald-500 mt-0.5" />
@@ -3721,8 +3801,12 @@ export default function ChatPage() {
                             }}
                             className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
                               activeTool === "code"
-                                ? "bg-neutral-200 dark:bg-neutral-800 font-semibold"
-                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                ? isDark
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "bg-neutral-100 text-black font-semibold"
+                                : isDark
+                                ? "hover:bg-neutral-800 text-neutral-300"
+                                : "hover:bg-neutral-100 text-neutral-700"
                             }`}
                           >
                             <Code2 className="w-4 h-4 text-cyan-500 mt-0.5" />
@@ -3759,7 +3843,9 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={stopGeneration}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-md hover:scale-105 active:scale-95 transition-all ring-2 ring-neutral-400/30"
+                        className={`flex h-8 w-8 items-center justify-center rounded-full shadow-md hover:scale-105 active:scale-95 transition-all ring-2 ring-neutral-400/30 ${
+                          isDark ? "bg-white text-black" : "bg-neutral-900 text-white"
+                        }`}
                         title="Stop generation"
                       >
                         <Square className="w-3.5 h-3.5 fill-current" />
@@ -3771,8 +3857,12 @@ export default function ChatPage() {
                         onClick={() => sendMessage()}
                         className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
                           input.trim() || attachments.length > 0
-                            ? "bg-black text-white dark:bg-white dark:text-black shadow-md hover:scale-105 active:scale-95 cursor-pointer"
-                            : "bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
+                            ? isDark
+                              ? "bg-white text-black shadow-md hover:scale-105 active:scale-95 cursor-pointer"
+                              : "bg-neutral-900 text-white shadow-md hover:bg-black hover:scale-105 active:scale-95 cursor-pointer"
+                            : isDark
+                            ? "bg-neutral-800 text-neutral-600 cursor-not-allowed opacity-50"
+                            : "bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed opacity-60"
                         }`}
                         title="Send message"
                       >
@@ -3784,7 +3874,9 @@ export default function ChatPage() {
               </div>
 
               {/* Small Friendly Disclaimer Description at the Bottom of Message Bar */}
-              <p className="mt-2 text-center text-[11px] text-neutral-400 leading-normal max-w-xl mx-auto select-none">
+              <p className={`mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${
+                isDark ? "text-neutral-500" : "text-neutral-400"
+              }`}>
                 Notice: AI image generation is continuously learning. While we work to bring you 100% perfect images soon,
                 we always deliver the best possible quality for your prompt.
               </p>
