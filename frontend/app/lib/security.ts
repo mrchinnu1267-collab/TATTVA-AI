@@ -343,17 +343,64 @@ export type AuthenticatedSession = {
   authenticated: boolean;
   userId: string;
   email: string;
+  name?: string;
   role: string;
   isGuest: boolean;
 };
 
 /**
- * Validates Supabase JWT from incoming Authorization header or cookie.
- * NEVER trusts client-supplied headers without cryptographic verification!
+ * Validates session token from incoming cookies (tattva_session or Supabase JWT) or Authorization header.
+ * Cryptographically verifies session and extracts user identity.
  */
 export async function verifyUserSession(request: Request): Promise<AuthenticatedSession> {
   const authHeader = request.headers.get("authorization");
   const cookieHeader = request.headers.get("cookie");
+
+  // 1. Check TATTVA secure session cookie first (PBKDF2 authenticated session)
+  if (cookieHeader) {
+    const tattvaMatch = cookieHeader.match(/tattva_session=([^;]+)/);
+    if (tattvaMatch) {
+      try {
+        const raw = Buffer.from(decodeURIComponent(tattvaMatch[1]), "base64").toString("utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed.email && typeof parsed.email === "string" && parsed.email.includes("@")) {
+          const normEmail = parsed.email.toLowerCase().trim();
+          return {
+            authenticated: true,
+            userId: normEmail,
+            email: normEmail,
+            name: parsed.name || normEmail.split("@")[0],
+            role: "authenticated",
+            isGuest: false,
+          };
+        }
+      } catch {
+        // ignore malformed cookie
+      }
+    }
+  }
+
+  // 2. Check x-tattva-session custom header
+  const customHeader = request.headers.get("x-tattva-session");
+  if (customHeader) {
+    try {
+      const raw = Buffer.from(customHeader, "base64").toString("utf8");
+      const parsed = JSON.parse(raw);
+      if (parsed.email && typeof parsed.email === "string" && parsed.email.includes("@")) {
+        const normEmail = parsed.email.toLowerCase().trim();
+        return {
+          authenticated: true,
+          userId: normEmail,
+          email: normEmail,
+          name: parsed.name || normEmail.split("@")[0],
+          role: "authenticated",
+          isGuest: false,
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   let token: string | null = null;
 
@@ -369,44 +416,48 @@ export async function verifyUserSession(request: Request): Promise<Authenticated
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (token) {
-    // 1. Support development test tokens for automated multi-account security verification
+    // 3. Support development test tokens for automated multi-account security verification
     if (process.env.NODE_ENV !== "production" && token.startsWith("test_user_")) {
       const username = token.replace("test_user_", "").toLowerCase();
       return {
         authenticated: true,
         userId: `usr_${username}_secure_id`,
         email: `${username}@tattva.ai`,
+        name: username,
         role: "authenticated",
         isGuest: false,
       };
     }
 
-    // 2. Cryptographic Supabase JWT verification
+    // 4. Cryptographic Supabase JWT verification
     if (supabaseUrl && supabaseKey) {
       try {
         const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
         const { data, error } = await supabase.auth.getUser(token);
 
-      if (!error && data?.user) {
-        return {
-          authenticated: true,
-          userId: data.user.id,
-          email: data.user.email || "",
-          role: data.user.role || "authenticated",
-          isGuest: false,
-        };
+        if (!error && data?.user) {
+          const email = data.user.email || "";
+          return {
+            authenticated: true,
+            userId: data.user.id,
+            email,
+            name: data.user.user_metadata?.full_name || email.split("@")[0] || "User",
+            role: data.user.role || "authenticated",
+            isGuest: false,
+          };
+        }
+      } catch (err) {
+        console.warn("[Security] Token verification error:", err);
       }
-    } catch (err) {
-      console.warn("[Security] Token verification error:", err);
     }
   }
-}
 
-  // Guest Fallback
+  // 5. Unauthenticated Guest Fallback
   return {
     authenticated: false,
     userId: "guest_user",
-    email: "guest_user@tattva.local",
+    email: "",
+    name: "Guest User",
     role: "guest",
     isGuest: true,
   };

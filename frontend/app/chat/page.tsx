@@ -62,6 +62,8 @@ import {
   AlertTriangle,
   Layers,
   Lock,
+  LogIn,
+  UserPlus,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -77,6 +79,7 @@ import {
   logoutUser,
   saveActiveSession,
   resetGuestCount,
+  getActiveSessionName,
 } from "../lib/local-auth";
 
 type Role = "user" | "assistant";
@@ -611,6 +614,7 @@ export default function ChatPage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isManageAccountModalOpen, setIsManageAccountModalOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   // Self-Personalizing Memory & Feedback System (ChatGPT-Style)
   const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
@@ -1074,15 +1078,23 @@ export default function ChatPage() {
     }
   }, [loadUserSessions, router]);
 
-  // Session Reset Handler
-  async function handleLogout() {
+  // 1. Trigger Logout Confirmation Modal (ChatGPT-Style)
+  function handleLogout() {
+    setIsProfileMenuOpen(false);
+    setIsProfileModalOpen(false);
+    setIsManageAccountModalOpen(false);
+    setIsLogoutConfirmOpen(true);
+  }
+
+  // 2. Execute Secure Logout upon Confirmation
+  async function handleConfirmLogout() {
     try {
-      setIsProfileMenuOpen(false);
+      setIsLogoutConfirmOpen(false);
       await logoutUser();
       const supabase = createClient();
       await supabase.auth.signOut().catch(() => {});
     } catch (err) {
-      console.warn("Reset session error:", err);
+      console.warn("Logout error:", err);
     } finally {
       // 1. Clear application-level authentication state
       setCurrentUser(null);
@@ -1090,16 +1102,20 @@ export default function ChatPage() {
       resetGuestCount();
       setGuestChatCount(0);
 
-      // 2. Clear user-specific cached data
-      localStorage.removeItem("tattva_user_session_email");
-      localStorage.removeItem("supabase.auth.token");
+      // 2. Clear user-specific cached session keys
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("tattva_user_session_email");
+        localStorage.removeItem("tattva_user_session_name");
+        localStorage.removeItem("tattva_remember_device");
+        localStorage.removeItem("supabase.auth.token");
+      }
 
       // 3. Reset in-memory sessions
       loadUserSessions(null);
 
-      // 4. Show toast notification & start fresh chat
-      showToast("Session reset successfully ✦");
-      createNewChat();
+      // 4. Show toast notification & Redirect to login page
+      showToast("Signed out successfully ✦");
+      router.push("/login?logged_out=true");
     }
   }
 
@@ -1782,7 +1798,9 @@ export default function ChatPage() {
         body: JSON.stringify({
           messages: apiMessages,
           mode: activeTool === "code" ? "chat" : undefined,
-          userEmail: userEmail || "guest_user",
+          userEmail: isUserAuthenticated ? userEmail : undefined,
+          userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
+          isAuthenticated: isUserAuthenticated,
         }),
         signal: controller.signal,
       });
@@ -1992,13 +2010,12 @@ export default function ChatPage() {
     }
   }
 
-  // User authentication status & limitless access verification
+  // User authentication status & access verification (ChatGPT-Style)
   const isUserAuthenticated = Boolean(
-    currentUser ||
-    userEmail ||
-    (typeof window !== "undefined" && localStorage.getItem("tattva_user_session_email"))
+    (currentUser && currentUser.email) ||
+    (userEmail && userEmail.trim().length > 0 && userEmail !== "guest_user")
   );
-  const isGuest = false;
+  const isGuest = !isUserAuthenticated;
   const remainingGuestChats = Infinity;
   const activeWordCount = calculateChatWordCount(messages);
 
@@ -2184,6 +2201,53 @@ export default function ChatPage() {
               <Volume2 className="w-3.5 h-3.5" />
               <span>Sare Voice {sareEnabled ? "ON" : "OFF"}</span>
             </button>
+
+            {/* 5. Header Auth Controls (Guest: Log In/Sign Up | Logged In: Profile Pill) */}
+            {isGuest ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => router.push("/login")}
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                    isDark
+                      ? "border-neutral-700 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
+                      : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100"
+                  }`}
+                  title="Sign in to your account"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Log in</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/signup")}
+                  className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 text-xs font-semibold hover:opacity-90 transition shadow-xs"
+                  title="Create free account"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Sign up</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(true)}
+                className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-900/80 text-neutral-200 hover:bg-neutral-800"
+                    : "border-black/10 bg-neutral-100/80 text-neutral-800 hover:bg-neutral-200"
+                }`}
+                title="Account profile"
+              >
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-white text-[10px] font-bold">
+                  {userEmail ? userEmail[0].toUpperCase() : "U"}
+                </div>
+                <span className="hidden sm:inline max-w-[100px] truncate">
+                  {currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]}
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </button>
+            )}
 
             {/* Share Chat Button */}
             <button
@@ -2576,111 +2640,160 @@ export default function ChatPage() {
                     {isGuest ? "Guest Access" : "Account"}
                   </p>
                   <p className="font-semibold text-xs truncate mt-0.5 text-neutral-900 dark:text-white">
-                    {userEmail || "Guest User"}
+                    {isGuest ? "Guest User (Logged Out)" : (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail)}
                   </p>
                   <p className="text-[10px] text-neutral-500 flex items-center gap-1 mt-0.5">
                     <span className={`h-1.5 w-1.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
-                    <span>{isGuest ? `${remainingGuestChats} free chats left` : "Pro Encrypted Session"}</span>
+                    <span>{isGuest ? "Trial Session • Unauthenticated" : userEmail}</span>
                   </p>
                 </div>
 
                 <div className="py-1 space-y-0.5">
-                  {/* Option 1: My Profile */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setIsProfileModalOpen(true);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                  >
-                    <UserIcon className="w-4 h-4 text-neutral-500" />
-                    <span>My Profile</span>
-                  </button>
+                  {isGuest ? (
+                    <>
+                      {/* Guest Options */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          router.push("/login");
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-neutral-900 dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <LogIn className="w-4 h-4 text-blue-500" />
+                        <span>Log In to Account</span>
+                      </button>
 
-                  {/* Option 2: Settings */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setIsSettingsModalOpen(true);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                  >
-                    <Settings className="w-4 h-4 text-neutral-500" />
-                    <span>Settings</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          router.push("/signup");
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-neutral-900 dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <UserPlus className="w-4 h-4 text-emerald-500" />
+                        <span>Create Free Account</span>
+                      </button>
 
-                  {/* Option: Memory & Personalization */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setIsMemoryModalOpen(true);
-                    }}
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition group"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Brain className="w-4 h-4 text-purple-500" />
-                      <span>Memory &amp; Personalization</span>
-                    </div>
-                    {memories.length > 0 && (
-                      <span className="rounded-full bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-300">
-                        {memories.length}
-                      </span>
-                    )}
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <Settings className="w-4 h-4 text-neutral-500" />
+                        <span>Settings</span>
+                      </button>
 
-                  {/* Option 3: Manage Account */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setIsManageAccountModalOpen(true);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-neutral-500" />
-                    <span>Manage Account</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsHelpModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <HelpCircle className="w-4 h-4 text-neutral-500" />
+                        <span>Help &amp; Support</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Authenticated User Options */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <UserIcon className="w-4 h-4 text-neutral-500" />
+                        <span>My Profile</span>
+                      </button>
 
-                  {/* Option 4: Help & Support */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      setIsHelpModalOpen(true);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                  >
-                    <HelpCircle className="w-4 h-4 text-neutral-500" />
-                    <span>Help &amp; Support</span>
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <Settings className="w-4 h-4 text-neutral-500" />
+                        <span>Settings</span>
+                      </button>
 
-                <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800/80" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsMemoryModalOpen(true);
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition group"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Brain className="w-4 h-4 text-purple-500" />
+                          <span>Memory &amp; Personalization</span>
+                        </div>
+                        {memories.length > 0 && (
+                          <span className="rounded-full bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-300">
+                            {memories.length}
+                          </span>
+                        )}
+                      </button>
 
-                {/* Option 5: New Conversation & Reset */}
-                <div className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      createNewChat();
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                  >
-                    <Plus className="w-4 h-4 text-neutral-500" />
-                    <span>New Conversation</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                  >
-                    <RefreshCw className="w-4 h-4 text-neutral-500" />
-                    <span>Reset Session</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsManageAccountModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-neutral-500" />
+                        <span>Manage Account</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsHelpModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <HelpCircle className="w-4 h-4 text-neutral-500" />
+                        <span>Help &amp; Support</span>
+                      </button>
+
+                      <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800/80" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          createNewChat();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      >
+                        <Plus className="w-4 h-4 text-neutral-500" />
+                        <span>New Conversation</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                      >
+                        <LogOut className="w-4 h-4 text-red-500" />
+                        <span>Log Out</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -2698,16 +2811,23 @@ export default function ChatPage() {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 {/* User Avatar with Initials */}
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-neutral-800 to-black text-white text-xs font-bold shadow-xs ring-1 ring-black/10 dark:ring-white/20">
-                  {userEmail ? userEmail[0].toUpperCase() : "T"}
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-xs ring-1 ${
+                    isGuest
+                      ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-400/40"
+                      : "bg-gradient-to-tr from-neutral-800 to-black text-white ring-black/10 dark:ring-white/20"
+                  }`}
+                >
+                  {isGuest ? "G" : (userEmail ? userEmail[0].toUpperCase() : "U")}
                 </div>
-                {/* Display Name and Registered Email */}
+                {/* Display Name and Status */}
                 <div className="text-left min-w-0">
                   <div className="text-xs font-semibold truncate text-neutral-900 dark:text-neutral-100">
-                    {userEmail ? (currentUser?.user_metadata?.full_name || userEmail.split("@")[0]) : "TATTVA User"}
+                    {isGuest ? "Guest User" : (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0])}
                   </div>
-                  <div className="text-[10px] text-neutral-400 truncate max-w-[130px]">
-                    {userEmail || "Unlimited Access ✦"}
+                  <div className="text-[10px] text-neutral-400 truncate max-w-[130px] flex items-center gap-1">
+                    <span className={`h-1.5 w-1.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
+                    <span>{isGuest ? "Logged Out • Sign in" : userEmail}</span>
                   </div>
                 </div>
               </div>
@@ -3810,7 +3930,19 @@ export default function ChatPage() {
                 >
                   Close
                 </button>
-                {!isGuest && (
+                {isGuest ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileModalOpen(false);
+                      router.push("/login");
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black px-4 py-2 text-xs font-semibold hover:opacity-90 transition shadow-xs"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Log In to Account</span>
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={handleLogout}
@@ -3821,6 +3953,53 @@ export default function ChatPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LOG OUT CONFIRMATION MODAL (CHATGPT-STYLE) */}
+      {isLogoutConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          onClick={() => setIsLogoutConfirmOpen(false)}
+        >
+          <div
+            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 mb-4">
+              <LogOut className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold">Log out of TATTVA AI?</h3>
+            <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              You will be signed out of your account on this device. Your conversations, models, and personal memories remain securely saved in your account.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsLogoutConfirmOpen(false)}
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-red-700 transition"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Log Out</span>
+              </button>
             </div>
           </div>
         </div>
