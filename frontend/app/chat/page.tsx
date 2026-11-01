@@ -582,9 +582,8 @@ export default function ChatPage() {
   const [imageMenuOpen, setImageMenuOpen] = useState<{ image: string; x: number; y: number } | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Gesture detection for swiping from bottom to top to open new chat
-  const touchStartY = useRef<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
+  // Active messages count ref to prevent auth hydration from wiping ongoing chats
+  const messagesCountRef = useRef<number>(0);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -854,8 +853,6 @@ export default function ChatPage() {
   }
 
   // Load chat sessions for a specific user email
-  // REQUIREMENT: For every open or login, ALWAYS start with a fresh new chat session,
-  // while preserving all previous sessions in the sidebar history!
   const loadUserSessions = useCallback((email?: string | null) => {
     const key = getStorageKey(email);
     let existingSessions: ChatSession[] = [];
@@ -868,37 +865,64 @@ export default function ChatPage() {
       // ignore
     }
 
-    // Always create a clean new chat session for this fresh session
-    const freshSession: ChatSession = {
-      id: crypto.randomUUID(),
-      title: "New Conversation",
-      userEmail: email || undefined,
-      messages: [],
-      updatedAt: Date.now(),
-    };
+    setSessions((prev) => {
+      // If user is actively typing or has ongoing messages in the current conversation, preserve them!
+      if (messagesCountRef.current > 0) {
+        return prev.length > 0 ? prev : existingSessions;
+      }
 
-    const combined = [freshSession, ...existingSessions];
-    setSessions(combined);
-    setCurrentSessionId(freshSession.id);
-    setMessages([]);
-  }, []);
+      // If there's an existing valid active session, keep it
+      if (currentSessionId && existingSessions.some((s) => s.id === currentSessionId)) {
+        return existingSessions;
+      }
+
+      // Initial clean start session
+      const freshSession: ChatSession = {
+        id: crypto.randomUUID(),
+        title: "New Conversation",
+        userEmail: email || undefined,
+        messages: [],
+        updatedAt: Date.now(),
+      };
+
+      setCurrentSessionId(freshSession.id);
+      setMessages([]);
+      messagesCountRef.current = 0;
+      return [freshSession, ...existingSessions];
+    });
+  }, [currentSessionId]);
 
   // Save current active session
   const saveCurrentSession = useCallback((updatedMsgs: ChatMessage[]) => {
-    if (!currentSessionId) return;
-
     setSessions((prev) => {
-      const existing = prev.find((s) => s.id === currentSessionId);
+      const activeId = currentSessionId || crypto.randomUUID();
+      if (!currentSessionId) {
+        setCurrentSessionId(activeId);
+      }
+
+      const existing = prev.find((s) => s.id === activeId);
       const title =
         existing && existing.title !== "New Conversation"
           ? existing.title
           : updatedMsgs[0]?.content.slice(0, 36).trim() || "New Conversation";
 
-      const updated = prev.map((s) =>
-        s.id === currentSessionId
-          ? { ...s, messages: updatedMsgs, title, updatedAt: Date.now() }
-          : s
-      );
+      let updated: ChatSession[];
+      if (existing) {
+        updated = prev.map((s) =>
+          s.id === activeId
+            ? { ...s, messages: updatedMsgs, title, updatedAt: Date.now() }
+            : s
+        );
+      } else {
+        const fresh: ChatSession = {
+          id: activeId,
+          title,
+          userEmail: userEmail || undefined,
+          messages: updatedMsgs,
+          updatedAt: Date.now(),
+        };
+        updated = [fresh, ...prev];
+      }
 
       const key = getStorageKey(userEmail);
       try {
@@ -927,6 +951,7 @@ export default function ChatPage() {
     setSessions((prev) => [fresh, ...prev]);
     setCurrentSessionId(fresh.id);
     setMessages([]);
+    messagesCountRef.current = 0;
     setAttachments([]);
     setInput("");
     setError("");
@@ -941,6 +966,7 @@ export default function ChatPage() {
     }
     setCurrentSessionId(session.id);
     setMessages(session.messages || []);
+    messagesCountRef.current = (session.messages || []).length;
     setAttachments([]);
     setInput("");
     setError("");
@@ -1049,9 +1075,9 @@ export default function ChatPage() {
           const email = data.session.user.email || "";
           setUserEmail(email);
           localStorage.setItem("tattva_user_session_email", email);
-          resetGuestCount();
-          setGuestChatCount(0);
-          loadUserSessions(email);
+          if (!cachedEmail || cachedEmail !== email) {
+            loadUserSessions(email);
+          }
         } else if (cachedEmail) {
           resetGuestCount();
           setGuestChatCount(0);
@@ -1700,7 +1726,7 @@ export default function ChatPage() {
 
     // Check 1 Lakh words limit per chat
     const currentWordCount = calculateChatWordCount(messages);
-    if (currentWordCount >= CHAT_WORD_LIMIT) {
+    if (messages.length > 0 && Number.isFinite(currentWordCount) && currentWordCount >= CHAT_WORD_LIMIT) {
       showToast("Chat reached 100,000 words limit. Auto-starting new chat session ✦");
       createNewChat();
       return;
@@ -1718,6 +1744,12 @@ export default function ChatPage() {
       promptToSend = `[Mode: Code Architecture & Production Programming - Zero emojis in code]: ${rawPrompt}`;
     }
 
+    // Ensure active session id exists
+    if (!currentSessionId) {
+      const activeId = crypto.randomUUID();
+      setCurrentSessionId(activeId);
+    }
+
     const userMsg: ChatMessage = {
       id: userMsgId,
       role: "user",
@@ -1728,6 +1760,7 @@ export default function ChatPage() {
 
     const updatedWithUser = [...messages, userMsg];
     setMessages(updatedWithUser);
+    messagesCountRef.current = updatedWithUser.length;
     saveCurrentSession(updatedWithUser);
 
     setInput("");
@@ -1795,6 +1828,7 @@ export default function ChatPage() {
 
         const updatedWithAssistant = [...updatedWithUser, assistantMsg];
         setMessages(updatedWithAssistant);
+        messagesCountRef.current = updatedWithAssistant.length;
         saveCurrentSession(updatedWithAssistant);
 
         // Sare Voice narration for image
@@ -1855,6 +1889,7 @@ export default function ChatPage() {
 
       const updatedWithAssistant = [...updatedWithUser, assistantMsg];
       setMessages(updatedWithAssistant);
+      messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant);
 
       // Refresh memory profile after response in case new memories were extracted
@@ -1999,31 +2034,7 @@ export default function ChatPage() {
     setTimeout(() => setCopiedMessageId(null), 2000);
   }
 
-  // Swipe gesture handlers on chat container (bottom to top swipe opens new chat)
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
-  }
 
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartY.current === null || touchStartX.current === null) return;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-
-    const container = chatContainerRef.current;
-    const isAtBottom = container
-      ? container.scrollHeight - container.scrollTop - container.clientHeight < 50
-      : true;
-
-    // Upward swipe (deltaY < -70px) when at the bottom of chat
-    if (isAtBottom && deltaY < -70 && Math.abs(deltaY) > Math.abs(deltaX) * 1.4) {
-      if (messages.length > 0) {
-        createNewChat();
-      }
-    }
-    touchStartY.current = null;
-    touchStartX.current = null;
-  }
 
   // Long press handler for images
   function handleImageTouchStart(imgSrc: string, e: React.TouchEvent | React.MouseEvent) {
@@ -2984,8 +2995,6 @@ export default function ChatPage() {
         {/* Central Chat Stream */}
         <main
           ref={chatContainerRef}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
           className="flex-1 flex flex-col justify-between overflow-y-auto relative"
         >
           {/* Sare Voice Status Banner */}
@@ -3311,12 +3320,7 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Swipe Up for New Chat Hint (visible at the bottom of messages) */}
-            {messages.length > 0 && (
-              <div className="py-4 text-center select-none text-[11px] text-neutral-400 hover:text-neutral-500 transition cursor-pointer" onClick={createNewChat}>
-                ↑ Swipe up from the bottom to start a new chat
-              </div>
-            )}
+
 
             <div ref={chatBottomRef} />
           </div>
@@ -3542,6 +3546,7 @@ export default function ChatPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
+                      e.stopPropagation();
                       sendMessage();
                     }
                   }}
