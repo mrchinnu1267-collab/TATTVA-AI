@@ -302,6 +302,7 @@ export default function StudioPage() {
 
         const payload: Record<string, unknown> = {
           prompt: targetPrompt,
+          style: selectedStyle,
           enhance_prompt: false,
           steps,
           guidance_scale: guidanceScale,

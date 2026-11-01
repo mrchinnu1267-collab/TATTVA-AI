@@ -89,8 +89,26 @@ User Prompt: "${originalPrompt}"`,
       }
     }
 
+    const styleId = typeof body.style === "string" ? body.style.toLowerCase() : "";
+    const STYLE_MODIFIERS: Record<string, string> = {
+      anime: "Makoto Shinkai style, vibrant anime aesthetics, expressive details, studio key visual",
+      cinematic: "35mm anamorphic film still, cinematic lighting, volumetric shadows, cinematic depth of field",
+      realistic: "photorealistic, 8K ultra-detailed, authentic skin pores, natural lighting, sharp focus",
+      "3d": "3D Octane render, ray-traced lighting, subsurface scattering, CGI masterpiece",
+      concept: "digital concept art, atmospheric matte painting, epic scenery, expressive brushwork",
+      portrait: "professional studio portrait, softbox rim lighting, Hasselblad medium format clarity",
+      architecture: "architectural photography, clean geometric lines, travertine stone, minimalist composition",
+      fantasy: "dark fantasy aesthetic, ethereal glow, mystical runes, magical mist, intricate ornaments",
+      vintage: "vintage 35mm photograph, Kodak Portra 400 grain, warm nostalgic tones, retro film look",
+    };
+
+    if (styleId && STYLE_MODIFIERS[styleId] && !finalPrompt.toLowerCase().includes(styleId)) {
+      finalPrompt = `${finalPrompt}, ${STYLE_MODIFIERS[styleId]}`;
+    }
+
     const result = await executeImageGeneration({
       prompt: finalPrompt,
+      style: styleId,
       image: typeof body.image === "string" ? body.image : undefined,
       strength: typeof body.strength === "number" ? body.strength : undefined,
       model: typeof body.model === "string" ? body.model : "realistic",
