@@ -255,8 +255,12 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
       {/* TOP HEADER */}
       <header className="w-full px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => router.push("/chat")}>
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white shadow-xs">
-            <Sparkles className="h-4 w-4" />
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl overflow-hidden border border-black/10 bg-white shadow-xs p-0.5">
+            <img
+              src="/logo.png"
+              alt="TATTVA AI"
+              className="h-full w-full object-contain"
+            />
           </div>
           <span className="text-sm font-bold tracking-tight text-neutral-900">
             TATTVA AI
@@ -307,8 +311,12 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
         <div className="w-full max-w-[420px] mx-auto bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)]">
           {/* Centered Brand Icon */}
           <div className="text-center mb-6">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-md transition-transform hover:scale-105 duration-200">
-              <Sparkles className="h-6 w-6" />
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden border border-black/10 bg-white shadow-md transition-transform hover:scale-105 duration-200 p-1">
+              <img
+                src="/logo.png"
+                alt="TATTVA AI"
+                className="h-full w-full object-contain"
+              />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
               {mode === "signin"

@@ -87,8 +87,12 @@ export default function PWAProvider({ children }: { children: React.ReactNode })
       {showInstallBanner && deferredPrompt && (
         <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-50 flex items-center justify-between gap-3 rounded-2xl border border-black/10 dark:border-neutral-700 bg-white/95 dark:bg-[#18181b]/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom duration-200">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white text-xs font-bold shadow-xs">
-              T
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs p-0.5">
+              <img
+                src="/logo.png"
+                alt="TATTVA AI"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div className="min-w-0">
               <div className="text-xs font-bold truncate text-neutral-900 dark:text-neutral-100">

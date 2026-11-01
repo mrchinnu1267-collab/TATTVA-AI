@@ -616,8 +616,12 @@ export default function LiveVoiceAssistantPage() {
           </button>
 
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white text-xs font-black shadow-sm">
-              T
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm p-0.5">
+              <img
+                src="/logo.png"
+                alt="TATTVA AI"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">

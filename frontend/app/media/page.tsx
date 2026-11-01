@@ -239,10 +239,12 @@ export default function MediaDocumentPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-6">
             <a href="/" className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black text-white shadow-xs">
-                <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-black/10 bg-white shadow-xs p-0.5">
+                <img
+                  src="/logo.png"
+                  alt="TATTVA AI"
+                  className="h-full w-full object-contain"
+                />
               </div>
               <div className="leading-tight">
                 <span className="text-sm font-bold tracking-tight text-neutral-900">TATTVA AI</span>

@@ -2348,8 +2348,12 @@ export default function ChatPage() {
           {/* Sidebar Top: Logo + Close Button */}
           <div className="p-3 border-b border-black/[0.06] flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black text-white text-xs font-bold">
-                T
+              <div className="relative flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs">
+                <img
+                  src="/logo.png"
+                  alt="TATTVA AI"
+                  className="h-full w-full object-contain"
+                />
               </div>
               <span className="text-xs font-bold tracking-tight text-neutral-800 dark:text-neutral-200">
                 TATTVA AI
@@ -3036,8 +3040,12 @@ export default function ChatPage() {
           <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
               <div className="py-12 sm:py-20 text-center max-w-xl mx-auto">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white text-2xl font-black shadow-md mb-4">
-                  T
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-md mb-4 p-1">
+                  <img
+                    src="/logo.png"
+                    alt="TATTVA AI"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight">How can TATTVA AI help you today?</h2>
                 <p className="mt-2 text-xs sm:text-sm text-neutral-500 leading-relaxed">
@@ -3097,8 +3105,12 @@ export default function ChatPage() {
 
                     <div className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
                       {!isUser && (
-                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-black text-white font-black text-xs shadow-sm mt-1">
-                          T
+                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm mt-1 p-0.5">
+                          <img
+                            src="/logo.png"
+                            alt="TATTVA AI"
+                            className="h-full w-full object-contain"
+                          />
                         </div>
                       )}
 
@@ -3300,8 +3312,12 @@ export default function ChatPage() {
             {/* Loading pulse indicator */}
             {loading && (
               <div className="flex items-center gap-3">
-                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-black text-white font-black text-xs shadow-sm animate-pulse">
-                  T
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm animate-pulse p-0.5">
+                  <img
+                    src="/logo.png"
+                    alt="TATTVA AI"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
                 <div
                   className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs shadow-sm ${
