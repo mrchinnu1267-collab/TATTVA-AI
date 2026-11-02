@@ -879,7 +879,7 @@ export default function ChatPage() {
       if (!target.closest("[data-branding-bubble]")) {
         setIsInfoBubbleOpen(false);
       }
-      if (!target.closest("[data-session-menu]")) {
+      if (!target.closest("[data-session-menu]") && !target.closest("[data-session-action]")) {
         setActiveMenuSessionId(null);
       }
     }
@@ -3078,11 +3078,14 @@ export default function ChatPage() {
                       const menuOpen = activeMenuSessionId === s.id;
 
                       return (
-                        <div key={s.id} className="relative group">
+                        <div key={s.id} className="relative group" data-session-menu="true">
                           {isRenaming ? (
                             <form
                               onSubmit={(e) => submitRenameSession(s.id, e)}
-                              className="flex items-center gap-1 p-1"
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              data-session-menu="true"
+                              className="flex items-center gap-1 p-1 w-full"
                             >
                               <input
                                 type="text"
@@ -3097,9 +3100,23 @@ export default function ChatPage() {
                                     setRenamingSessionId(null);
                                   }
                                 }}
-                                onBlur={() => submitRenameSession(s.id)}
-                                className="w-full text-xs rounded-lg border border-black/20 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 outline-none text-neutral-900 dark:text-white"
+                                className="flex-1 text-xs rounded-lg border border-black/20 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 outline-none text-neutral-900 dark:text-white"
                               />
+                              <button
+                                type="submit"
+                                title="Save title"
+                                className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Cancel"
+                                onClick={() => setRenamingSessionId(null)}
+                                className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
                             </form>
                           ) : (
                             <div
@@ -3121,6 +3138,8 @@ export default function ChatPage() {
 
                               <button
                                 type="button"
+                                data-session-menu="true"
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveMenuSessionId(menuOpen ? null : s.id);
@@ -3138,35 +3157,49 @@ export default function ChatPage() {
                           {/* Contextual Three-Dot Popover Menu */}
                           {menuOpen && (
                             <div
-                              className={`absolute right-1 top-full mt-1 z-50 w-36 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
+                              data-session-menu="true"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
                                 isDark
                                   ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                   : "border-black/10 bg-white text-neutral-800"
                               }`}
-                              onClick={(e) => e.stopPropagation()}
                             >
                               <button
                                 type="button"
-                                onClick={(e) => togglePinSession(s.id, e)}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                                data-session-action="true"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePinSession(s.id, e);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                               >
                                 <PinOff className="w-3.5 h-3.5" />
                                 <span>Unpin conversation</span>
                               </button>
                               <button
                                 type="button"
-                                onClick={(e) => startRenameSession(s, e)}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                                data-session-action="true"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startRenameSession(s, e);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                                 <span>Rename conversation</span>
                               </button>
                               <button
                                 type="button"
+                                data-session-action="true"
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  shareChat(s);
                                   setActiveMenuSessionId(null);
+                                  shareChat(s);
                                 }}
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                               >
@@ -3175,7 +3208,10 @@ export default function ChatPage() {
                               </button>
                               <button
                                 type="button"
+                                data-session-action="true"
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
+                                  e.stopPropagation();
                                   setActiveMenuSessionId(null);
                                   archiveSession(s.id, e);
                                 }}
@@ -3187,7 +3223,10 @@ export default function ChatPage() {
                               <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
                               <button
                                 type="button"
+                                data-session-action="true"
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
+                                  e.stopPropagation();
                                   setActiveMenuSessionId(null);
                                   deleteSession(s.id, e);
                                 }}
@@ -3224,11 +3263,14 @@ export default function ChatPage() {
                     const menuOpen = activeMenuSessionId === s.id;
 
                     return (
-                      <div key={s.id} className="relative group">
+                      <div key={s.id} className="relative group" data-session-menu="true">
                         {isRenaming ? (
                           <form
                             onSubmit={(e) => submitRenameSession(s.id, e)}
-                            className="flex items-center gap-1 p-1"
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            data-session-menu="true"
+                            className="flex items-center gap-1 p-1 w-full"
                           >
                             <input
                               type="text"
@@ -3243,9 +3285,23 @@ export default function ChatPage() {
                                   setRenamingSessionId(null);
                                 }
                               }}
-                              onBlur={() => submitRenameSession(s.id)}
-                              className="w-full text-xs rounded-lg border border-black/20 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 outline-none text-neutral-900 dark:text-white"
+                              className="flex-1 text-xs rounded-lg border border-black/20 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 outline-none text-neutral-900 dark:text-white"
                             />
+                            <button
+                              type="submit"
+                              title="Save title"
+                              className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Cancel"
+                              onClick={() => setRenamingSessionId(null)}
+                              className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </form>
                         ) : (
                           <div
@@ -3253,7 +3309,7 @@ export default function ChatPage() {
                             className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${
                               active
                                 ? isDark
-                                ? "bg-neutral-800 text-white font-semibold"
+                                  ? "bg-neutral-800 text-white font-semibold"
                                   : "bg-white text-black font-semibold shadow-xs border border-black/5"
                                 : isDark
                                 ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
@@ -3267,6 +3323,8 @@ export default function ChatPage() {
 
                             <button
                               type="button"
+                              data-session-menu="true"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setActiveMenuSessionId(menuOpen ? null : s.id);
@@ -3284,16 +3342,23 @@ export default function ChatPage() {
                         {/* Contextual Three-Dot Popover Menu */}
                         {menuOpen && (
                           <div
+                            data-session-menu="true"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
                             className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
                               isDark
                                 ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                 : "border-black/10 bg-white text-neutral-800"
                             }`}
-                            onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
-                              onClick={(e) => togglePinSession(s.id, e)}
+                              data-session-action="true"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePinSession(s.id, e);
+                              }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                             >
                               <Pin className="w-3.5 h-3.5" />
@@ -3301,7 +3366,12 @@ export default function ChatPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={(e) => startRenameSession(s, e)}
+                              data-session-action="true"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRenameSession(s, e);
+                              }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -3309,10 +3379,12 @@ export default function ChatPage() {
                             </button>
                             <button
                               type="button"
+                              data-session-action="true"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                shareChat(s);
                                 setActiveMenuSessionId(null);
+                                shareChat(s);
                               }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                             >
@@ -3321,7 +3393,10 @@ export default function ChatPage() {
                             </button>
                             <button
                               type="button"
+                              data-session-action="true"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
+                                e.stopPropagation();
                                 setActiveMenuSessionId(null);
                                 archiveSession(s.id, e);
                               }}
@@ -3333,7 +3408,10 @@ export default function ChatPage() {
                             <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
                             <button
                               type="button"
+                              data-session-action="true"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
+                                e.stopPropagation();
                                 setActiveMenuSessionId(null);
                                 deleteSession(s.id, e);
                               }}
@@ -5007,6 +5085,7 @@ export default function ChatPage() {
               isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
             }`}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 mb-4">
               <LogOut className="w-6 h-6" />
@@ -5054,6 +5133,7 @@ export default function ChatPage() {
               isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
             }`}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 mb-4">
               <Trash2 className="w-6 h-6" />
