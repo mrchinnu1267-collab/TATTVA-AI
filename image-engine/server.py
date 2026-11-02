@@ -14,13 +14,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from prompt_enhancer import TattvaPromptEnhancer
+from tattva_llm import TattvaNeuralVisionLLM
 from model_manager import TattvaModelManager
 from gpu_manager import TattvaGPUManager
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "generated"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-WIDTH = HEIGHT = 512
+WIDTH = HEIGHT = 1024
 
 models = TattvaModelManager()
 gpu = TattvaGPUManager()
@@ -54,8 +55,8 @@ class ImageRequest(BaseModel):
     steps: int | None = Field(default=None, ge=1, le=50)
     guidance_scale: float | None = Field(default=None, ge=0.0, le=12.0)
     seed: int | None = Field(default=None, ge=0, le=2147483647)
-    width: int | None = Field(default=512, ge=384, le=768)
-    height: int | None = Field(default=512, ge=384, le=768)
+    width: int | None = Field(default=1024, ge=384, le=1024)
+    height: int | None = Field(default=1024, ge=384, le=1024)
     style: str = ""
     enhance_prompt: bool = False
 
@@ -109,7 +110,7 @@ def generate_image(request: ImageRequest):
         raise HTTPException(status_code=400, detail="Please enter a longer image prompt.")
 
     cfg = models.get_model(request.model)
-    enhanced = enhancer.enhance(prompt, request.style)
+    enhanced = TattvaNeuralVisionLLM.synthesize(prompt, request.style)
     final_prompt = enhanced["enhanced_prompt"]
     final_negative = ", ".join(
         p for p in [request.negative_prompt.strip(), enhanced["negative_prompt"].strip()] if p
@@ -170,7 +171,7 @@ def generate_image(request: ImageRequest):
             "enhanced_prompt": final_prompt,
             "prompt_enhanced": request.enhance_prompt,
             "style": request.style,
-            "provider": "TATTVA AI Local Engine",
+            "provider": "TATTVA Neural Vision Engine (Local RTX HD)",
             "model": cfg["name"],
             "model_id": request.model,
             "width": image.width,

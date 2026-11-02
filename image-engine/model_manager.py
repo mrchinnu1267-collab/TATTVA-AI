@@ -18,14 +18,14 @@ class TattvaModelManager:
         self.dtype = torch.float16 if self.device == "cuda" else torch.float32
         self.models = {
             "realistic": {
-                "name": "Realistic Vision V5.1 FP16",
+                "name": "TATTVA Realistic Vision HD",
                 "path": self.base_dir / "models" / "realistic-vision" / "Realistic_Vision_V5.1_fp16-no-ema.safetensors",
-                "resolution": 512, "steps": 30, "guidance": 7.0, "experimental": False,
+                "resolution": 1024, "steps": 30, "guidance": 7.0, "experimental": False,
             },
             "turbo": {
-                "name": "SDXL Turbo",
+                "name": "TATTVA Turbo Vision HD",
                 "repo": "stabilityai/sdxl-turbo",
-                "resolution": 512, "steps": 4, "guidance": 0.0, "experimental": True,
+                "resolution": 1024, "steps": 4, "guidance": 0.0, "experimental": True,
             },
         }
         self.current_model = None

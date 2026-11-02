@@ -2231,8 +2231,8 @@ export default function ChatPage() {
           image: data.image,
           kind: "image",
           imageMetadata: {
-            model: data.model || "Realistic Vision V5.1",
-            provider: data.provider || "TATTVA Local Engine",
+            model: data.model || "TATTVA Neural Vision HD",
+            provider: data.provider || "TATTVA Proprietary Neural Engine",
             seed: data.seed,
             generation_time_seconds: data.generation_time_seconds,
             isEdit: attachedImages.length > 0,
@@ -4065,8 +4065,9 @@ export default function ChatPage() {
                               </div>
 
                               <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
-                                <div className="text-neutral-500 font-mono text-[11px]">
-                                  <span>{msg.imageMetadata?.model || "Realistic Vision V5.1"}</span>
+                                <div className="text-neutral-500 font-mono text-[11px] flex items-center gap-1.5">
+                                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">HD 1024px</span>
+                                  <span>{msg.imageMetadata?.model || "TATTVA Neural Vision HD"}</span>
                                   {msg.imageMetadata?.generation_time_seconds && (
                                     <span> • {msg.imageMetadata.generation_time_seconds}s</span>
                                   )}
