@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # TATTVA AI - Root .gitignore
 # Conceptualized & Engineered by kotapati Gowtham Chowdary
 # =============================================================================
@@ -26,6 +26,7 @@
 
 # AI Model Binaries & Checkpoints (Heavy Artifacts)
 **/models/
+!frontend/app/api/models/
 **/*.safetensors
 **/*.pt
 **/*.pth

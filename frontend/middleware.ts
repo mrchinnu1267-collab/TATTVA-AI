@@ -90,7 +90,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.trycloudflare.com https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://api.pollinations.ai",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.trycloudflare.com https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://router.huggingface.co https://api.stability.ai https://api.openai.com https://api.replicate.com",
     "frame-ancestors 'self'",
     "object-src 'none'",
     "base-uri 'self'",

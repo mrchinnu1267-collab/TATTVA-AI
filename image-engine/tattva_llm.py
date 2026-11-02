@@ -150,3 +150,4 @@ class TattvaNeuralVisionLLM:
             "is_hd": True,
             "engine": "TATTVA Proprietary Neural Vision LLM",
         }
+

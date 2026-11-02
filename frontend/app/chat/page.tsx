@@ -155,33 +155,6 @@ type EngineStatus = {
 const GUEST_CHAT_LIMIT = 5;
 const CHAT_WORD_LIMIT = 100000; // 1 lakh words limit per chat
 
-const STARTER_PROMPTS = [
-  {
-    icon: "✦",
-    title: "Meditating Monk at Alpine Dawn",
-    prompt:
-      "Generate an image of a serene monk in deep meditation beside a cascading mountain river at dawn, golden hour light filtering through morning mist, photorealistic volumetric rays.",
-  },
-  {
-    icon: "◈",
-    title: "Python Async Architecture",
-    prompt:
-      "Write a high-performance Python concurrent worker system using asyncio, worker pools, structured error handling, and type annotations.",
-  },
-  {
-    icon: "✧",
-    title: "Multilingual Reasoning & Poetry",
-    prompt:
-      "एक गहरी और सुंदर कविता लिखो जिसमें समय, ब्रह्मांड और मानव चेतना के संबंध को दर्शाया गया हो।",
-  },
-  {
-    icon: "❖",
-    title: "Futuristic Glasshouse",
-    prompt:
-      "Draw a massive futuristic botanical greenhouse on a snowy mountain, glowing bioluminescent flora under shattered geometric glass panels, cinematic twilight reflections.",
-  },
-];
-
 function getStorageKey(email?: string | null) {
   if (!email || !email.trim()) return "tattva_guest_chats";
   return `tattva_encrypted_chats_${email.toLowerCase().trim().replace(/[^a-z0-9]/g, "_")}`;
@@ -728,7 +701,6 @@ export default function ChatPage() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const suggestionsContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -818,6 +790,35 @@ export default function ChatPage() {
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
 
+  // User Custom Model API Keys (BYOK - Hugging Face, Stability, OpenAI, Replicate)
+  const [userApiKeys, setUserApiKeys] = useState<{
+    huggingface: string;
+    stability: string;
+    openai: string;
+    replicate: string;
+  }>({
+    huggingface: "",
+    stability: "",
+    openai: "",
+    replicate: "",
+  });
+
+  // Load custom API keys from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedKeys = localStorage.getItem("tattva_user_api_keys");
+      if (savedKeys) {
+        const parsed = JSON.parse(savedKeys);
+        setUserApiKeys({
+          huggingface: parsed.huggingface || "",
+          stability: parsed.stability || "",
+          openai: parsed.openai || "",
+          replicate: parsed.replicate || "",
+        });
+      }
+    } catch {}
+  }, []);
+
   // Keyboard shortcut Ctrl+K / Cmd+K for global search
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -844,25 +845,6 @@ export default function ChatPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Smooth horizontal scroll for homepage suggestions row via mouse wheel
-  useEffect(() => {
-    const el = suggestionsContainerRef.current;
-    if (!el) return;
-
-    const onWheel = (e: WheelEvent) => {
-      if (e.deltaY !== 0 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
-        e.preventDefault();
-        el.scrollBy({
-          left: e.deltaY * 1.2,
-          behavior: "smooth",
-        });
-      }
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [messages.length]);
-
   // Close menus when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -878,9 +860,6 @@ export default function ChatPage() {
       }
       if (!target.closest("[data-branding-bubble]")) {
         setIsInfoBubbleOpen(false);
-      }
-      if (!target.closest("[data-session-menu]") && !target.closest("[data-session-action]")) {
-        setActiveMenuSessionId(null);
       }
     }
     window.addEventListener("mousedown", handleClickOutside);
@@ -948,68 +927,71 @@ export default function ChatPage() {
 
   // Toggle Pin/Unpin chat
   function togglePinSession(sessionId: string, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     setActiveMenuSessionId(null);
 
-    setSessions((prev) => {
-      const target = prev.find((s) => s.id === sessionId);
-      const isNowPinned = !target?.is_pinned;
-      const updated = prev.map((s) =>
-        s.id === sessionId
-          ? {
-              ...s,
-              is_pinned: isNowPinned,
-              pinned_at: isNowPinned ? Date.now() : undefined,
-              updatedAt: Date.now(),
-            }
-          : s
-      );
+    const target = sessions.find((s) => s.id === sessionId);
+    if (!target) return;
+    const isNowPinned = !target.is_pinned;
 
-      // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
-      updated.sort((a, b) => {
-        if (a.is_pinned && !b.is_pinned) return -1;
-        if (!a.is_pinned && b.is_pinned) return 1;
-        if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
-        return (b.updatedAt || 0) - (a.updatedAt || 0);
-      });
-
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-
-      // Sync to cloud vault API
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      // Sync to Supabase if authenticated
-      try {
-        const supabase = createClient();
-        supabase
-          .from("conversations")
-          .update({
+    const updated = sessions.map((s) =>
+      s.id === sessionId
+        ? {
+            ...s,
             is_pinned: isNowPinned,
-            pinned_at: isNowPinned ? new Date().toISOString() : null,
-          })
-          .eq("id", sessionId)
-          .then();
-      } catch {
-        // ignore
-      }
+            pinned_at: isNowPinned ? Date.now() : undefined,
+            updatedAt: Date.now(),
+          }
+        : s
+    );
 
-      showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
-      return updated;
+    // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
+    updated.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
     });
+
+    setSessions(updated);
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+
+    // Sync to cloud vault API
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+    }).catch(() => {});
+
+    // Sync to Supabase if authenticated
+    try {
+      const supabase = createClient();
+      supabase
+        .from("conversations")
+        .update({
+          is_pinned: isNowPinned,
+          pinned_at: isNowPinned ? new Date().toISOString() : null,
+        })
+        .eq("id", sessionId)
+        .then();
+    } catch {}
+
+    showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
   }
 
   // Rename chat
   function startRenameSession(s: ChatSession, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     setActiveMenuSessionId(null);
     setRenamingSessionId(s.id);
     setRenameInput(s.title || "New Conversation");
@@ -1023,34 +1005,31 @@ export default function ChatPage() {
       return;
     }
 
-    setSessions((prev) => {
-      const updated = prev.map((s) =>
-        s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
-      );
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-
-      // Sync to cloud vault API
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      // Sync to Supabase
-      try {
-        const supabase = createClient();
-        supabase.from("conversations").update({ title: newTitle }).eq("id", sessionId).then();
-      } catch {}
-
-      showToast("Conversation renamed ✏️");
-      return updated;
-    });
+    const updated = sessions.map((s) =>
+      s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
+    );
+    setSessions(updated);
     setRenamingSessionId(null);
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+
+    // Sync to cloud vault API
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+    }).catch(() => {});
+
+    // Sync to Supabase
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").update({ title: newTitle }).eq("id", sessionId).then();
+    } catch {}
+
+    showToast("Conversation renamed ✏️");
   }
 
   // Select Search Result and navigate to message
@@ -1248,32 +1227,26 @@ export default function ChatPage() {
 
   // Actual execution of session deletion
   function performDeleteSession(sessionId: string) {
-    setSessions((prev) => {
-      const updated = prev.filter((s) => s.id !== sessionId);
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
+    const updated = sessions.filter((s) => s.id !== sessionId);
+    setSessions(updated);
 
-      // Sync to cloud vault
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
 
-      // Sync deletion to Supabase
-      try {
-        const supabase = createClient();
-        supabase.from("conversations").delete().eq("id", sessionId).then();
-      } catch {
-        // ignore
-      }
+    // Sync to cloud vault
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+    }).catch(() => {});
 
-      return updated;
-    });
+    // Sync deletion to Supabase
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").delete().eq("id", sessionId).then();
+    } catch {}
 
     if (sessionId === currentSessionId) {
       createNewChat();
@@ -1283,7 +1256,11 @@ export default function ChatPage() {
 
   // Delete a session with confirmation support
   function deleteSession(sessionId: string, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setActiveMenuSessionId(null);
     const target = sessions.find((s) => s.id === sessionId);
     if (target) {
       setDeleteConfirmSession(target);
@@ -2200,9 +2177,16 @@ export default function ChatPage() {
       );
 
       try {
+        let userKeys = undefined;
+        try {
+          const storedKeys = localStorage.getItem("tattva_user_api_keys");
+          if (storedKeys) userKeys = JSON.parse(storedKeys);
+        } catch {}
+
         const payload: Record<string, unknown> = {
           prompt: rawPrompt,
           model: "realistic",
+          userKeys,
         };
 
         if (attachedImages.length > 0) {
@@ -3136,106 +3120,123 @@ export default function ChatPage() {
                                 <span className="truncate">{s.title || "New Conversation"}</span>
                               </div>
 
-                              <button
-                                type="button"
-                                data-session-menu="true"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuSessionId(menuOpen ? null : s.id);
-                                }}
-                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition ${
-                                  menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                                }`}
-                                title="Conversation options"
-                              >
-                                <MoreVertical className="w-3.5 h-3.5" />
-                              </button>
+                              {/* Hover Quick Actions + Three Dots */}
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => togglePinSession(s.id, e)}
+                                  className="p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                                  title="Unpin conversation"
+                                >
+                                  <PinOff className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => startRenameSession(s, e)}
+                                  className="p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                                  title="Rename conversation"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => deleteSession(s.id, e)}
+                                  className="p-1 rounded text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                                  title="Delete conversation"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuSessionId(menuOpen ? null : s.id);
+                                  }}
+                                  className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer ${
+                                    menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                  }`}
+                                  title="More options"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           )}
 
-                          {/* Contextual Three-Dot Popover Menu */}
+                          {/* Contextual Three-Dot Popover Menu with Bulletproof Invisible Backdrop */}
                           {menuOpen && (
-                            <div
-                              data-session-menu="true"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
-                                isDark
-                                  ? "border-neutral-700 bg-neutral-900 text-neutral-200"
-                                  : "border-black/10 bg-white text-neutral-800"
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                data-session-action="true"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  togglePinSession(s.id, e);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
-                              >
-                                <PinOff className="w-3.5 h-3.5" />
-                                <span>Unpin conversation</span>
-                              </button>
-                              <button
-                                type="button"
-                                data-session-action="true"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startRenameSession(s, e);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                                <span>Rename conversation</span>
-                              </button>
-                              <button
-                                type="button"
-                                data-session-action="true"
-                                onMouseDown={(e) => e.stopPropagation()}
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveMenuSessionId(null);
-                                  shareChat(s);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              />
+                              <div
+                                data-session-menu="true"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${
+                                  isDark
+                                    ? "border-neutral-700 bg-neutral-900 text-neutral-200"
+                                    : "border-black/10 bg-white text-neutral-800"
+                                }`}
                               >
-                                <Share2 className="w-3.5 h-3.5" />
-                                <span>Share conversation</span>
-                              </button>
-                              <button
-                                type="button"
-                                data-session-action="true"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuSessionId(null);
-                                  archiveSession(s.id, e);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
-                              >
-                                <FolderArchive className="w-3.5 h-3.5" />
-                                <span>Archive conversation</span>
-                              </button>
-                              <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
-                              <button
-                                type="button"
-                                data-session-action="true"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuSessionId(null);
-                                  deleteSession(s.id, e);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Delete conversation</span>
-                              </button>
-                            </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => togglePinSession(s.id, e)}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                >
+                                  <PinOff className="w-3.5 h-3.5 text-neutral-400" />
+                                  <span>Unpin conversation</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => startRenameSession(s, e)}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5 text-neutral-400" />
+                                  <span>Rename conversation</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuSessionId(null);
+                                    shareChat(s);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                >
+                                  <Share2 className="w-3.5 h-3.5 text-neutral-400" />
+                                  <span>Share conversation</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuSessionId(null);
+                                    archiveSession(s.id, e);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                >
+                                  <FolderArchive className="w-3.5 h-3.5 text-neutral-400" />
+                                  <span>Archive conversation</span>
+                                </button>
+                                <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuSessionId(null);
+                                    deleteSession(s.id, e);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer font-medium"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete conversation</span>
+                                </button>
+                              </div>
+                            </>
                           )}
                         </div>
                       );
@@ -3321,106 +3322,123 @@ export default function ChatPage() {
                               <span className="truncate">{s.title || "New Conversation"}</span>
                             </div>
 
-                            <button
-                              type="button"
-                              data-session-menu="true"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveMenuSessionId(menuOpen ? null : s.id);
-                              }}
-                              className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition ${
-                                menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                              }`}
-                              title="Conversation options"
-                            >
-                              <MoreVertical className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Hover Quick Actions + Three Dots */}
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => togglePinSession(s.id, e)}
+                                className="p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                                title="Pin conversation"
+                              >
+                                <Pin className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => startRenameSession(s, e)}
+                                className="p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                                title="Rename conversation"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => deleteSession(s.id, e)}
+                                className="p-1 rounded text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                                title="Delete conversation"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuSessionId(menuOpen ? null : s.id);
+                                }}
+                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer ${
+                                  menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                }`}
+                                title="More options"
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         )}
 
-                        {/* Contextual Three-Dot Popover Menu */}
+                        {/* Contextual Three-Dot Popover Menu with Bulletproof Invisible Backdrop */}
                         {menuOpen && (
-                          <div
-                            data-session-menu="true"
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
-                              isDark
-                                ? "border-neutral-700 bg-neutral-900 text-neutral-200"
-                                : "border-black/10 bg-white text-neutral-800"
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              data-session-action="true"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                togglePinSession(s.id, e);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
-                            >
-                              <Pin className="w-3.5 h-3.5" />
-                              <span>Pin conversation</span>
-                            </button>
-                            <button
-                              type="button"
-                              data-session-action="true"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRenameSession(s, e);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              <span>Rename conversation</span>
-                            </button>
-                            <button
-                              type="button"
-                              data-session-action="true"
-                              onMouseDown={(e) => e.stopPropagation()}
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setActiveMenuSessionId(null);
-                                shareChat(s);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                            />
+                            <div
+                              data-session-menu="true"
+                              onClick={(e) => e.stopPropagation()}
+                              className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${
+                                isDark
+                                  ? "border-neutral-700 bg-neutral-900 text-neutral-200"
+                                  : "border-black/10 bg-white text-neutral-800"
+                              }`}
                             >
-                              <Share2 className="w-3.5 h-3.5" />
-                              <span>Share conversation</span>
-                            </button>
-                            <button
-                              type="button"
-                              data-session-action="true"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveMenuSessionId(null);
-                                archiveSession(s.id, e);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
-                            >
-                              <FolderArchive className="w-3.5 h-3.5" />
-                              <span>Archive conversation</span>
-                            </button>
-                            <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
-                            <button
-                              type="button"
-                              data-session-action="true"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveMenuSessionId(null);
-                                deleteSession(s.id, e);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete conversation</span>
-                            </button>
-                          </div>
+                              <button
+                                type="button"
+                                onClick={(e) => togglePinSession(s.id, e)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              >
+                                <Pin className="w-3.5 h-3.5 text-neutral-400" />
+                                <span>Pin conversation</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => startRenameSession(s, e)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              >
+                                <Edit2 className="w-3.5 h-3.5 text-neutral-400" />
+                                <span>Rename conversation</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuSessionId(null);
+                                  shareChat(s);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              >
+                                <Share2 className="w-3.5 h-3.5 text-neutral-400" />
+                                <span>Share conversation</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuSessionId(null);
+                                  archiveSession(s.id, e);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              >
+                                <FolderArchive className="w-3.5 h-3.5 text-neutral-400" />
+                                <span>Archive conversation</span>
+                              </button>
+                              <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuSessionId(null);
+                                  deleteSession(s.id, e);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer font-medium"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete conversation</span>
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
                     );
@@ -5126,7 +5144,7 @@ export default function ChatPage() {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
           onClick={() => setDeleteConfirmSession(null)}
         >
           <div
@@ -5639,7 +5657,84 @@ export default function ChatPage() {
                 </button>
               </div>
 
-              {/* Setting 5: Clear All Conversation History */}
+              {/* Setting 5: Model Providers & Custom API Keys (BYOK) */}
+              <div className="p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-2.5">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Custom Model API Keys (BYOK)</span>
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Use your own keys for Hugging Face, Stability AI, OpenAI, or Replicate
+                  </p>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Hugging Face Token (FLUX.1 / SDXL)</label>
+                    <input
+                      type="password"
+                      placeholder="hf_..."
+                      value={userApiKeys.huggingface}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, huggingface: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Stability AI API Key</label>
+                    <input
+                      type="password"
+                      placeholder="sk-..."
+                      value={userApiKeys.stability}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, stability: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">OpenAI API Key (DALL-E 3)</label>
+                    <input
+                      type="password"
+                      placeholder="sk-proj-..."
+                      value={userApiKeys.openai}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, openai: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Replicate API Token</label>
+                    <input
+                      type="password"
+                      placeholder="r8_..."
+                      value={userApiKeys.replicate}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, replicate: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          localStorage.setItem("tattva_user_api_keys", JSON.stringify(userApiKeys));
+                          showToast("API Keys securely saved in browser vault 🔑");
+                        } catch {
+                          showToast("Failed to save keys");
+                        }
+                      }}
+                      className="flex items-center gap-1 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 transition cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save API Keys</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Setting 6: Clear All Conversation History */}
               <div className="flex items-center justify-between p-3 rounded-2xl border border-red-500/20 bg-red-500/5">
                 <div>
                   <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>
