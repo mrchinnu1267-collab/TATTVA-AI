@@ -65,6 +65,8 @@ import {
   Lock,
   LogIn,
   UserPlus,
+  ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -400,6 +402,174 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
+  if (!text) return [""];
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const nodes: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = pattern.exec(text)) !== null) {
+    if (m.index > lastIdx) {
+      nodes.push(text.slice(lastIdx, m.index));
+    }
+    const token = m[0];
+    if (token.startsWith("**") && token.endsWith("**")) {
+      nodes.push(<strong key={m.index} className="font-semibold text-inherit">{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      nodes.push(<em key={m.index} className="italic text-inherit">{token.slice(1, -1)}</em>);
+    } else if (token.startsWith("`") && token.endsWith("`")) {
+      nodes.push(
+        <code
+          key={m.index}
+          className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${
+            isDark ? "bg-neutral-800 text-neutral-200 border border-neutral-700/60" : "bg-neutral-100 text-neutral-800 border border-neutral-200"
+          }`}
+        >
+          {token.slice(1, -1)}
+        </code>
+      );
+    } else if (token.startsWith("[")) {
+      const linkMatch = token.match(/\[([^\]]+)\]\(([^)]+)\)/);
+      if (linkMatch) {
+        nodes.push(
+          <a
+            key={m.index}
+            href={linkMatch[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline inline-flex items-center gap-0.5"
+          >
+            {linkMatch[1]}
+          </a>
+        );
+      } else {
+        nodes.push(token);
+      }
+    }
+    lastIdx = m.index + token.length;
+  }
+  if (lastIdx < text.length) {
+    nodes.push(text.slice(lastIdx));
+  }
+  return nodes.length > 0 ? nodes : [text];
+}
+
+function FormattedTextBlock({ text, isDark }: { text: string; isDark: boolean }) {
+  const rawLines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < rawLines.length) {
+    const line = rawLines[i];
+    const trimmed = line.trim();
+
+    // Check for markdown table: line starts and ends with |
+    if (trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.includes("|")) {
+      const tableLines: string[] = [];
+      while (i < rawLines.length && rawLines[i].trim().startsWith("|") && rawLines[i].trim().endsWith("|")) {
+        tableLines.push(rawLines[i].trim());
+        i++;
+      }
+
+      if (tableLines.length >= 2) {
+        const headerRow = tableLines[0].split("|").slice(1, -1).map((c) => c.trim());
+        // Skip separator row if it contains only dashes/colons
+        const dataStartIndex = tableLines[1].replace(/[-:| ]/g, "").length === 0 ? 2 : 1;
+        const dataRows = tableLines.slice(dataStartIndex).map((row) =>
+          row.split("|").slice(1, -1).map((c) => c.trim())
+        );
+
+        elements.push(
+          <div key={`table-${i}`} className="my-3 overflow-x-auto rounded-xl border border-black/[0.08] dark:border-neutral-800">
+            <table className="min-w-full divide-y divide-black/[0.08] dark:divide-neutral-800 text-left text-xs sm:text-sm">
+              <thead className={isDark ? "bg-neutral-900/80" : "bg-neutral-100/80"}>
+                <tr>
+                  {headerRow.map((h, hIdx) => (
+                    <th key={hIdx} className="px-3.5 py-2.5 font-semibold text-neutral-700 dark:text-neutral-200">
+                      {parseInlineMarkdown(h, isDark)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className={`divide-y divide-black/[0.05] dark:divide-neutral-800/60 ${isDark ? "bg-neutral-950/40" : "bg-white"}`}>
+                {dataRows.map((r, rIdx) => (
+                  <tr key={rIdx} className={isDark ? "hover:bg-neutral-900/50" : "hover:bg-neutral-50"}>
+                    {r.map((cell, cIdx) => (
+                      <td key={cIdx} className="px-3.5 py-2 text-neutral-600 dark:text-neutral-300">
+                        {parseInlineMarkdown(cell, isDark)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    if (trimmed.startsWith("### ")) {
+      elements.push(
+        <h3 key={`h3-${i}`} className="text-base font-bold text-inherit mt-3 mb-1">
+          {parseInlineMarkdown(trimmed.replace(/^### /, ""), isDark)}
+        </h3>
+      );
+    } else if (trimmed.startsWith("## ")) {
+      elements.push(
+        <h2 key={`h2-${i}`} className="text-lg font-bold text-inherit mt-4 mb-2">
+          {parseInlineMarkdown(trimmed.replace(/^## /, ""), isDark)}
+        </h2>
+      );
+    } else if (trimmed.startsWith("# ")) {
+      elements.push(
+        <h1 key={`h1-${i}`} className="text-xl font-extrabold text-inherit mt-4 mb-2">
+          {parseInlineMarkdown(trimmed.replace(/^# /, ""), isDark)}
+        </h1>
+      );
+    } else if (trimmed.startsWith("> ")) {
+      elements.push(
+        <blockquote
+          key={`quote-${i}`}
+          className={`border-l-4 pl-3.5 py-1 my-2 italic ${
+            isDark ? "border-neutral-700 text-neutral-400" : "border-neutral-300 text-neutral-600"
+          }`}
+        >
+          {parseInlineMarkdown(trimmed.replace(/^>\s*/, ""), isDark)}
+        </blockquote>
+      );
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      elements.push(
+        <div key={`li-${i}`} className="flex items-start gap-2 pl-2 my-0.5">
+          <span className="text-inherit opacity-60">•</span>
+          <span className="leading-relaxed">{parseInlineMarkdown(trimmed.replace(/^[-*]\s+/, ""), isDark)}</span>
+        </div>
+      );
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      const match = trimmed.match(/^(\d+\.)\s*(.*)$/);
+      elements.push(
+        <div key={`oli-${i}`} className="flex items-start gap-2 pl-2 my-0.5">
+          <span className="font-semibold text-inherit opacity-75 shrink-0">{match?.[1]}</span>
+          <span className="leading-relaxed">{parseInlineMarkdown(match?.[2] || "", isDark)}</span>
+        </div>
+      );
+    } else if (!trimmed) {
+      elements.push(<div key={`empty-${i}`} className="h-1.5" />);
+    } else {
+      elements.push(
+        <p key={`p-${i}`} className="leading-relaxed">
+          {parseInlineMarkdown(line, isDark)}
+        </p>
+      );
+    }
+
+    i++;
+  }
+
+  return <div className="space-y-1.5">{elements}</div>;
+}
+
 /**
  * Minimalist Markdown Renderer with Clean Code Blocks (NO EMOJIS IN CODE), Copy & Universal File Download
  */
@@ -484,51 +654,7 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
           );
         }
 
-        const lines = (part.text || "").split("\n");
-        return (
-          <div key={idx} className="space-y-2">
-            {lines.map((line, lIdx) => {
-              const trimmed = line.trim();
-              if (trimmed.startsWith("### ")) {
-                return (
-                  <h3 key={lIdx} className="text-base font-bold text-inherit mt-3 mb-1">
-                    {trimmed.replace(/^### /, "")}
-                  </h3>
-                );
-              }
-              if (trimmed.startsWith("## ")) {
-                return (
-                  <h2 key={lIdx} className="text-lg font-bold text-inherit mt-4 mb-2">
-                    {trimmed.replace(/^## /, "")}
-                  </h2>
-                );
-              }
-              if (trimmed.startsWith("# ")) {
-                return (
-                  <h1 key={lIdx} className="text-xl font-extrabold text-inherit mt-4 mb-2">
-                    {trimmed.replace(/^# /, "")}
-                  </h1>
-                );
-              }
-              if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-                return (
-                  <div key={lIdx} className="flex items-start gap-2 pl-2">
-                    <span className="text-inherit opacity-60">•</span>
-                    <span>{trimmed.replace(/^[-*]\s+/, "")}</span>
-                  </div>
-                );
-              }
-              if (!trimmed) {
-                return <div key={lIdx} className="h-1.5" />;
-              }
-              return (
-                <p key={lIdx} className="leading-relaxed">
-                  {line}
-                </p>
-              );
-            })}
-          </div>
-        );
+        return <FormattedTextBlock key={idx} text={part.text || ""} isDark={isDark} />;
       })}
     </div>
   );
@@ -653,6 +779,23 @@ export default function ChatPage() {
   >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+
+  // Message Editing state (ChatGPT-style)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+
+  // Smart Auto-Scroll & Scroll-to-bottom button
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const isNearBottomRef = useRef(true);
+
+  // Delete Conversation Confirmation Modal
+  const [deleteConfirmSession, setDeleteConfirmSession] = useState<ChatSession | null>(null);
+
+  // URL-based Share Modal state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Contextual dropdown menu & rename state
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
@@ -978,6 +1121,9 @@ export default function ChatPage() {
     setAttachments([]);
     setInput("");
     setError("");
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   }, []);
 
   // Save current active session
@@ -1060,11 +1206,13 @@ export default function ChatPage() {
     setAttachments([]);
     setInput("");
     setError("");
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   }
 
-  // Delete a session
-  function deleteSession(sessionId: string, e: React.MouseEvent) {
-    e.stopPropagation();
+  // Actual execution of session deletion
+  function performDeleteSession(sessionId: string) {
     const updated = sessions.filter((s) => s.id !== sessionId);
     setSessions(updated);
     const key = getStorageKey(userEmail);
@@ -1095,32 +1243,53 @@ export default function ChatPage() {
     showToast("Chat deleted");
   }
 
-  // Share chat session
-  function shareChat(session?: ChatSession) {
+  // Delete a session with confirmation support
+  function deleteSession(sessionId: string, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    const target = sessions.find((s) => s.id === sessionId);
+    if (target) {
+      setDeleteConfirmSession(target);
+    } else {
+      performDeleteSession(sessionId);
+    }
+  }
+
+  // Share chat session with unique URL & Public Share Modal
+  async function shareChat(session?: ChatSession) {
     const targetSession = session || sessions.find((s) => s.id === currentSessionId);
     if (!targetSession || !targetSession.messages.length) {
       showToast("Cannot share empty conversation.");
       return;
     }
 
+    setIsSharing(true);
+    try {
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session: targetSession }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        setShareUrl(`${origin}${data.url}`);
+        setShareCopied(false);
+        setShareModalOpen(true);
+        return;
+      }
+    } catch {
+      // fallback if share endpoint fails
+    } finally {
+      setIsSharing(false);
+    }
+
+    // Fallback: transcript to clipboard
     const transcript = targetSession.messages
       .map((m) => `${m.role === "user" ? "User" : "TATTVA AI"}:\n${m.content}\n`)
       .join("\n---\n\n");
-
     const fullShareText = `TATTVA AI Chat — "${targetSession.title}"\nCreated by kotapati Gowtham Chowdary\n\n${transcript}`;
-
-    if (typeof navigator !== "undefined" && navigator.share) {
-      navigator
-        .share({
-          title: `TATTVA AI — ${targetSession.title}`,
-          text: fullShareText,
-          url: window.location.href,
-        })
-        .catch(() => {
-          navigator.clipboard.writeText(fullShareText);
-          showToast("Chat transcript copied to clipboard! 📋");
-        });
-    } else {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(fullShareText);
       showToast("Chat transcript copied to clipboard! 📋");
     }
@@ -1506,9 +1675,21 @@ export default function ChatPage() {
     };
   }, []);
 
-  // Auto-scroll to bottom of chat
+  // Smart scroll detection
+  const handleChatScroll = useCallback(() => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const distFromBottom = scrollHeight - scrollTop - clientHeight;
+    const nearBottom = distFromBottom < 180;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollBtn(!nearBottom);
+  }, []);
+
+  // Smart Auto-scroll to bottom of chat: only when user is near the bottom
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isNearBottomRef.current) {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, statusMessage]);
 
   // Language detection helper for native fluency in Telugu, Southern languages, Hindi, and English
@@ -2033,6 +2214,101 @@ export default function ChatPage() {
     showToast("Generation stopped ⏹️");
   }
 
+  // Inline Message Editing handlers (ChatGPT-style)
+  function startEditingMessage(msg: ChatMessage) {
+    setEditingMessageId(msg.id);
+    setEditContent(msg.content);
+  }
+
+  function cancelEditingMessage() {
+    setEditingMessageId(null);
+    setEditContent("");
+  }
+
+  async function saveAndResubmitEdit(msgId: string, newContent: string) {
+    const trimmed = newContent.trim();
+    if (!trimmed) return;
+
+    const msgIdx = messages.findIndex((m) => m.id === msgId);
+    if (msgIdx === -1) return;
+
+    // Update the message and truncate subsequent messages
+    const updatedMsg: ChatMessage = {
+      ...messages[msgIdx],
+      content: trimmed,
+      timestamp: Date.now(),
+    };
+
+    const truncated = [...messages.slice(0, msgIdx), updatedMsg];
+    setMessages(truncated);
+    saveCurrentSession(truncated);
+    setEditingMessageId(null);
+    setEditContent("");
+
+    // Trigger regeneration of AI response
+    setLoading(true);
+    setError("");
+    setStatusMessage("TATTVA Intelligence reasoning...");
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const apiMessages = truncated.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: apiMessages,
+          mode: activeTool === "code" ? "chat" : undefined,
+          userEmail: isUserAuthenticated ? userEmail : undefined,
+          userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
+          isAuthenticated: isUserAuthenticated,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Chat failed with HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const assistantMsgId = crypto.randomUUID();
+      const assistantMsg: ChatMessage = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: data.content || "I am ready to assist you further.",
+        kind: "text",
+        timestamp: Date.now(),
+        recalledMemories: data.recalledMemories,
+      };
+
+      const updatedWithAssistant = [...truncated, assistantMsg];
+      setMessages(updatedWithAssistant);
+      messagesCountRef.current = updatedWithAssistant.length;
+      saveCurrentSession(updatedWithAssistant);
+      loadUserMemoryData(userEmail);
+
+      if (sareEnabled) {
+        speakText(assistantMsg.content, assistantMsgId, () => {
+          if (sareEnabled) startVoiceRecognition();
+        });
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Failed to update response.");
+    } finally {
+      setLoading(false);
+      setStatusMessage("");
+      abortControllerRef.current = null;
+    }
+  }
+
   function formatFileSize(bytes?: number): string {
     if (!bytes) return "";
     if (bytes < 1024) return `${bytes} B`;
@@ -2398,7 +2674,7 @@ export default function ChatPage() {
         <aside
           className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col border-r transition-all duration-300 ease-in-out ${
             sidebarOpen
-              ? "w-[260px] translate-x-0"
+              ? "w-[280px] max-w-[85vw] translate-x-0"
               : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden pointer-events-none"
           } ${
             isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
@@ -3079,6 +3355,7 @@ export default function ChatPage() {
         {/* Central Chat Stream */}
         <main
           ref={chatContainerRef}
+          onScroll={handleChatScroll}
           className="flex-1 flex flex-col justify-between overflow-y-auto relative"
         >
           {/* Sare Voice Status Banner */}
@@ -3159,8 +3436,110 @@ export default function ChatPage() {
                       </div>
                     )}
 
-                    <div className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
-                      {!isUser && (
+                    {isUser ? (
+                      /* USER MESSAGE: Compact Bubble + Hover Edit/Copy Toolbar */
+                      <div className="flex flex-col items-end gap-1.5 group/user w-full">
+                        {editingMessageId === msg.id ? (
+                          /* Inline Edit Form */
+                          <div
+                            className={`w-full max-w-2xl sm:max-w-3xl ml-auto rounded-2xl border p-3.5 shadow-sm transition-all ${
+                              isDark
+                                ? "border-neutral-700 bg-neutral-900 text-white"
+                                : "border-neutral-300 bg-neutral-100 text-neutral-900"
+                            }`}
+                          >
+                            <textarea
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              className="w-full bg-transparent resize-y min-h-[80px] p-1 text-sm focus:outline-none leading-relaxed"
+                              rows={3}
+                              autoFocus
+                            />
+                            <div className="flex justify-end items-center gap-2 mt-2 pt-2 border-t border-black/[0.06] dark:border-white/[0.06]">
+                              <button
+                                type="button"
+                                onClick={cancelEditingMessage}
+                                className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition cursor-pointer ${
+                                  isDark
+                                    ? "border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                                    : "border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700"
+                                }`}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => saveAndResubmitEdit(msg.id, editContent)}
+                                className="px-3.5 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-xs font-semibold hover:opacity-90 transition shadow-sm cursor-pointer"
+                              >
+                                Save &amp; Submit
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              className={`relative max-w-[85%] sm:max-w-[75%] rounded-3xl px-4 py-2.5 sm:px-5 sm:py-3 text-[14px] sm:text-[15px] leading-relaxed break-words shadow-2xs ${
+                                isDark
+                                  ? "bg-neutral-800 text-neutral-100"
+                                  : "bg-neutral-100 text-neutral-900"
+                              }`}
+                            >
+                              {/* Attachments */}
+                              {msg.attachments && msg.attachments.length > 0 && (
+                                <div className="mb-2 flex flex-wrap gap-2">
+                                  {msg.attachments.map((att, aIdx) => (
+                                    <div
+                                      key={aIdx}
+                                      className="overflow-hidden rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-200 dark:bg-neutral-900"
+                                    >
+                                      {att.preview ? (
+                                        <Image
+                                          src={att.preview}
+                                          alt={att.name}
+                                          width={80}
+                                          height={80}
+                                          className="h-16 w-16 object-cover"
+                                        />
+                                      ) : (
+                                        <div className="p-2 text-xs">📄 {att.name}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="whitespace-pre-wrap">{msg.content}</p>
+                            </div>
+
+                            {/* User Message Action Toolbar on hover */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover/user:opacity-100 transition-opacity pr-1 text-xs text-neutral-400">
+                              <button
+                                type="button"
+                                onClick={() => startEditingMessage(msg)}
+                                className="p-1 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition cursor-pointer"
+                                title="Edit message"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => copyMessage(msg.content, msg.id)}
+                                className="p-1 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition cursor-pointer"
+                                title="Copy text"
+                              >
+                                {copiedMessageId === msg.id ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      /* ASSISTANT MESSAGE: Clean Surface Presentation (No Box), Pure Typography */
+                      <div className="flex gap-3 sm:gap-4 items-start w-full group/assistant">
                         <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm mt-1 p-0.5">
                           <img
                             src="/logo.png"
@@ -3168,55 +3547,83 @@ export default function ChatPage() {
                             className="h-full w-full object-contain"
                           />
                         </div>
-                      )}
 
-                      <div
-                        className={`relative max-w-2xl sm:max-w-3xl rounded-2xl px-5 py-4 shadow-sm ${
-                          isUser
-                            ? "bg-black text-white rounded-tr-none"
-                            : isDark
-                            ? "bg-neutral-900 border border-neutral-800 text-neutral-100 rounded-tl-none shadow-[0_6px_24px_rgba(0,0,0,0.2)]"
-                            : "bg-white border border-black/[0.08] text-neutral-900 rounded-tl-none shadow-[0_6px_24px_rgba(0,0,0,0.03)]"
-                        }`}
-                      >
-                        {/* Attachments */}
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div className="mb-3 flex flex-wrap gap-2">
-                            {msg.attachments.map((att, aIdx) => (
+                        <div className="flex-1 min-w-0">
+                          {/* Markdown / Text content rendered directly on conversation surface */}
+                          <MarkdownView content={msg.content} isDark={isDark} />
+
+                          {/* Generated Image Card */}
+                          {msg.image && (
+                            <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
                               <div
-                                key={aIdx}
-                                className="overflow-hidden rounded-xl border border-neutral-300 bg-neutral-100"
+                                className="relative group cursor-pointer overflow-hidden bg-black/5"
+                                onClick={() => setLightboxImage(msg.image!)}
+                                onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
+                                onTouchEnd={handleImageTouchEnd}
+                                onMouseDown={(e) => handleImageTouchStart(msg.image!, e)}
+                                onMouseUp={handleImageTouchEnd}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
+                                }}
                               >
-                                {att.preview ? (
-                                  <Image
-                                    src={att.preview}
-                                    alt={att.name}
-                                    width={100}
-                                    height={100}
-                                    className="h-20 w-20 object-cover"
-                                  />
-                                ) : (
-                                  <div className="p-2 text-xs text-neutral-700">📄 {att.name}</div>
-                                )}
+                                <Image
+                                  src={msg.image}
+                                  alt={msg.content}
+                                  width={600}
+                                  height={600}
+                                  unoptimized
+                                  className="w-full h-auto max-h-[500px] object-contain transition-transform duration-300 group-hover:scale-[1.01]"
+                                />
+
+                                <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      downloadImage(msg.image!);
+                                    }}
+                                    className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                    title="Download Image"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
+                                    }}
+                                    className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                    title="Share / Actions"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
 
-                        {/* Markdown / Text content */}
-                        <MarkdownView content={msg.content} isDark={isDark} />
+                              <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
+                                <div className="text-neutral-500 font-mono text-[11px]">
+                                  <span>{msg.imageMetadata?.model || "Realistic Vision V5.1"}</span>
+                                  {msg.imageMetadata?.generation_time_seconds && (
+                                    <span> • {msg.imageMetadata.generation_time_seconds}s</span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-neutral-400">Long-press image for options</span>
+                              </div>
+                            </div>
+                          )}
 
-                        {/* Descriptive sentence quick copy & Voice speak button & Feedback Controls */}
-                        {!isUser && (
-                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/[0.05] dark:border-white/[0.05] pt-2 text-[11px] text-neutral-400">
+                          {/* Assistant Action Toolbar */}
+                          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-400">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono">TATTVA Intelligence</span>
+                              <span className="text-[10px] font-mono opacity-60">TATTVA Intelligence</span>
                               {/* Recalled Memory Badge */}
                               {msg.recalledMemories && msg.recalledMemories.length > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => setIsMemoryModalOpen(true)}
-                                  className="flex items-center gap-1 rounded-md bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 transition"
+                                  className="flex items-center gap-1 rounded-md bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
                                   title={msg.recalledMemories.map((m) => `• [${m.category || "memory"}] ${m.content}`).join("\n")}
                                 >
                                   <Brain className="w-3 h-3 text-purple-500" />
@@ -3225,13 +3632,13 @@ export default function ChatPage() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                               {/* Feedback Thumbs Up / Down */}
                               <div className="flex items-center gap-0.5 border-r border-black/[0.06] dark:border-white/[0.06] pr-1.5 mr-0.5">
                                 <button
                                   type="button"
                                   onClick={() => handleQuickFeedback(msg.id, "positive")}
-                                  className={`p-1 rounded-md transition-colors ${
+                                  className={`p-1 rounded-md transition-colors cursor-pointer ${
                                     msg.userFeedback?.rating === "positive"
                                       ? "text-emerald-500 bg-emerald-500/10 font-bold"
                                       : "text-neutral-400 hover:text-emerald-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -3243,12 +3650,12 @@ export default function ChatPage() {
                                 <button
                                   type="button"
                                   onClick={() => openFeedbackModal(msg.id, "negative")}
-                                  className={`p-1 rounded-md transition-colors ${
+                                  className={`p-1 rounded-md transition-colors cursor-pointer ${
                                     msg.userFeedback?.rating === "negative"
                                       ? "text-red-500 bg-red-500/10 font-bold"
                                       : "text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                                   }`}
-                                  title="Provide feedback (too detailed, too short, incorrect answer, wrong language, etc.)"
+                                  title="Provide feedback"
                                 >
                                   <ThumbsDown className="w-3.5 h-3.5" />
                                 </button>
@@ -3257,10 +3664,10 @@ export default function ChatPage() {
                               <button
                                 type="button"
                                 onClick={() => speakText(msg.content, msg.id)}
-                                className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
                                   speakingMessageId === msg.id
                                     ? "bg-black text-white font-bold"
-                                    : "text-neutral-500 hover:text-black dark:hover:text-white"
+                                    : "text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
                                 }`}
                                 title="Listen to this response"
                               >
@@ -3275,7 +3682,7 @@ export default function ChatPage() {
                               <button
                                 type="button"
                                 onClick={() => copyMessage(msg.content, msg.id)}
-                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                                 title="Copy descriptive text"
                               >
                                 {copiedMessageId === msg.id ? (
@@ -3283,83 +3690,13 @@ export default function ChatPage() {
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
-                                <span>{copiedMessageId === msg.id ? "Copied" : "Copy text"}</span>
+                                <span>{copiedMessageId === msg.id ? "Copied" : "Copy"}</span>
                               </button>
                             </div>
                           </div>
-                        )}
-
-                        {/* Generated Image Card with Symbol & Long-Press Support */}
-                        {msg.image && (
-                          <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
-                            <div
-                              className="relative group cursor-pointer overflow-hidden bg-black/5"
-                              onClick={() => setLightboxImage(msg.image!)}
-                              onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
-                              onTouchEnd={handleImageTouchEnd}
-                              onMouseDown={(e) => handleImageTouchStart(msg.image!, e)}
-                              onMouseUp={handleImageTouchEnd}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
-                              }}
-                            >
-                              <Image
-                                src={msg.image}
-                                alt={msg.content}
-                                width={600}
-                                height={600}
-                                unoptimized
-                                className="w-full h-auto max-h-[500px] object-contain transition-transform duration-300 group-hover:scale-[1.01]"
-                              />
-
-                              {/* Overlay Download & Share Symbol Icons */}
-                              <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(msg.image!);
-                                  }}
-                                  className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
-                                  title="Download Image"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
-                                  }}
-                                  className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
-                                  title="Share / Actions"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Minimalist Image Metadata */}
-                            <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
-                              <div className="text-neutral-500 font-mono text-[11px]">
-                                <span>{msg.imageMetadata?.model || "Realistic Vision V5.1"}</span>
-                                {msg.imageMetadata?.generation_time_seconds && (
-                                  <span> • {msg.imageMetadata.generation_time_seconds}s</span>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-neutral-400">Long-press image for options</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {isUser && (
-                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white font-bold text-xs mt-1">
-                          {userEmail ? userEmail.charAt(0).toUpperCase() : "U"}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -3407,7 +3744,27 @@ export default function ChatPage() {
                 : "bg-gradient-to-t from-white via-white/95 to-transparent"
             }`}
           >
-            <div className="mx-auto max-w-3xl w-full pointer-events-auto">
+            <div className="mx-auto max-w-3xl w-full pointer-events-auto relative">
+              {/* Floating Scroll-to-Bottom Button */}
+              {showScrollBtn && (
+                <div className="absolute -top-12 right-0 sm:right-2 z-30">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                      setShowScrollBtn(false);
+                    }}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer backdrop-blur-md ${
+                      isDark
+                        ? "bg-neutral-900/90 border-neutral-700 text-neutral-200 hover:text-white shadow-black/40"
+                        : "bg-white/95 border-neutral-200 text-neutral-700 hover:text-black shadow-neutral-300/60"
+                    }`}
+                    title="Scroll to latest message"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
 
               {/* Homepage Suggestions Row (Single horizontal scrollable row immediately above Main Chat Input Bar) */}
               {messages.length === 0 && (
@@ -4310,6 +4667,172 @@ export default function ChatPage() {
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Log Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONVERSATION CONFIRMATION MODAL */}
+      {deleteConfirmSession && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          onClick={() => setDeleteConfirmSession(null)}
+        >
+          <div
+            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold">Delete conversation?</h3>
+            <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              This will permanently delete <span className="font-semibold text-neutral-800 dark:text-neutral-200">"{deleteConfirmSession.title}"</span>. This action cannot be undone.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmSession(null)}
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const idToDelete = deleteConfirmSession.id;
+                  setDeleteConfirmSession(null);
+                  performDeleteSession(idToDelete);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-red-700 transition cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* URL-BASED SHARE CHAT MODAL */}
+      {shareModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          onClick={() => setShareModalOpen(false)}
+        >
+          <div
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Share public link to chat</h3>
+                  <p className="text-[11px] text-neutral-400">Anyone with this link will be able to view this conversation.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(false)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="my-5 space-y-3">
+              <div className={`flex items-center gap-2 rounded-2xl border p-2 text-xs font-mono select-all ${
+                isDark ? "border-neutral-800 bg-neutral-900 text-neutral-300" : "border-neutral-200 bg-neutral-100 text-neutral-800"
+              }`}>
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 bg-transparent px-2 focus:outline-none truncate"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareUrl);
+                    setShareCopied(true);
+                    setTimeout(() => setShareCopied(false), 2000);
+                  }}
+                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold text-xs transition cursor-pointer shadow-xs ${
+                    shareCopied
+                      ? "bg-emerald-600 text-white"
+                      : "bg-black dark:bg-white text-white dark:text-black hover:opacity-90"
+                  }`}
+                >
+                  {shareCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy link</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                <a
+                  href={shareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-blue-500 hover:underline"
+                >
+                  <span>Preview shared conversation</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+
+                {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.share({
+                        title: "TATTVA AI Shared Chat",
+                        url: shareUrl,
+                      }).catch(() => {});
+                    }}
+                    className="text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
+                  >
+                    Share via system...
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-black/[0.06] dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(false)}
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+                }`}
+              >
+                Done
               </button>
             </div>
           </div>
