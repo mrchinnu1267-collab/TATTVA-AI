@@ -26,7 +26,6 @@
 
 # AI Model Binaries & Checkpoints (Heavy Artifacts)
 **/models/
-!frontend/app/api/models/
 **/*.safetensors
 **/*.pt
 **/*.pth

@@ -64,9 +64,6 @@ export class TattvaModelArchitectLLM {
   public static readonly VERSION = "2.0.0-PROPRIETARY";
   public static readonly ARCHITECT_CREATOR = "Kotapati Gowtham Chowdary";
 
-  /**
-   * Pre-architected high-precision neural models ready for instantaneous use
-   */
   public static readonly BUILTIN_MODELS: ModelBlueprint[] = [
     {
       id: "tattva-flux-hd",
@@ -233,13 +230,9 @@ export class TattvaModelArchitectLLM {
     },
   ];
 
-  /**
-   * Autonomous AI Model Architect: Synthesizes a full custom model blueprint from natural language
-   */
   public static architectModel(req: ArchitectRequest): ModelBlueprint {
     const p = req.prompt.toLowerCase();
     
-    // 1. Detect Category
     let category: ModelBlueprint["category"] = "photorealism";
     if (p.includes("anime") || p.includes("manga") || p.includes("cartoon") || p.includes("shinkai")) {
       category = "anime";
@@ -255,7 +248,6 @@ export class TattvaModelArchitectLLM {
       category = "digital_art";
     }
 
-    // 2. Select Architecture
     let architecture: ModelBlueprint["architecture"] = "FLUX.1-Schnell";
     if (p.includes("sdxl") || p.includes("portrait") || p.includes("skin")) {
       architecture = "SDXL-1.0";
@@ -267,7 +259,6 @@ export class TattvaModelArchitectLLM {
       architecture = "FLUX.1-Dev";
     }
 
-    // 3. Determine Resolution
     let width = 1024;
     let height = 1024;
     let aspectRatio: ModelBlueprint["nativeResolution"]["aspectRatio"] = "1:1";
@@ -281,7 +272,6 @@ export class TattvaModelArchitectLLM {
       aspectRatio = "9:16";
     }
 
-    // 4. Derive Model Name & Clean ID
     const sanitizedTitle = req.prompt
       .replace(/[^\w\s]/g, "")
       .trim()
@@ -293,7 +283,6 @@ export class TattvaModelArchitectLLM {
     const modelName = `TATTVA ${sanitizedTitle || "Custom Vision"} HD`;
     const modelId = `tattva-${modelName.toLowerCase().replace(/\s+/g, "-")}-${Date.now().toString(36)}`;
 
-    // 5. Derive Trigger Tokens & Conditioning
     const triggerTokens = [
       `tattva_${category}`,
       architecture.toLowerCase().replace(/[^a-z0-9]/g, "_"),
@@ -371,9 +360,6 @@ export class TattvaModelArchitectLLM {
     };
   }
 
-  /**
-   * Returns list of all available models (builtin + dynamic)
-   */
   public static getAllModels(): ModelBlueprint[] {
     return this.BUILTIN_MODELS;
   }

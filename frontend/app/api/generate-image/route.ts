@@ -65,13 +65,6 @@ export async function POST(request: Request) {
     const finalSteps = typeof body.steps === "number" ? body.steps : visionSynthesis.recommendedSteps;
     const finalGuidance = typeof body.guidance_scale === "number" ? body.guidance_scale : visionSynthesis.recommendedGuidance;
 
-    const userKeys = body.api_keys || body.userKeys || {
-      huggingface: request.headers.get("x-hf-token") || undefined,
-      stability: request.headers.get("x-stability-key") || undefined,
-      openai: request.headers.get("x-openai-key") || undefined,
-      replicate: request.headers.get("x-replicate-key") || undefined,
-    };
-
     const result = await executeImageGeneration({
       prompt: visionSynthesis.enhancedPrompt,
       style: body.style || visionSynthesis.styleApplied,
@@ -84,8 +77,6 @@ export async function POST(request: Request) {
       height: finalHeight,
       seed: typeof body.seed === "number" ? body.seed : undefined,
       negative_prompt: visionSynthesis.negativePrompt,
-      userKeys,
-      apiKey: body.apiKey || (typeof userKeys.huggingface === "string" ? userKeys.huggingface : undefined),
     });
 
     return NextResponse.json({
