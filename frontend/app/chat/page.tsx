@@ -155,33 +155,6 @@ type EngineStatus = {
 const GUEST_CHAT_LIMIT = 5;
 const CHAT_WORD_LIMIT = 100000; // 1 lakh words limit per chat
 
-const STARTER_PROMPTS = [
-  {
-    icon: "✦",
-    title: "Meditating Monk at Alpine Dawn",
-    prompt:
-      "Generate an image of a serene monk in deep meditation beside a cascading mountain river at dawn, golden hour light filtering through morning mist, photorealistic volumetric rays.",
-  },
-  {
-    icon: "◈",
-    title: "Python Async Architecture",
-    prompt:
-      "Write a high-performance Python concurrent worker system using asyncio, worker pools, structured error handling, and type annotations.",
-  },
-  {
-    icon: "✧",
-    title: "Multilingual Reasoning & Poetry",
-    prompt:
-      "एक गहरी और सुंदर कविता लिखो जिसमें समय, ब्रह्मांड और मानव चेतना के संबंध को दर्शाया गया हो।",
-  },
-  {
-    icon: "❖",
-    title: "Futuristic Glasshouse",
-    prompt:
-      "Draw a massive futuristic botanical greenhouse on a snowy mountain, glowing bioluminescent flora under shattered geometric glass panels, cinematic twilight reflections.",
-  },
-];
-
 function getStorageKey(email?: string | null) {
   if (!email || !email.trim()) return "tattva_guest_chats";
   return `tattva_encrypted_chats_${email.toLowerCase().trim().replace(/[^a-z0-9]/g, "_")}`;
@@ -728,7 +701,6 @@ export default function ChatPage() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const suggestionsContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -844,29 +816,12 @@ export default function ChatPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Smooth horizontal scroll for homepage suggestions row via mouse wheel
+  // Close menus when clicking or tapping outside
   useEffect(() => {
-    const el = suggestionsContainerRef.current;
-    if (!el) return;
+    function handleClickOutside(e: Event) {
+      const target = e.target as HTMLElement | null;
+      if (!target || typeof target.closest !== "function") return;
 
-    const onWheel = (e: WheelEvent) => {
-      if (e.deltaY !== 0 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
-        e.preventDefault();
-        el.scrollBy({
-          left: e.deltaY * 1.2,
-          behavior: "smooth",
-        });
-      }
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [messages.length]);
-
-  // Close menus when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as HTMLElement;
       if (!target.closest("[data-attachment-menu]")) {
         setIsAttachmentMenuOpen(false);
       }
@@ -883,8 +838,13 @@ export default function ChatPage() {
         setActiveMenuSessionId(null);
       }
     }
+
     window.addEventListener("mousedown", handleClickOutside);
-    return () => window.removeEventListener("mousedown", handleClickOutside);
+    window.addEventListener("touchstart", handleClickOutside, { passive: true });
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   // 300ms Debounced Global Search across all conversation titles, user messages, and AI responses
@@ -948,12 +908,19 @@ export default function ChatPage() {
 
   // Toggle Pin/Unpin chat
   function togglePinSession(sessionId: string, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     setActiveMenuSessionId(null);
+
+    let nextIsPinned = false;
+    let nextUpdatedList: ChatSession[] = [];
 
     setSessions((prev) => {
       const target = prev.find((s) => s.id === sessionId);
       const isNowPinned = !target?.is_pinned;
+      nextIsPinned = isNowPinned;
       const updated = prev.map((s) =>
         s.id === sessionId
           ? {
@@ -973,43 +940,48 @@ export default function ChatPage() {
         return (b.updatedAt || 0) - (a.updatedAt || 0);
       });
 
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-
-      // Sync to cloud vault API
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      // Sync to Supabase if authenticated
-      try {
-        const supabase = createClient();
-        supabase
-          .from("conversations")
-          .update({
-            is_pinned: isNowPinned,
-            pinned_at: isNowPinned ? new Date().toISOString() : null,
-          })
-          .eq("id", sessionId)
-          .then();
-      } catch {
-        // ignore
-      }
-
-      showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
+      nextUpdatedList = updated;
       return updated;
     });
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+    } catch {
+      // ignore
+    }
+
+    // Sync to cloud vault API
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+    }).catch(() => {});
+
+    // Sync to Supabase if authenticated
+    try {
+      const supabase = createClient();
+      supabase
+        .from("conversations")
+        .update({
+          is_pinned: nextIsPinned,
+          pinned_at: nextIsPinned ? new Date().toISOString() : null,
+        })
+        .eq("id", sessionId)
+        .then();
+    } catch {
+      // ignore
+    }
+
+    showToast(nextIsPinned ? "Conversation pinned 📌" : "Conversation unpinned");
   }
 
   // Rename chat
   function startRenameSession(s: ChatSession, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     setActiveMenuSessionId(null);
     setRenamingSessionId(s.id);
     setRenameInput(s.title || "New Conversation");
@@ -1023,34 +995,37 @@ export default function ChatPage() {
       return;
     }
 
+    let nextUpdatedList: ChatSession[] = [];
     setSessions((prev) => {
       const updated = prev.map((s) =>
         s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
       );
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-
-      // Sync to cloud vault API
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      // Sync to Supabase
-      try {
-        const supabase = createClient();
-        supabase.from("conversations").update({ title: newTitle }).eq("id", sessionId).then();
-      } catch {}
-
-      showToast("Conversation renamed ✏️");
+      nextUpdatedList = updated;
       return updated;
     });
     setRenamingSessionId(null);
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+    } catch {
+      // ignore
+    }
+
+    // Sync to cloud vault API
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+    }).catch(() => {});
+
+    // Sync to Supabase
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").update({ title: newTitle }).eq("id", sessionId).then();
+    } catch {}
+
+    showToast("Conversation renamed ✏️");
   }
 
   // Select Search Result and navigate to message
@@ -1162,11 +1137,11 @@ export default function ChatPage() {
   }, []);
 
   // Save current active session
-  const saveCurrentSession = useCallback((updatedMsgs: ChatMessage[]) => {
+  const saveCurrentSession = useCallback((updatedMsgs: ChatMessage[], explicitSessionId?: string) => {
     if (!updatedMsgs || updatedMsgs.length === 0) return;
 
     setSessions((prev) => {
-      const activeId = currentSessionId || crypto.randomUUID();
+      const activeId = explicitSessionId || currentSessionId || crypto.randomUUID();
       if (!currentSessionId) {
         setCurrentSessionId(activeId);
       }
@@ -1248,32 +1223,34 @@ export default function ChatPage() {
 
   // Actual execution of session deletion
   function performDeleteSession(sessionId: string) {
+    let nextUpdatedList: ChatSession[] = [];
     setSessions((prev) => {
       const updated = prev.filter((s) => s.id !== sessionId);
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-
-      // Sync to cloud vault
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      // Sync deletion to Supabase
-      try {
-        const supabase = createClient();
-        supabase.from("conversations").delete().eq("id", sessionId).then();
-      } catch {
-        // ignore
-      }
-
+      nextUpdatedList = updated;
       return updated;
     });
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+    } catch {
+      // ignore
+    }
+
+    // Sync to cloud vault
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+    }).catch(() => {});
+
+    // Sync deletion to Supabase
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").delete().eq("id", sessionId).then();
+    } catch {
+      // ignore
+    }
 
     if (sessionId === currentSessionId) {
       createNewChat();
@@ -1283,7 +1260,11 @@ export default function ChatPage() {
 
   // Delete a session with confirmation support
   function deleteSession(sessionId: string, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setActiveMenuSessionId(null);
     const target = sessions.find((s) => s.id === sessionId);
     if (target) {
       setDeleteConfirmSession(target);
@@ -1294,29 +1275,35 @@ export default function ChatPage() {
 
   // Archive a conversation
   function archiveSession(sessionId: string, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setActiveMenuSessionId(null);
+    let nextUpdatedList: ChatSession[] = [];
     setSessions((prev) => {
       const updated = prev.map((s) =>
         s.id === sessionId ? { ...s, is_archived: true, archived_at: Date.now() } : s
       );
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {}
-
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      try {
-        const supabase = createClient();
-        supabase.from("conversations").update({ is_archived: true }).eq("id", sessionId).then();
-      } catch {}
-
+      nextUpdatedList = updated;
       return updated;
     });
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+    } catch {}
+
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+    }).catch(() => {});
+
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").update({ is_archived: true }).eq("id", sessionId).then();
+    } catch {}
 
     if (sessionId === currentSessionId) {
       createNewChat();
@@ -1326,28 +1313,31 @@ export default function ChatPage() {
 
   // Restore archived conversation
   function restoreSession(sessionId: string) {
+    let nextUpdatedList: ChatSession[] = [];
     setSessions((prev) => {
       const updated = prev.map((s) =>
         s.id === sessionId ? { ...s, is_archived: false, archived_at: undefined } : s
       );
-      const key = getStorageKey(userEmail);
-      try {
-        localStorage.setItem(key, JSON.stringify(updated));
-      } catch {}
-
-      fetch("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
-
-      try {
-        const supabase = createClient();
-        supabase.from("conversations").update({ is_archived: false }).eq("id", sessionId).then();
-      } catch {}
-
+      nextUpdatedList = updated;
       return updated;
     });
+
+    const key = getStorageKey(userEmail);
+    try {
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+    } catch {}
+
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+    }).catch(() => {});
+
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").update({ is_archived: false }).eq("id", sessionId).then();
+    } catch {}
+
     showToast("Conversation restored ✦");
   }
 
@@ -2159,9 +2149,9 @@ export default function ChatPage() {
     }
 
     // Ensure active session id exists
+    const activeSessionId = currentSessionId || crypto.randomUUID();
     if (!currentSessionId) {
-      const activeId = crypto.randomUUID();
-      setCurrentSessionId(activeId);
+      setCurrentSessionId(activeSessionId);
     }
 
     const userMsg: ChatMessage = {
@@ -2175,7 +2165,7 @@ export default function ChatPage() {
     const updatedWithUser = [...messages, userMsg];
     setMessages(updatedWithUser);
     messagesCountRef.current = updatedWithUser.length;
-    saveCurrentSession(updatedWithUser);
+    saveCurrentSession(updatedWithUser, activeSessionId);
 
     setInput("");
     if (textareaRef.current) {
@@ -2243,7 +2233,7 @@ export default function ChatPage() {
         const updatedWithAssistant = [...updatedWithUser, assistantMsg];
         setMessages(updatedWithAssistant);
         messagesCountRef.current = updatedWithAssistant.length;
-        saveCurrentSession(updatedWithAssistant);
+        saveCurrentSession(updatedWithAssistant, activeSessionId);
 
         // Sare Voice narration for image
         if (sareEnabled) {
@@ -2310,11 +2300,10 @@ export default function ChatPage() {
       const updatedWithAssistant = [...updatedWithUser, assistantMsg];
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
-      saveCurrentSession(updatedWithAssistant);
+      saveCurrentSession(updatedWithAssistant, activeSessionId);
 
       // Refresh memory profile after response in case new memories were extracted
       loadUserMemoryData(userEmail);
-      saveCurrentSession(updatedWithAssistant);
 
       // Check if word limit reached after assistant response
       const wordCountAfter = calculateChatWordCount(updatedWithAssistant);
@@ -3078,7 +3067,7 @@ export default function ChatPage() {
                       const menuOpen = activeMenuSessionId === s.id;
 
                       return (
-                        <div key={s.id} className="relative group" data-session-menu="true">
+                        <div key={s.id} className={`relative group ${menuOpen ? "z-50" : "z-0"}`} data-session-menu="true">
                           {isRenaming ? (
                             <form
                               onSubmit={(e) => submitRenameSession(s.id, e)}
@@ -3112,7 +3101,10 @@ export default function ChatPage() {
                               <button
                                 type="button"
                                 title="Cancel"
-                                onClick={() => setRenamingSessionId(null)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRenamingSessionId(null);
+                                }}
                                 className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -3144,8 +3136,8 @@ export default function ChatPage() {
                                   e.stopPropagation();
                                   setActiveMenuSessionId(menuOpen ? null : s.id);
                                 }}
-                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition ${
-                                  menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${
+                                  menuOpen ? "!opacity-100" : ""
                                 }`}
                                 title="Conversation options"
                               >
@@ -3160,7 +3152,7 @@ export default function ChatPage() {
                               data-session-menu="true"
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => e.stopPropagation()}
-                              className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
+                              className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${
                                 isDark
                                   ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                   : "border-black/10 bg-white text-neutral-800"
@@ -3172,9 +3164,10 @@ export default function ChatPage() {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   togglePinSession(s.id, e);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                               >
                                 <PinOff className="w-3.5 h-3.5" />
                                 <span>Unpin conversation</span>
@@ -3185,9 +3178,10 @@ export default function ChatPage() {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   startRenameSession(s, e);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                                 <span>Rename conversation</span>
@@ -3198,10 +3192,11 @@ export default function ChatPage() {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   setActiveMenuSessionId(null);
                                   shareChat(s);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                               >
                                 <Share2 className="w-3.5 h-3.5" />
                                 <span>Share conversation</span>
@@ -3212,10 +3207,11 @@ export default function ChatPage() {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   setActiveMenuSessionId(null);
                                   archiveSession(s.id, e);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                               >
                                 <FolderArchive className="w-3.5 h-3.5" />
                                 <span>Archive conversation</span>
@@ -3227,10 +3223,10 @@ export default function ChatPage() {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setActiveMenuSessionId(null);
+                                  e.preventDefault();
                                   deleteSession(s.id, e);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer transition select-none"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 <span>Delete conversation</span>
@@ -3263,7 +3259,7 @@ export default function ChatPage() {
                     const menuOpen = activeMenuSessionId === s.id;
 
                     return (
-                      <div key={s.id} className="relative group" data-session-menu="true">
+                      <div key={s.id} className={`relative group ${menuOpen ? "z-50" : "z-0"}`} data-session-menu="true">
                         {isRenaming ? (
                           <form
                             onSubmit={(e) => submitRenameSession(s.id, e)}
@@ -3297,7 +3293,10 @@ export default function ChatPage() {
                             <button
                               type="button"
                               title="Cancel"
-                              onClick={() => setRenamingSessionId(null)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingSessionId(null);
+                              }}
                               className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -3329,8 +3328,8 @@ export default function ChatPage() {
                                 e.stopPropagation();
                                 setActiveMenuSessionId(menuOpen ? null : s.id);
                               }}
-                              className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition ${
-                                menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                              className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${
+                                menuOpen ? "!opacity-100" : ""
                               }`}
                               title="Conversation options"
                             >
@@ -3345,7 +3344,7 @@ export default function ChatPage() {
                             data-session-menu="true"
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
-                            className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
+                            className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${
                               isDark
                                 ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                 : "border-black/10 bg-white text-neutral-800"
@@ -3357,9 +3356,10 @@ export default function ChatPage() {
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 togglePinSession(s.id, e);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                             >
                               <Pin className="w-3.5 h-3.5" />
                               <span>Pin conversation</span>
@@ -3370,9 +3370,10 @@ export default function ChatPage() {
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 startRenameSession(s, e);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>Rename conversation</span>
@@ -3383,10 +3384,11 @@ export default function ChatPage() {
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 setActiveMenuSessionId(null);
                                 shareChat(s);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                             >
                               <Share2 className="w-3.5 h-3.5" />
                               <span>Share conversation</span>
@@ -3397,10 +3399,11 @@ export default function ChatPage() {
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 setActiveMenuSessionId(null);
                                 archiveSession(s.id, e);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer transition select-none"
                             >
                               <FolderArchive className="w-3.5 h-3.5" />
                               <span>Archive conversation</span>
@@ -3412,10 +3415,10 @@ export default function ChatPage() {
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setActiveMenuSessionId(null);
+                                e.preventDefault();
                                 deleteSession(s.id, e);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer transition select-none"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Delete conversation</span>
@@ -5126,7 +5129,7 @@ export default function ChatPage() {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
           onClick={() => setDeleteConfirmSession(null)}
         >
           <div
