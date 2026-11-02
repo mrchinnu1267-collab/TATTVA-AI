@@ -956,7 +956,12 @@ export default function ChatPage() {
       const isNowPinned = !target?.is_pinned;
       const updated = prev.map((s) =>
         s.id === sessionId
-          ? { ...s, is_pinned: isNowPinned, pinned_at: isNowPinned ? Date.now() : undefined }
+          ? {
+              ...s,
+              is_pinned: isNowPinned,
+              pinned_at: isNowPinned ? Date.now() : undefined,
+              updatedAt: Date.now(),
+            }
           : s
       );
 
@@ -1028,6 +1033,20 @@ export default function ChatPage() {
       } catch {
         // ignore
       }
+
+      // Sync to cloud vault API
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      }).catch(() => {});
+
+      // Sync to Supabase
+      try {
+        const supabase = createClient();
+        supabase.from("conversations").update({ title: newTitle }).eq("id", sessionId).then();
+      } catch {}
+
       showToast("Conversation renamed ✏️");
       return updated;
     });
@@ -1229,29 +1248,32 @@ export default function ChatPage() {
 
   // Actual execution of session deletion
   function performDeleteSession(sessionId: string) {
-    const updated = sessions.filter((s) => s.id !== sessionId);
-    setSessions(updated);
-    const key = getStorageKey(userEmail);
-    try {
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+    setSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== sessionId);
+      const key = getStorageKey(userEmail);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
 
-    // Sync to cloud vault
-    fetch("/api/chats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-    }).catch(() => {});
+      // Sync to cloud vault
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      }).catch(() => {});
 
-    // Sync deletion to Supabase
-    try {
-      const supabase = createClient();
-      supabase.from("conversations").delete().eq("id", sessionId).then();
-    } catch {
-      // ignore
-    }
+      // Sync deletion to Supabase
+      try {
+        const supabase = createClient();
+        supabase.from("conversations").delete().eq("id", sessionId).then();
+      } catch {
+        // ignore
+      }
+
+      return updated;
+    });
 
     if (sessionId === currentSessionId) {
       createNewChat();
@@ -1352,8 +1374,23 @@ export default function ChatPage() {
 
   // Share chat session with unique URL & Public Share Modal
   async function shareChat(session?: ChatSession) {
-    const targetSession = session || sessions.find((s) => s.id === currentSessionId);
-    if (!targetSession || !targetSession.messages.length) {
+    const baseTarget = session || sessions.find((s) => s.id === currentSessionId);
+    if (!baseTarget) {
+      showToast("Cannot share empty conversation.");
+      return;
+    }
+
+    const targetSession: ChatSession = {
+      ...baseTarget,
+      messages:
+        baseTarget.messages && baseTarget.messages.length > 0
+          ? baseTarget.messages
+          : baseTarget.id === currentSessionId && messages.length > 0
+          ? messages
+          : [],
+    };
+
+    if (!targetSession.messages.length) {
       showToast("Cannot share empty conversation.");
       return;
     }
@@ -3052,8 +3089,16 @@ export default function ChatPage() {
                                 autoFocus
                                 value={renameInput}
                                 onChange={(e) => setRenameInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    submitRenameSession(s.id);
+                                  } else if (e.key === "Escape") {
+                                    setRenamingSessionId(null);
+                                  }
+                                }}
                                 onBlur={() => submitRenameSession(s.id)}
-                                className="w-full text-xs rounded-lg border border-black/20 bg-white dark:bg-neutral-800 px-2 py-1 outline-none"
+                                className="w-full text-xs rounded-lg border border-black/20 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 outline-none text-neutral-900 dark:text-white"
                               />
                             </form>
                           ) : (
@@ -3190,8 +3235,16 @@ export default function ChatPage() {
                               autoFocus
                               value={renameInput}
                               onChange={(e) => setRenameInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  submitRenameSession(s.id);
+                                } else if (e.key === "Escape") {
+                                  setRenamingSessionId(null);
+                                }
+                              }}
                               onBlur={() => submitRenameSession(s.id)}
-                              className="w-full text-xs rounded-lg border border-black/20 bg-white dark:bg-neutral-800 px-2 py-1 outline-none"
+                              className="w-full text-xs rounded-lg border border-black/20 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 outline-none text-neutral-900 dark:text-white"
                             />
                           </form>
                         ) : (
@@ -4114,39 +4167,6 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Homepage Suggestions Row (Single horizontal scrollable row immediately above Main Chat Input Bar) */}
-              {messages.length === 0 && (
-                <div className="mb-2.5 w-full">
-                  <div
-                    ref={suggestionsContainerRef}
-                    className="flex flex-nowrap items-stretch gap-2.5 overflow-x-auto scroll-smooth no-scrollbar py-1 px-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                    style={{ WebkitOverflowScrolling: "touch" }}
-                  >
-                    {STARTER_PROMPTS.map((starter, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => sendMessage(starter.prompt)}
-                        className={`group shrink-0 w-[205px] sm:w-[225px] md:w-[235px] rounded-2xl border p-3 sm:p-3.5 text-left text-xs transition-all duration-200 shadow-2xs hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between cursor-pointer ${
-                          isDark
-                            ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 hover:text-white"
-                            : "border-black/[0.08] bg-white/95 hover:bg-neutral-50 text-neutral-700 hover:text-black"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 font-semibold mb-1 text-neutral-800 dark:text-neutral-200">
-                          <span className="text-neutral-400 dark:text-neutral-500 group-hover:text-black dark:group-hover:text-white transition-colors shrink-0">
-                            {starter.icon}
-                          </span>
-                          <span className="truncate">{starter.title}</span>
-                        </div>
-                        <p className="line-clamp-2 text-[11px] text-neutral-400 dark:text-neutral-500 leading-relaxed group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
-                          {starter.prompt}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Status / Interim Voice Banner */}
               {(statusMessage || interimSpeech || isListening) && (

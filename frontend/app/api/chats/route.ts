@@ -5,18 +5,38 @@ import path from "path";
 
 export const runtime = "nodejs";
 
-const VAULT_DIR = path.join(process.cwd(), ".tattva_secure_vault", "cloud_chats");
+function getVaultDir(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", ".tattva_secure_vault", "cloud_chats");
+  }
+  return path.join(process.cwd(), ".tattva_secure_vault", "cloud_chats");
+}
 
 function ensureVaultDir() {
-  if (!fs.existsSync(VAULT_DIR)) {
-    fs.mkdirSync(VAULT_DIR, { recursive: true });
+  const dir = getVaultDir();
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch {
+    // If process.cwd failed, try /tmp fallback
+    try {
+      const tmpDir = path.join("/tmp", ".tattva_secure_vault", "cloud_chats");
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+    } catch {}
   }
 }
 
 function getChatFilePath(userEmail: string): string {
   ensureVaultDir();
   const safeEmail = Buffer.from(userEmail.toLowerCase().trim()).toString("hex");
-  return path.join(VAULT_DIR, `chats_${safeEmail}.json`);
+  const primary = path.join(getVaultDir(), `chats_${safeEmail}.json`);
+  if (fs.existsSync(primary)) return primary;
+  const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "cloud_chats", `chats_${safeEmail}.json`);
+  if (fs.existsSync(tmpFallback)) return tmpFallback;
+  return primary;
 }
 
 export async function GET(request: Request) {
@@ -68,7 +88,15 @@ export async function POST(request: Request) {
     const email = session.authenticated && session.email ? session.email : body.email || "guest_user";
     const filePath = getChatFilePath(email);
 
-    fs.writeFileSync(filePath, JSON.stringify(body.sessions, null, 2), "utf-8");
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(body.sessions, null, 2), "utf-8");
+    } catch {
+      try {
+        const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "cloud_chats", path.basename(filePath));
+        fs.mkdirSync(path.dirname(tmpFallback), { recursive: true });
+        fs.writeFileSync(tmpFallback, JSON.stringify(body.sessions, null, 2), "utf-8");
+      } catch {}
+    }
 
     return NextResponse.json({ success: true, count: body.sessions.length });
   } catch (error: unknown) {

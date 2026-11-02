@@ -9,7 +9,10 @@ import path from "path";
 import { RAGChunk, RAGSearchResult } from "./types";
 import { generateTextEmbedding, cosineSimilarity, keywordRelevanceScore } from "../embeddings";
 
-const DATA_DIR = path.join(process.cwd(), ".tattva_memory_data");
+const DATA_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join("/tmp", ".tattva_memory_data")
+    : path.join(process.cwd(), ".tattva_memory_data");
 const RAG_STORE_FILE = path.join(DATA_DIR, "rag_knowledge_chunks.json");
 
 function ensureRagDir() {

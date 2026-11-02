@@ -12,7 +12,10 @@ import path from "path";
 
 export const runtime = "nodejs";
 
-const LOCAL_VAULT_DIR = path.join(process.cwd(), ".tattva_secure_vault");
+const LOCAL_VAULT_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join("/tmp", ".tattva_secure_vault")
+    : path.join(process.cwd(), ".tattva_secure_vault");
 
 function ensureVaultDir(userId: string) {
   const userDir = path.join(LOCAL_VAULT_DIR, userId.replace(/[^a-zA-Z0-9_-]/g, "_"));

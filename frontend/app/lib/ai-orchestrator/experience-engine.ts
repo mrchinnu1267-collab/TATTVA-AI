@@ -9,7 +9,10 @@ import path from "path";
 import { ExperienceRecord, ExperienceStatus, TaskIntent } from "./types";
 import { cosineSimilarity, generateTextEmbedding } from "../embeddings";
 
-const DATA_DIR = path.join(process.cwd(), ".tattva_memory_data");
+const DATA_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join("/tmp", ".tattva_memory_data")
+    : path.join(process.cwd(), ".tattva_memory_data");
 const EXPERIENCE_FILE = path.join(DATA_DIR, "experience_knowledge.json");
 
 function ensureExperienceDir() {

@@ -6,12 +6,36 @@ import crypto from "crypto";
 
 export const runtime = "nodejs";
 
-const SHARE_VAULT_DIR = path.join(process.cwd(), ".tattva_secure_vault", "shared_chats");
+function getShareVaultDir(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", ".tattva_secure_vault", "shared_chats");
+  }
+  return path.join(process.cwd(), ".tattva_secure_vault", "shared_chats");
+}
 
 function ensureShareDir() {
-  if (!fs.existsSync(SHARE_VAULT_DIR)) {
-    fs.mkdirSync(SHARE_VAULT_DIR, { recursive: true });
+  const dir = getShareVaultDir();
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch {
+    try {
+      const tmpDir = path.join("/tmp", ".tattva_secure_vault", "shared_chats");
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+    } catch {}
   }
+}
+
+function getShareFilePath(shareId: string): string {
+  ensureShareDir();
+  const primary = path.join(getShareVaultDir(), `${shareId}.json`);
+  if (fs.existsSync(primary)) return primary;
+  const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "shared_chats", `${shareId}.json`);
+  if (fs.existsSync(tmpFallback)) return tmpFallback;
+  return primary;
 }
 
 export async function POST(request: Request) {
@@ -31,7 +55,7 @@ export async function POST(request: Request) {
 
     // Create a safe unique share ID
     const shareId = crypto.randomBytes(8).toString("hex");
-    const filePath = path.join(SHARE_VAULT_DIR, `${shareId}.json`);
+    const filePath = getShareFilePath(shareId);
 
     // Clean session to remove private user data before sharing
     const cleanSession = {
@@ -56,7 +80,15 @@ export async function POST(request: Request) {
       })),
     };
 
-    fs.writeFileSync(filePath, JSON.stringify(cleanSession, null, 2), "utf-8");
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(cleanSession, null, 2), "utf-8");
+    } catch {
+      try {
+        const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "shared_chats", `${shareId}.json`);
+        fs.mkdirSync(path.dirname(tmpFallback), { recursive: true });
+        fs.writeFileSync(tmpFallback, JSON.stringify(cleanSession, null, 2), "utf-8");
+      } catch {}
+    }
 
     return NextResponse.json({
       success: true,
@@ -81,8 +113,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Invalid share ID." }, { status: 400 });
     }
 
-    ensureShareDir();
-    const filePath = path.join(SHARE_VAULT_DIR, `${id}.json`);
+    const filePath = getShareFilePath(id);
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: "Shared conversation not found or expired." }, { status: 404 });

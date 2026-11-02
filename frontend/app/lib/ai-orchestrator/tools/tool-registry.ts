@@ -107,3 +107,4 @@ export class ToolRegistry {
 }
 
 export const toolRegistry = ToolRegistry.getInstance();
+

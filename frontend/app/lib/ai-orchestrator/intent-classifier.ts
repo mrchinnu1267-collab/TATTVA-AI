@@ -214,3 +214,4 @@ Respond ONLY with valid JSON:
     diffusionPrompt: cleanPrompt,
   };
 }
+
