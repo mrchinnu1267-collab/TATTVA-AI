@@ -22,10 +22,16 @@ export async function generateTextEmbedding(text: string): Promise<number[] | nu
   if (!ai) return null;
 
   try {
-    const resp = await ai.models.embedContent({
-      model: "gemini-embedding-001",
+    const embedPromise = ai.models.embedContent({
+      model: "text-embedding-004",
       contents: clean.slice(0, 2048),
     });
+
+    const timeoutPromise = new Promise<null>((_, reject) =>
+      setTimeout(() => reject(new Error("Embedding request timed out")), 3500)
+    );
+
+    const resp: any = await Promise.race([embedPromise, timeoutPromise]);
 
     if (resp?.embeddings?.[0]?.values && resp.embeddings[0].values.length > 0) {
       return resp.embeddings[0].values;

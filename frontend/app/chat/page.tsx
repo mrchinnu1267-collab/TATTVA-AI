@@ -70,6 +70,8 @@ import {
   Play,
   Pause,
   Archive,
+  Wrench,
+  Cpu,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -119,6 +121,10 @@ type ChatMessage = {
   timestamp?: number;
   recalledMemories?: Array<{ id?: string; content: string; category?: string; importance?: number }>;
   userFeedback?: { rating: "positive" | "negative"; category?: string; comment?: string };
+  citations?: Array<{ title: string; url: string; snippet?: string }>;
+  toolsExecuted?: string[];
+  reasoningPlan?: any;
+  agentState?: any;
 };
 
 type ChatSession = {
@@ -2253,9 +2259,15 @@ export default function ChatPage() {
         id: assistantMsgId,
         role: "assistant",
         content: data.content || "I am ready to assist you further.",
-        kind: "text",
+        kind: data.kind || "text",
+        image: data.image,
+        imageMetadata: data.imageMetadata,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
+        citations: data.citations,
+        toolsExecuted: data.toolsExecuted,
+        reasoningPlan: data.reasoningPlan,
+        agentState: data.agentState,
       };
 
       const updatedWithAssistant = [...updatedWithUser, assistantMsg];
@@ -2373,9 +2385,15 @@ export default function ChatPage() {
         id: assistantMsgId,
         role: "assistant",
         content: data.content || "I am ready to assist you further.",
-        kind: "text",
+        kind: data.kind || "text",
+        image: data.image,
+        imageMetadata: data.imageMetadata,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
+        citations: data.citations,
+        toolsExecuted: data.toolsExecuted,
+        reasoningPlan: data.reasoningPlan,
+        agentState: data.agentState,
       };
 
       const updatedWithAssistant = [...truncated, assistantMsg];
@@ -2459,9 +2477,15 @@ export default function ChatPage() {
         id: newAssistantMsgId,
         role: "assistant",
         content: data.content || "I am ready to assist you further.",
-        kind: "text",
+        kind: data.kind || "text",
+        image: data.image,
+        imageMetadata: data.imageMetadata,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
+        citations: data.citations,
+        toolsExecuted: data.toolsExecuted,
+        reasoningPlan: data.reasoningPlan,
+        agentState: data.agentState,
       };
 
       const updated = [...truncated, newAssistantMsg];
@@ -3803,6 +3827,51 @@ export default function ChatPage() {
                           {/* Markdown / Text content rendered directly on conversation surface */}
                           <MarkdownView content={msg.content} isDark={isDark} />
 
+                          {/* Grounded Web Research Citations */}
+                          {msg.citations && msg.citations.length > 0 && (
+                            <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-2 border-t border-black/[0.05] dark:border-white/[0.05]">
+                              <span className="text-[11px] font-medium text-neutral-500 mr-1 flex items-center gap-1">
+                                <Globe className="w-3 h-3 text-blue-500" /> Sources:
+                              </span>
+                              {msg.citations.map((c, cIdx) => (
+                                <a
+                                  key={cIdx}
+                                  href={c.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] border border-black/10 dark:border-neutral-700 bg-neutral-100/80 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-blue-500 transition-colors shadow-2xs"
+                                  title={c.snippet || c.title}
+                                >
+                                  <span className="font-semibold text-neutral-400">[{cIdx + 1}]</span>
+                                  <span className="max-w-[140px] truncate">{c.title}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Structured Reasoning & Verification Plan */}
+                          {msg.reasoningPlan && (
+                            <details className="mt-2.5 rounded-xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-2.5 text-xs">
+                              <summary className="font-medium text-neutral-600 dark:text-neutral-400 cursor-pointer select-none flex items-center gap-1.5 hover:text-black dark:hover:text-white transition">
+                                <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>Reasoning &amp; Verification Plan ({msg.reasoningPlan.steps?.length || 0} steps)</span>
+                              </summary>
+                              <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-indigo-500/30 text-neutral-600 dark:text-neutral-300">
+                                {msg.reasoningPlan.steps?.map((st: any, sIdx: number) => (
+                                  <div key={sIdx} className="text-[11px] leading-relaxed">
+                                    <span className="font-semibold text-indigo-500">Step {st.stepNumber}:</span> {st.title} — {st.thought}
+                                  </div>
+                                ))}
+                                {msg.reasoningPlan.verificationHypothesis && (
+                                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+                                    ✓ Verification: {msg.reasoningPlan.verificationHypothesis}
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          )}
+
                           {/* Generated Image Card */}
                           {msg.image && (
                             <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
@@ -3891,6 +3960,13 @@ export default function ChatPage() {
                                   <Brain className="w-3 h-3 text-purple-500" />
                                   <span>{msg.recalledMemories.length} recalled</span>
                                 </button>
+                              )}
+                              {/* Tools Executed Badge */}
+                              {msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
+                                <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
+                                  <Wrench className="w-3 h-3 text-emerald-500" />
+                                  <span>{msg.toolsExecuted.join(", ")}</span>
+                                </span>
                               )}
                             </div>
 
