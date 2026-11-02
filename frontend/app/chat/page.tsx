@@ -790,6 +790,41 @@ export default function ChatPage() {
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
 
+  // User Custom Model API Keys (BYOK: Gemini, DashScope Qwen-Image, Hugging Face, Stability, OpenAI, Replicate)
+  const [userApiKeys, setUserApiKeys] = useState<{
+    gemini: string;
+    dashscope: string;
+    huggingface: string;
+    stability: string;
+    openai: string;
+    replicate: string;
+  }>({
+    gemini: "",
+    dashscope: "",
+    huggingface: "",
+    stability: "",
+    openai: "",
+    replicate: "",
+  });
+
+  // Load custom API keys from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedKeys = localStorage.getItem("tattva_user_api_keys");
+      if (savedKeys) {
+        const parsed = JSON.parse(savedKeys);
+        setUserApiKeys({
+          gemini: parsed.gemini || "",
+          dashscope: parsed.dashscope || "",
+          huggingface: parsed.huggingface || "",
+          stability: parsed.stability || "",
+          openai: parsed.openai || "",
+          replicate: parsed.replicate || "",
+        });
+      }
+    } catch {}
+  }, []);
+
   // Keyboard shortcut Ctrl+K / Cmd+K for global search
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -2193,6 +2228,7 @@ export default function ChatPage() {
         const payload: Record<string, unknown> = {
           prompt: rawPrompt,
           model: "realistic",
+          userKeys: userApiKeys,
         };
 
         if (attachedImages.length > 0) {
@@ -5642,7 +5678,106 @@ export default function ChatPage() {
                 </button>
               </div>
 
-              {/* Setting 5: Clear All Conversation History */}
+              {/* Setting 5: Model Providers & Custom API Keys (BYOK) */}
+              <div className="p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-2.5">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Custom Model API Keys (BYOK)</span>
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Use your own keys for Gemini 2.5 Flash Image, DashScope Qwen-Image, Stability AI, OpenAI, or Replicate
+                  </p>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Google Gemini API Key (gemini-2.5-flash-image / Nano Banana)</label>
+                    <input
+                      type="password"
+                      placeholder="AIzaSy..."
+                      value={userApiKeys.gemini}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, gemini: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Alibaba DashScope API Key (Qwen-Image 2512 / Qwen-Image-Edit)</label>
+                    <input
+                      type="password"
+                      placeholder="sk-..."
+                      value={userApiKeys.dashscope}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, dashscope: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Hugging Face Token (FLUX.1 / Qwen-Image-2512)</label>
+                    <input
+                      type="password"
+                      placeholder="hf_..."
+                      value={userApiKeys.huggingface}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, huggingface: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Stability AI API Key</label>
+                    <input
+                      type="password"
+                      placeholder="sk-..."
+                      value={userApiKeys.stability}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, stability: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">OpenAI API Key (DALL-E 3)</label>
+                    <input
+                      type="password"
+                      placeholder="sk-proj-..."
+                      value={userApiKeys.openai}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, openai: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Replicate API Token</label>
+                    <input
+                      type="password"
+                      placeholder="r8_..."
+                      value={userApiKeys.replicate}
+                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, replicate: e.target.value }))}
+                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          localStorage.setItem("tattva_user_api_keys", JSON.stringify(userApiKeys));
+                          showToast("Custom API Keys securely saved in browser vault 🔑");
+                        } catch {
+                          showToast("Failed to save keys");
+                        }
+                      }}
+                      className="flex items-center gap-1 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 transition cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save API Keys</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Setting 6: Clear All Conversation History */}
               <div className="flex items-center justify-between p-3 rounded-2xl border border-red-500/20 bg-red-500/5">
                 <div>
                   <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>
