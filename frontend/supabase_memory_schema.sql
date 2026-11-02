@@ -80,3 +80,8 @@ CREATE POLICY "Users can manage own feedback" ON public.user_feedback
     FOR ALL
     USING (auth.jwt() ->> 'email' = user_email OR user_email = 'guest_user')
     WITH CHECK (auth.jwt() ->> 'email' = user_email OR user_email = 'guest_user');
+
+-- 6. Pinned Conversation Columns on conversations table
+ALTER TABLE IF EXISTS public.conversations ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+ALTER TABLE IF EXISTS public.conversations ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_conversations_pinned ON public.conversations(is_pinned, pinned_at DESC);

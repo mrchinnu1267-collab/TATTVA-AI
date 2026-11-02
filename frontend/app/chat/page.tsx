@@ -33,6 +33,7 @@ import {
   Pin,
   PinOff,
   Search,
+  Info,
   MoreVertical,
   Edit2,
   FolderArchive,
@@ -577,6 +578,8 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
+  const [isInfoBubbleOpen, setIsInfoBubbleOpen] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   // Long press menu state for images
   const [imageMenuOpen, setImageMenuOpen] = useState<{ image: string; x: number; y: number } | null>(null);
@@ -675,6 +678,7 @@ export default function ChatPage() {
         setIsManageAccountModalOpen(false);
         setIsMemoryModalOpen(false);
         setFeedbackModalTarget(null);
+        setIsInfoBubbleOpen(false);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -712,6 +716,12 @@ export default function ChatPage() {
       }
       if (!target.closest("[data-profile-menu]")) {
         setIsProfileMenuOpen(false);
+      }
+      if (!target.closest("[data-branding-bubble]")) {
+        setIsInfoBubbleOpen(false);
+      }
+      if (!target.closest("[data-session-menu]")) {
+        setActiveMenuSessionId(null);
       }
     }
     window.addEventListener("mousedown", handleClickOutside);
@@ -791,12 +801,43 @@ export default function ChatPage() {
           : s
       );
 
+      // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
+      updated.sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
+        return (b.updatedAt || 0) - (a.updatedAt || 0);
+      });
+
       const key = getStorageKey(userEmail);
       try {
         localStorage.setItem(key, JSON.stringify(updated));
       } catch {
         // ignore
       }
+
+      // Sync to cloud vault API
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      }).catch(() => {});
+
+      // Sync to Supabase if authenticated
+      try {
+        const supabase = createClient();
+        supabase
+          .from("conversations")
+          .update({
+            is_pinned: isNowPinned,
+            pinned_at: isNowPinned ? new Date().toISOString() : null,
+          })
+          .eq("id", sessionId)
+          .then();
+      } catch {
+        // ignore
+      }
+
       showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
       return updated;
     });
@@ -873,47 +914,76 @@ export default function ChatPage() {
   }
 
   // Load chat sessions for a specific user email
-  const loadUserSessions = useCallback((email?: string | null) => {
+  const loadUserSessions = useCallback(async (email?: string | null) => {
+    setSessionsLoading(true);
     const key = getStorageKey(email);
-    let existingSessions: ChatSession[] = [];
+    let loadedSessions: ChatSession[] = [];
+
+    // 1. Instant local load
     try {
       const saved = localStorage.getItem(key);
       if (saved) {
-        existingSessions = JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Keep only non-empty chats in history
+          loadedSessions = parsed.filter((s: ChatSession) => s.messages && s.messages.length > 0);
+        }
       }
     } catch {
       // ignore
     }
 
-    setSessions((prev) => {
-      // If user is actively typing or has ongoing messages in the current conversation, preserve them!
-      if (messagesCountRef.current > 0) {
-        return prev.length > 0 ? prev : existingSessions;
+    // 2. Fetch from secure cloud vault
+    try {
+      const res = await fetch(`/api/chats?email=${encodeURIComponent(email || "guest_user")}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+          const cloudSessions = data.sessions.filter((s: ChatSession) => s.messages && s.messages.length > 0);
+          const map = new Map<string, ChatSession>();
+          loadedSessions.forEach((s) => map.set(s.id, s));
+          cloudSessions.forEach((s: ChatSession) => {
+            const existing = map.get(s.id);
+            if (!existing || (s.updatedAt || 0) >= (existing.updatedAt || 0)) {
+              map.set(s.id, s);
+            }
+          });
+          loadedSessions = Array.from(map.values());
+          try {
+            localStorage.setItem(key, JSON.stringify(loadedSessions));
+          } catch {
+            // ignore
+          }
+        }
       }
+    } catch (err) {
+      console.warn("Cloud sessions load error:", err);
+    }
 
-      // If there's an existing valid active session, keep it
-      if (currentSessionId && existingSessions.some((s) => s.id === currentSessionId)) {
-        return existingSessions;
-      }
-
-      // Initial clean start session
-      const freshSession: ChatSession = {
-        id: crypto.randomUUID(),
-        title: "New Conversation",
-        userEmail: email || undefined,
-        messages: [],
-        updatedAt: Date.now(),
-      };
-
-      setCurrentSessionId(freshSession.id);
-      setMessages([]);
-      messagesCountRef.current = 0;
-      return [freshSession, ...existingSessions];
+    // 3. Sort: Pinned first (by pinned_at descending), then Recent by updatedAt descending
+    loadedSessions.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
     });
-  }, [currentSessionId]);
+
+    setSessions(loadedSessions);
+    setSessionsLoading(false);
+
+    // 4. Always start with a clean, empty New Chat interface without cluttering database/sidebar
+    setCurrentSessionId("");
+    setMessages([]);
+    messagesCountRef.current = 0;
+    setAttachments([]);
+    setInput("");
+    setError("");
+  }, []);
 
   // Save current active session
   const saveCurrentSession = useCallback((updatedMsgs: ChatMessage[]) => {
+    if (!updatedMsgs || updatedMsgs.length === 0) return;
+
     setSessions((prev) => {
       const activeId = currentSessionId || crypto.randomUUID();
       if (!currentSessionId) {
@@ -940,6 +1010,7 @@ export default function ChatPage() {
           userEmail: userEmail || undefined,
           messages: updatedMsgs,
           updatedAt: Date.now(),
+          is_pinned: false,
         };
         updated = [fresh, ...prev];
       }
@@ -950,26 +1021,25 @@ export default function ChatPage() {
       } catch {
         // quota exceeded fallback
       }
+
+      // Sync to cloud vault
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      }).catch(() => {});
+
       return updated;
     });
   }, [currentSessionId, userEmail]);
 
-  // Create a brand new chat session
+  // Create a brand new chat session (Clean reset without polluting history)
   function createNewChat() {
     if (speakingMessageId) {
       window.speechSynthesis.cancel();
       setSpeakingMessageId(null);
     }
-    const fresh: ChatSession = {
-      id: crypto.randomUUID(),
-      title: "New Conversation",
-      userEmail: userEmail || undefined,
-      messages: [],
-      updatedAt: Date.now(),
-    };
-
-    setSessions((prev) => [fresh, ...prev]);
-    setCurrentSessionId(fresh.id);
+    setCurrentSessionId("");
     setMessages([]);
     messagesCountRef.current = 0;
     setAttachments([]);
@@ -1004,13 +1074,23 @@ export default function ChatPage() {
       // ignore
     }
 
+    // Sync to cloud vault
+    fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+    }).catch(() => {});
+
+    // Sync deletion to Supabase
+    try {
+      const supabase = createClient();
+      supabase.from("conversations").delete().eq("id", sessionId).then();
+    } catch {
+      // ignore
+    }
+
     if (sessionId === currentSessionId) {
-      if (updated.length > 0) {
-        setCurrentSessionId(updated[0].id);
-        setMessages(updated[0].messages || []);
-      } else {
-        createNewChat();
-      }
+      createNewChat();
     }
     showToast("Chat deleted");
   }
@@ -2177,12 +2257,12 @@ export default function ChatPage() {
           isDark ? "border-neutral-800/80 bg-[#0d0e11]/85" : "border-black/[0.06] bg-white/85"
         }`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2.5">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-2 rounded-xl transition ${
+              className={`p-2 rounded-xl transition cursor-pointer ${
                 isDark ? "text-neutral-400 hover:text-white hover:bg-neutral-800" : "text-neutral-500 hover:text-black hover:bg-neutral-100"
               }`}
               title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
@@ -2194,129 +2274,88 @@ export default function ChatPage() {
               )}
             </button>
 
-            <a href="/" className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-sm font-bold text-white shadow-sm">
-                T
-              </div>
-              <div className="leading-tight">
-                <span className="text-sm font-bold tracking-tight">TATTVA AI</span>
-                <span className="block text-[10px] text-neutral-400">by kotapati Gowtham Chowdary</span>
-              </div>
-            </a>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* 1. Live Voice Assistant (ChatGPT-Style Live Voice Mode) */}
-            <a
-              href="/voice"
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
-                isDark
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                  : "border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-              }`}
-              title="Open ChatGPT-Style Real-Time Live Voice Assistant"
-            >
-              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
-              <span>Live Voice Mode</span>
-            </a>
-
-            {/* 2. AI Image Studio */}
-            <a
-              href="/studio"
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
-                isDark
-                  ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
-                  : "border-black/10 bg-white text-black hover:bg-neutral-100"
-              }`}
-              title="Open TATTVA AI Image Generation Studio"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-black dark:text-white" />
-              <span className="hidden sm:inline">Image Studio</span>
-            </a>
-
-            {/* 3. AI Document & Media Studio (The requested files/media option in the same place) */}
-            <a
-              href="/media"
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
-                isDark
-                  ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
-                  : "border-black/10 bg-white text-black hover:bg-neutral-100"
-              }`}
-              title="Open TATTVA AI Document & Media Studio (PDF, DOCX, PPTX, XLSX, CSV)"
-            >
-              <FolderArchive className="w-3.5 h-3.5 text-black dark:text-white" />
-              <span className="hidden sm:inline">Media</span>
-            </a>
-
-            {/* 4. Sare Voice Mode Toggle Button */}
-            <button
-              type="button"
-              onClick={toggleSareVoiceMode}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
-                sareEnabled
-                  ? "bg-black text-white ring-2 ring-neutral-400 animate-pulse"
-                  : isDark
-                  ? "border border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
-                  : "border border-black/10 bg-white text-black hover:bg-neutral-100"
-              }`}
-              title="Toggle Sare Voice Assistant (Voice-only chat)"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-              <span>Sare Voice {sareEnabled ? "ON" : "OFF"}</span>
-            </button>
-
-            {/* 5. Header Auth Controls (Guest: Log In/Sign Up | Logged In: Profile Pill) */}
-            {isGuest ? (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => router.push("/login")}
-                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-                    isDark
-                      ? "border-neutral-700 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-                      : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100"
-                  }`}
-                  title="Sign in to your account"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Log in</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push("/signup")}
-                  className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 text-xs font-semibold hover:opacity-90 transition shadow-xs"
-                  title="Create free account"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Sign up</span>
-                </button>
-              </div>
-            ) : (
+            {/* Interactive TATTVA AI Branding Bubble */}
+            <div className="relative" data-branding-bubble>
               <button
                 type="button"
-                onClick={() => setIsProfileModalOpen(true)}
-                className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
+                onClick={() => setIsInfoBubbleOpen(!isInfoBubbleOpen)}
+                className={`group flex items-center gap-2.5 rounded-2xl border px-3 py-1.5 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-xs ${
                   isDark
-                    ? "border-neutral-700 bg-neutral-900/80 text-neutral-200 hover:bg-neutral-800"
-                    : "border-black/10 bg-neutral-100/80 text-neutral-800 hover:bg-neutral-200"
+                    ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 text-white hover:border-neutral-700"
+                    : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-900 hover:border-black/20"
                 }`}
-                title="Account profile"
+                title="About TATTVA AI & Creator"
               >
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-white text-[10px] font-bold">
-                  {userEmail ? userEmail[0].toUpperCase() : "U"}
+                <div className="relative flex h-7 w-7 items-center justify-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white p-0.5 shadow-2xs group-hover:scale-105 transition-transform shrink-0">
+                  <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
                 </div>
-                <span className="hidden sm:inline max-w-[100px] truncate">
-                  {currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]}
-                </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <div className="leading-tight text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-bold tracking-tight">TATTVA AI</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full border border-black/10 dark:border-white/10 text-neutral-400 font-normal">v1.0</span>
+                  </div>
+                  <span className="block text-[10px] text-neutral-500 dark:text-neutral-400 font-medium truncate max-w-[150px] sm:max-w-none">
+                    by Kotapati Gowtham Chowdary
+                  </span>
+                </div>
+                <Info className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200 ml-0.5 shrink-0" />
               </button>
-            )}
 
+              {/* Elegant Popover */}
+              {isInfoBubbleOpen && (
+                <div
+                  className={`absolute left-0 top-full mt-2 w-72 sm:w-84 rounded-2xl border p-4 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                    isDark
+                      ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
+                      : "border-black/10 bg-white/95 text-neutral-800"
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-xl overflow-hidden border border-black/10 bg-white p-0.5 shrink-0">
+                        <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-sm text-neutral-900 dark:text-white">TATTVA AI</h3>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 font-semibold text-neutral-500">v1.0.0</span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500">Created by Kotapati Gowtham Chowdary</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsInfoBubbleOpen(false)}
+                      className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="pt-3 text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                    <p className="font-medium text-neutral-900 dark:text-white mb-1">About</p>
+                    <p className="text-neutral-500 dark:text-neutral-400 text-[11px] leading-relaxed">
+                      An AI-powered intelligent assistant designed to help users with conversations, coding, reasoning, creative tasks, image generation and multimodal interactions.
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-black/[0.06] dark:border-neutral-800 flex items-center justify-between text-[10px] text-neutral-400">
+                    <span>Engineered with Precision</span>
+                    <span className="font-semibold text-neutral-600 dark:text-neutral-300">Next-Gen Intelligence</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Header Controls: Share & Theme Only */}
+          <div className="flex items-center gap-2">
             {/* Share Chat Button */}
             <button
               type="button"
               onClick={() => shareChat()}
-              className={`p-2 rounded-xl border transition ${
+              className={`p-2 rounded-xl border transition cursor-pointer ${
                 isDark
                   ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
                   : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
@@ -2326,18 +2365,18 @@ export default function ChatPage() {
               <Share2 className="w-3.5 h-3.5" />
             </button>
 
-            {/* Light / Night Mode Switch (Right-Aligned) */}
+            {/* Light / Dark Mode Toggle */}
             <button
               type="button"
               onClick={toggleTheme}
-              className={`p-2 rounded-xl border transition ${
+              className={`p-2 rounded-xl border transition cursor-pointer ${
                 isDark
                   ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
                   : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
               }`}
-              title={isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}
+              title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
             >
-              {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-neutral-700" />}
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -2433,15 +2472,34 @@ export default function ChatPage() {
 
           {/* Scrollable Chat History */}
           <div className="flex-1 overflow-y-auto p-2 space-y-3">
+            {/* Loading Skeleton */}
+            {sessionsLoading && (
+              <div className="space-y-2 p-2">
+                <div className="h-8 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-xl animate-pulse" />
+                <div className="h-8 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-xl animate-pulse" />
+                <div className="h-8 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-xl animate-pulse" />
+              </div>
+            )}
+
+            {/* Empty State */}
+            {sessions.length === 0 && !sessionsLoading && (
+              <div className="text-center py-8 px-3">
+                <MessageSquare className="w-6 h-6 mx-auto mb-2 text-neutral-400 opacity-60" />
+                <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">No conversations yet</p>
+                <p className="text-[10px] text-neutral-400 mt-0.5">Start typing to begin a chat</p>
+              </div>
+            )}
+
             {/* 1. PINNED CONVERSATIONS SECTION */}
             {sessions.filter((s) => s.is_pinned).length > 0 && (
-              <div>
-                <div className="px-2 pb-1.5 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                  <div className="flex items-center gap-1 text-neutral-600 dark:text-neutral-300">
-                    <Pin className="w-3 h-3 text-neutral-500" />
-                    <span>Pinned</span>
+              <div className="mb-2">
+                <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400">
+                  <div className="flex items-center gap-1.5">
+                    <span>📌 Pinned</span>
                   </div>
-                  <span>{sessions.filter((s) => s.is_pinned).length}</span>
+                  <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-full bg-black/5 dark:bg-white/10">
+                    {sessions.filter((s) => s.is_pinned).length}
+                  </span>
                 </div>
 
                 <div className="space-y-1">
@@ -2519,7 +2577,7 @@ export default function ChatPage() {
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
                               >
                                 <PinOff className="w-3.5 h-3.5" />
-                                <span>Unpin chat</span>
+                                <span>Unpin conversation</span>
                               </button>
                               <button
                                 type="button"
@@ -2527,7 +2585,7 @@ export default function ChatPage() {
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
-                                <span>Rename chat</span>
+                                <span>Rename conversation</span>
                               </button>
                               <button
                                 type="button"
@@ -2539,7 +2597,7 @@ export default function ChatPage() {
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
                               >
                                 <Share2 className="w-3.5 h-3.5" />
-                                <span>Share chat</span>
+                                <span>Share conversation</span>
                               </button>
                               <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
                               <button
@@ -2551,7 +2609,7 @@ export default function ChatPage() {
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                                <span>Delete chat</span>
+                                <span>Delete conversation</span>
                               </button>
                             </div>
                           )}
@@ -2564,9 +2622,11 @@ export default function ChatPage() {
 
             {/* 2. RECENT CHATS SECTION */}
             <div>
-              <div className="px-2 pb-1.5 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+              <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400">
                 <span>Recent Chats</span>
-                <span>{sessions.filter((s) => !s.is_pinned).length}</span>
+                <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-full bg-black/5 dark:bg-white/10">
+                  {sessions.filter((s) => !s.is_pinned).length}
+                </span>
               </div>
 
               <div className="space-y-1">
@@ -2600,7 +2660,7 @@ export default function ChatPage() {
                             className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${
                               active
                                 ? isDark
-                                  ? "bg-neutral-800 text-white font-semibold"
+                                ? "bg-neutral-800 text-white font-semibold"
                                   : "bg-white text-black font-semibold shadow-xs border border-black/5"
                                 : isDark
                                 ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
@@ -2631,7 +2691,7 @@ export default function ChatPage() {
                         {/* Contextual Three-Dot Popover Menu */}
                         {menuOpen && (
                           <div
-                            className={`absolute right-1 top-full mt-1 z-50 w-36 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
+                            className={`absolute right-1 top-full mt-1 z-50 w-40 rounded-xl border p-1 shadow-xl text-xs backdrop-blur-xl ${
                               isDark
                                 ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                 : "border-black/10 bg-white text-neutral-800"
@@ -2641,18 +2701,18 @@ export default function ChatPage() {
                             <button
                               type="button"
                               onClick={(e) => togglePinSession(s.id, e)}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                             >
                               <Pin className="w-3.5 h-3.5" />
-                              <span>Pin chat</span>
+                              <span>Pin conversation</span>
                             </button>
                             <button
                               type="button"
                               onClick={(e) => startRenameSession(s, e)}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
-                              <span>Rename chat</span>
+                              <span>Rename conversation</span>
                             </button>
                             <button
                               type="button"
@@ -2661,10 +2721,10 @@ export default function ChatPage() {
                                 shareChat(s);
                                 setActiveMenuSessionId(null);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                             >
                               <Share2 className="w-3.5 h-3.5" />
-                              <span>Share chat</span>
+                              <span>Share conversation</span>
                             </button>
                             <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
                             <button
@@ -2673,10 +2733,10 @@ export default function ChatPage() {
                                 setActiveMenuSessionId(null);
                                 deleteSession(s.id, e);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete chat</span>
+                              <span>Delete conversation</span>
                             </button>
                           </div>
                         )}
@@ -3643,80 +3703,188 @@ export default function ChatPage() {
                         <Plus className="w-4 h-4 transition-transform duration-200" />
                       </button>
 
-                      {/* Attachment Categorized Dropdown Popover */}
+                      {/* Advanced Plus (+) Feature & Media Dropdown Menu */}
                       {isAttachmentMenuOpen && (
                         <div
-                          className={`absolute bottom-full left-0 mb-2 w-56 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                          className={`absolute bottom-full left-0 mb-2 w-64 sm:w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
                             isDark
                               ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
                               : "border-black/10 bg-white/95 text-neutral-800"
                           }`}
+                          onClick={(e) => e.stopPropagation()}
                         >
+                          {/* 1. Live Voice Mode */}
                           <button
                             type="button"
                             onClick={() => {
-                              imageInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
+                              router.push("/voice");
                             }}
-                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
                             }`}
                           >
-                            <ImageIcon className="w-4 h-4 text-amber-500" />
-                            <span>Upload Images</span>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                              <Radio className="w-4 h-4 animate-pulse" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="block font-semibold text-xs">Live Voice Mode</span>
+                              <span className="block text-[10px] text-neutral-400 truncate">Real-time voice conversation</span>
+                            </div>
                           </button>
+
+                          {/* 2. Image Studio */}
                           <button
                             type="button"
                             onClick={() => {
-                              pdfInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
+                              router.push("/studio");
                             }}
-                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
                             }`}
                           >
-                            <FileText className="w-4 h-4 text-red-500" />
-                            <span>Upload PDFs</span>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="block font-semibold text-xs">Image Studio</span>
+                              <span className="block text-[10px] text-neutral-400 truncate">Generate &amp; edit AI artwork</span>
+                            </div>
                           </button>
+
+                          {/* 3. Media & Uploads */}
                           <button
                             type="button"
                             onClick={() => {
-                              docInputRef.current?.click();
+                              fileInputRef.current?.click();
                               setIsAttachmentMenuOpen(false);
                             }}
-                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
                             }`}
                           >
-                            <FileText className="w-4 h-4 text-blue-500" />
-                            <span>Upload Documents</span>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
+                              <FolderArchive className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="block font-semibold text-xs">Media</span>
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsAttachmentMenuOpen(false);
+                                    router.push("/media");
+                                  }}
+                                  className="text-[10px] text-blue-500 hover:underline cursor-pointer"
+                                  title="Open Media Studio"
+                                >
+                                  Studio ↗
+                                </span>
+                              </div>
+                              <span className="block text-[10px] text-neutral-400 truncate">Upload images, audio, video &amp; files</span>
+                            </div>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              sheetInputRef.current?.click();
-                              setIsAttachmentMenuOpen(false);
-                            }}
-                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
+
+                          {/* Divider */}
+                          <div className="my-1.5 border-t border-black/[0.06] dark:border-neutral-800" />
+
+                          {/* 4. Voice Settings (ON / OFF) */}
+                          <div
+                            className={`flex items-center justify-between w-full rounded-xl px-3 py-2 transition ${
+                              isDark ? "hover:bg-neutral-800/60" : "hover:bg-neutral-50"
                             }`}
                           >
-                            <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                            <span>Upload Spreadsheets</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              codeInputRef.current?.click();
-                              setIsAttachmentMenuOpen(false);
-                            }}
-                            className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-left transition ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-700"
-                            }`}
-                          >
-                            <Code2 className="w-4 h-4 text-cyan-500" />
-                            <span>Upload Code &amp; Data</span>
-                          </button>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
+                                sareEnabled
+                                  ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                                  : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
+                              }`}>
+                                <Volume2 className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="block font-semibold text-xs">Voice Responses</span>
+                                <span className="block text-[10px] text-neutral-400 truncate">
+                                  {sareEnabled ? "Sare Voice is ON" : "Sare Voice is OFF"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleSareVoiceMode()}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                sareEnabled ? "bg-emerald-500" : isDark ? "bg-neutral-700" : "bg-neutral-300"
+                              }`}
+                              title="Toggle voice responses"
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                  sareEnabled ? "translate-x-4" : "translate-x-0"
+                                }`}
+                              />
+                            </button>
+                          </div>
+
+                          {/* Divider */}
+                          <div className="my-1.5 border-t border-black/[0.06] dark:border-neutral-800" />
+
+                          {/* Quick File Categorized Uploads */}
+                          <div className="grid grid-cols-2 gap-1 px-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                imageInputRef.current?.click();
+                                setIsAttachmentMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
+                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
+                              }`}
+                            >
+                              <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Images</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                pdfInputRef.current?.click();
+                                setIsAttachmentMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
+                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
+                              }`}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-red-500" />
+                              <span>PDFs</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                docInputRef.current?.click();
+                                setIsAttachmentMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
+                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
+                              }`}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Docs</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                sheetInputRef.current?.click();
+                                setIsAttachmentMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
+                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
+                              }`}
+                            >
+                              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Sheets</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
