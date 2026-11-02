@@ -2,6 +2,8 @@ export const LOCAL_ENGINE_URL = "http://127.0.0.1:8000";
 const REQUEST_TIMEOUT = 180000;
 
 export interface UserApiKeys {
+  gemini?: string;
+  dashscope?: string;
   huggingface?: string;
   stability?: string;
   replicate?: string;
@@ -51,6 +53,7 @@ export async function checkLocalEngine(): Promise<{
  */
 export async function generateWithCloud(params: {
   prompt: string;
+  image?: string;
   width?: number;
   height?: number;
   seed?: number;
@@ -64,6 +67,16 @@ export async function generateWithCloud(params: {
   const fullPrompt = params.prompt.trim();
   const started = Date.now();
 
+  const geminiKey =
+    params.userKeys?.gemini ||
+    params.apiKey ||
+    process.env.GEMINI_API_KEY ||
+    "";
+  const dashscopeKey =
+    params.userKeys?.dashscope ||
+    process.env.DASHSCOPE_API_KEY ||
+    process.env.DASH_API_KEY ||
+    "";
   const hfToken =
     params.userKeys?.huggingface ||
     params.apiKey ||
@@ -73,6 +86,81 @@ export async function generateWithCloud(params: {
   const stabilityKey = params.userKeys?.stability || process.env.STABILITY_API_KEY || "";
   const openaiKey = params.userKeys?.openai || process.env.OPENAI_API_KEY || "";
   const replicateKey = params.userKeys?.replicate || process.env.REPLICATE_API_KEY || "";
+
+  // 1. Google Nano Banana 2 Engine (gemini-nano-banana-2.1 / gemini-3.1-flash-image / gemini-2.5-flash-image)
+  if (geminiKey && geminiKey.length > 5) {
+    const nanoBananaModels = [
+      "gemini-nano-banana-2.1",
+      "gemini-3.1-flash-image",
+      "gemini-2.5-flash-image",
+    ];
+
+    for (const model of nanoBananaModels) {
+      try {
+        const parts: Array<Record<string, unknown>> = [];
+        if (params.image && params.image.length > 50) {
+          const rawBase64 = params.image.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
+          parts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: rawBase64,
+            },
+          });
+          parts.push({
+            text: `Edit this photo: ${fullPrompt}`,
+          });
+        } else {
+          parts.push({
+            text: fullPrompt,
+          });
+        }
+
+        const nanoRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts }],
+            }),
+            signal: AbortSignal.timeout(60000),
+          }
+        );
+
+        if (nanoRes.ok) {
+          const data = await nanoRes.json();
+          const candidateParts = data?.candidates?.[0]?.content?.parts;
+          if (Array.isArray(candidateParts)) {
+            for (const part of candidateParts) {
+              if (part?.inlineData?.data) {
+                const mime = part.inlineData.mimeType || "image/png";
+                const elapsed = Math.round((Date.now() - started) / 10) / 100;
+                return {
+                  success: true,
+                  image: `data:${mime};base64,${part.inlineData.data}`,
+                  prompt: params.prompt,
+                  original_prompt: params.prompt,
+                  enhanced_prompt: fullPrompt,
+                  prompt_enhanced: true,
+                  provider: "Google Nano Banana 2",
+                  model: `Google Nano Banana 2 (${model})`,
+                  model_id: model,
+                  width: w,
+                  height: h,
+                  steps: 30,
+                  guidance_scale: 7.5,
+                  seed,
+                  generation_time_seconds: elapsed,
+                };
+              }
+            }
+          }
+        }
+      } catch (nanoErr) {
+        console.warn(`Nano Banana 2 (${model}) generation error:`, nanoErr);
+      }
+    }
+  }
 
   // 1. Stability AI (BYOK)
   if (stabilityKey && stabilityKey.length > 5) {
@@ -228,69 +316,122 @@ export async function generateWithCloud(params: {
     }
   }
 
-  // 4. Free High-Definition Open AI Diffusion Engine (from Awesome Free AI APIs catalog):
-  // Omitting &model=flux ensures free unblocked access, delivering real, photorealistic, 1024x1024 output.
-  const freeCloudUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${w}&height=${h}&seed=${seed}&nologo=true`;
+  // 5. Alibaba DashScope Qwen-Image 2512 & Qwen-Image-Edit
+  if (dashscopeKey && dashscopeKey.length > 5) {
+    try {
+      const qwenRes = await fetch(
+        "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${dashscopeKey}`,
+            "X-DashScope-Async": "enable",
+          },
+          body: JSON.stringify({
+            model: "qwen-image-2512",
+            input: {
+              prompt: fullPrompt,
+            },
+            parameters: {
+              size: `${w}*${h}`,
+              n: 1,
+              seed,
+            },
+          }),
+          signal: AbortSignal.timeout(60000),
+        }
+      );
 
-  try {
-    const res = await fetch(freeCloudUrl, {
-      cache: "no-store",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        Accept: "image/jpeg,image/png,image/*;q=0.9,*/*;q=0.8",
-      },
-      signal: AbortSignal.timeout(60000),
-    });
-
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      const base64Data = Buffer.from(arrayBuffer).toString("base64");
-      const contentType = res.headers.get("content-type") || "image/jpeg";
-      const elapsed = Math.round((Date.now() - started) / 10) / 100;
-
-      return {
-        success: true,
-        image: `data:${contentType};base64,${base64Data}`,
-        prompt: params.prompt,
-        original_prompt: params.prompt,
-        enhanced_prompt: fullPrompt,
-        prompt_enhanced: true,
-        provider: "TATTVA Neural Vision Engine",
-        model: "TATTVA Neural Vision HD",
-        model_id: "tattva_hd",
-        width: w,
-        height: h,
-        steps: 30,
-        guidance_scale: 7.5,
-        seed,
-        generation_time_seconds: elapsed,
-      };
+      if (qwenRes.ok) {
+        const data = await qwenRes.json();
+        const outputImage = data?.output?.results?.[0]?.url || data?.output?.image_url;
+        if (outputImage) {
+          const elapsed = Math.round((Date.now() - started) / 10) / 100;
+          return {
+            success: true,
+            image: outputImage,
+            prompt: params.prompt,
+            original_prompt: params.prompt,
+            enhanced_prompt: fullPrompt,
+            prompt_enhanced: true,
+            provider: "Alibaba Qwen-Image",
+            model: "Qwen-Image 2512",
+            model_id: "qwen_image_2512",
+            width: w,
+            height: h,
+            steps: 30,
+            guidance_scale: 7.0,
+            seed,
+            generation_time_seconds: elapsed,
+          };
+        }
+      }
+    } catch (qwenErr) {
+      console.warn("Alibaba Qwen-Image generation error:", qwenErr);
     }
-  } catch (fetchErr) {
-    console.warn("Server buffer fetch bypassed, delivering direct high-speed client stream:", fetchErr);
   }
 
-  // Resilient Direct Stream Delivery:
-  // Client browser fetches directly from user's unique IP for zero-error display
-  const elapsed = Math.round((Date.now() - started) / 10) / 100;
-  return {
-    success: true,
-    image: freeCloudUrl,
-    prompt: params.prompt,
-    original_prompt: params.prompt,
-    enhanced_prompt: fullPrompt,
-    prompt_enhanced: true,
-    provider: "TATTVA Neural Vision Engine",
-    model: "TATTVA Neural Vision HD",
-    model_id: "tattva_hd",
-    width: w,
-    height: h,
-    steps: 30,
-    guidance_scale: 7.5,
-    seed,
-    generation_time_seconds: elapsed || 1.2,
-  };
+  // 6. Hugging Face Inference API (FLUX.1-schnell / SDXL)
+  const hfEndpoints = [
+    "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+    "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+  ];
+
+  for (const ep of hfEndpoints) {
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (hfToken) {
+        headers.Authorization = `Bearer ${hfToken}`;
+      }
+
+      const hfRes = await fetch(ep, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          inputs: fullPrompt,
+          parameters: {
+            width: w,
+            height: h,
+            seed,
+          },
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (hfRes.ok) {
+        const arrayBuffer = await hfRes.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        const contentType = hfRes.headers.get("content-type") || "image/jpeg";
+        const elapsed = Math.round((Date.now() - started) / 10) / 100;
+        const modelName = ep.split("/").pop() || "FLUX.1";
+
+        return {
+          success: true,
+          image: `data:${contentType};base64,${base64Data}`,
+          prompt: params.prompt,
+          original_prompt: params.prompt,
+          enhanced_prompt: fullPrompt,
+          prompt_enhanced: true,
+          provider: "Hugging Face Diffusion Engine",
+          model: modelName,
+          model_id: modelName.toLowerCase(),
+          width: w,
+          height: h,
+          steps: 25,
+          guidance_scale: 7.5,
+          seed,
+          generation_time_seconds: elapsed,
+        };
+      }
+    } catch (hfErr) {
+      console.warn(`Hugging Face (${ep}) generation error:`, hfErr);
+    }
+  }
+
+  throw new Error("All image generation providers were unreachable. Please verify your API key or model configuration.");
 }
 
 export async function executeImageGeneration(params: {
@@ -356,9 +497,10 @@ export async function executeImageGeneration(params: {
     }
   }
 
-  // Cloud multi-provider fallback (BYOK or free open high-accuracy diffusion)
+  // Cloud multi-provider fallback (Google Nano Banana 2 / BYOK / Open Diffusion)
   return generateWithCloud({
     prompt: params.prompt,
+    image: params.image,
     width: params.width,
     height: params.height,
     seed: params.seed,
