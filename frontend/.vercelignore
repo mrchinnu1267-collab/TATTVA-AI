@@ -1,0 +1,12 @@
+node_modules
+.next
+.vercel
+out
+build
+dist
+.tattva_secure_vault
+.tattva_memory_data
+.tattva_secure_accounts.json
+*.log
+*.apk
+

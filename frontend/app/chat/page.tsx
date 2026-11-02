@@ -67,6 +67,9 @@ import {
   UserPlus,
   ChevronDown,
   ExternalLink,
+  Play,
+  Pause,
+  Archive,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -126,6 +129,8 @@ type ChatSession = {
   updatedAt: number;
   is_pinned?: boolean;
   pinned_at?: number;
+  is_archived?: boolean;
+  archived_at?: number;
 };
 
 type EngineStatus = {
@@ -797,6 +802,11 @@ export default function ChatPage() {
   const [isSharing, setIsSharing] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
+  // Archive & Image Library Modal state
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
+  const [speechState, setSpeechState] = useState<"idle" | "speaking" | "paused">("idle");
+
   // Contextual dropdown menu & rename state
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
@@ -1252,6 +1262,86 @@ export default function ChatPage() {
     } else {
       performDeleteSession(sessionId);
     }
+  }
+
+  // Archive a conversation
+  function archiveSession(sessionId: string, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === sessionId ? { ...s, is_archived: true, archived_at: Date.now() } : s
+      );
+      const key = getStorageKey(userEmail);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {}
+
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      }).catch(() => {});
+
+      try {
+        const supabase = createClient();
+        supabase.from("conversations").update({ is_archived: true }).eq("id", sessionId).then();
+      } catch {}
+
+      return updated;
+    });
+
+    if (sessionId === currentSessionId) {
+      createNewChat();
+    }
+    showToast("Conversation archived 📁");
+  }
+
+  // Restore archived conversation
+  function restoreSession(sessionId: string) {
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === sessionId ? { ...s, is_archived: false, archived_at: undefined } : s
+      );
+      const key = getStorageKey(userEmail);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {}
+
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      }).catch(() => {});
+
+      try {
+        const supabase = createClient();
+        supabase.from("conversations").update({ is_archived: false }).eq("id", sessionId).then();
+      } catch {}
+
+      return updated;
+    });
+    showToast("Conversation restored ✦");
+  }
+
+  // Export all conversations to a downloadable JSON file
+  function exportChatData() {
+    const exportData = {
+      app: "TATTVA AI",
+      exportedAt: new Date().toISOString(),
+      user: userEmail || "guest_user",
+      conversationsCount: sessions.length,
+      conversations: sessions,
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tattva_ai_conversations_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Conversations exported as JSON 📥");
   }
 
   // Share chat session with unique URL & Public Share Modal
@@ -2309,6 +2399,110 @@ export default function ChatPage() {
     }
   }
 
+  // Regenerate Assistant response (ChatGPT-style)
+  async function regenerateResponse(assistantMsgId: string) {
+    const assistantIdx = messages.findIndex((m) => m.id === assistantMsgId);
+    if (assistantIdx === -1) return;
+
+    // Find preceding user prompt
+    let userMsgIdx = -1;
+    for (let i = assistantIdx - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        userMsgIdx = i;
+        break;
+      }
+    }
+
+    if (userMsgIdx === -1) {
+      showToast("Cannot find prompt to regenerate.");
+      return;
+    }
+
+    const truncated = messages.slice(0, userMsgIdx + 1);
+    setMessages(truncated);
+    saveCurrentSession(truncated);
+
+    setLoading(true);
+    setError("");
+    setStatusMessage("Regenerating response with TATTVA Intelligence...");
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const apiMessages = truncated.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: apiMessages,
+          mode: activeTool === "code" ? "chat" : undefined,
+          userEmail: isUserAuthenticated ? userEmail : undefined,
+          userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
+          isAuthenticated: isUserAuthenticated,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Regeneration failed with HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const newAssistantMsgId = crypto.randomUUID();
+      const newAssistantMsg: ChatMessage = {
+        id: newAssistantMsgId,
+        role: "assistant",
+        content: data.content || "I am ready to assist you further.",
+        kind: "text",
+        timestamp: Date.now(),
+        recalledMemories: data.recalledMemories,
+      };
+
+      const updated = [...truncated, newAssistantMsg];
+      setMessages(updated);
+      messagesCountRef.current = updated.length;
+      saveCurrentSession(updated);
+      loadUserMemoryData(userEmail);
+
+      if (sareEnabled) {
+        speakText(newAssistantMsg.content, newAssistantMsgId, () => {
+          if (sareEnabled) startVoiceRecognition();
+        });
+      }
+      showToast("Response regenerated ✦");
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Failed to regenerate response.");
+    } finally {
+      setLoading(false);
+      setStatusMessage("");
+      abortControllerRef.current = null;
+    }
+  }
+
+  // Start Image Editing workflow in Chat
+  function startEditingImage(imageSrc: string, prompt?: string) {
+    const imageAttachment: ChatAttachment = {
+      name: "source-image.png",
+      type: "image/png",
+      data: imageSrc,
+      preview: imageSrc,
+    };
+    setAttachments([imageAttachment]);
+    setActiveTool("image");
+    setInput(prompt ? `Modify this image: ` : "Change this image: ");
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+    showToast("Image loaded for editing. Describe your requested changes 🎨");
+  }
+
   function formatFileSize(bytes?: number): string {
     if (!bytes) return "";
     if (bytes < 1024) return `${bytes} B`;
@@ -2744,6 +2938,41 @@ export default function ChatPage() {
                 ⌘K
               </kbd>
             </button>
+
+            {/* Quick Links: Image Library & Archived Chats */}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setIsImageLibraryOpen(true)}
+                className={`flex items-center justify-center gap-1.5 flex-1 rounded-xl border py-1.5 px-2 text-[11px] font-medium transition cursor-pointer ${
+                  isDark
+                    ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                    : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
+                }`}
+                title="Browse all generated images"
+              >
+                <ImageIcon className="w-3 h-3 text-amber-500" />
+                <span>Images</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsArchiveModalOpen(true)}
+                className={`flex items-center justify-center gap-1.5 flex-1 rounded-xl border py-1.5 px-2 text-[11px] font-medium transition cursor-pointer ${
+                  isDark
+                    ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                    : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
+                }`}
+                title="View archived chats"
+              >
+                <FolderArchive className="w-3 h-3 text-blue-500" />
+                <span>Archived</span>
+                {sessions.filter((s) => s.is_archived).length > 0 && (
+                  <span className="text-[9px] px-1 rounded-full bg-blue-500/20 text-blue-400 font-bold">
+                    {sessions.filter((s) => s.is_archived).length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Scrollable Chat History */}
@@ -2758,7 +2987,7 @@ export default function ChatPage() {
             )}
 
             {/* Empty State */}
-            {sessions.length === 0 && !sessionsLoading && (
+            {sessions.filter((s) => !s.is_archived).length === 0 && !sessionsLoading && (
               <div className="text-center py-8 px-3">
                 <MessageSquare className="w-6 h-6 mx-auto mb-2 text-neutral-400 opacity-60" />
                 <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">No conversations yet</p>
@@ -2767,20 +2996,20 @@ export default function ChatPage() {
             )}
 
             {/* 1. PINNED CONVERSATIONS SECTION */}
-            {sessions.filter((s) => s.is_pinned).length > 0 && (
+            {sessions.filter((s) => s.is_pinned && !s.is_archived).length > 0 && (
               <div className="mb-2">
                 <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400">
                   <div className="flex items-center gap-1.5">
                     <span>📌 Pinned</span>
                   </div>
                   <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-full bg-black/5 dark:bg-white/10">
-                    {sessions.filter((s) => s.is_pinned).length}
+                    {sessions.filter((s) => s.is_pinned && !s.is_archived).length}
                   </span>
                 </div>
 
                 <div className="space-y-1">
                   {sessions
-                    .filter((s) => s.is_pinned)
+                    .filter((s) => s.is_pinned && !s.is_archived)
                     .sort((a, b) => (b.pinned_at || 0) - (a.pinned_at || 0))
                     .map((s) => {
                       const active = s.id === currentSessionId;
@@ -2870,10 +3099,21 @@ export default function ChatPage() {
                                   shareChat(s);
                                   setActiveMenuSessionId(null);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
                               >
                                 <Share2 className="w-3.5 h-3.5" />
                                 <span>Share conversation</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  setActiveMenuSessionId(null);
+                                  archiveSession(s.id, e);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                              >
+                                <FolderArchive className="w-3.5 h-3.5" />
+                                <span>Archive conversation</span>
                               </button>
                               <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
                               <button
@@ -2882,7 +3122,7 @@ export default function ChatPage() {
                                   setActiveMenuSessionId(null);
                                   deleteSession(s.id, e);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left"
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-left cursor-pointer"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 <span>Delete conversation</span>
@@ -2901,13 +3141,13 @@ export default function ChatPage() {
               <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400">
                 <span>Recent Chats</span>
                 <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-full bg-black/5 dark:bg-white/10">
-                  {sessions.filter((s) => !s.is_pinned).length}
+                  {sessions.filter((s) => !s.is_pinned && !s.is_archived).length}
                 </span>
               </div>
 
               <div className="space-y-1">
                 {sessions
-                  .filter((s) => !s.is_pinned)
+                  .filter((s) => !s.is_pinned && !s.is_archived)
                   .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
                   .map((s) => {
                     const active = s.id === currentSessionId;
@@ -3001,6 +3241,17 @@ export default function ChatPage() {
                             >
                               <Share2 className="w-3.5 h-3.5" />
                               <span>Share conversation</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                setActiveMenuSessionId(null);
+                                archiveSession(s.id, e);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left cursor-pointer"
+                            >
+                              <FolderArchive className="w-3.5 h-3.5" />
+                              <span>Archive conversation</span>
                             </button>
                             <div className="my-1 border-t border-black/5 dark:border-neutral-800" />
                             <button
@@ -3581,6 +3832,17 @@ export default function ChatPage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      startEditingImage(msg.image!, msg.content);
+                                    }}
+                                    className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                    title="Edit / Refine this Image"
+                                  >
+                                    <Sparkles className="w-4 h-4 text-amber-400" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       downloadImage(msg.image!);
                                     }}
                                     className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
@@ -3691,6 +3953,16 @@ export default function ChatPage() {
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
                                 <span>{copiedMessageId === msg.id ? "Copied" : "Copy"}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => regenerateResponse(msg.id)}
+                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                                title="Regenerate response"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Regenerate</span>
                               </button>
                             </div>
                           </div>
@@ -4839,6 +5111,257 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* ARCHIVED CHATS MODAL */}
+      {isArchiveModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          onClick={() => setIsArchiveModalOpen(false)}
+        >
+          <div
+            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl transition-all max-h-[85vh] flex flex-col ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                  <FolderArchive className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Archived Conversations</h3>
+                  <p className="text-[11px] text-neutral-400">
+                    {sessions.filter((s) => s.is_archived).length} archived {sessions.filter((s) => s.is_archived).length === 1 ? "conversation" : "conversations"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsArchiveModalOpen(false)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto my-4 space-y-2 pr-1">
+              {sessions.filter((s) => s.is_archived).length === 0 ? (
+                <div className="text-center py-12 text-neutral-400">
+                  <FolderArchive className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs font-semibold">No archived conversations</p>
+                  <p className="text-[11px] mt-0.5">You can archive any chat from its 3-dot menu</p>
+                </div>
+              ) : (
+                sessions
+                  .filter((s) => s.is_archived)
+                  .map((s) => (
+                    <div
+                      key={s.id}
+                      className={`flex items-center justify-between p-3 rounded-2xl border text-xs transition ${
+                        isDark ? "border-neutral-800 bg-neutral-900/60" : "border-neutral-200 bg-neutral-50"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 mr-3">
+                        <p className="font-semibold truncate text-neutral-900 dark:text-white">{s.title}</p>
+                        <p className="text-[10px] text-neutral-400 mt-0.5">
+                          {s.messages.length} messages • Archived {new Date(s.archived_at || s.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => restoreSession(s.id)}
+                          className="px-2.5 py-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-semibold hover:bg-neutral-100 transition cursor-pointer"
+                          title="Restore to chat list"
+                        >
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => deleteSession(s.id, e)}
+                          className="p-1.5 rounded-xl text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                          title="Permanently delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-black/[0.06] dark:border-neutral-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsArchiveModalOpen(false)}
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IMAGE LIBRARY MODAL */}
+      {isImageLibraryOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          onClick={() => setIsImageLibraryOpen(false)}
+        >
+          <div
+            className={`w-full max-w-4xl rounded-3xl border p-6 shadow-2xl transition-all max-h-[90vh] flex flex-col ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                  <ImageIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Image Studio Library</h3>
+                  <p className="text-[11px] text-neutral-400">All artworks created by TATTVA AI across your conversations</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsImageLibraryOpen(false)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Gallery Grid */}
+            <div className="flex-1 overflow-y-auto my-4 pr-1">
+              {(() => {
+                const userImages = sessions.flatMap((s) =>
+                  s.messages
+                    .filter((m) => m.image)
+                    .map((m) => ({
+                      id: m.id,
+                      image: m.image!,
+                      prompt: m.content,
+                      timestamp: m.timestamp || s.updatedAt,
+                      sessionId: s.id,
+                      sessionTitle: s.title,
+                      metadata: m.imageMetadata,
+                    }))
+                );
+
+                if (userImages.length === 0) {
+                  return (
+                    <div className="text-center py-20 text-neutral-400">
+                      <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-40 text-amber-500" />
+                      <p className="text-sm font-semibold">No images generated yet</p>
+                      <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
+                        Ask TATTVA: "Generate an image of a serene mountain lake at dawn" or click Image Studio in the Plus menu.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {userImages.map((img, idx) => (
+                      <div
+                        key={img.id || idx}
+                        className={`group relative overflow-hidden rounded-2xl border transition-all duration-200 hover:scale-[1.02] shadow-xs flex flex-col ${
+                          isDark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-white"
+                        }`}
+                      >
+                        <div
+                          className="relative aspect-square cursor-pointer overflow-hidden bg-black/5"
+                          onClick={() => {
+                            setLightboxImage(img.image);
+                          }}
+                        >
+                          <Image
+                            src={img.image}
+                            alt={img.prompt}
+                            width={300}
+                            height={300}
+                            unoptimized
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-end text-white text-[11px]">
+                            <p className="line-clamp-2 leading-tight">{img.prompt}</p>
+                          </div>
+                        </div>
+
+                        {/* Image Action Bar */}
+                        <div className="p-2 flex items-center justify-between text-xs gap-1 border-t border-black/[0.06] dark:border-neutral-800">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsImageLibraryOpen(false);
+                              startEditingImage(img.image, img.prompt);
+                            }}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-amber-500 hover:bg-amber-500/10 transition cursor-pointer"
+                            title="Edit this image in chat"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsImageLibraryOpen(false);
+                                createNewChat();
+                                sendMessage(img.prompt);
+                              }}
+                              className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
+                              title="Start new chat with this prompt"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadImage(img.image)}
+                              className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
+                              title="Download full quality image"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-black/[0.06] dark:border-neutral-800 shrink-0 text-xs text-neutral-400">
+              <span>Click any image to enlarge in full-screen lightbox</span>
+              <button
+                type="button"
+                onClick={() => setIsImageLibraryOpen(false)}
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
+                  isDark
+                    ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. SETTINGS MODAL */}
       {isSettingsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsSettingsModalOpen(false)}>
@@ -4893,7 +5416,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={toggleSareVoiceMode}
-                  className={`rounded-xl px-3 py-1.5 font-semibold transition ${
+                  className={`rounded-xl px-3 py-1.5 font-semibold transition cursor-pointer ${
                     sareEnabled
                       ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
                       : "border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400"
@@ -4903,7 +5426,43 @@ export default function ChatPage() {
                 </button>
               </div>
 
-              {/* Setting 3: Clear All Conversation History */}
+              {/* Setting 3: Archived Conversations */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-white">Archived Conversations</p>
+                  <p className="text-[11px] text-neutral-400">
+                    {sessions.filter((s) => s.is_archived).length} archived {sessions.filter((s) => s.is_archived).length === 1 ? "chat" : "chats"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsModalOpen(false);
+                    setIsArchiveModalOpen(true);
+                  }}
+                  className="rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
+                >
+                  Manage
+                </button>
+              </div>
+
+              {/* Setting 4: Export Chat Data */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-white">Export Conversations</p>
+                  <p className="text-[11px] text-neutral-400">Download all your chat history as JSON</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={exportChatData}
+                  className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export</span>
+                </button>
+              </div>
+
+              {/* Setting 5: Clear All Conversation History */}
               <div className="flex items-center justify-between p-3 rounded-2xl border border-red-500/20 bg-red-500/5">
                 <div>
                   <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>
@@ -4921,7 +5480,7 @@ export default function ChatPage() {
                       showToast("All conversation history cleared 🗑️");
                     }
                   }}
-                  className="rounded-xl border border-red-500/30 bg-red-600 text-white px-3 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs"
+                  className="rounded-xl border border-red-500/30 bg-red-600 text-white px-3 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs cursor-pointer"
                 >
                   Clear All
                 </button>
