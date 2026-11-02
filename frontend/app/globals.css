@@ -29,6 +29,15 @@ body.dark {
   box-sizing: border-box;
 }
 
+/* Hide scrollbars while preserving scrolling functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;

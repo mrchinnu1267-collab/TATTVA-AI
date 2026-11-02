@@ -588,6 +588,7 @@ export default function ChatPage() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const suggestionsContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -679,6 +680,25 @@ export default function ChatPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Smooth horizontal scroll for homepage suggestions row via mouse wheel
+  useEffect(() => {
+    const el = suggestionsContainerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.scrollBy({
+          left: e.deltaY * 1.2,
+          behavior: "smooth",
+        });
+      }
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [messages.length]);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -3039,7 +3059,7 @@ export default function ChatPage() {
           {/* Messages list */}
           <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
-              <div className="py-12 sm:py-20 text-center max-w-xl mx-auto">
+              <div className="my-auto py-10 sm:py-16 text-center max-w-xl mx-auto">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-md mb-4 p-1">
                   <img
                     src="/logo.png"
@@ -3052,30 +3072,6 @@ export default function ChatPage() {
                   Ask complex questions in any language, write robust code without emojis, generate photorealistic
                   artworks, or talk directly using voice.
                 </p>
-
-                {/* Starter Prompts */}
-                <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-                  {STARTER_PROMPTS.map((starter, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => sendMessage(starter.prompt)}
-                      className={`group rounded-2xl border p-4 text-xs transition shadow-xs ${
-                        isDark
-                          ? "border-neutral-800 bg-neutral-900/70 hover:bg-neutral-800 text-neutral-300 hover:text-white"
-                          : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-700 hover:text-black"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 font-semibold mb-1">
-                        <span>{starter.icon}</span>
-                        <span>{starter.title}</span>
-                      </div>
-                      <p className="line-clamp-2 text-neutral-400 leading-relaxed group-hover:text-neutral-500">
-                        {starter.prompt}
-                      </p>
-                    </button>
-                  ))}
-                </div>
               </div>
             ) : (
               messages.map((msg, idx) => {
@@ -3352,6 +3348,40 @@ export default function ChatPage() {
             }`}
           >
             <div className="mx-auto max-w-3xl w-full pointer-events-auto">
+
+              {/* Homepage Suggestions Row (Single horizontal scrollable row immediately above Main Chat Input Bar) */}
+              {messages.length === 0 && (
+                <div className="mb-2.5 w-full">
+                  <div
+                    ref={suggestionsContainerRef}
+                    className="flex flex-nowrap items-stretch gap-2.5 overflow-x-auto scroll-smooth no-scrollbar py-1 px-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                  >
+                    {STARTER_PROMPTS.map((starter, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => sendMessage(starter.prompt)}
+                        className={`group shrink-0 w-[205px] sm:w-[225px] md:w-[235px] rounded-2xl border p-3 sm:p-3.5 text-left text-xs transition-all duration-200 shadow-2xs hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between cursor-pointer ${
+                          isDark
+                            ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 hover:text-white"
+                            : "border-black/[0.08] bg-white/95 hover:bg-neutral-50 text-neutral-700 hover:text-black"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 font-semibold mb-1 text-neutral-800 dark:text-neutral-200">
+                          <span className="text-neutral-400 dark:text-neutral-500 group-hover:text-black dark:group-hover:text-white transition-colors shrink-0">
+                            {starter.icon}
+                          </span>
+                          <span className="truncate">{starter.title}</span>
+                        </div>
+                        <p className="line-clamp-2 text-[11px] text-neutral-400 dark:text-neutral-500 leading-relaxed group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
+                          {starter.prompt}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Status / Interim Voice Banner */}
               {(statusMessage || interimSpeech || isListening) && (
