@@ -27,11 +27,6 @@ class TattvaModelManager:
                 "repo": "stabilityai/sdxl-turbo",
                 "resolution": 1024, "steps": 4, "guidance": 0.0, "experimental": True,
             },
-            "qwen-image": {
-                "name": "Qwen-Image 2512 Visual Foundation Model",
-                "repo": "Qwen/Qwen-Image-2512",
-                "resolution": 1024, "steps": 30, "guidance": 4.5, "experimental": False,
-            },
         }
         self.current_model = None
         self.pipe = None
@@ -94,11 +89,6 @@ class TattvaModelManager:
             pipe = AutoPipelineForText2Image.from_pretrained(
                 cfg["repo"], torch_dtype=self.dtype,
                 variant="fp16" if self.device == "cuda" else None,
-                use_safetensors=True,
-            )
-        elif model_id == "qwen-image":
-            pipe = AutoPipelineForText2Image.from_pretrained(
-                cfg["repo"], torch_dtype=self.dtype,
                 use_safetensors=True,
             )
         else:

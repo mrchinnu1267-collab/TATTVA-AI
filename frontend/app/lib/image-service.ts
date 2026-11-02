@@ -48,15 +48,12 @@ export async function checkLocalEngine(): Promise<{
 
 /**
  * High-accuracy Cloud Image Generation Engine.
- * Supports:
- * 1. Google Gemini 2.5 Flash Image (Nano Banana / gemini-2.5-flash-image) with multimodal text-to-image & photo editing
- * 2. Alibaba Qwen-Image 2512 & Qwen-Image-Edit (via DashScope / Hugging Face)
- * 3. User-Provided Custom API Keys (BYOK: Stability AI, OpenAI DALL-E 3, Replicate, Hugging Face)
- * 4. Free High-Definition Open AI Diffusion (Awesome Free AI APIs catalog fallback)
+ * Supports User-Provided Custom API Keys (BYOK: Hugging Face, Stability AI, OpenAI, Replicate),
+ * Local RTX Engine, and Free High-Definition Open AI Diffusion (from Awesome Free AI APIs catalog).
  */
 export async function generateWithCloud(params: {
   prompt: string;
-  image?: string; // base64 image data for image-to-image / editing
+  image?: string;
   width?: number;
   height?: number;
   seed?: number;
@@ -73,6 +70,7 @@ export async function generateWithCloud(params: {
 
   const geminiKey =
     params.userKeys?.gemini ||
+    params.apiKey ||
     process.env.GEMINI_API_KEY ||
     "";
   const dashscopeKey =
@@ -82,7 +80,6 @@ export async function generateWithCloud(params: {
     "";
   const hfToken =
     params.userKeys?.huggingface ||
-    params.apiKey ||
     process.env.HF_TOKEN ||
     process.env.HUGGINGFACE_API_KEY ||
     "";
@@ -90,72 +87,77 @@ export async function generateWithCloud(params: {
   const openaiKey = params.userKeys?.openai || process.env.OPENAI_API_KEY || "";
   const replicateKey = params.userKeys?.replicate || process.env.REPLICATE_API_KEY || "";
 
-  // 1. Google Gemini 2.5 Flash Image (Nano Banana: Text-to-Image & Image-to-Image Photo Editing)
+  // 1. Google Nano Banana 2 Engine (gemini-nano-banana-2.1 / gemini-3.1-flash-image / gemini-2.5-flash-image)
   if (geminiKey && geminiKey.length > 5) {
-    try {
-      const parts: Array<Record<string, unknown>> = [];
-      if (isEdit && params.image) {
-        const cleanBase64 = params.image.replace(/^data:image\/[a-zA-Z0-9]+;base64,/, "");
-        parts.push({
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: cleanBase64,
-          },
-        });
-        parts.push({ text: `Edit this photo: ${fullPrompt}` });
-      } else {
-        parts.push({ text: fullPrompt });
-      }
+    const nanoBananaModels = [
+      "gemini-nano-banana-2.1",
+      "gemini-3.1-flash-image",
+      "gemini-2.5-flash-image",
+    ];
 
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(geminiKey)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts }] }),
-          signal: AbortSignal.timeout(60000),
+    for (const nanoModel of nanoBananaModels) {
+      try {
+        const parts: Array<Record<string, unknown>> = [];
+        if (isEdit && params.image) {
+          const cleanBase64 = params.image.replace(/^data:image\/[a-zA-Z0-9]+;base64,/, "");
+          parts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: cleanBase64,
+            },
+          });
+          parts.push({ text: `Edit this photo: ${fullPrompt}` });
+        } else {
+          parts.push({ text: fullPrompt });
         }
-      );
 
-      if (geminiRes.ok) {
-        const gemData = await geminiRes.json();
-        const candidateParts = gemData?.candidates?.[0]?.content?.parts;
-        if (Array.isArray(candidateParts)) {
-          const imgPart = candidateParts.find(
-            (p: { inlineData?: { data?: string; mimeType?: string } }) => p?.inlineData?.data
-          );
-          if (imgPart?.inlineData?.data) {
-            const mime = imgPart.inlineData.mimeType || "image/png";
-            const elapsed = Math.round((Date.now() - started) / 10) / 100;
-            return {
-              success: true,
-              image: `data:${mime};base64,${imgPart.inlineData.data}`,
-              prompt: params.prompt,
-              original_prompt: params.prompt,
-              enhanced_prompt: fullPrompt,
-              prompt_enhanced: true,
-              provider: "Google Gemini 2.5 Flash Image (Nano Banana)",
-              model: "gemini-2.5-flash-image",
-              model_id: "gemini_2_5_flash_image",
-              width: w,
-              height: h,
-              steps: 25,
-              guidance_scale: 7.0,
-              seed,
-              generation_time_seconds: elapsed,
-            };
+        const nanoRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${nanoModel}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts }] }),
+            signal: AbortSignal.timeout(60000),
+          }
+        );
+
+        if (nanoRes.ok) {
+          const gemData = await nanoRes.json();
+          const candidateParts = gemData?.candidates?.[0]?.content?.parts;
+          if (Array.isArray(candidateParts)) {
+            const imgPart = candidateParts.find(
+              (p: { inlineData?: { data?: string; mimeType?: string } }) => p?.inlineData?.data
+            );
+            if (imgPart?.inlineData?.data) {
+              const mime = imgPart.inlineData.mimeType || "image/png";
+              const elapsed = Math.round((Date.now() - started) / 10) / 100;
+              return {
+                success: true,
+                image: `data:${mime};base64,${imgPart.inlineData.data}`,
+                prompt: params.prompt,
+                original_prompt: params.prompt,
+                enhanced_prompt: fullPrompt,
+                prompt_enhanced: true,
+                provider: "Google Nano Banana 2",
+                model: nanoModel,
+                model_id: "nano_banana_2",
+                width: w,
+                height: h,
+                steps: 25,
+                guidance_scale: 7.0,
+                seed,
+                generation_time_seconds: elapsed,
+              };
+            }
           }
         }
-      } else {
-        const errText = await geminiRes.text().catch(() => "");
-        console.warn(`Gemini 2.5 Flash Image returned HTTP ${geminiRes.status} (falling back to open diffusion):`, errText.slice(0, 160));
+      } catch (nanoErr) {
+        console.warn(`Nano Banana 2 (${nanoModel}) failed:`, nanoErr);
       }
-    } catch (geminiErr) {
-      console.warn("Gemini 2.5 Flash Image call failed, continuing to next provider:", geminiErr);
     }
   }
 
-  // 2. Alibaba Qwen-Image 2512 & Qwen-Image-Edit (via DashScope Foundation API)
+  // 2. Alibaba Qwen-Image 2512 & Qwen-Image-Edit (via DashScope)
   if (dashscopeKey && dashscopeKey.length > 5) {
     try {
       const qwenRes = await fetch(
@@ -208,7 +210,7 @@ export async function generateWithCloud(params: {
         }
       }
     } catch (qwenErr) {
-      console.warn("Qwen-Image DashScope error, falling through:", qwenErr);
+      console.warn("Qwen-Image DashScope error:", qwenErr);
     }
   }
 
@@ -366,68 +368,78 @@ export async function generateWithCloud(params: {
     }
   }
 
-  // 4. Free High-Definition Open AI Diffusion Engine (from Awesome Free AI APIs catalog):
-  // Omitting &model=flux ensures free unblocked access, delivering real, photorealistic, 1024x1024 output.
-  const freeCloudUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${w}&height=${h}&seed=${seed}&nologo=true`;
+  // 4. Hugging Face Inference API (Qwen-Image-2512 / SDXL)
+  if (hfToken && hfToken.length > 5) {
+    try {
+      const hfModel = "Qwen/Qwen-Image-2512";
+      const hfRes = await fetch(`https://router.huggingface.co/hf-inference/models/${hfModel}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${hfToken}`,
+          "Content-Type": "application/json",
+          Accept: "image/png,image/jpeg",
+        },
+        body: JSON.stringify({
+          inputs: fullPrompt,
+          parameters: {
+            width: w,
+            height: h,
+            guidance_scale: 5.0,
+            num_inference_steps: 25,
+            seed,
+          },
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
 
-  try {
-    const res = await fetch(freeCloudUrl, {
-      cache: "no-store",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        Accept: "image/jpeg,image/png,image/*;q=0.9,*/*;q=0.8",
-      },
-      signal: AbortSignal.timeout(60000),
-    });
+      if (hfRes.ok) {
+        const arrayBuffer = await hfRes.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        const contentType = hfRes.headers.get("content-type") || "image/png";
+        const elapsed = Math.round((Date.now() - started) / 10) / 100;
 
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      const base64Data = Buffer.from(arrayBuffer).toString("base64");
-      const contentType = res.headers.get("content-type") || "image/jpeg";
-      const elapsed = Math.round((Date.now() - started) / 10) / 100;
-
-      return {
-        success: true,
-        image: `data:${contentType};base64,${base64Data}`,
-        prompt: params.prompt,
-        original_prompt: params.prompt,
-        enhanced_prompt: fullPrompt,
-        prompt_enhanced: true,
-        provider: "TATTVA Neural Vision Engine",
-        model: "TATTVA Neural Vision HD",
-        model_id: "tattva_hd",
-        width: w,
-        height: h,
-        steps: 30,
-        guidance_scale: 7.5,
-        seed,
-        generation_time_seconds: elapsed,
-      };
+        return {
+          success: true,
+          image: `data:${contentType};base64,${base64Data}`,
+          prompt: params.prompt,
+          original_prompt: params.prompt,
+          enhanced_prompt: fullPrompt,
+          prompt_enhanced: true,
+          provider: "Qwen-Image Foundation (Hugging Face)",
+          model: "Qwen-Image-2512",
+          model_id: "qwen_image_hf",
+          width: w,
+          height: h,
+          steps: 25,
+          guidance_scale: 5.0,
+          seed,
+          generation_time_seconds: elapsed,
+        };
+      }
+    } catch (hfErr) {
+      console.warn("Hugging Face Qwen-Image generation error:", hfErr);
     }
-  } catch (fetchErr) {
-    console.warn("Server buffer fetch bypassed, delivering direct high-speed client stream:", fetchErr);
   }
 
-  // Resilient Direct Stream Delivery:
-  // Client browser fetches directly from user's unique IP for zero-error display
+  // If Google Nano Banana 2 or BYOK was not provided or encountered rate limit:
   const elapsed = Math.round((Date.now() - started) / 10) / 100;
   return {
-    success: true,
-    image: freeCloudUrl,
+    success: false,
+    error:
+      "Nano Banana 2 requires an active Gemini API key (or Local RTX engine / BYOK key). If your Google Free Tier daily image limit is 0, please attach your billed Google AI Studio key in Settings > Custom Model API Keys (BYOK).",
     prompt: params.prompt,
     original_prompt: params.prompt,
     enhanced_prompt: fullPrompt,
     prompt_enhanced: true,
-    provider: "TATTVA Neural Vision Engine",
-    model: "TATTVA Neural Vision HD",
-    model_id: "tattva_hd",
+    provider: "Google Nano Banana 2 Engine",
+    model: "gemini-nano-banana-2.1",
+    model_id: "nano_banana_2",
     width: w,
     height: h,
-    steps: 30,
-    guidance_scale: 7.5,
+    steps: 25,
+    guidance_scale: 7.0,
     seed,
-    generation_time_seconds: elapsed || 1.2,
+    generation_time_seconds: elapsed || 0.5,
   };
 }
 
@@ -497,7 +509,6 @@ export async function executeImageGeneration(params: {
   // Cloud multi-provider fallback (BYOK or free open high-accuracy diffusion)
   return generateWithCloud({
     prompt: params.prompt,
-    image: params.image,
     width: params.width,
     height: params.height,
     seed: params.seed,

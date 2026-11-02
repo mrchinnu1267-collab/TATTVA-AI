@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  MessageSquareText,
   AlertCircle,
   Maximize2,
   RefreshCw,
@@ -774,6 +775,10 @@ export default function ChatPage() {
   // Delete Conversation Confirmation Modal
   const [deleteConfirmSession, setDeleteConfirmSession] = useState<ChatSession | null>(null);
 
+  // Rename Conversation Modal
+  const [renameModalSession, setRenameModalSession] = useState<ChatSession | null>(null);
+  const [renameModalTitle, setRenameModalTitle] = useState("");
+
   // URL-based Share Modal state
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
@@ -789,41 +794,6 @@ export default function ChatPage() {
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
-
-  // User Custom Model API Keys (BYOK: Gemini, DashScope Qwen-Image, Hugging Face, Stability, OpenAI, Replicate)
-  const [userApiKeys, setUserApiKeys] = useState<{
-    gemini: string;
-    dashscope: string;
-    huggingface: string;
-    stability: string;
-    openai: string;
-    replicate: string;
-  }>({
-    gemini: "",
-    dashscope: "",
-    huggingface: "",
-    stability: "",
-    openai: "",
-    replicate: "",
-  });
-
-  // Load custom API keys from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedKeys = localStorage.getItem("tattva_user_api_keys");
-      if (savedKeys) {
-        const parsed = JSON.parse(savedKeys);
-        setUserApiKeys({
-          gemini: parsed.gemini || "",
-          dashscope: parsed.dashscope || "",
-          huggingface: parsed.huggingface || "",
-          stability: parsed.stability || "",
-          openai: parsed.openai || "",
-          replicate: parsed.replicate || "",
-        });
-      }
-    } catch {}
-  }, []);
 
   // Keyboard shortcut Ctrl+K / Cmd+K for global search
   useEffect(() => {
@@ -949,39 +919,34 @@ export default function ChatPage() {
     }
     setActiveMenuSessionId(null);
 
-    let nextIsPinned = false;
-    let nextUpdatedList: ChatSession[] = [];
+    const target = sessions.find((s) => s.id === sessionId);
+    if (!target) return;
+    const isNowPinned = !target.is_pinned;
 
-    setSessions((prev) => {
-      const target = prev.find((s) => s.id === sessionId);
-      const isNowPinned = !target?.is_pinned;
-      nextIsPinned = isNowPinned;
-      const updated = prev.map((s) =>
-        s.id === sessionId
-          ? {
-              ...s,
-              is_pinned: isNowPinned,
-              pinned_at: isNowPinned ? Date.now() : undefined,
-              updatedAt: Date.now(),
-            }
-          : s
-      );
+    const updated = sessions.map((s) =>
+      s.id === sessionId
+        ? {
+            ...s,
+            is_pinned: isNowPinned,
+            pinned_at: isNowPinned ? Date.now() : undefined,
+            updatedAt: Date.now(),
+          }
+        : s
+    );
 
-      // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
-      updated.sort((a, b) => {
-        if (a.is_pinned && !b.is_pinned) return -1;
-        if (!a.is_pinned && b.is_pinned) return 1;
-        if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
-        return (b.updatedAt || 0) - (a.updatedAt || 0);
-      });
-
-      nextUpdatedList = updated;
-      return updated;
+    // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
+    updated.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
     });
+
+    setSessions(updated);
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+      localStorage.setItem(key, JSON.stringify(updated));
     } catch {
       // ignore
     }
@@ -990,7 +955,7 @@ export default function ChatPage() {
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
     }).catch(() => {});
 
     // Sync to Supabase if authenticated
@@ -999,8 +964,8 @@ export default function ChatPage() {
       supabase
         .from("conversations")
         .update({
-          is_pinned: nextIsPinned,
-          pinned_at: nextIsPinned ? new Date().toISOString() : null,
+          is_pinned: isNowPinned,
+          pinned_at: isNowPinned ? new Date().toISOString() : null,
         })
         .eq("id", sessionId)
         .then();
@@ -1008,7 +973,7 @@ export default function ChatPage() {
       // ignore
     }
 
-    showToast(nextIsPinned ? "Conversation pinned 📌" : "Conversation unpinned");
+    showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
   }
 
   // Rename chat
@@ -1018,31 +983,29 @@ export default function ChatPage() {
       e.preventDefault();
     }
     setActiveMenuSessionId(null);
-    setRenamingSessionId(s.id);
-    setRenameInput(s.title || "New Conversation");
+    setRenameModalSession(s);
+    setRenameModalTitle(s.title || "New Conversation");
   }
 
-  function submitRenameSession(sessionId: string, e?: React.FormEvent) {
+  function submitRenameSession(sessionId: string, titleToSet?: string, e?: React.FormEvent) {
     if (e) e.preventDefault();
-    const newTitle = renameInput.trim();
+    const newTitle = (titleToSet !== undefined ? titleToSet : renameInput).trim();
     if (!newTitle) {
       setRenamingSessionId(null);
+      setRenameModalSession(null);
       return;
     }
 
-    let nextUpdatedList: ChatSession[] = [];
-    setSessions((prev) => {
-      const updated = prev.map((s) =>
-        s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
-      );
-      nextUpdatedList = updated;
-      return updated;
-    });
+    const updated = sessions.map((s) =>
+      s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
+    );
+    setSessions(updated);
     setRenamingSessionId(null);
+    setRenameModalSession(null);
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+      localStorage.setItem(key, JSON.stringify(updated));
     } catch {
       // ignore
     }
@@ -1051,7 +1014,7 @@ export default function ChatPage() {
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
     }).catch(() => {});
 
     // Sync to Supabase
@@ -1258,16 +1221,12 @@ export default function ChatPage() {
 
   // Actual execution of session deletion
   function performDeleteSession(sessionId: string) {
-    let nextUpdatedList: ChatSession[] = [];
-    setSessions((prev) => {
-      const updated = prev.filter((s) => s.id !== sessionId);
-      nextUpdatedList = updated;
-      return updated;
-    });
+    const updated = sessions.filter((s) => s.id !== sessionId);
+    setSessions(updated);
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+      localStorage.setItem(key, JSON.stringify(updated));
     } catch {
       // ignore
     }
@@ -1276,7 +1235,7 @@ export default function ChatPage() {
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
     }).catch(() => {});
 
     // Sync deletion to Supabase
@@ -1315,24 +1274,20 @@ export default function ChatPage() {
       e.preventDefault();
     }
     setActiveMenuSessionId(null);
-    let nextUpdatedList: ChatSession[] = [];
-    setSessions((prev) => {
-      const updated = prev.map((s) =>
-        s.id === sessionId ? { ...s, is_archived: true, archived_at: Date.now() } : s
-      );
-      nextUpdatedList = updated;
-      return updated;
-    });
+    const updated = sessions.map((s) =>
+      s.id === sessionId ? { ...s, is_archived: true, archived_at: Date.now() } : s
+    );
+    setSessions(updated);
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
+      localStorage.setItem(key, JSON.stringify(updated));
     } catch {}
 
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
     }).catch(() => {});
 
     try {
@@ -2228,7 +2183,6 @@ export default function ChatPage() {
         const payload: Record<string, unknown> = {
           prompt: rawPrompt,
           model: "realistic",
-          userKeys: userApiKeys,
         };
 
         if (attachedImages.length > 0) {
@@ -3106,7 +3060,7 @@ export default function ChatPage() {
                         <div key={s.id} className={`relative group ${menuOpen ? "z-50" : "z-0"}`} data-session-menu="true">
                           {isRenaming ? (
                             <form
-                              onSubmit={(e) => submitRenameSession(s.id, e)}
+                              onSubmit={(e) => submitRenameSession(s.id, renameInput, e)}
                               onClick={(e) => e.stopPropagation()}
                               onMouseDown={(e) => e.stopPropagation()}
                               data-session-menu="true"
@@ -3298,7 +3252,7 @@ export default function ChatPage() {
                       <div key={s.id} className={`relative group ${menuOpen ? "z-50" : "z-0"}`} data-session-menu="true">
                         {isRenaming ? (
                           <form
-                            onSubmit={(e) => submitRenameSession(s.id, e)}
+                            onSubmit={(e) => submitRenameSession(s.id, renameInput, e)}
                             onClick={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
                             data-session-menu="true"
@@ -3352,7 +3306,7 @@ export default function ChatPage() {
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+                              <MessageSquareText className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
                               <span className="truncate">{s.title || "New Conversation"}</span>
                             </div>
 
@@ -5212,6 +5166,70 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* RENAME CONVERSATION MODAL */}
+      {renameModalSession && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
+          onClick={() => setRenameModalSession(null)}
+        >
+          <div
+            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
+              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 mb-4">
+              <Edit2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold">Rename conversation</h3>
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+              Enter a new title for this conversation.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitRenameSession(renameModalSession.id, renameModalTitle);
+              }}
+              className="mt-4"
+            >
+              <input
+                type="text"
+                autoFocus
+                value={renameModalTitle}
+                onChange={(e) => setRenameModalTitle(e.target.value)}
+                placeholder="Conversation title"
+                className="w-full text-sm rounded-xl border border-black/15 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-3.5 py-2.5 outline-none focus:border-black dark:focus:border-white transition text-neutral-900 dark:text-white"
+              />
+
+              <div className="mt-6 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setRenameModalSession(null)}
+                  className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
+                    isDark
+                      ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                      : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 rounded-xl bg-neutral-900 dark:bg-white px-4 py-2 text-xs font-semibold text-white dark:text-black shadow-xs hover:opacity-90 transition cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* URL-BASED SHARE CHAT MODAL */}
       {shareModalOpen && (
         <div
@@ -5678,106 +5696,7 @@ export default function ChatPage() {
                 </button>
               </div>
 
-              {/* Setting 5: Model Providers & Custom API Keys (BYOK) */}
-              <div className="p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-2.5">
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Custom Model API Keys (BYOK)</span>
-                  </p>
-                  <p className="text-[11px] text-neutral-400">
-                    Use your own keys for Gemini 2.5 Flash Image, DashScope Qwen-Image, Stability AI, OpenAI, or Replicate
-                  </p>
-                </div>
-
-                <div className="space-y-2 pt-1">
-                  <div>
-                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Google Gemini API Key (gemini-2.5-flash-image / Nano Banana)</label>
-                    <input
-                      type="password"
-                      placeholder="AIzaSy..."
-                      value={userApiKeys.gemini}
-                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, gemini: e.target.value }))}
-                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Alibaba DashScope API Key (Qwen-Image 2512 / Qwen-Image-Edit)</label>
-                    <input
-                      type="password"
-                      placeholder="sk-..."
-                      value={userApiKeys.dashscope}
-                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, dashscope: e.target.value }))}
-                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Hugging Face Token (FLUX.1 / Qwen-Image-2512)</label>
-                    <input
-                      type="password"
-                      placeholder="hf_..."
-                      value={userApiKeys.huggingface}
-                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, huggingface: e.target.value }))}
-                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Stability AI API Key</label>
-                    <input
-                      type="password"
-                      placeholder="sk-..."
-                      value={userApiKeys.stability}
-                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, stability: e.target.value }))}
-                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">OpenAI API Key (DALL-E 3)</label>
-                    <input
-                      type="password"
-                      placeholder="sk-proj-..."
-                      value={userApiKeys.openai}
-                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, openai: e.target.value }))}
-                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-neutral-500 mb-0.5">Replicate API Token</label>
-                    <input
-                      type="password"
-                      placeholder="r8_..."
-                      value={userApiKeys.replicate}
-                      onChange={(e) => setUserApiKeys((prev) => ({ ...prev, replicate: e.target.value }))}
-                      className="w-full text-xs rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 outline-none font-mono text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        try {
-                          localStorage.setItem("tattva_user_api_keys", JSON.stringify(userApiKeys));
-                          showToast("Custom API Keys securely saved in browser vault 🔑");
-                        } catch {
-                          showToast("Failed to save keys");
-                        }
-                      }}
-                      className="flex items-center gap-1 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 transition cursor-pointer"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Save API Keys</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Setting 6: Clear All Conversation History */}
+              {/* Setting 5: Clear All Conversation History */}
               <div className="flex items-center justify-between p-3 rounded-2xl border border-red-500/20 bg-red-500/5">
                 <div>
                   <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>

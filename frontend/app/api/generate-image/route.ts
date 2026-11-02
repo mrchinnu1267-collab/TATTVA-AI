@@ -77,8 +77,6 @@ export async function POST(request: Request) {
       height: finalHeight,
       seed: typeof body.seed === "number" ? body.seed : undefined,
       negative_prompt: visionSynthesis.negativePrompt,
-      userKeys: body.userKeys,
-      apiKey: body.apiKey,
     });
 
     return NextResponse.json({
