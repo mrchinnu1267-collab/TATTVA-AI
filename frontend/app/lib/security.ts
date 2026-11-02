@@ -173,6 +173,7 @@ export function guardAIOutput(responseText: string): string {
     process.env.GEMINI_API_KEY,
     process.env.OPENROUTER_API_KEY,
     process.env.NVIDIA_API_KEY,
+    process.env.POLLINATIONS_API_KEY,
     process.env.HF_TOKEN,
   ].filter(Boolean) as string[];
 

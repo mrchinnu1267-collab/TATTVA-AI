@@ -37,7 +37,12 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    if (typeof window !== "undefined") {
+      return getActiveSessionEmail() || "mr.chinnu1267@gmail.com";
+    }
+    return "mr.chinnu1267@gmail.com";
+  });
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -24,7 +24,6 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
-  MessageSquareText,
   AlertCircle,
   Maximize2,
   RefreshCw,
@@ -652,21 +651,17 @@ export default function ChatPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const isDark = theme === "dark";
 
+  const PRIMARY_ACCOUNT_EMAIL = "mr.chinnu1267@gmail.com";
+  const PRIMARY_ACCOUNT_NAME = "mr.chinnu";
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userEmail, setUserEmail] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("tattva_user_session_email") || "";
+      return localStorage.getItem("tattva_user_session_email") || PRIMARY_ACCOUNT_EMAIL;
     }
-    return "";
+    return PRIMARY_ACCOUNT_EMAIL;
   });
-  const [guestChatCount, setGuestChatCount] = useState<number>(() => {
-    if (typeof window !== "undefined") {
-      const email = localStorage.getItem("tattva_user_session_email");
-      if (email) return 0;
-      return parseInt(localStorage.getItem("tattva_guest_count") || "0", 10);
-    }
-    return 0;
-  });
+  const [guestChatCount, setGuestChatCount] = useState<number>(0);
   const [authReady, setAuthReady] = useState(false);
 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -774,10 +769,6 @@ export default function ChatPage() {
 
   // Delete Conversation Confirmation Modal
   const [deleteConfirmSession, setDeleteConfirmSession] = useState<ChatSession | null>(null);
-
-  // Rename Conversation Modal
-  const [renameModalSession, setRenameModalSession] = useState<ChatSession | null>(null);
-  const [renameModalTitle, setRenameModalTitle] = useState("");
 
   // URL-based Share Modal state
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -919,34 +910,39 @@ export default function ChatPage() {
     }
     setActiveMenuSessionId(null);
 
-    const target = sessions.find((s) => s.id === sessionId);
-    if (!target) return;
-    const isNowPinned = !target.is_pinned;
+    let nextIsPinned = false;
+    let nextUpdatedList: ChatSession[] = [];
 
-    const updated = sessions.map((s) =>
-      s.id === sessionId
-        ? {
-            ...s,
-            is_pinned: isNowPinned,
-            pinned_at: isNowPinned ? Date.now() : undefined,
-            updatedAt: Date.now(),
-          }
-        : s
-    );
+    setSessions((prev) => {
+      const target = prev.find((s) => s.id === sessionId);
+      const isNowPinned = !target?.is_pinned;
+      nextIsPinned = isNowPinned;
+      const updated = prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              is_pinned: isNowPinned,
+              pinned_at: isNowPinned ? Date.now() : undefined,
+              updatedAt: Date.now(),
+            }
+          : s
+      );
 
-    // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
-    updated.sort((a, b) => {
-      if (a.is_pinned && !b.is_pinned) return -1;
-      if (!a.is_pinned && b.is_pinned) return 1;
-      if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
-      return (b.updatedAt || 0) - (a.updatedAt || 0);
+      // Re-sort: Pinned first (by pinned_at descending), then Recent by updatedAt
+      updated.sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        if (a.is_pinned && b.is_pinned) return (b.pinned_at || 0) - (a.pinned_at || 0);
+        return (b.updatedAt || 0) - (a.updatedAt || 0);
+      });
+
+      nextUpdatedList = updated;
+      return updated;
     });
-
-    setSessions(updated);
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(updated));
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
     } catch {
       // ignore
     }
@@ -955,7 +951,7 @@ export default function ChatPage() {
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
     }).catch(() => {});
 
     // Sync to Supabase if authenticated
@@ -964,8 +960,8 @@ export default function ChatPage() {
       supabase
         .from("conversations")
         .update({
-          is_pinned: isNowPinned,
-          pinned_at: isNowPinned ? new Date().toISOString() : null,
+          is_pinned: nextIsPinned,
+          pinned_at: nextIsPinned ? new Date().toISOString() : null,
         })
         .eq("id", sessionId)
         .then();
@@ -973,7 +969,7 @@ export default function ChatPage() {
       // ignore
     }
 
-    showToast(isNowPinned ? "Conversation pinned 📌" : "Conversation unpinned");
+    showToast(nextIsPinned ? "Conversation pinned 📌" : "Conversation unpinned");
   }
 
   // Rename chat
@@ -983,29 +979,31 @@ export default function ChatPage() {
       e.preventDefault();
     }
     setActiveMenuSessionId(null);
-    setRenameModalSession(s);
-    setRenameModalTitle(s.title || "New Conversation");
+    setRenamingSessionId(s.id);
+    setRenameInput(s.title || "New Conversation");
   }
 
-  function submitRenameSession(sessionId: string, titleToSet?: string, e?: React.FormEvent) {
+  function submitRenameSession(sessionId: string, e?: React.FormEvent) {
     if (e) e.preventDefault();
-    const newTitle = (titleToSet !== undefined ? titleToSet : renameInput).trim();
+    const newTitle = renameInput.trim();
     if (!newTitle) {
       setRenamingSessionId(null);
-      setRenameModalSession(null);
       return;
     }
 
-    const updated = sessions.map((s) =>
-      s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
-    );
-    setSessions(updated);
+    let nextUpdatedList: ChatSession[] = [];
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === sessionId ? { ...s, title: newTitle, updatedAt: Date.now() } : s
+      );
+      nextUpdatedList = updated;
+      return updated;
+    });
     setRenamingSessionId(null);
-    setRenameModalSession(null);
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(updated));
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
     } catch {
       // ignore
     }
@@ -1014,7 +1012,7 @@ export default function ChatPage() {
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
     }).catch(() => {});
 
     // Sync to Supabase
@@ -1221,12 +1219,16 @@ export default function ChatPage() {
 
   // Actual execution of session deletion
   function performDeleteSession(sessionId: string) {
-    const updated = sessions.filter((s) => s.id !== sessionId);
-    setSessions(updated);
+    let nextUpdatedList: ChatSession[] = [];
+    setSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== sessionId);
+      nextUpdatedList = updated;
+      return updated;
+    });
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(updated));
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
     } catch {
       // ignore
     }
@@ -1235,7 +1237,7 @@ export default function ChatPage() {
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
     }).catch(() => {});
 
     // Sync deletion to Supabase
@@ -1274,20 +1276,24 @@ export default function ChatPage() {
       e.preventDefault();
     }
     setActiveMenuSessionId(null);
-    const updated = sessions.map((s) =>
-      s.id === sessionId ? { ...s, is_archived: true, archived_at: Date.now() } : s
-    );
-    setSessions(updated);
+    let nextUpdatedList: ChatSession[] = [];
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === sessionId ? { ...s, is_archived: true, archived_at: Date.now() } : s
+      );
+      nextUpdatedList = updated;
+      return updated;
+    });
 
     const key = getStorageKey(userEmail);
     try {
-      localStorage.setItem(key, JSON.stringify(updated));
+      localStorage.setItem(key, JSON.stringify(nextUpdatedList));
     } catch {}
 
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
+      body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
     }).catch(() => {});
 
     try {
@@ -1428,18 +1434,16 @@ export default function ChatPage() {
       document.documentElement.classList.remove("dark");
     }
 
-    // Check active local user session
-    const cachedEmail = localStorage.getItem("tattva_user_session_email");
-    if (cachedEmail) {
-      setUserEmail(cachedEmail);
-      resetGuestCount();
-      setGuestChatCount(0);
-      loadUserSessions(cachedEmail);
-    } else {
-      const count = parseInt(localStorage.getItem("tattva_guest_count") || "0", 10);
-      setGuestChatCount(count);
-      loadUserSessions(null);
+    // Check active local user session (default connected to primary account mr.chinnu1267@gmail.com)
+    const cachedEmail = localStorage.getItem("tattva_user_session_email") || PRIMARY_ACCOUNT_EMAIL;
+    setUserEmail(cachedEmail);
+    if (!localStorage.getItem("tattva_user_session_name")) {
+      localStorage.setItem("tattva_user_session_name", PRIMARY_ACCOUNT_NAME);
     }
+    localStorage.setItem("tattva_user_session_email", cachedEmail);
+    resetGuestCount();
+    setGuestChatCount(0);
+    loadUserSessions(cachedEmail);
 
     // Supabase auth check
     try {
@@ -3060,7 +3064,7 @@ export default function ChatPage() {
                         <div key={s.id} className={`relative group ${menuOpen ? "z-50" : "z-0"}`} data-session-menu="true">
                           {isRenaming ? (
                             <form
-                              onSubmit={(e) => submitRenameSession(s.id, renameInput, e)}
+                              onSubmit={(e) => submitRenameSession(s.id, e)}
                               onClick={(e) => e.stopPropagation()}
                               onMouseDown={(e) => e.stopPropagation()}
                               data-session-menu="true"
@@ -3252,7 +3256,7 @@ export default function ChatPage() {
                       <div key={s.id} className={`relative group ${menuOpen ? "z-50" : "z-0"}`} data-session-menu="true">
                         {isRenaming ? (
                           <form
-                            onSubmit={(e) => submitRenameSession(s.id, renameInput, e)}
+                            onSubmit={(e) => submitRenameSession(s.id, e)}
                             onClick={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
                             data-session-menu="true"
@@ -3306,7 +3310,7 @@ export default function ChatPage() {
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <MessageSquareText className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+                              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
                               <span className="truncate">{s.title || "New Conversation"}</span>
                             </div>
 
@@ -5162,70 +5166,6 @@ export default function ChatPage() {
                 <span>Delete</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* RENAME CONVERSATION MODAL */}
-      {renameModalSession && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
-          onClick={() => setRenameModalSession(null)}
-        >
-          <div
-            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 mb-4">
-              <Edit2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold">Rename conversation</h3>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              Enter a new title for this conversation.
-            </p>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                submitRenameSession(renameModalSession.id, renameModalTitle);
-              }}
-              className="mt-4"
-            >
-              <input
-                type="text"
-                autoFocus
-                value={renameModalTitle}
-                onChange={(e) => setRenameModalTitle(e.target.value)}
-                placeholder="Conversation title"
-                className="w-full text-sm rounded-xl border border-black/15 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-3.5 py-2.5 outline-none focus:border-black dark:focus:border-white transition text-neutral-900 dark:text-white"
-              />
-
-              <div className="mt-6 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setRenameModalSession(null)}
-                  className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                    isDark
-                      ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                      : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-1.5 rounded-xl bg-neutral-900 dark:bg-white px-4 py-2 text-xs font-semibold text-white dark:text-black shadow-xs hover:opacity-90 transition cursor-pointer"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Save</span>
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

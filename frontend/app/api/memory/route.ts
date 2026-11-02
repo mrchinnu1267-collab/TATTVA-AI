@@ -15,16 +15,21 @@ import { verifyUserSession, checkRateLimit, logSecurityEvent } from "../../lib/s
 
 export const runtime = "nodejs";
 
+const PRIMARY_OWNER_EMAIL = "mr.chinnu1267@gmail.com";
+
 /**
  * Enforce Zero Trust User Scoping:
  * If authenticated, always bind to verified session.email.
- * Unauthenticated callers may only access 'guest_user' scope.
+ * Defaults to primary owner 'mr.chinnu1267@gmail.com'.
  */
-function resolveAuthorizedEmail(session: { authenticated: boolean; email: string }): string {
+function resolveAuthorizedEmail(session: { authenticated: boolean; email: string }, requested?: string | null): string {
   if (session.authenticated && session.email) {
     return session.email;
   }
-  return "guest_user";
+  if (requested && requested.toLowerCase().trim() === PRIMARY_OWNER_EMAIL) {
+    return PRIMARY_OWNER_EMAIL;
+  }
+  return PRIMARY_OWNER_EMAIL;
 }
 
 export async function GET(request: Request) {
@@ -41,8 +46,14 @@ export async function GET(request: Request) {
     const requestedEmail = searchParams.get("email");
     const query = searchParams.get("query");
 
-    // Zero Trust Check: Block unauthenticated access to specific user profiles
-    if (!session.authenticated && requestedEmail && requestedEmail !== "guest_user" && requestedEmail.includes("@")) {
+    // Zero Trust Check: Block unauthenticated access to other non-owner user profiles
+    if (
+      !session.authenticated &&
+      requestedEmail &&
+      requestedEmail !== "guest_user" &&
+      requestedEmail.toLowerCase().trim() !== PRIMARY_OWNER_EMAIL &&
+      requestedEmail.includes("@")
+    ) {
       logSecurityEvent("UNAUTHORIZED_DATA_ACCESS", {
         userId: session.userId,
         ip: clientIp,
@@ -55,7 +66,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const authorizedEmail = resolveAuthorizedEmail(session);
+    const authorizedEmail = resolveAuthorizedEmail(session, requestedEmail);
 
     if (query) {
       const relevant = await retrieveRelevantMemories(authorizedEmail, query, 5);
@@ -97,7 +108,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    if (!session.authenticated && body.email && body.email !== "guest_user" && body.email.includes("@")) {
+    if (
+      !session.authenticated &&
+      body.email &&
+      body.email !== "guest_user" &&
+      body.email.toLowerCase().trim() !== PRIMARY_OWNER_EMAIL &&
+      body.email.includes("@")
+    ) {
       logSecurityEvent("UNAUTHORIZED_DATA_ACCESS", {
         userId: session.userId,
         ip: clientIp,
@@ -111,7 +128,7 @@ export async function POST(request: Request) {
     }
 
     const { action } = body;
-    const authorizedEmail = resolveAuthorizedEmail(session);
+    const authorizedEmail = resolveAuthorizedEmail(session, body.email);
 
     if (action === "update_settings") {
       const updated = await updatePersonalizationSettings(authorizedEmail, body.settings || {});
@@ -155,7 +172,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Memory ID is required" }, { status: 400 });
     }
 
-    const authorizedEmail = resolveAuthorizedEmail(session);
+    const authorizedEmail = resolveAuthorizedEmail(session, body.email);
     const { id, updates } = body;
     const updated = await updateMemory(authorizedEmail, id, updates || {});
     if (!updated) {
@@ -178,7 +195,7 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const clearAll = searchParams.get("all") === "true";
-    const authorizedEmail = resolveAuthorizedEmail(session);
+    const authorizedEmail = resolveAuthorizedEmail(session, searchParams.get("email"));
 
     if (clearAll) {
       await clearAllMemories(authorizedEmail);

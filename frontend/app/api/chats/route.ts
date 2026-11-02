@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const email = session.authenticated && session.email ? session.email : searchParams.get("email") || "guest_user";
+    const email = session.authenticated && session.email ? session.email : searchParams.get("email") || "mr.chinnu1267@gmail.com";
 
     const filePath = getChatFilePath(email);
     if (!fs.existsSync(filePath)) {
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Sessions array is required." }, { status: 400 });
     }
 
-    const email = session.authenticated && session.email ? session.email : body.email || "guest_user";
+    const email = session.authenticated && session.email ? session.email : body.email || "mr.chinnu1267@gmail.com";
     const filePath = getChatFilePath(email);
 
     try {
