@@ -64,15 +64,6 @@ export async function POST(request: Request) {
       },
       mode: body.mode,
       preferredModel: body.preferredModel || body.model,
-      imageOptions: {
-        model: body.imageModel || "realistic",
-        steps: body.steps,
-        guidance_scale: body.guidance_scale,
-        width: body.width,
-        height: body.height,
-        seed: body.seed,
-        negative_prompt: body.negative_prompt,
-      },
     });
 
     return NextResponse.json(orchestratorResult);

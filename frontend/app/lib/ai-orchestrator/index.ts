@@ -27,7 +27,6 @@ import {
   redactSensitiveInfo,
   guardAIOutput,
 } from "../security";
-import { executeImageGeneration } from "../image-service";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -38,9 +37,8 @@ export interface OrchestrationRequest {
     attachments?: Array<{ name: string; type: string; data: string }>;
   }>;
   context: ExecutionContext;
-  mode?: "chat" | "image" | "agent" | "research";
+  mode?: "chat" | "agent" | "research";
   preferredModel?: string;
-  imageOptions?: Record<string, any>;
 }
 
 export class MasterAIOrchestrator {
@@ -101,9 +99,7 @@ export class MasterAIOrchestrator {
     );
 
     let effectiveIntent: TaskIntent = classification.primaryIntent;
-    if (mode === "image") {
-      effectiveIntent = hasImageToEdit ? "image_editing" : "image_generation";
-    } else if (mode === "agent") {
+    if (mode === "agent") {
       effectiveIntent = "agent_task";
     } else if (mode === "research") {
       effectiveIntent = "web_research";
@@ -125,52 +121,7 @@ export class MasterAIOrchestrator {
     // Asynchronously store memory extraction
     void extractAndStoreMemories(userEmail, cleanUserPrompt);
 
-    // 4. PIPELINE ROUTING: IMAGE GENERATION & SURGICAL EDITING
-    if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
-      const isEdit = effectiveIntent === "image_editing" && hasImageToEdit;
-      const promptToUse = classification.diffusionPrompt || cleanUserPrompt;
-
-      try {
-        const imageRes = await executeImageGeneration({
-          prompt: promptToUse,
-          image: isEdit ? sourceImageForEdit : undefined,
-          strength: isEdit ? 0.52 : undefined,
-          model: req.imageOptions?.model || "realistic",
-          width: req.imageOptions?.width || 512,
-          height: req.imageOptions?.height || 512,
-          steps: req.imageOptions?.steps,
-          seed: req.imageOptions?.seed,
-          negative_prompt: req.imageOptions?.negative_prompt,
-        });
-
-        if (imageRes?.success && imageRes.image) {
-          return {
-            role: "assistant",
-            content: isEdit
-              ? "Here is your refined 🎨 image with the exact requested modifications applied!"
-              : "Here is your generated ✦ artwork, crafted with high fidelity!",
-            kind: "image",
-            intent: effectiveIntent,
-            modelUsed: imageRes.model || "TATTVA-Realistic-Vision",
-            provider: imageRes.provider === "local" ? "local" : "gemini",
-            latencyMs: Date.now() - startTime,
-            image: imageRes.image,
-            imageMetadata: {
-              model: imageRes.model,
-              provider: imageRes.provider,
-              seed: imageRes.seed,
-              width: imageRes.width,
-              height: imageRes.height,
-              isEdit,
-            },
-          };
-        }
-      } catch (imgErr) {
-        console.warn("Direct image generation error:", imgErr);
-      }
-    }
-
-    // 5. PIPELINE ROUTING: MULTI-STEP AUTONOMOUS AGENT
+    // 4. PIPELINE ROUTING: MULTI-STEP AUTONOMOUS AGENT
     if (effectiveIntent === "agent_task") {
       const agentState = await agentRunner.executeAgentTask(cleanUserPrompt, context);
       return {

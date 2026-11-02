@@ -265,17 +265,7 @@ export default function MediaDocumentPage() {
               <span>Live Voice Mode</span>
             </a>
 
-            {/* 2. Image Studio */}
-            <a
-              href="/studio"
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-50 shadow-xs"
-              title="AI Image Generation Studio"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-black" />
-              <span>Image Studio</span>
-            </a>
-
-            {/* 3. Media / Document Studio (Active) */}
+            {/* Media / Document Studio (Active) */}
             <div
               className="flex items-center gap-1.5 rounded-xl border border-black bg-black px-3 py-1.5 text-xs font-semibold text-white shadow-xs"
               title="AI Document & File Generation Engine"
@@ -639,8 +629,6 @@ export default function MediaDocumentPage() {
             <a href="/chat" className="hover:text-black transition">Chat</a>
             <span>•</span>
             <a href="/voice" className="hover:text-black transition">Voice Assistant</a>
-            <span>•</span>
-            <a href="/studio" className="hover:text-black transition">Image Studio</a>
           </div>
         </div>
       </footer>

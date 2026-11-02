@@ -48,12 +48,6 @@
       "url": "/voice",
       "description": "Talk to Sare Voice Assistant in real-time",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Image Studio",
-      "url": "/studio",
-      "description": "Create and edit AI images",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

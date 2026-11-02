@@ -657,20 +657,6 @@ export default function LiveVoiceAssistantPage() {
             <span>{isSessionActive ? "Live Session Active" : "Disconnected"}</span>
           </div>
 
-          {/* Image Studio Link */}
-          <a
-            href="/studio"
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-              isDark
-                ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
-                : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-100"
-            }`}
-            title="Open TATTVA AI Image Generation Studio"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-black dark:text-white" />
-            <span className="hidden sm:inline">Image Studio</span>
-          </a>
-
           {/* Media Studio Link (PDF, DOCX, PPTX, XLSX, CSV) */}
           <a
             href="/media"

@@ -139,19 +139,6 @@ type ChatSession = {
   archived_at?: number;
 };
 
-type EngineStatus = {
-  localOnline: boolean;
-  engine: string;
-  models?: Array<{ id: string; name: string; loaded?: boolean }>;
-  current_model?: string | null;
-  gpu?: {
-    available?: boolean;
-    device?: string;
-    total_vram_gb?: number;
-    allocated_vram_gb?: number;
-  };
-};
-
 const GUEST_CHAT_LIMIT = 5;
 const CHAT_WORD_LIMIT = 100000; // 1 lakh words limit per chat
 
@@ -683,7 +670,6 @@ export default function ChatPage() {
   const [error, setError] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
   const [isInfoBubbleOpen, setIsInfoBubbleOpen] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
@@ -712,7 +698,7 @@ export default function ChatPage() {
   // Advanced AI Chat Composer State
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
-  const [activeTool, setActiveTool] = useState<"none" | "web" | "image" | "research" | "file" | "code">("none");
+  const [activeTool, setActiveTool] = useState<"none" | "web" | "research" | "file" | "code">("none");
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [interimSpeech, setInterimSpeech] = useState("");
 
@@ -776,9 +762,8 @@ export default function ChatPage() {
   const [isSharing, setIsSharing] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Archive & Image Library Modal state
+  // Archive Modal state
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
-  const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
   const [speechState, setSpeechState] = useState<"idle" | "speaking" | "paused">("idle");
 
   // Contextual dropdown menu & rename state
@@ -1760,38 +1745,6 @@ export default function ChatPage() {
     }
   }
 
-  // Polling for local image engine status every 30s
-  useEffect(() => {
-    let mounted = true;
-    async function checkEngine() {
-      try {
-        const res = await fetch("/api/generate-image", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (mounted) {
-          setEngineStatus((prev) => {
-            if (
-              prev?.localOnline === data.localOnline &&
-              prev?.current_model === data.current_model &&
-              prev?.engine === data.engine
-            ) {
-              return prev;
-            }
-            return data;
-          });
-        }
-      } catch {
-        // ignore
-      }
-    }
-    checkEngine();
-    const interval = setInterval(checkEngine, 30000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []);
-
   // Smart scroll detection
   const handleChatScroll = useCallback(() => {
     if (!chatContainerRef.current) return;
@@ -2096,28 +2049,7 @@ export default function ChatPage() {
     }
   }
 
-  // Auto-detect image generation request in prompt (inbuilt into text bar)
-  function isImageGenerationPrompt(text: string, hasImgAttachment: boolean): boolean {
-    if (hasImgAttachment) return true;
-    const lower = text.toLowerCase().trim();
-    return (
-      lower.startsWith("generate image") ||
-      lower.startsWith("generate an image") ||
-      lower.startsWith("create image") ||
-      lower.startsWith("create an image") ||
-      lower.startsWith("draw ") ||
-      lower.startsWith("draw an ") ||
-      lower.startsWith("paint ") ||
-      lower.startsWith("render ") ||
-      lower.includes("generate an image of") ||
-      lower.includes("make an image of") ||
-      lower.includes("draw an image of") ||
-      lower.includes("photo of ") ||
-      lower.includes("picture of ")
-    );
-  }
-
-  // Send message handler (supports text, code, image generation, and editing)
+  // Send message handler (supports text, code, document generation, and reasoning)
   async function sendMessage(explicitPrompt?: string) {
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
     if (!rawPrompt && attachments.length === 0) return;
@@ -2165,7 +2097,6 @@ export default function ChatPage() {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    const attachedImages = attachments.filter((a) => a.type.startsWith("image/"));
     setAttachments([]);
     setLoading(true);
     setError("");
@@ -2173,80 +2104,6 @@ export default function ChatPage() {
     // Setup AbortController for instant stop generation
     const controller = new AbortController();
     abortControllerRef.current = controller;
-
-    const wantsImage = activeTool === "image" || isImageGenerationPrompt(rawPrompt, attachedImages.length > 0);
-
-    if (wantsImage) {
-      setStatusMessage(
-        attachedImages.length > 0
-          ? "Targeting image modifications with pin-to-pin accuracy..."
-          : "Rendering master-quality image via Realistic Vision V5.1 (DPMSolver++ Karras)..."
-      );
-
-      try {
-        const payload: Record<string, unknown> = {
-          prompt: rawPrompt,
-          model: "realistic",
-        };
-
-        if (attachedImages.length > 0) {
-          payload.image = attachedImages[0].data;
-          payload.strength = 0.65;
-        }
-
-        const res = await fetch("/api/generate-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Image generation failed with HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        const assistantMsgId = crypto.randomUUID();
-        const assistantMsg: ChatMessage = {
-          id: assistantMsgId,
-          role: "assistant",
-          content: rawPrompt,
-          image: data.image,
-          kind: "image",
-          imageMetadata: {
-            model: data.model || "TATTVA Neural Vision HD",
-            provider: data.provider || "TATTVA Proprietary Neural Engine",
-            seed: data.seed,
-            generation_time_seconds: data.generation_time_seconds,
-            isEdit: attachedImages.length > 0,
-          },
-          timestamp: Date.now(),
-        };
-
-        const updatedWithAssistant = [...updatedWithUser, assistantMsg];
-        setMessages(updatedWithAssistant);
-        messagesCountRef.current = updatedWithAssistant.length;
-        saveCurrentSession(updatedWithAssistant, activeSessionId);
-
-        // Sare Voice narration for image
-        if (sareEnabled) {
-          speakText("I have created your image as requested.", assistantMsgId, () => {
-            if (sareEnabled) startVoiceRecognition();
-          });
-        }
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === "AbortError") {
-          return;
-        }
-        setError(err instanceof Error ? err.message : "Failed to generate image.");
-      } finally {
-        setLoading(false);
-        setStatusMessage("");
-        abortControllerRef.current = null;
-      }
-      return;
-    }
 
     // Standard Chat & Code & File Maker flow
     setStatusMessage("TATTVA Intelligence reasoning...");
@@ -2528,23 +2385,6 @@ export default function ChatPage() {
       setStatusMessage("");
       abortControllerRef.current = null;
     }
-  }
-
-  // Start Image Editing workflow in Chat
-  function startEditingImage(imageSrc: string, prompt?: string) {
-    const imageAttachment: ChatAttachment = {
-      name: "source-image.png",
-      type: "image/png",
-      data: imageSrc,
-      preview: imageSrc,
-    };
-    setAttachments([imageAttachment]);
-    setActiveTool("image");
-    setInput(prompt ? `Modify this image: ` : "Change this image: ");
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-    showToast("Image loaded for editing. Describe your requested changes 🎨");
   }
 
   function formatFileSize(bytes?: number): string {
@@ -2850,7 +2690,7 @@ export default function ChatPage() {
                   <div className="pt-3 text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
                     <p className="font-medium text-neutral-900 dark:text-white mb-1">About</p>
                     <p className="text-neutral-500 dark:text-neutral-400 text-[11px] leading-relaxed">
-                      An AI-powered intelligent assistant designed to help users with conversations, coding, reasoning, creative tasks, image generation and multimodal interactions.
+                      An AI-powered intelligent assistant designed to help users with conversations, coding, reasoning, creative tasks, and multimodal interactions.
                     </p>
                   </div>
 
@@ -2983,35 +2823,22 @@ export default function ChatPage() {
               </kbd>
             </button>
 
-            {/* Quick Links: Image Library & Archived Chats */}
-            <div className="flex items-center gap-1.5 pt-0.5">
-              <button
-                type="button"
-                onClick={() => setIsImageLibraryOpen(true)}
-                className={`flex items-center justify-center gap-1.5 flex-1 rounded-xl border py-1.5 px-2 text-[11px] font-medium transition cursor-pointer ${
-                  isDark
-                    ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
-                    : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-                }`}
-                title="Browse all generated images"
-              >
-                <ImageIcon className="w-3 h-3 text-amber-500" />
-                <span>Images</span>
-              </button>
+            {/* Quick Links: Archived Chats */}
+            <div className="pt-0.5">
               <button
                 type="button"
                 onClick={() => setIsArchiveModalOpen(true)}
-                className={`flex items-center justify-center gap-1.5 flex-1 rounded-xl border py-1.5 px-2 text-[11px] font-medium transition cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 w-full rounded-xl border py-1.5 px-2 text-[11px] font-medium transition cursor-pointer ${
                   isDark
                     ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
                     : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
                 }`}
                 title="View archived chats"
               >
-                <FolderArchive className="w-3 h-3 text-blue-500" />
-                <span>Archived</span>
+                <FolderArchive className="w-3.5 h-3.5 text-blue-500" />
+                <span>Archived Chats</span>
                 {sessions.filter((s) => s.is_archived).length > 0 && (
-                  <span className="text-[9px] px-1 rounded-full bg-blue-500/20 text-blue-400 font-bold">
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 font-bold">
                     {sessions.filter((s) => s.is_archived).length}
                   </span>
                 )}
@@ -4029,17 +3856,6 @@ export default function ChatPage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      startEditingImage(msg.image!, msg.content);
-                                    }}
-                                    className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
-                                    title="Edit / Refine this Image"
-                                  >
-                                    <Sparkles className="w-4 h-4 text-amber-400" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
                                       downloadImage(msg.image!);
                                     }}
                                     className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
@@ -4293,13 +4109,11 @@ export default function ChatPage() {
                     }`}
                   >
                     {activeTool === "web" && <Globe className="w-3.5 h-3.5 text-blue-500" />}
-                    {activeTool === "image" && <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
                     {activeTool === "research" && <Compass className="w-3.5 h-3.5 text-purple-500" />}
                     {activeTool === "file" && <FileText className="w-3.5 h-3.5 text-emerald-500" />}
                     {activeTool === "code" && <Code2 className="w-3.5 h-3.5 text-cyan-500" />}
                     <span className="font-semibold">
                       {activeTool === "web" && "Web Search Active"}
-                      {activeTool === "image" && "Image Generation Active"}
                       {activeTool === "research" && "Deep Research Active"}
                       {activeTool === "file" && "File Analysis Active"}
                       {activeTool === "code" && "Code Assistance Active"}
@@ -4461,8 +4275,6 @@ export default function ChatPage() {
                   placeholder={
                     isListening
                       ? "Listening to voice input..."
-                      : activeTool === "image"
-                      ? "Describe the visual or modification with pin-to-pin accuracy..."
                       : activeTool === "code"
                       ? "Describe the program, algorithm, or architecture you need..."
                       : activeTool === "research"
@@ -4471,7 +4283,7 @@ export default function ChatPage() {
                       ? "Enter query to search real-time web with citations..."
                       : attachments.length > 0
                       ? "Ask anything about attached files, or describe changes..."
-                      : "Ask anything, create files, write code, or generate images..."
+                      : "Ask anything, write code, analyze data, or research..."
                   }
                   className={`w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-neutral-400 max-h-56 min-h-[40px] ${
                     isDark ? "text-white" : "text-black"
@@ -4534,27 +4346,7 @@ export default function ChatPage() {
                             </div>
                           </button>
 
-                          {/* 2. Image Studio */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAttachmentMenuOpen(false);
-                              router.push("/studio");
-                            }}
-                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                            }`}
-                          >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                              <Sparkles className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="block font-semibold text-xs">Image Studio</span>
-                              <span className="block text-[10px] text-neutral-400 truncate">Generate &amp; edit AI artwork</span>
-                            </div>
-                          </button>
-
-                          {/* 3. Media & Uploads */}
+                          {/* Media & Uploads */}
                           <button
                             type="button"
                             onClick={() => {
@@ -4750,28 +4542,6 @@ export default function ChatPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setActiveTool(activeTool === "image" ? "none" : "image");
-                              setIsToolsMenuOpen(false);
-                            }}
-                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
-                              activeTool === "image"
-                                ? isDark
-                                  ? "bg-neutral-800 text-white font-semibold"
-                                  : "bg-neutral-100 text-black font-semibold"
-                                : isDark
-                                ? "hover:bg-neutral-800 text-neutral-300"
-                                : "hover:bg-neutral-100 text-neutral-700"
-                            }`}
-                          >
-                            <Sparkles className="w-4 h-4 text-amber-500 mt-0.5" />
-                            <div>
-                              <div className="font-medium">Image Generation</div>
-                              <div className="text-[10px] text-neutral-400">Realistic Vision &amp; FLUX visuals</div>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
                               setActiveTool(activeTool === "research" ? "none" : "research");
                               setIsToolsMenuOpen(false);
                             }}
@@ -4897,8 +4667,7 @@ export default function ChatPage() {
               <p className={`mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${
                 isDark ? "text-neutral-500" : "text-neutral-400"
               }`}>
-                Notice: AI image generation is continuously learning. While we work to bring you 100% perfect images soon,
-                we always deliver the best possible quality for your prompt.
+                TATTVA AI can make mistakes. Verify important information.
               </p>
             </div>
           </div>
@@ -5370,159 +5139,6 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setIsArchiveModalOpen(false)}
-                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                  isDark
-                    ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
-                }`}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* IMAGE LIBRARY MODAL */}
-      {isImageLibraryOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md transition-opacity animate-in fade-in duration-150"
-          onClick={() => setIsImageLibraryOpen(false)}
-        >
-          <div
-            className={`w-full max-w-4xl rounded-3xl border p-6 shadow-2xl transition-all max-h-[90vh] flex flex-col ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
-                  <ImageIcon className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm">Image Studio Library</h3>
-                  <p className="text-[11px] text-neutral-400">All artworks created by TATTVA AI across your conversations</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsImageLibraryOpen(false)}
-                className="p-1 rounded-lg text-neutral-400 hover:text-white transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Gallery Grid */}
-            <div className="flex-1 overflow-y-auto my-4 pr-1">
-              {(() => {
-                const userImages = sessions.flatMap((s) =>
-                  s.messages
-                    .filter((m) => m.image)
-                    .map((m) => ({
-                      id: m.id,
-                      image: m.image!,
-                      prompt: m.content,
-                      timestamp: m.timestamp || s.updatedAt,
-                      sessionId: s.id,
-                      sessionTitle: s.title,
-                      metadata: m.imageMetadata,
-                    }))
-                );
-
-                if (userImages.length === 0) {
-                  return (
-                    <div className="text-center py-20 text-neutral-400">
-                      <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-40 text-amber-500" />
-                      <p className="text-sm font-semibold">No images generated yet</p>
-                      <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
-                        Ask TATTVA: "Generate an image of a serene mountain lake at dawn" or click Image Studio in the Plus menu.
-                      </p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {userImages.map((img, idx) => (
-                      <div
-                        key={img.id || idx}
-                        className={`group relative overflow-hidden rounded-2xl border transition-all duration-200 hover:scale-[1.02] shadow-xs flex flex-col ${
-                          isDark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-white"
-                        }`}
-                      >
-                        <div
-                          className="relative aspect-square cursor-pointer overflow-hidden bg-black/5"
-                          onClick={() => {
-                            setLightboxImage(img.image);
-                          }}
-                        >
-                          <Image
-                            src={img.image}
-                            alt={img.prompt}
-                            width={300}
-                            height={300}
-                            unoptimized
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-end text-white text-[11px]">
-                            <p className="line-clamp-2 leading-tight">{img.prompt}</p>
-                          </div>
-                        </div>
-
-                        {/* Image Action Bar */}
-                        <div className="p-2 flex items-center justify-between text-xs gap-1 border-t border-black/[0.06] dark:border-neutral-800">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsImageLibraryOpen(false);
-                              startEditingImage(img.image, img.prompt);
-                            }}
-                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-amber-500 hover:bg-amber-500/10 transition cursor-pointer"
-                            title="Edit this image in chat"
-                          >
-                            <Sparkles className="w-3 h-3" />
-                            <span>Edit</span>
-                          </button>
-
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsImageLibraryOpen(false);
-                                createNewChat();
-                                sendMessage(img.prompt);
-                              }}
-                              className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
-                              title="Start new chat with this prompt"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => downloadImage(img.image)}
-                              className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
-                              title="Download full quality image"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-black/[0.06] dark:border-neutral-800 shrink-0 text-xs text-neutral-400">
-              <span>Click any image to enlarge in full-screen lightbox</span>
-              <button
-                type="button"
-                onClick={() => setIsImageLibraryOpen(false)}
                 className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
                   isDark
                     ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
