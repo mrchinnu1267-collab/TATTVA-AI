@@ -26,6 +26,7 @@ import {
   sanitizeAndGuardPrompt,
   redactSensitiveInfo,
   guardAIOutput,
+  isNsfwContent,
 } from "../security";
 import { generateImage } from "../image-engine";
 
@@ -110,6 +111,20 @@ export class MasterAIOrchestrator {
 
     // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
     if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
+      const candidatePrompt = classification.diffusionPrompt || cleanUserPrompt;
+      const nsfwCheck = isNsfwContent(candidatePrompt);
+      if (nsfwCheck.isBlocked) {
+        return {
+          role: "assistant",
+          content: "I cannot generate or edit images containing 18+, adult, nude, or sexually explicit content. TATTVA AI strictly restricts adult imagery to maintain a safe and family-friendly experience.",
+          kind: "text",
+          intent: effectiveIntent,
+          modelUsed: "tattva-guardrail",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+          warnings: [nsfwCheck.reason || "NSFW content restricted"],
+        };
+      }
       try {
         const imageResult = await generateImage({
           prompt: classification.diffusionPrompt || cleanUserPrompt,

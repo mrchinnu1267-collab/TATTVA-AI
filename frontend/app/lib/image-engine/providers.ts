@@ -297,12 +297,16 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
   }
 
   const dims = fitWithinArea(req.width, req.height, 768 * 768, 8);
-  const prompt = truncate(req.prompt, 1600);
+  const isHumanSubject = /\b(woman|women|girl|girls|lady|ladies|female|man|men|boy|boys|male|person|people|model|portrait|human|character)\b/i.test(req.prompt);
+  const safePrompt = isHumanSubject
+    ? `${req.prompt}, fully clothed, modest attire, sfw, non-suggestive`
+    : req.prompt;
+  const prompt = truncate(safePrompt, 1600);
   const url =
     `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
     `?width=${dims.width}&height=${dims.height}` +
     `&seed=${encodeURIComponent(String(req.seed))}` +
-    `&nologo=true&safe=false&enhance=false`;
+    `&nologo=true&safe=true&enhance=false`;
 
   const started = Date.now();
   pollinationsNextSlot = Date.now() + 45_000;

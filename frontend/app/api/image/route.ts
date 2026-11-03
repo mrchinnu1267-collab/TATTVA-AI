@@ -4,7 +4,12 @@ import {
   getProviderStatuses,
   publicAttempts,
 } from "../../lib/image-engine";
-import { checkRateLimit, logSecurityEvent, verifyUserSession } from "../../lib/security";
+import {
+  checkRateLimit,
+  isNsfwContent,
+  logSecurityEvent,
+  verifyUserSession,
+} from "../../lib/security";
 import type { ImageQuality } from "../../lib/image-engine";
 
 export const runtime = "nodejs";
@@ -61,6 +66,25 @@ export async function POST(request: Request) {
     if (prompt.length > 6000) {
       return NextResponse.json(
         { error: "Prompt is too long. Keep it under 6000 characters." },
+        { status: 400 }
+      );
+    }
+
+    // 18+ / Adult / Nudity Safety Restriction
+    const nsfwCheck = isNsfwContent(prompt);
+    if (nsfwCheck.isBlocked) {
+      logSecurityEvent("NSFW_PROMPT_BLOCKED", {
+        userId: session.userId,
+        ip: clientIp,
+        endpoint: "/api/image",
+        details: { matched: nsfwCheck.matchedPattern },
+      });
+      return NextResponse.json(
+        {
+          error:
+            "This request violates TATTVA AI Safety Policy. Generation of 18+, adult, nude, or sexually explicit content is strictly restricted.",
+          hint: "Please rephrase your request without adult, nudity, or sexually explicit terms.",
+        },
         { status: 400 }
       );
     }

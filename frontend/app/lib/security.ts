@@ -471,6 +471,7 @@ export type SecurityEventType =
   | "AUTH_FAILURE"
   | "RATE_LIMIT_EXCEEDED"
   | "PROMPT_INJECTION_BLOCKED"
+  | "NSFW_PROMPT_BLOCKED"
   | "MALICIOUS_FILE_BLOCKED"
   | "UNAUTHORIZED_DATA_ACCESS"
   | "KEY_ROTATION_EVENT"
@@ -528,4 +529,66 @@ export function logSecurityEvent(
 
 export function getRecentSecurityLogs(limit = 50): SecurityAuditLog[] {
   return auditLogBuffer.slice(0, limit);
+}
+
+// =============================================================================
+// 7. ADULT / 18+ / NSFW & NUDITY RESTRICTION GUARDRAIL
+// =============================================================================
+
+const NSFW_EXPLICIT_PATTERNS: RegExp[] = [
+  // Direct Nudity & Unclothed
+  /\b(nude|nudity|nudes|naked|nakedness|topless|bottomless|unclothed|unclad|undressed)\b/i,
+  /\b(no\s+clothes|without\s+(?:any\s+)?clothes|(?:remov(?:e|ing|ed)|tak(?:e|ing)\s+off)\s+(?:her\s+|all\s+|his\s+|their\s+)?clothes|strip(?:ping|ped|per|tease)?)\b/i,
+  // Pornographic & 18+ explicit
+  /\b(porn|porno|pornography|pornographic|xxx|nsfw|18\+|erotica|hentai|ecchi|lewd)\b/i,
+  // Anatomical and sexual organs
+  /\b(bare\s+(?:breasts?|chest|boobs?|body|torso|skin|ass|butt))\b/i,
+  /\b(exposed\s+(?:breasts?|genitals?|nipples?|pussy|vagina|penis))\b/i,
+  /\b(boob[s]?|boobie[s]?|tits?|titties|areola|nipples?|vagina[s]?|penis[es]?|puss(?:y|ies)|dick[s]?|cock[s]?)\b/i,
+  // Sexually explicit actions / poses
+  /\b(having\s+sex|sexual\s+(?:act|content|organ|activity|position|scene)|sex\s+scene|explicit\s+sex|masturbat(?:e|ion|ing)|intercourse|sensual\s+nude|erotic\s+pose)\b/i,
+  // Provocative / see-through attire intended for nudity bypass
+  /\b(lingerie\s+nude|see[- ]through\s+(?:clothes|clothing|dress|bikini)|transparent\s+(?:clothes|clothing|dress))\b/i,
+  // Explicit combinations
+  /\b(?:nude|naked)\s+(?:girl|woman|model|female|lady|babe|teen|man|boy|person|picture|photo|image|portrait)\b/i,
+  /\b(?:girl|woman|model|female|lady|babe|teen|man|boy|person)\s+(?:without\s+clothes|in\s+the\s+nude|naked|nude)\b/i,
+];
+
+export type NsfwCheckResult = {
+  isBlocked: boolean;
+  reason?: string;
+  matchedPattern?: string;
+};
+
+/**
+ * Inspects prompt or text for 18+, adult, nude, or sexually explicit content
+ */
+export function isNsfwContent(text: string): NsfwCheckResult {
+  if (!text || typeof text !== "string") {
+    return { isBlocked: false };
+  }
+
+  const normalized = text.toLowerCase().replace(/[\r\n\t_]/g, " ");
+
+  // Safe exemptions for medical / culinary contexts
+  if (
+    /(?:chicken|turkey|duck|goose)\s+breast/i.test(normalized) ||
+    /breast\s*(?:cancer|feeding|pump|exam)/i.test(normalized)
+  ) {
+    return { isBlocked: false };
+  }
+
+  for (const pattern of NSFW_EXPLICIT_PATTERNS) {
+    const match = pattern.exec(normalized);
+    if (match) {
+      return {
+        isBlocked: true,
+        reason:
+          "This request violates TATTVA AI Safety Policy. Generation and display of 18+, adult, nude, or sexually explicit content is strictly restricted.",
+        matchedPattern: match[0],
+      };
+    }
+  }
+
+  return { isBlocked: false };
 }

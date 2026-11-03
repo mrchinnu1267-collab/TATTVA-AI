@@ -11,6 +11,7 @@ import {
   resolveProviderOrder,
 } from "./providers";
 import { verifyImage } from "./verifier";
+import { isNsfwContent } from "../security";
 import type {
   CompiledImagePrompt,
   ImageAttempt,
@@ -56,6 +57,14 @@ function messageOf(error: unknown): string {
 export async function generateImage(options: ImageGenerationOptions): Promise<ImageEngineResult> {
   const prompt = options.prompt?.trim();
   if (!prompt) throw new Error("A prompt is required.");
+
+  const nsfwCheck = isNsfwContent(prompt);
+  if (nsfwCheck.isBlocked) {
+    throw new ImageProviderError(
+      "This request violates TATTVA AI Safety Policy. Generation of 18+, adult, nude, or sexually explicit content is strictly restricted.",
+      { retryable: false }
+    );
+  }
 
   const started = Date.now();
   const compiled = compileImagePrompt({ ...options, prompt });
@@ -116,6 +125,16 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
           verification,
           image: result.image,
         });
+
+        const hasNsfw = verification.issues.some((issue) =>
+          /prohibited adult|nudity|nude content/i.test(issue)
+        );
+        if (hasNsfw) {
+          throw new ImageProviderError(
+            "Generated image violated safety policies (prohibited adult or nude content detected). Generation was aborted.",
+            { retryable: false }
+          );
+        }
 
         if (!best || verification.score > best.verification.score) {
           best = { result, verification, prompt: attemptPrompt };

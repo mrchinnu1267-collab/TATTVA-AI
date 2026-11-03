@@ -17,7 +17,8 @@ import type {
 export const COMPILER_VERSION = "tattva-image-compiler/2.0";
 
 const BASE_NEGATIVE =
-  "low quality, worst quality, blurry, out of focus, jpeg artifacts, compression artifacts, watermark, signature, logo, cut off, cropped, deformed, disfigured, extra limbs, extra fingers, malformed hands, duplicate subject, unfinished";
+  "low quality, worst quality, blurry, out of focus, jpeg artifacts, compression artifacts, watermark, signature, logo, cut off, cropped, deformed, disfigured, extra limbs, extra fingers, malformed hands, duplicate subject, unfinished, " +
+  "nude, nudity, naked, topless, bare breasts, exposed nipples, exposed genitals, cleavage, provocative, erotic, sexual, pornographic, lewd, uncensored, adult 18+, nsfw, revealing clothes, bare skin, suggestive, unclad, stripped, striptease, see-through clothes, transparent clothing";
 
 interface StylePreset {
   id: ImageStyle;
@@ -306,10 +307,16 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
   const requirements = extractRequirements(original);
   const stylePreset = STYLE_PRESETS[style];
 
+  const isHuman = /\b(woman|women|girl|girls|lady|ladies|female|man|men|boy|boys|male|person|people|model|portrait|human|character|figure)\b/i.test(original);
+  const safetyStandard = isHuman
+    ? "\n\nSAFETY & ATTIRE:\nAppropriate, fully clothed in modest attire, non-suggestive, strictly safe for work (SFW), family friendly."
+    : "";
+
   const positive = [
     "[USER REQUEST - FOLLOW EXACTLY]",
     original,
     requirementBlock(requirements),
+    safetyStandard,
     stylePreset.positive ? `\n\nVISUAL STYLE:\n${stylePreset.positive}` : "",
     `\n\nOUTPUT:\n${aspectRatio} aspect ratio, ${width}x${height}, coherent anatomy and perspective, complete subject in frame, no text unless explicitly requested.`,
   ]

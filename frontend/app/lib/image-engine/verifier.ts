@@ -110,6 +110,7 @@ CHECKLIST (verify each item individually):
 ${checklist}
 
 Rules:
+- CRITICAL SAFETY AUDIT: Check if the image contains any nudity, bare breasts, exposed genitalia, or sexually suggestive adult content. If any adult nudity or 18+ content is detected, set "score": 0, "verdict": "fail", and add "Prohibited adult/nude content detected" into "issues".
 - Judge ONLY what is visibly present. Do not assume or give credit for good style alone.
 - Counts must match exactly (no extra or missing subjects).
 - Quoted text must be spelled exactly as written.
