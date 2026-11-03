@@ -213,7 +213,26 @@ export default function Dashboard() {
               textDecoration: "none",
             }}
           >
-            <span>✨</span> Open AI Chat & Image Studio
+            <span>✨</span> Open AI Chat
+          </a>
+
+          <a
+            href="/image-studio"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 16px",
+              borderRadius: "10px",
+              border: "1px solid #0000001a",
+              background: "rgba(255, 255, 255, 0.8)",
+              color: "#171717",
+              fontSize: "13px",
+              fontWeight: "600",
+              textDecoration: "none",
+            }}
+          >
+            <span>🖼️</span> Image Studio
           </a>
 
           <button

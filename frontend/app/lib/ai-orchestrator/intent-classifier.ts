@@ -23,6 +23,8 @@ const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
     intent: "image_generation",
     patterns: [
       /\b(generate|create|draw|paint|render|make)\b.*(image|picture|photo|illustration|art|portrait|wallpaper|drawing|logo|avatar)/i,
+      /\b(draw|paint|sketch|illustrate|render)\b\s+(me\s+)?(a|an|the)\b/i,
+      /\bimage of\b|\bpicture of\b|\bphoto of\b/i,
       /photorealistic|ultra detailed|4k render|concept art|cinematic shot/i,
     ],
   },

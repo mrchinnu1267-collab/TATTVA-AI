@@ -27,6 +27,7 @@ import {
   redactSensitiveInfo,
   guardAIOutput,
 } from "../security";
+import { generateImage } from "../image-engine";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -107,7 +108,69 @@ export class MasterAIOrchestrator {
 
     console.log(`[TATTVA Orchestrator] Task classified as "${effectiveIntent}" (complexity: ${classification.complexityScore}/10)`);
 
-    // 3. CONTEXT UNDERSTANDING & MEMORY RETRIEVAL
+    // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
+    if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
+      try {
+        const imageResult = await generateImage({
+          prompt: classification.diffusionPrompt || cleanUserPrompt,
+          referenceImage:
+            effectiveIntent === "image_editing" ? sourceImageForEdit : userAttachedImage,
+          quality: "balanced",
+          verify: true,
+          userId: context.userId,
+        });
+
+        const failed = imageResult.verification.requirements.filter(
+          (item) => item.met === false
+        );
+        const accuracy = imageResult.accuracy;
+        const summary = [
+          accuracy >= 85
+            ? "Image generated and verified against your request."
+            : "Image generated, but some details need another pass.",
+          `Adherence: ${accuracy}%.`,
+          failed.length > 0
+            ? `Not confirmed: ${failed.map((item) => item.text).join("; ")}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return {
+          role: "assistant",
+          content: summary,
+          kind: "image",
+          intent: effectiveIntent,
+          modelUsed: imageResult.model,
+          provider: imageResult.provider,
+          latencyMs: Date.now() - startTime,
+          image: imageResult.image,
+          imageMetadata: {
+            ...imageResult.metadata,
+            isEdit: effectiveIntent === "image_editing",
+            verification: imageResult.verification,
+            compiled_prompt: imageResult.compiled.positive,
+          },
+          warnings: imageResult.warnings,
+        };
+      } catch (imageError) {
+        const message =
+          imageError instanceof Error ? imageError.message : String(imageError);
+        console.error("[TATTVA Image] Orchestrator generation failed:", message);
+        return {
+          role: "assistant",
+          content: `I could not generate that image yet. ${message}\n\nAdd Gemini image billing, Hugging Face credits, or start the local engine, then try again.`,
+          kind: "text",
+          intent: effectiveIntent,
+          modelUsed: "TATTVA Image Engine",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+          warnings: [message],
+        };
+      }
+    }
+
+    // 4. CONTEXT UNDERSTANDING & MEMORY RETRIEVAL
     const userEmail = context.userEmail || "guest_user";
     const [personalizationSettings, relevantMemories, similarExperiences, ragResults] = await Promise.all([
       getUserPersonalizationSettings(userEmail),

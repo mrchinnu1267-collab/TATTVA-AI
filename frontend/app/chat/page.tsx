@@ -37,6 +37,7 @@ import {
   MoreVertical,
   Edit2,
   FolderArchive,
+  Wand2,
   User as UserIcon,
   Settings,
   ShieldCheck,
@@ -72,6 +73,7 @@ import {
   Archive,
   Wrench,
   Cpu,
+  MapPin,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -695,6 +697,14 @@ export default function ChatPage() {
   const voiceBufferRef = useRef<string>("");
   const initialLoadDone = useRef(false);
 
+  // Voice State Guards & Location
+  const isAssistantSpeakingRef = useRef<boolean>(false);
+  const isVoiceTurnProcessingRef = useRef<boolean>(false);
+  const lastVoicePromptRef = useRef<string>("");
+  const lastVoiceTimeRef = useRef<number>(0);
+  const userLocationRef = useRef<{ latitude?: number; longitude?: number; city?: string } | null>(null);
+  const [userLocationName, setUserLocationName] = useState<string | null>(null);
+
   // Advanced AI Chat Composer State
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -771,8 +781,41 @@ export default function ChatPage() {
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
 
-  // Keyboard shortcut Ctrl+K / Cmd+K for global search
+  // Geolocation request for real-time weather & location-based reports
+  const requestLocation = useCallback(() => {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const loc = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          };
+          userLocationRef.current = loc;
+          try {
+            const res = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${loc.latitude}&longitude=${loc.longitude}&localityLanguage=en`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const name = data.city || data.locality || data.principalSubdivision;
+              if (name) setUserLocationName(name);
+            }
+          } catch {
+            // ignore
+          }
+        },
+        (err) => {
+          console.warn("[Chat Location] Access not granted:", err.message);
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+      );
+    }
+  }, []);
+
+  // Keyboard shortcut Ctrl+K / Cmd+K for global search & pre-fetch location
   useEffect(() => {
+    requestLocation();
+
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -1884,25 +1927,40 @@ export default function ChatPage() {
     utterance.rate = 1.0;
 
     utterance.onstart = () => {
+      isAssistantSpeakingRef.current = true;
       setSpeakingMessageId(msgId);
       setSareStatus("speaking");
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      voiceBufferRef.current = "";
     };
 
     utterance.onend = () => {
       setSpeakingMessageId(null);
       setSareStatus("idle");
-      if (onEnd) onEnd();
+      // 450ms safety cooldown after speech ends so microphone does not capture speaker echo
+      setTimeout(() => {
+        isAssistantSpeakingRef.current = false;
+        isVoiceTurnProcessingRef.current = false;
+        voiceBufferRef.current = "";
+        if (onEnd) onEnd();
+      }, 450);
     };
 
     utterance.onerror = () => {
       setSpeakingMessageId(null);
       setSareStatus("idle");
+      isAssistantSpeakingRef.current = false;
+      isVoiceTurnProcessingRef.current = false;
+      voiceBufferRef.current = "";
     };
 
     window.speechSynthesis.speak(utterance);
   }, [speakingMessageId]);
 
-  // Voice Recognition with 2-SECOND SILENCE AUTO-RESPONSE for Sare
+  // Voice Recognition with Echo Immunity and Deduplication for Sare
   const startVoiceRecognition = useCallback(() => {
     if (typeof window === "undefined") return;
 
@@ -1939,6 +1997,11 @@ export default function ChatPage() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onresult = (event: any) => {
+        // Discard microphone audio while assistant is speaking or processing (eliminates echo loop)
+        if (isAssistantSpeakingRef.current || isVoiceTurnProcessingRef.current) {
+          return;
+        }
+
         let interimText = "";
         let finalChunk = "";
         for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -1966,21 +2029,33 @@ export default function ChatPage() {
             textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 220)}px`;
           }
 
-          // In Sare Voice Conversation, if user stops speaking after 2 seconds,
-          // Sare automatically responds quickly!
+          // In Sare Voice Conversation, if user stops speaking after silence, auto-submit
           if (sareEnabled) {
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
             }
             silenceTimerRef.current = setTimeout(() => {
               const textToSend = voiceBufferRef.current.trim();
-              if (textToSend) {
-                stopVoiceRecognition();
-                setSareStatus("thinking");
-                voiceBufferRef.current = "";
-                sendMessage(textToSend);
+              if (!textToSend) return;
+
+              // Prevent duplicate / identical inputs within 4 seconds
+              const now = Date.now();
+              const isDuplicate =
+                textToSend.toLowerCase() === lastVoicePromptRef.current.toLowerCase() &&
+                now - lastVoiceTimeRef.current < 4000;
+
+              if (isDuplicate || isVoiceTurnProcessingRef.current || isAssistantSpeakingRef.current) {
+                return;
               }
-            }, 2000); // 2 seconds of silence
+
+              lastVoicePromptRef.current = textToSend;
+              lastVoiceTimeRef.current = now;
+              isVoiceTurnProcessingRef.current = true;
+              stopVoiceRecognition();
+              setSareStatus("thinking");
+              voiceBufferRef.current = "";
+              sendMessage(textToSend);
+            }, 1600); // 1.6 seconds of natural silence
           }
         }
       };
@@ -2122,6 +2197,7 @@ export default function ChatPage() {
           userEmail: isUserAuthenticated ? userEmail : undefined,
           userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
           isAuthenticated: isUserAuthenticated,
+          location: userLocationRef.current,
         }),
         signal: controller.signal,
       });
@@ -2180,6 +2256,7 @@ export default function ChatPage() {
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
+      isVoiceTurnProcessingRef.current = false;
     }
   }
 
@@ -2247,6 +2324,7 @@ export default function ChatPage() {
           userEmail: isUserAuthenticated ? userEmail : undefined,
           userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
           isAuthenticated: isUserAuthenticated,
+          location: userLocationRef.current,
         }),
         signal: controller.signal,
       });
@@ -2291,6 +2369,7 @@ export default function ChatPage() {
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
+      isVoiceTurnProcessingRef.current = false;
     }
   }
 
@@ -2339,6 +2418,7 @@ export default function ChatPage() {
           userEmail: isUserAuthenticated ? userEmail : undefined,
           userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
           isAuthenticated: isUserAuthenticated,
+          location: userLocationRef.current,
         }),
         signal: controller.signal,
       });
@@ -2384,6 +2464,7 @@ export default function ChatPage() {
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
+      isVoiceTurnProcessingRef.current = false;
     }
   }
 
@@ -4379,6 +4460,29 @@ export default function ChatPage() {
                             </div>
                           </button>
 
+                          {/* Live Weather Report */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAttachmentMenuOpen(false);
+                              requestLocation();
+                              sendMessage("Give me the current weather report for my location");
+                            }}
+                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                            }`}
+                          >
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                              <MapPin className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="block font-semibold text-xs">Weather Report</span>
+                              <span className="block text-[10px] text-neutral-400 truncate">
+                                {userLocationName ? `Live weather in ${userLocationName}` : "Real-time forecast for your location"}
+                              </span>
+                            </div>
+                          </button>
+
                           {/* Divider */}
                           <div className="my-1.5 border-t border-black/[0.06] dark:border-neutral-800" />
 
@@ -4608,6 +4712,30 @@ export default function ChatPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Location & Live Weather Pill */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        requestLocation();
+                        if (userLocationName) {
+                          showToast(`Location active: ${userLocationName}. Ask for weather anytime 🌦️`);
+                        } else {
+                          showToast("Requesting GPS location access ✦");
+                        }
+                      }}
+                      className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-all cursor-pointer ${
+                        userLocationName
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : isDark
+                          ? "border-neutral-700 bg-neutral-800/80 text-neutral-400 hover:text-white"
+                          : "border-black/10 bg-neutral-100/80 text-neutral-600 hover:text-black"
+                      }`}
+                      title={userLocationName ? `Connected to ${userLocationName}. Click to refresh` : "Enable location for real-time weather reports"}
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="hidden sm:inline">{userLocationName || "Location"}</span>
+                    </button>
                   </div>
 
                   {/* Right Controls: Voice Input & Dynamic Send / Stop Button */}

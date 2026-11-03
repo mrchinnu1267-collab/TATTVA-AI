@@ -90,7 +90,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.trycloudflare.com https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://router.huggingface.co https://api.stability.ai https://api.openai.com https://api.replicate.com",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* https://*.trycloudflare.com https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://router.huggingface.co https://api.stability.ai https://api.openai.com https://api.replicate.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.bigdatacloud.net https://ipapi.co",
     "frame-ancestors 'self'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -101,7 +101,7 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Frame-Options", "DENY"); // Prevent clickjacking
   response.headers.set("X-Content-Type-Options", "nosniff"); // Prevent MIME-type sniffing
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
 

@@ -21,6 +21,7 @@ import {
   RefreshCw,
   AlertCircle,
   FolderArchive,
+  MapPin,
 } from "lucide-react";
 
 type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
@@ -126,13 +127,50 @@ export default function LiveVoiceAssistantPage() {
   const animationFrameRef = useRef<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Speech Recognition & Timers
+  // Speech Recognition & State Guards (Echo prevention & deduplication)
   const recognitionRef = useRef<unknown>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const voiceBufferRef = useRef<string>("");
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const isAssistantSpeakingRef = useRef<boolean>(false);
+  const isProcessingTurnRef = useRef<boolean>(false);
+  const lastSubmittedPromptRef = useRef<string>("");
+  const lastSubmittedTimeRef = useRef<number>(0);
+  const userLocationRef = useRef<{ latitude?: number; longitude?: number; city?: string } | null>(null);
+  const [userLocationName, setUserLocationName] = useState<string | null>(null);
 
-  // Mount setup & voice warming for Android WebView
+  // Geolocation request for real-time weather & location-based reports
+  const requestLocation = useCallback(() => {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const loc = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          };
+          userLocationRef.current = loc;
+          try {
+            const res = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${loc.latitude}&longitude=${loc.longitude}&localityLanguage=en`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const name = data.city || data.locality || data.principalSubdivision;
+              if (name) setUserLocationName(name);
+            }
+          } catch {
+            // ignore
+          }
+        },
+        (err) => {
+          console.warn("[Voice Assistant] Geolocation not granted:", err.message);
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+      );
+    }
+  }, []);
+
+  // Mount setup, location acquisition & voice warming for Android WebView
   useEffect(() => {
     const savedTheme = localStorage.getItem("tattva_theme");
     if (savedTheme === "dark" || savedTheme === "light") {
@@ -147,7 +185,10 @@ export default function LiveVoiceAssistantPage() {
       loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
-  }, []);
+
+    // Pre-fetch location for real-time weather reports
+    requestLocation();
+  }, [requestLocation]);
 
   function toggleTheme() {
     const nextTheme = theme === "light" ? "dark" : "light";
@@ -155,11 +196,19 @@ export default function LiveVoiceAssistantPage() {
     localStorage.setItem("tattva_theme", nextTheme);
   }
 
-  // Barge-in: Interrupt assistant when user starts talking or clicks interrupt
+  // Barge-in: Interrupt assistant safely when user starts talking or clicks interrupt
   const interruptAssistant = useCallback(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       currentUtteranceRef.current = null;
+    }
+    isAssistantSpeakingRef.current = false;
+    isProcessingTurnRef.current = false;
+    voiceBufferRef.current = "";
+    setLiveUserSpeech("");
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
   }, []);
 
@@ -266,7 +315,10 @@ export default function LiveVoiceAssistantPage() {
         return;
       }
 
-      interruptAssistant();
+      // Stop any prior speech
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
 
       // Clean narration: strip code fences, markdown links, asterisks
       const cleanSpoken = text
@@ -278,6 +330,8 @@ export default function LiveVoiceAssistantPage() {
         .trim();
 
       if (!cleanSpoken) {
+        isAssistantSpeakingRef.current = false;
+        isProcessingTurnRef.current = false;
         if (onDone) onDone();
         return;
       }
@@ -298,30 +352,56 @@ export default function LiveVoiceAssistantPage() {
       utterance.rate = 1.0;
 
       utterance.onstart = () => {
+        isAssistantSpeakingRef.current = true;
         setVoiceState("speaking");
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+        voiceBufferRef.current = "";
+        setLiveUserSpeech("");
       };
 
       utterance.onend = () => {
-        setVoiceState("listening");
         currentUtteranceRef.current = null;
-        if (onDone) onDone();
+        // 450ms safety cooldown after speech ends so speaker reverb doesn't trigger mic
+        setTimeout(() => {
+          isAssistantSpeakingRef.current = false;
+          isProcessingTurnRef.current = false;
+          voiceBufferRef.current = "";
+          setLiveUserSpeech("");
+          if (isSessionActive && !isMuted) {
+            setVoiceState("listening");
+          }
+          if (onDone) onDone();
+        }, 450);
       };
 
       utterance.onerror = () => {
-        setVoiceState("listening");
         currentUtteranceRef.current = null;
+        isAssistantSpeakingRef.current = false;
+        isProcessingTurnRef.current = false;
+        voiceBufferRef.current = "";
+        setLiveUserSpeech("");
+        if (isSessionActive && !isMuted) {
+          setVoiceState("listening");
+        }
         if (onDone) onDone();
       };
 
       window.speechSynthesis.speak(utterance);
     },
-    [interruptAssistant, selectedLanguage]
+    [selectedLanguage, isSessionActive, isMuted]
   );
 
-  // Send turn to backend voice-chat endpoint
+  // Send turn to backend voice-chat endpoint with deduplication and location
   const sendVoiceTurn = useCallback(
     async (spokenPrompt: string) => {
-      if (!spokenPrompt.trim()) return;
+      const cleanPrompt = spokenPrompt.trim();
+      if (!cleanPrompt) {
+        isProcessingTurnRef.current = false;
+        return;
+      }
 
       setVoiceState("thinking");
 
@@ -329,7 +409,7 @@ export default function LiveVoiceAssistantPage() {
       const userTurn: TranscriptTurn = {
         id: crypto.randomUUID(),
         role: "user",
-        text: spokenPrompt,
+        text: cleanPrompt,
         timestamp: Date.now(),
       };
 
@@ -339,9 +419,10 @@ export default function LiveVoiceAssistantPage() {
 
       try {
         const payload = {
-          prompt: spokenPrompt,
+          prompt: cleanPrompt,
           history: updatedHistory.slice(-8).map((t) => ({ role: t.role, content: t.text })),
           language: selectedLanguage,
+          location: userLocationRef.current,
         };
 
         const res = await fetch("/api/voice-chat", {
@@ -369,7 +450,7 @@ export default function LiveVoiceAssistantPage() {
 
         // Speak response aloud via female voice
         speakSpokenResponse(aiReply, () => {
-          // Continuous loop: resume listening once speech concludes
+          isProcessingTurnRef.current = false;
           if (isSessionActive && !isMuted) {
             setVoiceState("listening");
           }
@@ -377,13 +458,14 @@ export default function LiveVoiceAssistantPage() {
       } catch (err: unknown) {
         console.error("Voice turn error:", err);
         setErrorMessage(err instanceof Error ? err.message : "Failed to generate speech response.");
+        isProcessingTurnRef.current = false;
         setVoiceState("listening");
       }
     },
     [transcript, selectedLanguage, speakSpokenResponse, isSessionActive, isMuted]
   );
 
-  // Speech Recognition with Continuous Listening, Turn-Taking, and Barge-In
+  // Speech Recognition with Continuous Listening, Echo Immunity, and Deduplication
   const startContinuousSpeechRecognition = useCallback(() => {
     if (typeof window === "undefined") return;
 
@@ -406,10 +488,14 @@ export default function LiveVoiceAssistantPage() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onresult = (event: any) => {
-        // BARGE-IN: If assistant is speaking when user begins speaking, interrupt immediately!
-        if (currentUtteranceRef.current) {
-          interruptAssistant();
-          setVoiceState("listening");
+        // ECHO IMMUNITY: When Sare is speaking, discard microphone input so assistant never hears itself
+        if (isAssistantSpeakingRef.current) {
+          return;
+        }
+
+        // TURN LOCK: If an ongoing turn is thinking/processing, do not accept concurrent input
+        if (isProcessingTurnRef.current) {
+          return;
         }
 
         let interimText = "";
@@ -428,23 +514,38 @@ export default function LiveVoiceAssistantPage() {
         }
 
         const currentSpoken = (voiceBufferRef.current + " " + interimText).trim();
-        setLiveUserSpeech(currentSpoken);
+        if (!currentSpoken) return;
 
-        // Turn-taking VAD: Reset 1.8-second silence detector on speech
+        setLiveUserSpeech(currentSpoken);
+        setVoiceState("listening");
+
+        // Turn-taking VAD: Reset silence detector on speech
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
         }
 
-        if (currentSpoken) {
-          setVoiceState("listening");
-          silenceTimerRef.current = setTimeout(() => {
-            const promptToSubmit = (voiceBufferRef.current || currentSpoken).trim();
-            if (promptToSubmit) {
-              voiceBufferRef.current = "";
-              sendVoiceTurn(promptToSubmit);
-            }
-          }, 1800); // 1.8 seconds of natural conversational silence
-        }
+        silenceTimerRef.current = setTimeout(() => {
+          const promptToSubmit = (voiceBufferRef.current || currentSpoken).trim();
+          if (!promptToSubmit) return;
+
+          // Prevent duplicate / identical inputs within 4 seconds
+          const now = Date.now();
+          const isDuplicate =
+            promptToSubmit.toLowerCase() === lastSubmittedPromptRef.current.toLowerCase() &&
+            now - lastSubmittedTimeRef.current < 4000;
+
+          if (isDuplicate || isProcessingTurnRef.current || isAssistantSpeakingRef.current) {
+            return;
+          }
+
+          lastSubmittedPromptRef.current = promptToSubmit;
+          lastSubmittedTimeRef.current = now;
+          isProcessingTurnRef.current = true;
+          voiceBufferRef.current = "";
+          setLiveUserSpeech("");
+
+          sendVoiceTurn(promptToSubmit);
+        }, 1600); // 1.6 seconds of natural silence before submitting
       };
 
       recognition.onerror = (e: { error?: string }) => {
@@ -472,12 +573,15 @@ export default function LiveVoiceAssistantPage() {
     } catch (err) {
       console.error("Speech recognition startup error:", err);
     }
-  }, [selectedLanguage, interruptAssistant, sendVoiceTurn, isSessionActive, isMuted]);
+  }, [selectedLanguage, sendVoiceTurn, isSessionActive, isMuted]);
 
   // Start Live Voice Session
   const startSession = async () => {
     setErrorMessage(null);
     setVoiceState("listening");
+
+    // Acquire location for accurate weather & local inquiries
+    requestLocation();
 
     const audioReady = await setupAudioCapture();
     if (!audioReady) return;
@@ -656,6 +760,23 @@ export default function LiveVoiceAssistantPage() {
             />
             <span>{isSessionActive ? "Live Session Active" : "Disconnected"}</span>
           </div>
+
+          {/* Location Access Badge */}
+          <button
+            type="button"
+            onClick={requestLocation}
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+              userLocationName
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : isDark
+                ? "border-neutral-800 bg-neutral-900 text-neutral-400 hover:text-white"
+                : "border-black/10 bg-white text-neutral-600 hover:text-black"
+            }`}
+            title="Location access for weather and live reports (click to update)"
+          >
+            <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+            <span>{userLocationName || "Location"}</span>
+          </button>
 
           {/* Media Studio Link (PDF, DOCX, PPTX, XLSX, CSV) */}
           <a

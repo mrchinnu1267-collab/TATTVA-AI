@@ -1,0 +1,50 @@
+{
+  "default_model": "sdxl",
+  "models": {
+    "sdxl": {
+      "repo": "stabilityai/stable-diffusion-xl-base-1.0",
+      "path": "./models/sdxl",
+      "family": "sdxl",
+      "label": "SDXL 1.0",
+      "default_steps": 28,
+      "default_cfg": 7.0
+    },
+    "sdxl-turbo": {
+      "repo": "stabilityai/sdxl-turbo",
+      "path": "./models/sdxl-turbo",
+      "family": "sdxl",
+      "label": "SDXL Turbo (fast)",
+      "default_steps": 4,
+      "default_cfg": 0.0
+    },
+    "sd15": {
+      "repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "path": "./models/sd15",
+      "family": "sd15",
+      "label": "Stable Diffusion 1.5 (low VRAM)",
+      "default_steps": 30,
+      "default_cfg": 7.5
+    }
+  },
+  "defaults": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 30,
+    "cfg_scale": 7.5,
+    "scheduler": "euler",
+    "strength": 0.6,
+    "negative_prompt": "low quality, worst quality, blurry, jpeg artifacts, watermark, text, extra limbs, deformed hands"
+  },
+  "memory": {
+    "max_megapixels": 1.0,
+    "attention_slicing": true,
+    "vae_slicing": true,
+    "vae_tiling": true,
+    "cpu_offload": "auto",
+    "xformers": true
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8001
+  }
+}
