@@ -871,6 +871,70 @@ export default function ChatPage() {
     };
   }, []);
 
+  // Auto-close sidebar on mobile initial load
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
+  // Touch swipe gestures for opening/closing Chat History sidebar
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  useEffect(() => {
+    function handleTouchStart(e: TouchEvent) {
+      if (e.touches.length !== 1) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: Date.now(),
+      };
+    }
+
+    function handleTouchEnd(e: TouchEvent) {
+      if (!touchStartRef.current || e.changedTouches.length !== 1) return;
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const deltaTime = Date.now() - touchStartRef.current.time;
+      const startX = touchStartRef.current.x;
+      touchStartRef.current = null;
+
+      // Ignore slow gestures or predominantly vertical scrolls
+      if (deltaTime > 900) return;
+      if (Math.abs(deltaY) > Math.abs(deltaX) * 0.85) return;
+
+      // 1. Swipe Right: Open Chat History sidebar
+      if (deltaX > 45) {
+        if (startX < Math.max(140, window.innerWidth * 0.45) || !sidebarOpen) {
+          setSidebarOpen(true);
+        }
+      }
+
+      // 2. Swipe Left: Close Chat History sidebar
+      if (deltaX < -45 && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    }
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [sidebarOpen]);
+
   // 300ms Debounced Global Search across all conversation titles, user messages, and AI responses
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -2836,6 +2900,14 @@ export default function ChatPage() {
           2. MAIN CONTENT AREA: SIDEBAR + CHAT STREAM
       ========================================================================= */}
       <div className="flex-1 min-h-0 flex overflow-hidden relative">
+        {/* Mobile Edge Swipe Guide for Chat History */}
+        {!sidebarOpen && (
+          <div
+            className="fixed left-0 top-14 bottom-20 w-6 z-20 md:hidden pointer-events-auto touch-pan-x"
+            title="Swipe right to view chat history"
+            aria-label="Swipe right for chat history"
+          />
+        )}
         {/* Mobile Backdrop for Sidebar */}
         {sidebarOpen && (
           <div
