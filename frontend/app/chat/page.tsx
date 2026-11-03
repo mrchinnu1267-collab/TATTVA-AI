@@ -2614,7 +2614,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className={`h-screen max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-black selection:text-white ${
+      className={`fixed inset-0 w-full h-full max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-black selection:text-white ${
         isDark ? "bg-[#0d0e11] text-neutral-100" : "bg-white text-black"
       }`}
     >
@@ -2703,8 +2703,8 @@ export default function ChatPage() {
           1. TOP NAVIGATION BAR (MINIMALIST + LIQUID ACCENTS)
       ========================================================================= */}
       <header
-        className={`flex-shrink-0 z-30 border-b backdrop-blur-xl ${
-          isDark ? "border-neutral-800/80 bg-[#0d0e11]/85" : "border-black/[0.06] bg-white/85"
+        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 ${
+          isDark ? "border-neutral-800/80 bg-[#0d0e11]/95 text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
         }`}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2.5">
@@ -2754,7 +2754,7 @@ export default function ChatPage() {
               {/* Elegant Popover */}
               {isInfoBubbleOpen && (
                 <div
-                  className={`absolute left-0 top-full mt-2 w-72 sm:w-84 rounded-2xl border p-4 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                  className={`absolute left-0 top-full mt-2 w-72 sm:w-84 max-w-[calc(100vw-2rem)] rounded-2xl border p-4 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-150 ${
                     isDark
                       ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
                       : "border-black/10 bg-white/95 text-neutral-800"
