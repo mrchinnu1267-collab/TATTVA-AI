@@ -2614,7 +2614,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-black selection:text-white ${
+      className={`h-screen max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-black selection:text-white ${
         isDark ? "bg-[#0d0e11] text-neutral-100" : "bg-white text-black"
       }`}
     >
@@ -2703,7 +2703,7 @@ export default function ChatPage() {
           1. TOP NAVIGATION BAR (MINIMALIST + LIQUID ACCENTS)
       ========================================================================= */}
       <header
-        className={`sticky top-0 z-30 border-b backdrop-blur-xl ${
+        className={`flex-shrink-0 z-30 border-b backdrop-blur-xl ${
           isDark ? "border-neutral-800/80 bg-[#0d0e11]/85" : "border-black/[0.06] bg-white/85"
         }`}
       >
@@ -2835,7 +2835,7 @@ export default function ChatPage() {
       {/* =========================================================================
           2. MAIN CONTENT AREA: SIDEBAR + CHAT STREAM
       ========================================================================= */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 min-h-0 flex overflow-hidden relative">
         {/* Mobile Backdrop for Sidebar */}
         {sidebarOpen && (
           <div
@@ -2846,7 +2846,7 @@ export default function ChatPage() {
 
         {/* Left Sidebar: ChatGPT-Inspired Collapsible Sidebar */}
         <aside
-          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col border-r transition-all duration-300 ease-in-out ${
+          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col flex-shrink-0 h-full max-h-full border-r transition-all duration-300 ease-in-out ${
             sidebarOpen
               ? "w-[280px] max-w-[85vw] translate-x-0"
               : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden pointer-events-none"
@@ -2854,8 +2854,8 @@ export default function ChatPage() {
             isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
           } backdrop-blur-xl shadow-xl md:shadow-none`}
         >
-          {/* Sidebar Top: Logo + Close Button */}
-          <div className="p-3 border-b border-black/[0.06] flex items-center justify-between">
+          {/* Sidebar Top: Logo + Close Button (Frozen) */}
+          <div className="flex-shrink-0 p-3 border-b border-black/[0.06] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="relative flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs">
                 <img
@@ -2880,8 +2880,8 @@ export default function ChatPage() {
             </button>
           </div>
 
-          {/* Action Buttons: New Chat & Global Search */}
-          <div className="p-2 space-y-1.5 border-b border-black/[0.06]">
+          {/* Action Buttons: New Chat & Global Search (Frozen) */}
+          <div className="flex-shrink-0 p-2 space-y-1.5 border-b border-black/[0.06]">
             {/* New Chat Button */}
             <button
               type="button"
@@ -2942,8 +2942,8 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Scrollable Chat History */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-3">
+          {/* Scrollable Chat History (Only this part scrolls inside the sidebar) */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3">
             {/* Loading Skeleton */}
             {sessionsLoading && (
               <div className="space-y-2 p-2">
@@ -3350,9 +3350,9 @@ export default function ChatPage() {
           </div>
 
           {/* =========================================================================
-              SIDEBAR PROFILE FOOTER (CHATGPT-STYLE USER PROFILE & DROPDOWN TRIGGER)
+              SIDEBAR PROFILE FOOTER (FROZEN AT BOTTOM, NEVER MOVES)
           ========================================================================= */}
-          <div className="relative p-2 border-t border-black/[0.06] dark:border-neutral-800" data-profile-menu>
+          <div className="flex-shrink-0 relative p-2 border-t border-black/[0.06] dark:border-neutral-800" data-profile-menu>
             {/* Profile Dropdown Menu (Floats upwards) */}
             {isProfileMenuOpen && (
               <div
@@ -3679,15 +3679,11 @@ export default function ChatPage() {
         )}
 
         {/* Central Chat Stream */}
-        <main
-          ref={chatContainerRef}
-          onScroll={handleChatScroll}
-          className="flex-1 flex flex-col justify-between overflow-y-auto relative"
-        >
-          {/* Sare Voice Status Banner */}
+        <main className="flex-1 min-h-0 flex flex-col h-full overflow-hidden relative">
+          {/* Sare Voice Status Banner (Frozen) */}
           {sareEnabled && (
             <div
-              className={`sticky top-0 z-20 flex items-center justify-between px-6 py-2.5 text-xs font-semibold backdrop-blur-md transition-colors ${
+              className={`flex-shrink-0 z-20 flex items-center justify-between px-6 py-2.5 text-xs font-semibold backdrop-blur-md transition-colors ${
                 sareStatus === "listening"
                   ? "bg-black text-white animate-pulse"
                   : sareStatus === "speaking"
@@ -3719,8 +3715,13 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Messages list */}
-          <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
+          {/* Messages Scroll Viewport (Independently scrollable) */}
+          <div
+            ref={chatContainerRef}
+            onScroll={handleChatScroll}
+            className="flex-1 min-h-0 overflow-y-auto w-full relative"
+          >
+            <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
               <div className="my-auto py-10 sm:py-16 text-center max-w-xl mx-auto">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-md mb-4 p-1">
@@ -4121,13 +4122,14 @@ export default function ChatPage() {
 
 
             <div ref={chatBottomRef} />
+            </div>
           </div>
 
           {/* =========================================================================
-              3. ADVANCED AI CHAT COMPOSER (CHATGPT-INSPIRED FLOATING COMPOSER)
+              3. ADVANCED AI CHAT COMPOSER (FROZEN AT BOTTOM, NEVER MOVES WITH SCROLL)
           ========================================================================= */}
           <div
-            className={`sticky bottom-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 pointer-events-none transition-colors duration-200 ${
+            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 transition-colors duration-200 ${
               isDark
                 ? "bg-gradient-to-t from-[#0d0e11] via-[#0d0e11]/95 to-transparent"
                 : "bg-gradient-to-t from-white via-white/95 to-transparent"

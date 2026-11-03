@@ -11,3 +11,4 @@ export async function GET(request: Request) {
 
   return NextResponse.redirect(targetUrl, 302);
 }
+
