@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
@@ -890,6 +890,9 @@ export default function ChatPage() {
   const [mapsOrigin, setMapsOrigin] = useState("");
   const [mapsDestination, setMapsDestination] = useState("");
   const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
+  const [mapLocationName, setMapLocationName] = useState("Bangalore, Karnataka, India");
+  const [isMapLoading, setIsMapLoading] = useState(false);
   const [imageOutputRatio, setImageOutputRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
 
   function toggleTemporaryChat() {
@@ -930,20 +933,26 @@ export default function ChatPage() {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         userLocationRef.current = { latitude: lat, longitude: lng };
+        setMapCoords({ lat, lng });
+
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+            headers: { "User-Agent": "TattvaAI-Geocode/1.0" }
+          });
           if (res.ok) {
             const data = await res.json();
             const place = data.address?.city || data.address?.town || data.address?.suburb || data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
             setMapsQuery(place);
             setMapsSearchInput(place);
+            setMapLocationName(place);
             showToast(`GPS Location centered: ${place} 📍`);
             return;
           }
         } catch {}
-        const coordStr = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+        const coordStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         setMapsQuery(coordStr);
         setMapsSearchInput(coordStr);
+        setMapLocationName(coordStr);
         showToast("Centered map to GPS coordinates 📍");
       },
       (err) => {
@@ -954,22 +963,108 @@ export default function ChatPage() {
     );
   }
 
-  function handleMapSearch(e?: React.FormEvent) {
+  async function handleMapSearch(e?: React.FormEvent, customQuery?: string) {
     if (e) e.preventDefault();
-    if (!mapsSearchInput.trim()) return;
-    setMapsQuery(mapsSearchInput.trim());
+    const q = (customQuery !== undefined ? customQuery : mapsSearchInput).trim();
+    if (!q) return;
+
+    setIsMapLoading(true);
+    setMapsQuery(q);
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+          const first = data.results[0];
+          const newLat = parseFloat(first.lat);
+          const newLng = parseFloat(first.lon);
+          setMapCoords({ lat: newLat, lng: newLng });
+          setMapLocationName(first.display_name);
+          showToast(`Found: ${first.display_name.split(",")[0]} 📍`);
+          setIsMapLoading(false);
+          return;
+        }
+      }
+      showToast(`No exact coordinates found for "${q}". Showing approximate region.`);
+    } catch {
+      showToast("Geocoding lookup failed. Please try again.");
+    } finally {
+      setIsMapLoading(false);
+    }
   }
 
   function handleMapCategory(cat: string) {
-    const q = mapsQuery ? `${cat} in ${mapsQuery}` : cat;
+    const basePlace = mapLocationName ? mapLocationName.split(",")[0] : mapsQuery;
+    const q = `${cat} in ${basePlace}`;
     setMapsSearchInput(q);
-    setMapsQuery(q);
+    handleMapSearch(undefined, q);
   }
 
   function askAIAboutLocation(loc: string) {
     setIsMapsModalOpen(false);
     sendMessage(`Give me a detailed guide and top recommendations for ${loc}: best places to visit, popular local food, travel tips, and cultural highlights.`);
   }
+
+  // Generate self-contained, CSP-immune interactive Leaflet HTML inside srcDoc
+  const mapSrcDoc = useMemo(() => {
+    const lat = mapCoords.lat;
+    const lng = mapCoords.lng;
+    const cleanLabel = (mapLocationName || mapsQuery || "Location").replace(/"/g, '&quot;').replace(/'/g, "\\'");
+    const isSat = mapsMode === "satellite";
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #121316; }
+    .leaflet-bar { border: none !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; border-radius: 12px !important; overflow: hidden; }
+    .leaflet-bar a { background: #1e1f23 !important; color: #fff !important; border-bottom: 1px solid #333 !important; }
+    .leaflet-bar a:hover { background: #2d3036 !important; }
+    .leaflet-popup-content-wrapper { background: #1e1f23 !important; color: #f3f4f6 !important; border-radius: 14px !important; border: 1px solid rgba(255,255,255,0.1) !important; box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
+    .leaflet-popup-tip { background: #1e1f23 !important; }
+    .custom-pin { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: #10b981; color: #fff; box-shadow: 0 0 16px rgba(16,185,129,0.7); border: 2px solid #fff; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    try {
+      var map = L.map('map', { zoomControl: true }).setView([${lat}, ${lng}], 14);
+
+      ${isSat ? `
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: '&copy; Esri World Imagery'
+      }).addTo(map);
+      ` : `
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      `}
+
+      var pinIcon = L.divIcon({
+        className: 'custom-pin-wrap',
+        html: '<div class="custom-pin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>',
+        iconSize: [34, 34],
+        iconAnchor: [17, 34],
+        popupAnchor: [0, -34]
+      });
+
+      var marker = L.marker([${lat}, ${lng}], { icon: pinIcon }).addTo(map);
+      marker.bindPopup("<div style='padding:4px;'><b>${cleanLabel}</b><br/><span style='font-size:11px;color:#9ca3af;'>Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</span></div>").openPopup();
+    } catch(err) {
+      console.error(err);
+    }
+  </script>
+</body>
+</html>`;
+  }, [mapCoords, mapsMode, mapLocationName, mapsQuery]);
 
   // Geolocation request for real-time weather & location-based reports
   const requestLocation = useCallback(() => {
@@ -5060,24 +5155,26 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {/* Live Interactive Map Iframe Container */}
+            {/* Live Interactive Map Iframe Container with CSP-Immune Leaflet & OpenStreetMap / Satellite Engine */}
             <div className="flex-1 min-h-0 relative bg-neutral-100 dark:bg-neutral-950">
+              {isMapLoading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-xs">
+                  <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/80 text-white text-xs font-semibold shadow-xl border border-white/10">
+                    <span className="h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <span>Locating place...</span>
+                  </div>
+                </div>
+              )}
               <iframe
                 title="TATTVA Maps Live Explorer"
-                src={
-                  mapsDirectionsMode && mapsDestination
-                    ? `https://maps.google.com/maps?saddr=${encodeURIComponent(mapsOrigin || mapsQuery || "My Location")}&daddr=${encodeURIComponent(mapsDestination)}&output=embed`
-                    : `https://maps.google.com/maps?q=${encodeURIComponent(mapsQuery || "Bangalore, India")}&t=${mapsMode === "satellite" ? "k" : ""}&z=14&ie=UTF8&iwloc=&output=embed`
-                }
+                srcDoc={mapSrcDoc}
                 className="w-full h-full border-0"
-                loading="lazy"
-                allowFullScreen
-                referrerPolicy="no-referrer-when-downgrade"
+                sandbox="allow-scripts allow-popups allow-forms allow-same-origin"
               />
             </div>
 
-            {/* Bottom Actions Bar */}
-            <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-t border-black/[0.08] dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/70">
+            {/* Bottom Actions Bar with Safe Area Bottom Padding */}
+            <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 pb-[max(env(safe-area-inset-bottom,0px),16px)] sm:pb-3 border-t border-black/[0.08] dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/70">
               <div className="flex items-center gap-2">
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery || "Location")}`}
