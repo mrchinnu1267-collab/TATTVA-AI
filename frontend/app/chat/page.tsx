@@ -41,6 +41,8 @@ import {
   User as UserIcon,
   Settings,
   ShieldCheck,
+  Type,
+  ZoomIn,
   Ghost,
   HelpCircle,
   LogOut,
@@ -775,6 +777,105 @@ export default function ChatPage() {
 
   // Archive Modal state
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+
+  // Display, Font Size, Style & Accessibility Settings (Matching Android Display Settings)
+  interface DisplaySettings {
+    fontStyle: "inter" | "roboto" | "samsung" | "system";
+    fontSize: "small" | "default" | "large" | "xlarge";
+    fontWeight: "light" | "regular" | "medium" | "bold";
+    isBoldText: boolean;
+    displaySize: "compact" | "default" | "large";
+    screenZoom: "normal" | "zoomed";
+    fontScaling: 100 | 115 | 130;
+    isItalic: boolean;
+    letterSpacing: "normal" | "expanded";
+    lineSpacing: "compact" | "normal" | "relaxed";
+    isHighContrast: boolean;
+  }
+
+  const defaultDisplaySettings: DisplaySettings = {
+    fontStyle: "inter",
+    fontSize: "default",
+    fontWeight: "regular",
+    isBoldText: false,
+    displaySize: "default",
+    screenZoom: "normal",
+    fontScaling: 100,
+    isItalic: false,
+    letterSpacing: "normal",
+    lineSpacing: "normal",
+    isHighContrast: false,
+  };
+
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(defaultDisplaySettings);
+  const [settingsActiveTab, setSettingsActiveTab] = useState<"display" | "general">("display");
+
+  // Load & apply Display Settings to document.body
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem("tattva_display_settings");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setDisplaySettings((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Sync DOM classes whenever displaySettings change
+  useEffect(() => {
+    if (typeof window === "undefined" || !document.body) return;
+    const cl = document.body.classList;
+
+    // Remove previous font style classes
+    cl.remove("font-inter", "font-roboto", "font-samsung", "font-system");
+    cl.add(`font-${displaySettings.fontStyle}`);
+
+    // Remove previous weight classes
+    cl.remove("weight-light", "weight-regular", "weight-medium", "weight-bold");
+    cl.add(`weight-${displaySettings.fontWeight}`);
+
+    // Bold text toggle
+    if (displaySettings.isBoldText) cl.add("bold-text-active");
+    else cl.remove("bold-text-active");
+
+    // Font scaling
+    cl.remove("font-scale-small", "font-scale-default", "font-scale-large", "font-scale-xlarge");
+    cl.add(`font-scale-${displaySettings.fontSize}`);
+
+    // Screen zoom
+    if (displaySettings.screenZoom === "zoomed") cl.add("screen-zoom-zoomed");
+    else cl.remove("screen-zoom-zoomed");
+
+    // Italic style
+    if (displaySettings.isItalic) cl.add("italic-style-active");
+    else cl.remove("italic-style-active");
+
+    // Letter spacing
+    if (displaySettings.letterSpacing === "expanded") cl.add("letter-spacing-expanded");
+    else cl.remove("letter-spacing-expanded");
+
+    // Line spacing
+    cl.remove("line-spacing-compact", "line-spacing-relaxed");
+    if (displaySettings.lineSpacing === "compact") cl.add("line-spacing-compact");
+    else if (displaySettings.lineSpacing === "relaxed") cl.add("line-spacing-relaxed");
+
+    // High contrast text
+    if (displaySettings.isHighContrast) cl.add("high-contrast-active");
+    else cl.remove("high-contrast-active");
+
+    try {
+      localStorage.setItem("tattva_display_settings", JSON.stringify(displaySettings));
+    } catch {
+      // ignore
+    }
+  }, [displaySettings]);
+
+  function updateDisplaySetting<K extends keyof DisplaySettings>(key: K, val: DisplaySettings[K]) {
+    setDisplaySettings((prev) => ({ ...prev, [key]: val }));
+  }
 
   // Temporary Chat & Deep Thinking states
   const [isTemporaryChat, setIsTemporaryChat] = useState(false);
@@ -3553,6 +3654,25 @@ export default function ChatPage() {
                         type="button"
                         onClick={() => {
                           setIsProfileMenuOpen(false);
+                          setSettingsActiveTab("display");
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Type className="w-5 h-5 text-cyan-500 shrink-0" />
+                          <span>Font &amp; Display</span>
+                        </div>
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-bold">
+                          {displaySettings.fontStyle}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setSettingsActiveTab("general");
                           setIsSettingsModalOpen(true);
                         }}
                         className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
@@ -3592,6 +3712,25 @@ export default function ChatPage() {
                         type="button"
                         onClick={() => {
                           setIsProfileMenuOpen(false);
+                          setSettingsActiveTab("display");
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Type className="w-5 h-5 text-cyan-500 shrink-0" />
+                          <span>Font &amp; Display</span>
+                        </div>
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-bold">
+                          {displaySettings.fontStyle}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setSettingsActiveTab("general");
                           setIsSettingsModalOpen(true);
                         }}
                         className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
@@ -5160,143 +5299,455 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* 2. SETTINGS MODAL */}
+      {/* 2. SETTINGS & DISPLAY CUSTOMIZATION MODAL */}
       {isSettingsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsSettingsModalOpen(false)}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => setIsSettingsModalOpen(false)}
+        >
           <div
-            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+            className={`w-full max-w-xl max-h-[92vh] flex flex-col rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all overflow-hidden ${
               isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white dark:bg-white dark:text-black">
-                  <Settings className="w-4 h-4" />
+            {/* Header */}
+            <div className="flex-shrink-0 flex items-center justify-between p-4 sm:p-5 border-b border-black/[0.06] dark:border-neutral-800">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-500">
+                  <Type className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold">Preferences &amp; Settings</h3>
-                  <p className="text-[11px] text-neutral-400">Customize your TATTVA AI experience</p>
+                  <h3 className="text-base sm:text-lg font-bold">Display, Font &amp; Style</h3>
+                  <p className="text-[11px] text-neutral-400">Android-inspired font, sizing &amp; accessibility controls</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsSettingsModalOpen(false)}
-                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+                className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="mt-5 space-y-4 text-xs">
-              {/* Setting 1: Theme Switcher */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-white">Color Theme</p>
-                  <p className="text-[11px] text-neutral-400">Current: {isDark ? "Dark Modern" : "Light Minimalist"}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50"
-                >
-                  {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-neutral-600" />}
-                  <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
-                </button>
-              </div>
+            {/* Navigation Tabs */}
+            <div className="flex-shrink-0 flex p-1.5 mx-4 mt-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+              <button
+                type="button"
+                onClick={() => setSettingsActiveTab("display")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  settingsActiveTab === "display"
+                    ? "bg-white dark:bg-neutral-800 text-black dark:text-white shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Type className="w-3.5 h-3.5" />
+                <span>Font &amp; Display</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsActiveTab("general")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  settingsActiveTab === "general"
+                    ? "bg-white dark:bg-neutral-800 text-black dark:text-white shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>General Preferences</span>
+              </button>
+            </div>
 
-              {/* Setting 2: Sare Voice Assistant Narration */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-white">Sare Voice Auto-Narration</p>
-                  <p className="text-[11px] text-neutral-400">Speak AI responses aloud automatically</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleSareVoiceMode}
-                  className={`rounded-xl px-3 py-1.5 font-semibold transition cursor-pointer ${
-                    sareEnabled
-                      ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
-                      : "border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400"
-                  }`}
-                >
-                  {sareEnabled ? "Enabled (ON)" : "Disabled (OFF)"}
-                </button>
-              </div>
+            {/* Scrollable Content Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              {settingsActiveTab === "display" ? (
+                <>
+                  {/* Live Interactive Typography Preview Box */}
+                  <div className="p-4 rounded-2xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-100/60 dark:bg-white/[0.02]">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 mb-1.5 flex items-center justify-between">
+                      <span>Live Preview</span>
+                      <span className="font-mono text-cyan-500">{displaySettings.fontStyle.toUpperCase()} • {displaySettings.fontSize.toUpperCase()}</span>
+                    </div>
+                    <p className="text-sm sm:text-base leading-relaxed transition-all">
+                      TATTVA AI empowers intelligent reasoning, fast coding, and next-generation conversational intelligence with customized typography.
+                    </p>
+                  </div>
 
-              {/* Setting 3: Archived Conversations */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-white">Archived Conversations</p>
-                  <p className="text-[11px] text-neutral-400">
-                    {sessions.filter((s) => s.is_archived).length} archived {sessions.filter((s) => s.is_archived).length === 1 ? "chat" : "chats"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSettingsModalOpen(false);
-                    setIsArchiveModalOpen(true);
-                  }}
-                  className="rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
-                >
-                  Manage
-                </button>
-              </div>
+                  {/* 1. Font Style (Roboto, Samsung One UI Sans, Inter, System) */}
+                  <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">Font Style</p>
+                        <p className="text-[11px] text-neutral-400">Changes the letter design</p>
+                      </div>
+                      <span className="text-[11px] font-mono text-cyan-500 font-bold capitalize">{displaySettings.fontStyle}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      {[
+                        { id: "inter", name: "Inter" },
+                        { id: "roboto", name: "Roboto" },
+                        { id: "samsung", name: "Samsung One" },
+                        { id: "system", name: "System UI" },
+                      ].map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => updateDisplaySetting("fontStyle", f.id as any)}
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer select-none active:scale-95 ${
+                            displaySettings.fontStyle === f.id
+                              ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold shadow-xs"
+                              : "border-black/10 dark:border-neutral-700 bg-transparent text-neutral-600 dark:text-neutral-400 hover:border-black/20"
+                          }`}
+                        >
+                          {f.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Setting 4: Export Chat Data */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-white">Export Conversations</p>
-                  <p className="text-[11px] text-neutral-400">Download all your chat history as JSON</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={exportChatData}
-                  className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export</span>
-                </button>
-              </div>
+                  {/* 2. Font Size & Scaling (Small, Default, Large, Extra Large / 100% -> 130%) */}
+                  <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">Font Size &amp; Scaling</p>
+                        <p className="text-[11px] text-neutral-400">Makes text smaller or larger (100% → 130%)</p>
+                      </div>
+                      <span className="text-[11px] font-mono text-cyan-500 font-bold capitalize">
+                        {displaySettings.fontSize === "small" ? "88%" : displaySettings.fontSize === "default" ? "100%" : displaySettings.fontSize === "large" ? "115%" : "130%"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 pt-1">
+                      {[
+                        { id: "small", label: "Small", scale: "88%" },
+                        { id: "default", label: "Default", scale: "100%" },
+                        { id: "large", label: "Large", scale: "115%" },
+                        { id: "xlarge", label: "XL (130%)", scale: "130%" },
+                      ].map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => updateDisplaySetting("fontSize", s.id as any)}
+                          className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer select-none active:scale-95 ${
+                            displaySettings.fontSize === s.id
+                              ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold shadow-xs"
+                              : "border-black/10 dark:border-neutral-700 bg-transparent text-neutral-600 dark:text-neutral-400 hover:border-black/20"
+                          }`}
+                        >
+                          <div className="font-bold text-xs">{s.label}</div>
+                          <div className="text-[10px] opacity-70 font-mono">{s.scale}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Setting 5: Clear All Conversation History */}
-              <div className="flex items-center justify-between p-3 rounded-2xl border border-red-500/20 bg-red-500/5">
-                <div>
-                  <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>
-                  <p className="text-[11px] text-neutral-400">Permanently delete stored messages</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to clear all conversation history? This cannot be undone.")) {
-                      setMessages([]);
-                      setSessions([]);
-                      localStorage.removeItem(getStorageKey(userEmail));
-                      createNewChat();
-                      setIsSettingsModalOpen(false);
-                      showToast("All conversation history cleared 🗑️");
-                    }
-                  }}
-                  className="rounded-xl border border-red-500/30 bg-red-600 text-white px-3 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs cursor-pointer"
-                >
-                  Clear All
-                </button>
-              </div>
+                  {/* 3. Font Weight (Light, Regular, Medium, Bold) */}
+                  <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">Font Weight</p>
+                        <p className="text-[11px] text-neutral-400">Controls thickness of letters</p>
+                      </div>
+                      <span className="text-[11px] font-mono text-cyan-500 font-bold capitalize">{displaySettings.fontWeight}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 pt-1">
+                      {[
+                        { id: "light", label: "Light", w: "300" },
+                        { id: "regular", label: "Regular", w: "400" },
+                        { id: "medium", label: "Medium", w: "500" },
+                        { id: "bold", label: "Bold", w: "700" },
+                      ].map((w) => (
+                        <button
+                          key={w.id}
+                          type="button"
+                          onClick={() => updateDisplaySetting("fontWeight", w.id as any)}
+                          className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer select-none active:scale-95 ${
+                            displaySettings.fontWeight === w.id
+                              ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold shadow-xs"
+                              : "border-black/10 dark:border-neutral-700 bg-transparent text-neutral-600 dark:text-neutral-400 hover:border-black/20"
+                          }`}
+                        >
+                          <div className="font-bold text-xs">{w.label}</div>
+                          <div className="text-[10px] opacity-70 font-mono">{w.w}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsModalOpen(false)}
-                  className="rounded-xl bg-black dark:bg-white text-white dark:text-black px-4 py-2 text-xs font-semibold shadow-xs hover:opacity-90 transition"
-                >
-                  Done
-                </button>
-              </div>
+                  {/* 4. Bold Text & Italic Style Toggles */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Bold Text Switch */}
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">Bold Text</p>
+                        <p className="text-[11px] text-neutral-400">Makes text thicker</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateDisplaySetting("isBoldText", !displaySettings.isBoldText)}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                          displaySettings.isBoldText ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                        }`}
+                      >
+                        <span
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                            displaySettings.isBoldText ? "translate-x-6" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Italic Style Switch */}
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">Italic Style</p>
+                        <p className="text-[11px] text-neutral-400">Slants letters for emphasis</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateDisplaySetting("isItalic", !displaySettings.isItalic)}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                          displaySettings.isItalic ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                        }`}
+                      >
+                        <span
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                            displaySettings.isItalic ? "translate-x-6" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5. Letter Spacing & Line Spacing */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Letter Spacing */}
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80 space-y-2">
+                      <p className="font-bold text-neutral-900 dark:text-white">Letter Spacing</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: "normal", label: "Normal" },
+                          { id: "expanded", label: "Expanded" },
+                        ].map((sp) => (
+                          <button
+                            key={sp.id}
+                            type="button"
+                            onClick={() => updateDisplaySetting("letterSpacing", sp.id as any)}
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer select-none active:scale-95 ${
+                              displaySettings.letterSpacing === sp.id
+                                ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold"
+                                : "border-black/10 dark:border-neutral-700 text-neutral-500"
+                            }`}
+                          >
+                            {sp.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Line Spacing */}
+                    <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80 space-y-2">
+                      <p className="font-bold text-neutral-900 dark:text-white">Line Spacing</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: "compact", label: "Compact" },
+                          { id: "normal", label: "Normal" },
+                          { id: "relaxed", label: "Relaxed" },
+                        ].map((ln) => (
+                          <button
+                            key={ln.id}
+                            type="button"
+                            onClick={() => updateDisplaySetting("lineSpacing", ln.id as any)}
+                            className={`py-2 px-1 text-center rounded-xl border text-[11px] font-semibold transition cursor-pointer select-none active:scale-95 ${
+                              displaySettings.lineSpacing === ln.id
+                                ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold"
+                                : "border-black/10 dark:border-neutral-700 text-neutral-500"
+                            }`}
+                          >
+                            {ln.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 6. Screen Zoom & High Contrast Text */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Screen Zoom */}
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">Screen Zoom</p>
+                        <p className="text-[11px] text-neutral-400">Magnifies screen content</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateDisplaySetting("screenZoom", displaySettings.screenZoom === "zoomed" ? "normal" : "zoomed")}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                          displaySettings.screenZoom === "zoomed" ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                        }`}
+                      >
+                        <span
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                            displaySettings.screenZoom === "zoomed" ? "translate-x-6" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* High Contrast Text */}
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800/80">
+                      <div>
+                        <p className="font-bold text-neutral-900 dark:text-white">High Contrast Text</p>
+                        <p className="text-[11px] text-neutral-400">Sharpens readability</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateDisplaySetting("isHighContrast", !displaySettings.isHighContrast)}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                          displaySettings.isHighContrast ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                        }`}
+                      >
+                        <span
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                            displaySettings.isHighContrast ? "translate-x-6" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reset Typography to Default */}
+                  <div className="pt-1 flex justify-between items-center text-[11px] text-neutral-400">
+                    <span>Android Display &amp; Typography Specs</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDisplaySettings(defaultDisplaySettings);
+                        showToast("Display & Typography Reset to Defaults ✦");
+                      }}
+                      className="text-cyan-500 hover:underline font-bold cursor-pointer"
+                    >
+                      Reset to Defaults
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* General Preferences Tab */
+                <div className="space-y-4">
+                  {/* Color Theme */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">Color Theme</p>
+                      <p className="text-[11px] text-neutral-400">Current: {isDark ? "Dark Modern" : "Light Minimalist"}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
+                    >
+                      {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-neutral-600" />}
+                      <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+                    </button>
+                  </div>
+
+                  {/* Sare Voice */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">Sare Voice Auto-Narration</p>
+                      <p className="text-[11px] text-neutral-400">Speak AI responses aloud automatically</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleSareVoiceMode}
+                      className={`rounded-xl px-3 py-1.5 font-semibold transition cursor-pointer ${
+                        sareEnabled
+                          ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
+                          : "border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400"
+                      }`}
+                    >
+                      {sareEnabled ? "Enabled (ON)" : "Disabled (OFF)"}
+                    </button>
+                  </div>
+
+                  {/* Archived Conversations */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">Archived Conversations</p>
+                      <p className="text-[11px] text-neutral-400">
+                        {sessions.filter((s) => s.is_archived).length} archived {sessions.filter((s) => s.is_archived).length === 1 ? "chat" : "chats"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSettingsModalOpen(false);
+                        setIsArchiveModalOpen(true);
+                      }}
+                      className="rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
+                    >
+                      Manage
+                    </button>
+                  </div>
+
+                  {/* Export Chat Data */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">Export Conversations</p>
+                      <p className="text-[11px] text-neutral-400">Download all your chat history as JSON</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={exportChatData}
+                      className="flex items-center gap-1.5 rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs hover:bg-neutral-50 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export</span>
+                    </button>
+                  </div>
+
+                  {/* Clear All History */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-red-500/20 bg-red-500/5">
+                    <div>
+                      <p className="font-semibold text-red-600 dark:text-red-400">Clear All Chat History</p>
+                      <p className="text-[11px] text-neutral-400">Permanently delete stored messages</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm("Are you sure you want to clear all conversation history? This cannot be undone.")) {
+                          setMessages([]);
+                          setSessions([]);
+                          localStorage.removeItem(getStorageKey(userEmail));
+                          createNewChat();
+                          setIsSettingsModalOpen(false);
+                          showToast("All conversation history cleared 🗑️");
+                        }
+                      }}
+                      className="rounded-xl border border-red-500/30 bg-red-600 text-white px-3 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 p-4 border-t border-black/[0.06] dark:border-neutral-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="rounded-xl bg-black dark:bg-white text-white dark:text-black px-5 py-2 text-xs font-bold shadow-xs hover:opacity-90 transition cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>
       )}
+
 
       {/* 3. MANAGE ACCOUNT MODAL */}
       {isManageAccountModalOpen && (
