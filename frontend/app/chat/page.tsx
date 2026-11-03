@@ -2326,9 +2326,13 @@ export default function ChatPage() {
     }
   }
 
-  // Trigger system notification on Android or Browser for AI responses
+  // Trigger system notification on Android or Browser for AI responses (ONLY when user is outside of the app)
   function notifyResponse(text: string) {
     if (typeof window === "undefined" || !text) return;
+    // Suppress notifications when user is actively inside the app
+    if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus()) {
+      return;
+    }
     try {
       if ((window as any).AndroidBridge?.postResponseNotification) {
         (window as any).AndroidBridge.postResponseNotification("TATTVA AI", text);
@@ -2907,11 +2911,11 @@ export default function ChatPage() {
           1. TOP NAVIGATION BAR (MINIMALIST + LIQUID ACCENTS)
       ========================================================================= */}
       <header
-        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 ${
+        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),36px)] sm:pt-0 ${
           isDark ? "border-neutral-800/80 bg-[#0d0e11]/95 text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
         }`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-3 sm:py-3.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5">
           <div className="flex items-center gap-3 sm:gap-4">
             <button
               type="button"
@@ -3076,7 +3080,7 @@ export default function ChatPage() {
           } backdrop-blur-xl shadow-xl md:shadow-none`}
         >
           {/* Sidebar Top: Enlarged Logo + Close Button (Frozen) */}
-          <div className="flex-shrink-0 p-3.5 sm:p-4 border-b border-black/[0.06] flex items-center justify-between">
+          <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top,0px),36px)] sm:pt-4 px-3.5 sm:px-4 pb-3.5 sm:pb-4 border-b border-black/[0.06] flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs p-1 shrink-0">
                 <img
@@ -4454,7 +4458,7 @@ export default function ChatPage() {
               3. ADVANCED AI CHAT COMPOSER (FROZEN AT BOTTOM, NEVER MOVES WITH SCROLL)
           ========================================================================= */}
           <div
-            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pb-3 pt-2 transition-colors duration-200 ${
+            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pt-2 pb-[max(env(safe-area-inset-bottom,0px),20px)] sm:pb-3 transition-colors duration-200 ${
               isDark
                 ? "bg-gradient-to-t from-[#0d0e11] via-[#0d0e11]/95 to-transparent"
                 : "bg-gradient-to-t from-white via-white/95 to-transparent"
@@ -4694,6 +4698,34 @@ export default function ChatPage() {
                         </div>
                       </button>
 
+                      {/* Deep Thinking Mode Toggle inside + menu */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsThinkingEnabled(!isThinkingEnabled);
+                          showToast(!isThinkingEnabled ? "Deep Thinking / Reasoning Enabled" : "Deep Thinking Turned Off");
+                          setIsAttachmentMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                        }`}
+                      >
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
+                          isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF] border-sky-500/30" : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
+                        }`}>
+                          <Brain className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="block font-semibold text-xs">Deep Thinking</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF]" : "text-neutral-500"}`}>
+                              {isThinkingEnabled ? "ON" : "OFF"}
+                            </span>
+                          </div>
+                          <span className="block text-[10px] text-neutral-400 truncate">Extended reasoning & logic</span>
+                        </div>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -4716,7 +4748,7 @@ export default function ChatPage() {
                   )}
                 </div>
 
-                {/* 2. Text Input matching Image 2: "Ask anything" */}
+                {/* 2. Text Input matching Image 2: "Ask TATTVA AI" */}
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -4729,32 +4761,14 @@ export default function ChatPage() {
                     }
                   }}
                   rows={1}
-                  placeholder={isListening ? "Listening to voice input..." : "Ask anything"}
+                  placeholder={isListening ? "Listening to voice input..." : "Ask TATTVA AI"}
                   className={`flex-1 resize-none bg-transparent py-1 px-1 text-sm sm:text-base outline-none max-h-40 min-h-[28px] leading-relaxed ${
                     isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
                   }`}
                 />
 
-                {/* 3. Right Side Keys with Color Optimization */}
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                  {/* 🧠 Think Button (Optimized in Sky Blue #6BA1FF) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsThinkingEnabled(!isThinkingEnabled);
-                      showToast(!isThinkingEnabled ? "Deep Thinking / Reasoning Enabled 🧠" : "Deep Thinking Turned Off");
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer select-none active:scale-95 ${
-                      isThinkingEnabled
-                        ? "bg-sky-500/20 text-[#6BA1FF] border border-sky-500/40 shadow-xs"
-                        : "text-[#6BA1FF] hover:bg-sky-500/10 hover:text-sky-300"
-                    }`}
-                    title={isThinkingEnabled ? "Deep Thinking is ACTIVE" : "Toggle Deep Thinking (Reasoning)"}
-                  >
-                    <Brain className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#6BA1FF]" />
-                    <span>Think</span>
-                  </button>
-
+                {/* 3. Right Side Controls matching Image 2 */}
+                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                   {/* 🎤 Speech-to-Text Microphone Button */}
                   <button
                     type="button"
@@ -4810,8 +4824,8 @@ export default function ChatPage() {
                   )}
                 </div>
               </div>
-              {/* Small Friendly Disclaimer Description at the Bottom of Message Bar */}
-              <p className={`mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${
+              {/* Small Friendly Disclaimer: hidden on mobile to prevent Android navigation bar clash, visible on desktop */}
+              <p className={`hidden sm:block mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${
                 isDark ? "text-neutral-500" : "text-neutral-400"
               }`}>
                 TATTVA AI can make mistakes. Verify important information.
