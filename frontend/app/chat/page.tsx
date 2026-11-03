@@ -1040,15 +1040,6 @@ export default function ChatPage() {
         }
       }
 
-      // 2. Vertical Swipe Up from bottom: Open New Chat
-      if (
-        deltaY < -60 &&
-        Math.abs(deltaY) > Math.abs(deltaX) * 1.2 &&
-        startY > window.innerHeight * 0.55
-      ) {
-        createNewChat();
-        showToast("New Chat Opened ✦");
-      }
     }
 
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
