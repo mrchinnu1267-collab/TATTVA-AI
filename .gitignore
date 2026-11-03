@@ -44,6 +44,8 @@ Thumbs.db
 
 # Android APK binaries
 *.apk
+!frontend/public/*.apk
+!frontend/public/*.zip
 
 .vercel
 .env*
