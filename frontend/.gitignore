@@ -33,6 +33,9 @@ yarn-error.log*
 Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
-*.apk
 
-.vercel
+# Allow public distribution files
+*.apk
+!public/*.apk
+*.zip
+!public/*.zip
