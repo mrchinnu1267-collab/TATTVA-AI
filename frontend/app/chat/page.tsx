@@ -879,6 +879,74 @@ export default function ChatPage() {
     }
   }, []);
 
+  // Swipe to open / close Chat History sidebar
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  useEffect(() => {
+    function handleTouchStart(e: TouchEvent) {
+      if (e.touches.length !== 1) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest("pre") ||
+          target.closest("code") ||
+          target.closest("button"))
+      ) {
+        // If sidebar is closed and touch is near the left edge (<= 45px), allow edge swipe
+        if (!sidebarOpen && e.touches[0].clientX <= 45) {
+          // allow edge swipe
+        } else {
+          return;
+        }
+      }
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: Date.now(),
+      };
+    }
+
+    function handleTouchEnd(e: TouchEvent) {
+      if (!touchStartRef.current || e.changedTouches.length !== 1) return;
+      const touch = e.changedTouches[0];
+      const startX = touchStartRef.current.x;
+      const startY = touchStartRef.current.y;
+      const startTime = touchStartRef.current.time;
+      touchStartRef.current = null;
+
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+      const deltaTime = Date.now() - startTime;
+
+      // Ignore slow gestures or predominantly vertical scrolls
+      if (deltaTime > 800) return;
+      if (Math.abs(deltaY) > Math.abs(deltaX) * 0.75) return;
+
+      // 1. Swipe Right: Open Chat History
+      if (deltaX > 45) {
+        if (startX < Math.max(160, window.innerWidth * 0.45) || !sidebarOpen) {
+          setSidebarOpen(true);
+        }
+      }
+
+      // 2. Swipe Left: Close Chat History
+      if (deltaX < -45 && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    }
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [sidebarOpen]);
+
   // 300ms Debounced Global Search across all conversation titles, user messages, and AI responses
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -2720,43 +2788,43 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-3 min-w-[48px] min-h-[48px] rounded-2xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
+              className={`p-3.5 min-w-[54px] min-h-[54px] rounded-2xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
                 isDark ? "text-neutral-300 hover:text-white hover:bg-neutral-800" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
               }`}
               title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               {sidebarOpen ? (
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-6 h-6" />
               ) : (
-                <Menu className="w-5 h-5" />
+                <Menu className="w-6 h-6" />
               )}
             </button>
 
-            {/* Interactive TATTVA AI Branding Bubble - Enlarged for Touch Comfort */}
+            {/* Interactive TATTVA AI Branding Bubble - Enlarged Logo & Comfort Target */}
             <div className="relative" data-branding-bubble>
               <button
                 type="button"
                 onClick={() => setIsInfoBubbleOpen(!isInfoBubbleOpen)}
-                className={`group flex items-center gap-3 rounded-2xl border px-3.5 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-sm min-h-[48px] select-none active:scale-98 ${
+                className={`group flex items-center gap-3.5 rounded-2xl border px-4 sm:px-5 py-2.5 sm:py-3 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-sm min-h-[54px] select-none active:scale-98 ${
                   isDark
                     ? "border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 text-white hover:border-neutral-700"
                     : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-900 hover:border-black/20"
                 }`}
                 title="About TATTVA AI & Creator"
               >
-                <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white p-0.5 shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                <div className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white p-1 shadow-xs group-hover:scale-105 transition-transform shrink-0">
                   <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
                 </div>
                 <div className="leading-tight text-left">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm sm:text-base font-bold tracking-tight">TATTVA AI</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 text-neutral-400 font-semibold">v1.0</span>
+                    <span className="text-base sm:text-lg font-extrabold tracking-tight">TATTVA AI</span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 text-neutral-400 font-bold">v1.0</span>
                   </div>
-                  <span className="block text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 font-medium truncate max-w-[170px] sm:max-w-none">
+                  <span className="block text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 font-semibold truncate max-w-[180px] sm:max-w-none">
                     by Kotapati Gowtham Chowdary
                   </span>
                 </div>
-                <Info className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200 ml-1 shrink-0" />
+                <Info className="w-4 h-4 sm:w-5 sm:h-5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200 ml-1 shrink-0" />
               </button>
 
               {/* Elegant Popover */}
@@ -2862,29 +2930,29 @@ export default function ChatPage() {
             isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
           } backdrop-blur-xl shadow-xl md:shadow-none`}
         >
-          {/* Sidebar Top: Logo + Close Button (Frozen) */}
+          {/* Sidebar Top: Enlarged Logo + Close Button (Frozen) */}
           <div className="flex-shrink-0 p-3.5 sm:p-4 border-b border-black/[0.06] flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs p-0.5">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs p-1 shrink-0">
                 <img
                   src="/logo.png"
                   alt="TATTVA AI"
                   className="h-full w-full object-contain"
                 />
               </div>
-              <span className="text-sm sm:text-base font-bold tracking-tight text-neutral-800 dark:text-neutral-200">
+              <span className="text-base sm:text-lg font-extrabold tracking-tight text-neutral-800 dark:text-neutral-200">
                 TATTVA AI
               </span>
             </div>
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
-              className={`p-2.5 min-w-[42px] min-h-[42px] flex items-center justify-center rounded-xl transition cursor-pointer active:scale-95 ${
+              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-xl transition cursor-pointer active:scale-95 ${
                 isDark ? "hover:bg-neutral-800 text-neutral-400 hover:text-white" : "hover:bg-neutral-200 text-neutral-600 hover:text-black"
               }`}
               title="Close sidebar"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-6 h-6" />
             </button>
           </div>
 
@@ -3385,7 +3453,7 @@ export default function ChatPage() {
                   </p>
                 </div>
 
-                <div className="py-1 space-y-0.5">
+                <div className="py-1.5 space-y-1">
                   {isGuest ? (
                     <>
                       {/* Guest Options */}
@@ -3395,9 +3463,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           router.push("/login");
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-neutral-900 dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-semibold text-sm text-neutral-900 dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <LogIn className="w-4 h-4 text-blue-500" />
+                        <LogIn className="w-5 h-5 text-blue-500 shrink-0" />
                         <span>Log In to Account</span>
                       </button>
 
@@ -3407,9 +3475,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           router.push("/signup");
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-neutral-900 dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-semibold text-sm text-neutral-900 dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <UserPlus className="w-4 h-4 text-emerald-500" />
+                        <UserPlus className="w-5 h-5 text-emerald-500 shrink-0" />
                         <span>Create Free Account</span>
                       </button>
 
@@ -3419,9 +3487,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsSettingsModalOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <Settings className="w-4 h-4 text-neutral-500" />
+                        <Settings className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>Settings</span>
                       </button>
 
@@ -3431,9 +3499,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsHelpModalOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <HelpCircle className="w-4 h-4 text-neutral-500" />
+                        <HelpCircle className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>Help &amp; Support</span>
                       </button>
                     </>
@@ -3446,9 +3514,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsProfileModalOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <UserIcon className="w-4 h-4 text-neutral-500" />
+                        <UserIcon className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>My Profile</span>
                       </button>
 
@@ -3458,9 +3526,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsSettingsModalOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <Settings className="w-4 h-4 text-neutral-500" />
+                        <Settings className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>Settings</span>
                       </button>
 
@@ -3470,14 +3538,14 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsMemoryModalOpen(true);
                         }}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition group"
+                        className="flex w-full items-center justify-between rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition group cursor-pointer"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <Brain className="w-4 h-4 text-purple-500" />
+                        <div className="flex items-center gap-3">
+                          <Brain className="w-5 h-5 text-purple-500 shrink-0" />
                           <span>Memory &amp; Personalization</span>
                         </div>
                         {memories.length > 0 && (
-                          <span className="rounded-full bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-300">
+                          <span className="rounded-full bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 text-xs font-bold text-purple-600 dark:text-purple-300">
                             {memories.length}
                           </span>
                         )}
@@ -3489,9 +3557,9 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsManageAccountModalOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <ShieldCheck className="w-4 h-4 text-neutral-500" />
+                        <ShieldCheck className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>Manage Account</span>
                       </button>
 
@@ -3501,13 +3569,13 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           setIsHelpModalOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <HelpCircle className="w-4 h-4 text-neutral-500" />
+                        <HelpCircle className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>Help &amp; Support</span>
                       </button>
 
-                      <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800/80" />
+                      <div className="my-1.5 border-t border-black/[0.06] dark:border-neutral-800/80" />
 
                       <button
                         type="button"
@@ -3515,18 +3583,19 @@ export default function ChatPage() {
                           setIsProfileMenuOpen(false);
                           createNewChat();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-semibold text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                       >
-                        <Plus className="w-4 h-4 text-neutral-500" />
+                        <Plus className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>New Conversation</span>
                       </button>
 
+                      {/* Prominent & Enlarged Logout Button */}
                       <button
                         type="button"
                         onClick={handleLogout}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 min-h-[50px] text-left font-bold text-sm text-red-600 dark:text-red-400 bg-red-500/10 dark:bg-red-500/15 hover:bg-red-500/20 active:scale-98 transition shadow-2xs cursor-pointer"
                       >
-                        <LogOut className="w-4 h-4 text-red-500" />
+                        <LogOut className="w-5 h-5 text-red-500 shrink-0" />
                         <span>Log Out</span>
                       </button>
                     </>
@@ -3535,21 +3604,21 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Profile Trigger Button in Sidebar Footer - Enlarged & Touch Friendly */}
+            {/* Profile Trigger Button in Sidebar Footer - Enlarged Account Bar */}
             <button
               type="button"
               onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              className={`flex w-full items-center justify-between p-2.5 sm:p-3 rounded-2xl transition-all min-h-[58px] cursor-pointer select-none active:scale-98 ${
+              className={`flex w-full items-center justify-between p-3 sm:p-3.5 rounded-2xl transition-all min-h-[68px] sm:min-h-[72px] cursor-pointer select-none active:scale-98 ${
                 isProfileMenuOpen
                   ? "bg-neutral-200 dark:bg-neutral-800"
                   : "hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
               }`}
               title="Open profile & account menu"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                {/* User Avatar with Initials */}
+              <div className="flex items-center gap-3.5 min-w-0">
+                {/* User Avatar with Initials - Enlarged */}
                 <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-xs ring-1 ${
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-extrabold shadow-sm ring-1 ${
                     isGuest
                       ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-400/40"
                       : "bg-gradient-to-tr from-neutral-800 to-black text-white ring-black/10 dark:ring-white/20"
@@ -3557,13 +3626,13 @@ export default function ChatPage() {
                 >
                   {isGuest ? "G" : (userEmail ? userEmail[0].toUpperCase() : "U")}
                 </div>
-                {/* Display Name and Status */}
+                {/* Display Name and Status - Enlarged Account Typography */}
                 <div className="text-left min-w-0">
-                  <div className="text-sm font-bold truncate text-neutral-900 dark:text-neutral-100">
+                  <div className="text-base font-extrabold truncate text-neutral-900 dark:text-neutral-100">
                     {isGuest ? "Guest User" : (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0])}
                   </div>
-                  <div className="text-xs text-neutral-400 truncate max-w-[150px] flex items-center gap-1.5 mt-0.5">
-                    <span className={`h-2 w-2 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
+                  <div className="text-xs sm:text-sm text-neutral-400 truncate max-w-[170px] flex items-center gap-1.5 mt-0.5 font-medium">
+                    <span className={`h-2.5 w-2.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
                     <span>{isGuest ? "Logged Out • Sign in" : userEmail}</span>
                   </div>
                 </div>
@@ -3571,7 +3640,7 @@ export default function ChatPage() {
 
               {/* Profile Menu Trigger Indicator */}
               <div className="text-neutral-400 p-1.5">
-                <MoreVertical className="w-5 h-5" />
+                <MoreVertical className="w-6 h-6" />
               </div>
             </button>
           </div>
@@ -3732,14 +3801,14 @@ export default function ChatPage() {
             <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
               <div className="my-auto py-10 sm:py-16 text-center max-w-xl mx-auto">
-                <div className="mx-auto flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-md mb-4 p-1.5">
+                <div className="mx-auto flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-lg mb-4 p-2">
                   <img
                     src="/logo.png"
                     alt="TATTVA AI"
                     className="h-full w-full object-contain"
                   />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">How can TATTVA AI help you today?</h2>
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">How can TATTVA AI help you today?</h2>
                 <p className="mt-2 text-xs sm:text-sm text-neutral-500 leading-relaxed max-w-md mx-auto">
                   Ask complex questions in any language, write robust code without emojis, generate photorealistic
                   artworks, or talk directly using voice.
