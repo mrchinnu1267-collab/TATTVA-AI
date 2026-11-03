@@ -5109,36 +5109,38 @@ export default function ChatPage() {
             </div>
 
             {/* Native DOM Leaflet Map Container (NO IFRAME, NO CSP RESTRICTIONS) */}
-            <div className="flex-1 min-h-0 relative bg-neutral-950">
-              {isMapLoading && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-xs">
-                  <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/90 text-white text-xs font-semibold shadow-xl border border-white/10">
-                    <span className="h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                    <span>Locating place...</span>
+            <div className="flex-1 min-h-[380px] sm:min-h-[450px] relative w-full h-full bg-neutral-950 overflow-hidden">
+              <div className="absolute inset-0 w-full h-full">
+                {isMapLoading && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-xs">
+                    <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/90 text-white text-xs font-semibold shadow-xl border border-white/10">
+                      <span className="h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      <span>Locating place...</span>
+                    </div>
                   </div>
-                </div>
-              )}
-              <NativeMap
-                lat={mapCoords.lat}
-                lng={mapCoords.lng}
-                mode={mapsMode}
-                label={mapLocationName || mapsQuery}
-                onMapClick={async (clickedLat, clickedLng) => {
-                  setMapCoords({ lat: clickedLat, lng: clickedLng });
-                  try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${clickedLat}&lon=${clickedLng}`, {
-                      headers: { "User-Agent": "TattvaAI-Map/1.0" },
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      const place = data.display_name || `${clickedLat.toFixed(4)}, ${clickedLng.toFixed(4)}`;
-                      setMapLocationName(place);
-                      setMapsQuery(place.split(",")[0]);
-                      setMapsSearchInput(place.split(",")[0]);
-                    }
-                  } catch {}
-                }}
-              />
+                )}
+                <NativeMap
+                  lat={mapCoords.lat}
+                  lng={mapCoords.lng}
+                  mode={mapsMode}
+                  label={mapLocationName || mapsQuery}
+                  onMapClick={async (clickedLat, clickedLng) => {
+                    setMapCoords({ lat: clickedLat, lng: clickedLng });
+                    try {
+                      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${clickedLat}&lon=${clickedLng}`, {
+                        headers: { "User-Agent": "TattvaAI-Map/1.0" },
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        const place = data.display_name || `${clickedLat.toFixed(4)}, ${clickedLng.toFixed(4)}`;
+                        setMapLocationName(place);
+                        setMapsQuery(place.split(",")[0]);
+                        setMapsSearchInput(place.split(",")[0]);
+                      }
+                    } catch {}
+                  }}
+                />
+              </div>
             </div>
 
             {/* Bottom Actions Bar with Safe Area Bottom Padding */}

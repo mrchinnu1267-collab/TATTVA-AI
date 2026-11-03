@@ -26,6 +26,25 @@ export default function NativeMap({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
+  // Helper to construct high-performance Google Maps & ESRI tiles
+  function createTileLayer(tileMode: "roadmap" | "satellite") {
+    if (tileMode === "satellite") {
+      // Google Hybrid Satellite Tiles (satellite imagery with road labels)
+      return L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", {
+        subdomains: ["0", "1", "2", "3"],
+        maxZoom: 20,
+        attribution: "&copy; Google Maps Satellite",
+      });
+    }
+
+    // Google Vector Roadmap Tiles (clear, beautiful, high-speed global CDN)
+    return L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+      subdomains: ["0", "1", "2", "3"],
+      maxZoom: 20,
+      attribution: "&copy; Google Maps",
+    });
+  }
+
   // Initialize Map on mount
   useEffect(() => {
     if (!containerRef.current) return;
@@ -40,42 +59,61 @@ export default function NativeMap({
     });
     mapRef.current = map;
 
-    // Custom Emerald Glowing Pin
+    // Immediately add the tile layer
+    const layer = createTileLayer(mode);
+    layer.addTo(map);
+    tileLayerRef.current = layer;
+
+    // Custom Glowing Pin
     const pinIcon = L.divIcon({
       className: "custom-map-pin",
-      html: `<div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#10b981;box-shadow:0 0 16px rgba(16,185,129,0.7);border:2.5px solid #ffffff;color:#fff;cursor:pointer;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      html: `<div style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#10b981;box-shadow:0 0 18px rgba(16,185,129,0.8);border:2.5px solid #ffffff;color:#fff;cursor:pointer;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
           <circle cx="12" cy="10" r="3"/>
         </svg>
       </div>`,
-      iconSize: [36, 36],
-      iconAnchor: [18, 36],
-      popupAnchor: [0, -36],
+      iconSize: [38, 38],
+      iconAnchor: [19, 38],
+      popupAnchor: [0, -38],
     });
 
     const marker = L.marker([lat, lng], { icon: pinIcon }).addTo(map);
     markerRef.current = marker;
 
-    const popupHtml = `<div style="font-family:sans-serif;padding:2px 4px;font-size:13px;line-height:1.4;">
-      <b style="color:#fff;">${label}</b><br/>
-      <span style="color:#9ca3af;font-size:11px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+    const popupHtml = `<div style="font-family:sans-serif;padding:3px 5px;font-size:13px;line-height:1.4;">
+      <b style="color:#ffffff;">${label}</b><br/>
+      <span style="color:#9ca3af;font-size:11px;">Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</span>
     </div>`;
     marker.bindPopup(popupHtml).openPopup();
 
-    // Map click handler to select arbitrary points
+    // Map click handler
     map.on("click", (e: L.LeafletMouseEvent) => {
       if (onMapClick) {
         onMapClick(e.latlng.lat, e.latlng.lng);
       }
     });
 
-    // Invalidate size once DOM stabilizes
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 200);
+    // Invalidate size immediately and after mount intervals
+    map.invalidateSize();
+    const t1 = setTimeout(() => map.invalidateSize(), 50);
+    const t2 = setTimeout(() => map.invalidateSize(), 200);
+    const t3 = setTimeout(() => map.invalidateSize(), 600);
+
+    // ResizeObserver ensures map always adapts when modal expands or rotates
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && containerRef.current) {
+      ro = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      ro.observe(containerRef.current);
+    }
 
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      if (ro) ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -90,28 +128,10 @@ export default function NativeMap({
       map.removeLayer(tileLayerRef.current);
     }
 
-    if (mode === "satellite") {
-      const satLayer = L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        {
-          maxZoom: 19,
-          attribution: "&copy; Esri World Imagery",
-        }
-      );
-      satLayer.addTo(map);
-      tileLayerRef.current = satLayer;
-    } else {
-      const osmLayer = L.tileLayer(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          maxZoom: 19,
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
-        }
-      );
-      osmLayer.addTo(map);
-      tileLayerRef.current = osmLayer;
-    }
+    const newLayer = createTileLayer(mode);
+    newLayer.addTo(map);
+    tileLayerRef.current = newLayer;
+    map.invalidateSize();
   }, [mode]);
 
   // Update Coordinates and Marker when lat/lng/label change
@@ -123,9 +143,9 @@ export default function NativeMap({
     map.flyTo([lat, lng], zoom, { duration: 1.2 });
     marker.setLatLng([lat, lng]);
 
-    const popupHtml = `<div style="font-family:sans-serif;padding:2px 4px;font-size:13px;line-height:1.4;">
-      <b style="color:#fff;">${label}</b><br/>
-      <span style="color:#9ca3af;font-size:11px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+    const popupHtml = `<div style="font-family:sans-serif;padding:3px 5px;font-size:13px;line-height:1.4;">
+      <b style="color:#ffffff;">${label}</b><br/>
+      <span style="color:#9ca3af;font-size:11px;">Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</span>
     </div>`;
     marker.setPopupContent(popupHtml).openPopup();
 
@@ -133,39 +153,32 @@ export default function NativeMap({
   }, [lat, lng, zoom, label]);
 
   return (
-    <div className="relative w-full h-full min-h-[300px]">
-      <div ref={containerRef} className="w-full h-full z-0" />
-      <style jsx global>{`
-        .leaflet-container {
-          background-color: #121316 !important;
-          font-family: inherit;
-        }
-        .leaflet-popup-content-wrapper {
-          background: #1e1f23 !important;
-          color: #f3f4f6 !important;
-          border-radius: 14px !important;
-          border: 1px solid rgba(255, 255, 255, 0.12) !important;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-        }
-        .leaflet-popup-tip {
-          background: #1e1f23 !important;
-        }
-        .leaflet-bar {
-          border: none !important;
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
-          border-radius: 12px !important;
-          overflow: hidden;
-        }
-        .leaflet-bar a {
-          background: #1e1f23 !important;
-          color: #ffffff !important;
-          border-bottom: 1px solid #333333 !important;
-        }
-        .leaflet-bar a:hover {
-          background: #2d3036 !important;
-        }
-      `}</style>
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        backgroundColor: "#121316",
+      }}
+    >
+      <div
+        ref={containerRef}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 1,
+        }}
+      />
     </div>
   );
 }
-
