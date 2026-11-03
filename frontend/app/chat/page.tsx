@@ -41,6 +41,7 @@ import {
   User as UserIcon,
   Settings,
   ShieldCheck,
+  Ghost,
   HelpCircle,
   LogOut,
   ChevronUp,
@@ -775,6 +776,29 @@ export default function ChatPage() {
   // Archive Modal state
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
+  // Temporary Chat & Deep Thinking states
+  const [isTemporaryChat, setIsTemporaryChat] = useState(false);
+  const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
+  const [imageOutputRatio, setImageOutputRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
+
+  function toggleTemporaryChat() {
+    setIsTemporaryChat((prev) => {
+      const next = !prev;
+      if (next) {
+        setCurrentSessionId(`temp_${Date.now()}`);
+        setMessages([]);
+        messagesCountRef.current = 0;
+        setAttachments([]);
+        setInput("");
+        showToast("Temporary Chat Activated • History disabled 👻");
+      } else {
+        createNewChat();
+        showToast("Returned to Standard Chat ✦");
+      }
+      return next;
+    });
+  }
+
   const [speechState, setSpeechState] = useState<"idle" | "speaking" | "paused">("idle");
 
   // Contextual dropdown menu & rename state
@@ -1238,6 +1262,7 @@ export default function ChatPage() {
 
   // Save current active session
   const saveCurrentSession = useCallback((updatedMsgs: ChatMessage[], explicitSessionId?: string) => {
+    if (isTemporaryChat) return;
     if (!updatedMsgs || updatedMsgs.length === 0) return;
 
     setSessions((prev) => {
@@ -2282,6 +2307,8 @@ export default function ChatPage() {
         body: JSON.stringify({
           messages: apiMessages,
           mode: activeTool === "code" ? "chat" : undefined,
+          thinking: isThinkingEnabled,
+          isTemporary: isTemporaryChat,
           userEmail: isUserAuthenticated ? userEmail : undefined,
           userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
           isAuthenticated: isUserAuthenticated,
@@ -2875,8 +2902,25 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Right Header Controls: Share & Theme Only */}
-          <div className="flex items-center gap-2.5">
+          {/* Right Header Controls: Temporary Chat, Share & Theme */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Temporary Chat Toggle */}
+            <button
+              type="button"
+              onClick={toggleTemporaryChat}
+              className={`px-3 sm:px-3.5 py-2 min-h-[48px] flex items-center gap-1.5 sm:gap-2 rounded-2xl border transition cursor-pointer select-none active:scale-95 ${
+                isTemporaryChat
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-400 font-bold shadow-xs"
+                  : isDark
+                  ? "border-neutral-800 bg-neutral-900/90 text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  : "border-black/10 bg-white text-neutral-600 hover:text-black hover:bg-neutral-100"
+              }`}
+              title={isTemporaryChat ? "Temporary chat is ON (history is not saved). Click to exit" : "Start a temporary chat"}
+            >
+              <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400 animate-pulse" : ""}`} />
+              <span className="hidden sm:inline text-xs font-semibold">{isTemporaryChat ? "Temporary ON" : "Temporary"}</span>
+            </button>
+
             {/* Share Chat Button - Enlarged & Touch Friendly */}
             <button
               type="button"
@@ -2924,7 +2968,7 @@ export default function ChatPage() {
         <aside
           className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col flex-shrink-0 h-full max-h-full border-r transition-all duration-300 ease-in-out ${
             sidebarOpen
-              ? "w-[305px] sm:w-[325px] max-w-[88vw] translate-x-0"
+              ? "w-[285px] sm:w-[300px] max-w-[85vw] translate-x-0"
               : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden pointer-events-none"
           } ${
             isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
@@ -2973,6 +3017,30 @@ export default function ChatPage() {
                 <span>New Chat</span>
               </div>
               <span className="text-xs font-mono opacity-80">✦</span>
+            </button>
+
+            {/* Temporary Chat Button */}
+            <button
+              type="button"
+              onClick={toggleTemporaryChat}
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
+                isTemporaryChat
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-400 shadow-2xs"
+                  : isDark
+                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
+              }`}
+              title="Temporary chat (not saved in history)"
+            >
+              <div className="flex items-center gap-2.5">
+                <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400" : "text-neutral-400"}`} />
+                <span>Temporary Chat</span>
+              </div>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                isTemporaryChat ? "bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10 text-neutral-400"
+              }`}>
+                {isTemporaryChat ? "ON" : "OFF"}
+              </span>
             </button>
 
             {/* Search Conversations Button */}
@@ -3755,8 +3823,25 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Central Chat Stream */}
+        {/* Central Chat Stream (16:9 or flexible ratio) */}
         <main className="flex-1 min-h-0 flex flex-col h-full overflow-hidden relative">
+          {/* Temporary Chat Notice Banner */}
+          {isTemporaryChat && (
+            <div className="flex-shrink-0 z-20 flex items-center justify-between px-4 py-2 text-xs font-semibold border-b border-amber-500/30 bg-amber-500/15 text-amber-300 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <Ghost className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Temporary Chat is ON • This chat will not appear in history or use memory.</span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleTemporaryChat}
+                className="text-[11px] font-bold text-amber-400 hover:text-white underline cursor-pointer ml-2"
+              >
+                Turn Off
+              </button>
+            </div>
+          )}
+
           {/* Sare Voice Status Banner (Frozen) */}
           {sareEnabled && (
             <div
@@ -3800,20 +3885,17 @@ export default function ChatPage() {
           >
             <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
-              <div className="my-auto py-10 sm:py-16 text-center max-w-xl mx-auto">
-                <div className="mx-auto flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-lg mb-4 p-2">
-                  <img
-                    src="/logo.png"
-                    alt="TATTVA AI"
-                    className="h-full w-full object-contain"
-                  />
+              isTemporaryChat ? (
+                <div className="my-auto py-12 text-center max-w-md mx-auto flex flex-col items-center justify-center animate-in fade-in select-none">
+                  <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
+                    <Ghost className="w-7 h-7" />
+                  </div>
+                  <h3 className="font-bold text-lg text-neutral-900 dark:text-neutral-100">Temporary Chat</h3>
+                  <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
+                    This conversation will not appear in your chat history or use memory.
+                  </p>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">How can TATTVA AI help you today?</h2>
-                <p className="mt-2 text-xs sm:text-sm text-neutral-500 leading-relaxed max-w-md mx-auto">
-                  Ask complex questions in any language, write robust code without emojis, generate photorealistic
-                  artworks, or talk directly using voice.
-                </p>
-              </div>
+              ) : null
             ) : (
               messages.map((msg, idx) => {
                 const prevMsg = idx > 0 ? messages[idx - 1] : null;
@@ -3901,9 +3983,9 @@ export default function ChatPage() {
                                         <Image
                                           src={att.preview}
                                           alt={att.name}
-                                          width={80}
-                                          height={80}
-                                          className="h-16 w-16 object-cover"
+                                          width={160}
+                                          height={90}
+                                          className="w-28 sm:w-36 aspect-video object-cover"
                                         />
                                       ) : (
                                         <div className="p-2 text-xs">📄 {att.name}</div>
@@ -4001,11 +4083,38 @@ export default function ChatPage() {
                             </details>
                           )}
 
-                          {/* Generated Image Card */}
+                          {/* Generated Image Card (1:1, 16:9, 9:16 Ratios) */}
                           {msg.image && (
                             <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
+                              {/* Aspect Ratio Switcher Pills */}
+                              <div className="p-2.5 px-3 border-b border-black/[0.06] dark:border-neutral-800/80 flex items-center justify-between text-xs">
+                                <span className="font-semibold text-neutral-400 text-[11px] uppercase tracking-wider">Aspect Ratio</span>
+                                <div className="flex items-center gap-1.5">
+                                  {(["1:1", "16:9", "9:16"] as const).map((r) => (
+                                    <button
+                                      key={r}
+                                      type="button"
+                                      onClick={() => setImageOutputRatio(r)}
+                                      className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold transition cursor-pointer ${
+                                        imageOutputRatio === r
+                                          ? "bg-cyan-500 text-black shadow-xs"
+                                          : "bg-black/5 dark:bg-white/10 text-neutral-400 hover:text-white"
+                                      }`}
+                                    >
+                                      {r}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
                               <div
-                                className="relative group cursor-pointer overflow-hidden bg-black/5"
+                                className={`relative group cursor-pointer overflow-hidden bg-black/5 flex items-center justify-center ${
+                                  imageOutputRatio === "16:9"
+                                    ? "aspect-video"
+                                    : imageOutputRatio === "9:16"
+                                    ? "aspect-[9/16] max-h-[520px] mx-auto"
+                                    : "aspect-square max-h-[480px] mx-auto"
+                                }`}
                                 onClick={() => setLightboxImage(msg.image!)}
                                 onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
                                 onTouchEnd={handleImageTouchEnd}
@@ -4019,10 +4128,10 @@ export default function ChatPage() {
                                 <Image
                                   src={msg.image}
                                   alt={msg.content}
-                                  width={600}
-                                  height={600}
+                                  width={800}
+                                  height={800}
                                   unoptimized
-                                  className="w-full h-auto max-h-[500px] object-contain transition-transform duration-300 group-hover:scale-[1.01]"
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
                                 />
 
                                 <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
@@ -4305,135 +4414,170 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Main Floating Input Card */}
+              {/* Attachment Preview Chips */}
+              {attachments.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2 px-1">
+                  {attachments.map((att, idx) => {
+                    const isImg = att.type.startsWith("image/");
+                    const isPdf = att.type.includes("pdf") || att.name.endsWith(".pdf");
+                    const isSheet =
+                      att.type.includes("sheet") ||
+                      att.type.includes("csv") ||
+                      att.name.endsWith(".xlsx") ||
+                      att.name.endsWith(".csv");
+                    const isDoc =
+                      att.type.includes("word") ||
+                      att.name.endsWith(".docx") ||
+                      att.name.endsWith(".doc") ||
+                      att.name.endsWith(".txt");
+
+                    return (
+                      <div
+                        key={idx}
+                        className="group relative flex items-center gap-2 rounded-2xl border border-black/10 dark:border-neutral-700 bg-neutral-100/90 dark:bg-neutral-800/90 p-1.5 pr-2.5 text-xs shadow-2xs transition hover:border-black/20"
+                      >
+                        {isImg && att.preview ? (
+                          <div className="relative h-9 w-14 aspect-video overflow-hidden rounded-xl border border-black/5">
+                            <Image
+                              src={att.preview}
+                              alt={att.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white dark:bg-neutral-700 border border-black/5 text-neutral-600 dark:text-neutral-200">
+                            {isPdf ? (
+                              <FileText className="w-4 h-4 text-red-500" />
+                            ) : isSheet ? (
+                              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                            ) : isDoc ? (
+                              <FileText className="w-4 h-4 text-blue-600" />
+                            ) : (
+                              <FileCode className="w-4 h-4 text-neutral-500" />
+                            )}
+                          </div>
+                        )}
+                        <span className="max-w-[120px] truncate font-medium text-neutral-700 dark:text-neutral-200">
+                          {att.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(idx)}
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 hover:bg-black/10 hover:text-black dark:hover:bg-white/10 dark:hover:text-white transition cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Hidden file inputs */}
+              <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" />
+              <input ref={imageInputRef} type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
+              <input ref={pdfInputRef} type="file" multiple accept=".pdf" onChange={handleFileSelect} className="hidden" />
+              <input ref={docInputRef} type="file" multiple accept=".docx,.doc,.txt,.rtf,.odt" onChange={handleFileSelect} className="hidden" />
+              <input ref={sheetInputRef} type="file" multiple accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" />
+              <input ref={codeInputRef} type="file" multiple accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat" onChange={handleFileSelect} className="hidden" />
+
+              {/* Seamless Pill Bar matching Image 2 (16:1 to 20:1 Ratio) */}
               <div
-                className={`relative rounded-3xl border p-2.5 sm:p-3 backdrop-blur-2xl transition-all ${
+                className={`relative flex items-center gap-2 sm:gap-3 w-full rounded-full border px-3 sm:px-4 py-2 sm:py-2.5 shadow-lg min-h-[52px] sm:min-h-[56px] transition-all duration-200 ${
                   isDark
-                    ? "border-neutral-700/80 bg-[#1a1b1f]/95 focus-within:border-neutral-500 shadow-[0_10px_35px_-10px_rgba(0,0,0,0.6)]"
-                    : "border-neutral-200/90 bg-white/95 focus-within:border-neutral-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+                    ? "bg-[#1E1F23] border-white/10 text-white focus-within:border-white/20"
+                    : "bg-white border-black/10 text-black shadow-md focus-within:border-black/25"
                 }`}
               >
-                {/* Attachment Preview Chips */}
-                {attachments.length > 0 && (
-                  <div className="mb-2.5 flex flex-wrap gap-2 px-1">
-                    {attachments.map((att, idx) => {
-                      const isImg = att.type.startsWith("image/");
-                      const isPdf = att.type.includes("pdf") || att.name.endsWith(".pdf");
-                      const isSheet =
-                        att.type.includes("sheet") ||
-                        att.type.includes("csv") ||
-                        att.name.endsWith(".xlsx") ||
-                        att.name.endsWith(".csv");
-                      const isDoc =
-                        att.type.includes("word") ||
-                        att.name.endsWith(".docx") ||
-                        att.name.endsWith(".doc") ||
-                        att.name.endsWith(".txt");
+                {/* 1. Left (+) Button (Attachment & Tools Menu) */}
+                <div className="relative" data-attachment-menu>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+                      setIsToolsMenuOpen(false);
+                    }}
+                    className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full transition-all cursor-pointer select-none active:scale-95 ${
+                      isAttachmentMenuOpen
+                        ? "rotate-45 bg-neutral-200 dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                        : "text-neutral-400 hover:text-white hover:bg-white/10 dark:hover:bg-white/10"
+                    }`}
+                    title="Attach files, media, or AI tools"
+                  >
+                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-200" />
+                  </button>
 
-                      return (
-                        <div
-                          key={idx}
-                          className="group relative flex items-center gap-2 rounded-2xl border border-black/10 dark:border-neutral-700 bg-neutral-100/80 dark:bg-neutral-800/80 p-1.5 pr-2.5 text-xs shadow-2xs transition hover:border-black/20"
-                        >
-                          {isImg && att.preview ? (
-                            <div className="relative h-9 w-9 overflow-hidden rounded-xl border border-black/5">
-                              <Image
-                                src={att.preview}
-                                alt={att.name}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white dark:bg-neutral-700 border border-black/5 text-neutral-600 dark:text-neutral-200">
-                              {isPdf ? (
-                                <FileText className="w-4 h-4 text-red-500" />
-                              ) : isSheet ? (
-                                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                              ) : isDoc ? (
-                                <FileText className="w-4 h-4 text-blue-600" />
-                              ) : (
-                                <FileCode className="w-4 h-4 text-neutral-500" />
-                              )}
-                            </div>
-                          )}
-
-                          <div className="max-w-[130px] sm:max-w-[180px] truncate">
-                            <span className="block truncate font-medium text-neutral-800 dark:text-neutral-200 text-xs">
-                              {att.name}
-                            </span>
-                            {att.size ? (
-                              <span className="block text-[10px] text-neutral-400">
-                                {formatFileSize(att.size)}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment(idx)}
-                            className="p-1 rounded-full text-neutral-400 hover:text-red-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
-                            title="Remove file"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                  {/* Attachment & Tools Dropdown Popover */}
+                  {isAttachmentMenuOpen && (
+                    <div
+                      className={`absolute bottom-full left-0 mb-3 w-68 sm:w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                        isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAttachmentMenuOpen(false);
+                          router.push("/voice");
+                        }}
+                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                        }`}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                          <Radio className="w-4 h-4 animate-pulse" />
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <div className="flex-1 min-w-0">
+                          <span className="block font-semibold text-xs">Live Voice Mode</span>
+                          <span className="block text-[10px] text-neutral-400 truncate">Real-time voice conversation</span>
+                        </div>
+                      </button>
 
-                {/* Hidden Categorized File Inputs */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <input
-                  ref={pdfInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <input
-                  ref={docInputRef}
-                  type="file"
-                  multiple
-                  accept=".docx,.doc,.txt,.rtf,.odt"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <input
-                  ref={sheetInputRef}
-                  type="file"
-                  multiple
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <input
-                  ref={codeInputRef}
-                  type="file"
-                  multiple
-                  accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fileInputRef.current?.click();
+                          setIsAttachmentMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                        }`}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
+                          <FolderArchive className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="block font-semibold text-xs">Media & Files</span>
+                          <span className="block text-[10px] text-neutral-400 truncate">Upload images, PDFs, docs, sheets</span>
+                        </div>
+                      </button>
 
-                {/* Multiline Auto-Expanding Textarea with Paste & Drag-and-Drop */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleTemporaryChat();
+                          setIsAttachmentMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                        }`}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                          <Ghost className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="block font-semibold text-xs">Temporary Chat</span>
+                          <span className="block text-[10px] text-neutral-400 truncate">{isTemporaryChat ? "Turn OFF temporary mode" : "Turn ON temporary mode"}</span>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Text Input matching Image 2: "Ask anything" */}
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -4442,449 +4586,91 @@ export default function ChatPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      e.stopPropagation();
                       sendMessage();
                     }
                   }}
                   rows={1}
-                  placeholder={
-                    isListening
-                      ? "Listening to voice input..."
-                      : activeTool === "code"
-                      ? "Describe the program, algorithm, or architecture you need..."
-                      : activeTool === "research"
-                      ? "Enter topic or question for in-depth structured research..."
-                      : activeTool === "web"
-                      ? "Enter query to search real-time web with citations..."
-                      : attachments.length > 0
-                      ? "Ask anything about attached files, or describe changes..."
-                      : "Ask anything, write code, analyze data, or research..."
-                  }
-                  className={`w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-neutral-400 max-h-56 min-h-[40px] ${
-                    isDark ? "text-white" : "text-black"
+                  placeholder={isListening ? "Listening to voice input..." : "Ask anything"}
+                  className={`flex-1 resize-none bg-transparent py-1 px-1 text-sm sm:text-base outline-none max-h-40 min-h-[28px] leading-relaxed ${
+                    isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
                   }`}
                 />
 
-                {/* Bottom Controls Bar inside Composer */}
-                <div className="flex items-center justify-between pt-1 px-1">
-                  {/* Left Controls: Attachment (+) Button & AI Tools Selector */}
-                  <div className="flex items-center gap-1.5">
-                    {/* Attachment (+) Button */}
-                    <div className="relative" data-attachment-menu>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
-                          setIsToolsMenuOpen(false);
-                        }}
-                        className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all ${
-                          isAttachmentMenuOpen
-                            ? isDark
-                              ? "rotate-45 bg-white text-black border-transparent shadow-xs"
-                              : "rotate-45 bg-neutral-900 text-white border-transparent shadow-xs"
-                            : isDark
-                            ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700"
-                            : "border-black/10 bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200"
-                        }`}
-                        title="Attach images, PDFs, Word docs, sheets, or code"
-                      >
-                        <Plus className="w-4 h-4 transition-transform duration-200" />
-                      </button>
+                {/* 3. Right Side Keys with Color Optimization */}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  {/* 🧠 Think Button (Optimized in Sky Blue #6BA1FF) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsThinkingEnabled(!isThinkingEnabled);
+                      showToast(!isThinkingEnabled ? "Deep Thinking / Reasoning Enabled 🧠" : "Deep Thinking Turned Off");
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer select-none active:scale-95 ${
+                      isThinkingEnabled
+                        ? "bg-sky-500/20 text-[#6BA1FF] border border-sky-500/40 shadow-xs"
+                        : "text-[#6BA1FF] hover:bg-sky-500/10 hover:text-sky-300"
+                    }`}
+                    title={isThinkingEnabled ? "Deep Thinking is ACTIVE" : "Toggle Deep Thinking (Reasoning)"}
+                  >
+                    <Brain className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#6BA1FF]" />
+                    <span>Think</span>
+                  </button>
 
-                      {/* Advanced Plus (+) Feature & Media Dropdown Menu */}
-                      {isAttachmentMenuOpen && (
-                        <div
-                          className={`absolute bottom-full left-0 mb-2 w-64 sm:w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                            isDark
-                              ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
-                              : "border-black/10 bg-white/95 text-neutral-800"
-                          }`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* 1. Live Voice Mode */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAttachmentMenuOpen(false);
-                              router.push("/voice");
-                            }}
-                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                            }`}
-                          >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                              <Radio className="w-4 h-4 animate-pulse" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="block font-semibold text-xs">Live Voice Mode</span>
-                              <span className="block text-[10px] text-neutral-400 truncate">Real-time voice conversation</span>
-                            </div>
-                          </button>
+                  {/* 🎤 Speech-to-Text Microphone Button */}
+                  <button
+                    type="button"
+                    onClick={startVoiceRecognition}
+                    className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${
+                      isListening
+                        ? "bg-red-500 text-white animate-pulse shadow-md ring-2 ring-red-400/50"
+                        : isDark
+                        ? "text-neutral-300 hover:text-white hover:bg-white/10"
+                        : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+                    }`}
+                    title={isListening ? "Stop listening" : "Speech-to-text input"}
+                  >
+                    {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5" />}
+                  </button>
 
-                          {/* Media & Uploads */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              fileInputRef.current?.click();
-                              setIsAttachmentMenuOpen(false);
-                            }}
-                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                            }`}
-                          >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
-                              <FolderArchive className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="block font-semibold text-xs">Media</span>
-                                <span
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsAttachmentMenuOpen(false);
-                                    router.push("/media");
-                                  }}
-                                  className="text-[10px] text-blue-500 hover:underline cursor-pointer"
-                                  title="Open Media Studio"
-                                >
-                                  Studio ↗
-                                </span>
-                              </div>
-                              <span className="block text-[10px] text-neutral-400 truncate">Upload images, audio, video &amp; files</span>
-                            </div>
-                          </button>
-
-                          {/* Live Weather Report */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAttachmentMenuOpen(false);
-                              requestLocation();
-                              sendMessage("Give me the current weather report for my location");
-                            }}
-                            className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                              isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                            }`}
-                          >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                              <MapPin className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="block font-semibold text-xs">Weather Report</span>
-                              <span className="block text-[10px] text-neutral-400 truncate">
-                                {userLocationName ? `Live weather in ${userLocationName}` : "Real-time forecast for your location"}
-                              </span>
-                            </div>
-                          </button>
-
-                          {/* Divider */}
-                          <div className="my-1.5 border-t border-black/[0.06] dark:border-neutral-800" />
-
-                          {/* 4. Voice Settings (ON / OFF) */}
-                          <div
-                            className={`flex items-center justify-between w-full rounded-xl px-3 py-2 transition ${
-                              isDark ? "hover:bg-neutral-800/60" : "hover:bg-neutral-50"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
-                                sareEnabled
-                                  ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
-                                  : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
-                              }`}>
-                                <Volume2 className="w-4 h-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <span className="block font-semibold text-xs">Voice Responses</span>
-                                <span className="block text-[10px] text-neutral-400 truncate">
-                                  {sareEnabled ? "Sare Voice is ON" : "Sare Voice is OFF"}
-                                </span>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => toggleSareVoiceMode()}
-                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                sareEnabled ? "bg-emerald-500" : isDark ? "bg-neutral-700" : "bg-neutral-300"
-                              }`}
-                              title="Toggle voice responses"
-                            >
-                              <span
-                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                                  sareEnabled ? "translate-x-4" : "translate-x-0"
-                                }`}
-                              />
-                            </button>
-                          </div>
-
-                          {/* Divider */}
-                          <div className="my-1.5 border-t border-black/[0.06] dark:border-neutral-800" />
-
-                          {/* Quick File Categorized Uploads */}
-                          <div className="grid grid-cols-2 gap-1 px-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                imageInputRef.current?.click();
-                                setIsAttachmentMenuOpen(false);
-                              }}
-                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
-                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
-                              }`}
-                            >
-                              <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Images</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                pdfInputRef.current?.click();
-                                setIsAttachmentMenuOpen(false);
-                              }}
-                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
-                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
-                              }`}
-                            >
-                              <FileText className="w-3.5 h-3.5 text-red-500" />
-                              <span>PDFs</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                docInputRef.current?.click();
-                                setIsAttachmentMenuOpen(false);
-                              }}
-                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
-                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
-                              }`}
-                            >
-                              <FileText className="w-3.5 h-3.5 text-blue-500" />
-                              <span>Docs</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                sheetInputRef.current?.click();
-                                setIsAttachmentMenuOpen(false);
-                              }}
-                              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer ${
-                                isDark ? "hover:bg-neutral-800 text-neutral-300" : "hover:bg-neutral-100 text-neutral-700"
-                              }`}
-                            >
-                              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>Sheets</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* AI Tools Menu Button & Popover */}
-                    <div className="relative" data-tools-menu>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsToolsMenuOpen(!isToolsMenuOpen);
-                          setIsAttachmentMenuOpen(false);
-                        }}
-                        className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-all ${
-                          activeTool !== "none" || isToolsMenuOpen
-                            ? isDark
-                              ? "border-neutral-600 bg-white text-black shadow-2xs"
-                              : "border-neutral-900 bg-neutral-900 text-white shadow-2xs"
-                            : isDark
-                            ? "border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:text-white hover:bg-neutral-700"
-                            : "border-black/10 bg-neutral-100/80 text-neutral-700 hover:text-black hover:bg-neutral-200"
-                        }`}
-                        title="AI Tools & Capabilities"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Tools</span>
-                      </button>
-
-                      {/* AI Tools Popover */}
-                      {isToolsMenuOpen && (
-                        <div
-                          className={`absolute bottom-full left-0 mb-2 w-64 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                            isDark
-                              ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
-                              : "border-black/10 bg-white/95 text-neutral-800"
-                          }`}
-                        >
-                          <div className="px-2.5 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                            AI Capabilities
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveTool(activeTool === "web" ? "none" : "web");
-                              setIsToolsMenuOpen(false);
-                            }}
-                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
-                              activeTool === "web"
-                                ? isDark
-                                  ? "bg-neutral-800 text-white font-semibold"
-                                  : "bg-neutral-100 text-black font-semibold"
-                                : isDark
-                                ? "hover:bg-neutral-800 text-neutral-300"
-                                : "hover:bg-neutral-100 text-neutral-700"
-                            }`}
-                          >
-                            <Globe className="w-4 h-4 text-blue-500 mt-0.5" />
-                            <div>
-                              <div className="font-medium">Web Search</div>
-                              <div className="text-[10px] text-neutral-400">Search real-time web for citations</div>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveTool(activeTool === "research" ? "none" : "research");
-                              setIsToolsMenuOpen(false);
-                            }}
-                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
-                              activeTool === "research"
-                                ? isDark
-                                  ? "bg-neutral-800 text-white font-semibold"
-                                  : "bg-neutral-100 text-black font-semibold"
-                                : isDark
-                                ? "hover:bg-neutral-800 text-neutral-300"
-                                : "hover:bg-neutral-100 text-neutral-700"
-                            }`}
-                          >
-                            <Compass className="w-4 h-4 text-purple-500 mt-0.5" />
-                            <div>
-                              <div className="font-medium">Deep Research</div>
-                              <div className="text-[10px] text-neutral-400">Exhaustive structured synthesis</div>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveTool(activeTool === "file" ? "none" : "file");
-                              setIsToolsMenuOpen(false);
-                            }}
-                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
-                              activeTool === "file"
-                                ? isDark
-                                  ? "bg-neutral-800 text-white font-semibold"
-                                  : "bg-neutral-100 text-black font-semibold"
-                                : isDark
-                                ? "hover:bg-neutral-800 text-neutral-300"
-                                : "hover:bg-neutral-100 text-neutral-700"
-                            }`}
-                          >
-                            <FileText className="w-4 h-4 text-emerald-500 mt-0.5" />
-                            <div>
-                              <div className="font-medium">File Analysis</div>
-                              <div className="text-[10px] text-neutral-400">Inspect PDFs, docs &amp; sheets</div>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveTool(activeTool === "code" ? "none" : "code");
-                              setIsToolsMenuOpen(false);
-                            }}
-                            className={`flex items-start gap-2.5 w-full rounded-xl p-2 text-left transition ${
-                              activeTool === "code"
-                                ? isDark
-                                  ? "bg-neutral-800 text-white font-semibold"
-                                  : "bg-neutral-100 text-black font-semibold"
-                                : isDark
-                                ? "hover:bg-neutral-800 text-neutral-300"
-                                : "hover:bg-neutral-100 text-neutral-700"
-                            }`}
-                          >
-                            <Code2 className="w-4 h-4 text-cyan-500 mt-0.5" />
-                            <div>
-                              <div className="font-medium">Code Assistance</div>
-                              <div className="text-[10px] text-neutral-400">Production code, zero emojis</div>
-                            </div>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Location & Live Weather Pill */}
+                  {/* Terracotta Orange Circular Voice Wave / Send Action */}
+                  {loading ? (
+                    <button
+                      type="button"
+                      onClick={stopGeneration}
+                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
+                      title="Stop generation"
+                    >
+                      <Square className="w-4 h-4 fill-current" />
+                    </button>
+                  ) : input.trim() || attachments.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => sendMessage()}
+                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
+                      title="Send message"
+                    >
+                      <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+                    </button>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => {
-                        requestLocation();
-                        if (userLocationName) {
-                          showToast(`Location active: ${userLocationName}. Ask for weather anytime 🌦️`);
-                        } else {
-                          showToast("Requesting GPS location access ✦");
-                        }
+                        router.push("/voice");
                       }}
-                      className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-all cursor-pointer ${
-                        userLocationName
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : isDark
-                          ? "border-neutral-700 bg-neutral-800/80 text-neutral-400 hover:text-white"
-                          : "border-black/10 bg-neutral-100/80 text-neutral-600 hover:text-black"
-                      }`}
-                      title={userLocationName ? `Connected to ${userLocationName}. Click to refresh` : "Enable location for real-time weather reports"}
+                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
+                      title="Start Live Voice conversation"
                     >
-                      <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="hidden sm:inline">{userLocationName || "Location"}</span>
+                      {/* 4-bar Audio Waveform Icon */}
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" />
+                        <rect x="8.5" y="4" width="2.5" height="16" rx="1.25" />
+                        <rect x="13.5" y="6" width="2.5" height="12" rx="1.25" />
+                        <rect x="18.5" y="9" width="2.5" height="6" rx="1.25" />
+                      </svg>
                     </button>
-                  </div>
-
-                  {/* Right Controls: Voice Input & Dynamic Send / Stop Button */}
-                  <div className="flex items-center gap-2">
-                    {/* Speech-to-Text Microphone Button with Live Status Indicator */}
-                    <button
-                      type="button"
-                      onClick={startVoiceRecognition}
-                      className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
-                        isListening
-                          ? "bg-red-500 text-white shadow-md animate-pulse ring-2 ring-red-400/50"
-                          : isDark
-                          ? "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                          : "text-neutral-500 hover:text-black hover:bg-neutral-100"
-                      }`}
-                      title={isListening ? "Stop voice listening" : "Voice input (Speech-to-Text)"}
-                    >
-                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                    </button>
-
-                    {/* Dynamic Send / Stop Generation Button */}
-                    {loading ? (
-                      <button
-                        type="button"
-                        onClick={stopGeneration}
-                        className={`flex h-8 w-8 items-center justify-center rounded-full shadow-md hover:scale-105 active:scale-95 transition-all ring-2 ring-neutral-400/30 ${
-                          isDark ? "bg-white text-black" : "bg-neutral-900 text-white"
-                        }`}
-                        title="Stop generation"
-                      >
-                        <Square className="w-3.5 h-3.5 fill-current" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!input.trim() && attachments.length === 0}
-                        onClick={() => sendMessage()}
-                        className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
-                          input.trim() || attachments.length > 0
-                            ? isDark
-                              ? "bg-white text-black shadow-md hover:scale-105 active:scale-95 cursor-pointer"
-                              : "bg-neutral-900 text-white shadow-md hover:bg-black hover:scale-105 active:scale-95 cursor-pointer"
-                            : isDark
-                            ? "bg-neutral-800 text-neutral-600 cursor-not-allowed opacity-50"
-                            : "bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed opacity-60"
-                        }`}
-                        title="Send message"
-                      >
-                        <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
-
               {/* Small Friendly Disclaimer Description at the Bottom of Message Bar */}
               <p className={`mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${
                 isDark ? "text-neutral-500" : "text-neutral-400"
