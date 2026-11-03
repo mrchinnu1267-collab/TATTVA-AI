@@ -893,6 +893,9 @@ export default function ChatPage() {
   const [isTemporaryChat, setIsTemporaryChat] = useState(false);
   const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
 
+  // Header 3-Dots Menu State (consolidating Temporary, Share, Theme)
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+
   // Interactive TATTVA Maps State (matching Image 2)
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
   const [mapsQuery, setMapsQuery] = useState("Bangalore, India");
@@ -1461,10 +1464,21 @@ export default function ChatPage() {
     setSessions(loadedSessions);
     setSessionsLoading(false);
 
-    // 4. Always start with a clean, empty New Chat interface without cluttering database/sidebar
-    setCurrentSessionId("");
-    setMessages([]);
-    messagesCountRef.current = 0;
+    // 4. Permanently store & restore active conversation so used chats are never lost
+    const storedActiveId = typeof window !== "undefined" ? localStorage.getItem("tattva_active_session_id") : null;
+    const sessionToRestore =
+      loadedSessions.find((s) => s.id === storedActiveId) ||
+      (loadedSessions.length > 0 ? loadedSessions[0] : null);
+
+    if (sessionToRestore && sessionToRestore.messages && sessionToRestore.messages.length > 0) {
+      setCurrentSessionId(sessionToRestore.id);
+      setMessages(sessionToRestore.messages);
+      messagesCountRef.current = sessionToRestore.messages.length;
+    } else {
+      setCurrentSessionId("");
+      setMessages([]);
+      messagesCountRef.current = 0;
+    }
     setAttachments([]);
     setInput("");
     setError("");
@@ -1482,6 +1496,9 @@ export default function ChatPage() {
       const activeId = explicitSessionId || currentSessionId || crypto.randomUUID();
       if (!currentSessionId) {
         setCurrentSessionId(activeId);
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("tattva_active_session_id", activeId);
       }
 
       const existing = prev.find((s) => s.id === activeId);
@@ -3045,52 +3062,111 @@ export default function ChatPage() {
             </button>
           </div>
 
-          {/* Right Header Controls: Temporary Chat, Share & Theme */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Temporary Chat Toggle */}
+          {/* Center: TATTVA AI Name on Every New Chat - Disappears After Searching */}
+          {messages.length === 0 && (
+            <div className="flex items-center gap-2 animate-in fade-in duration-300 select-none">
+              <span className="text-base sm:text-lg font-black tracking-wider text-neutral-900 dark:text-neutral-100">
+                TATTVA AI
+              </span>
+            </div>
+          )}
+
+          {/* Right: 3 Vertical Dots (Consolidates Temporary Chat, Share & Theme) */}
+          <div className="relative flex items-center gap-2" data-header-menu>
             <button
               type="button"
-              onClick={toggleTemporaryChat}
-              className={`px-3 sm:px-3.5 py-2 min-h-[48px] flex items-center gap-1.5 sm:gap-2 rounded-2xl border transition cursor-pointer select-none active:scale-95 ${
-                isTemporaryChat
-                  ? "border-amber-500/50 bg-amber-500/15 text-amber-400 font-bold shadow-xs"
+              onClick={() => setIsHeaderMenuOpen(!isHeaderMenuOpen)}
+              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-2xl border transition cursor-pointer select-none active:scale-95 ${
+                isHeaderMenuOpen
+                  ? "bg-neutral-800 text-white border-neutral-700"
                   : isDark
-                  ? "border-neutral-800 bg-neutral-900/90 text-neutral-400 hover:text-white hover:bg-neutral-800"
-                  : "border-black/10 bg-white text-neutral-600 hover:text-black hover:bg-neutral-100"
-              }`}
-              title={isTemporaryChat ? "Temporary chat is ON (history is not saved). Click to exit" : "Start a temporary chat"}
-            >
-              <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400 animate-pulse" : ""}`} />
-              <span className="hidden sm:inline text-xs font-semibold">{isTemporaryChat ? "Temporary ON" : "Temporary"}</span>
-            </button>
-
-            {/* Share Chat Button - Enlarged & Touch Friendly */}
-            <button
-              type="button"
-              onClick={() => shareChat()}
-              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-2xl border transition cursor-pointer select-none active:scale-95 ${
-                isDark
                   ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
                   : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
               }`}
-              title="Share this chat"
+              title="Options"
             >
-              <Share2 className="w-5 h-5" />
+              <MoreVertical className="w-5 h-5" />
             </button>
 
-            {/* Light / Dark Mode Toggle - Enlarged & Touch Friendly */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-2xl border transition cursor-pointer select-none active:scale-95 ${
-                isDark
-                  ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
-                  : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
-              }`}
-              title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-            >
-              {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
-            </button>
+            {/* 3-Dots Dropdown Popover matching Image */}
+            {isHeaderMenuOpen && (
+              <div
+                className={`absolute right-0 top-full mt-2 w-60 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                  isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                }`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* 1. Temporary Chat (Ghost) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTemporaryChat();
+                    setIsHeaderMenuOpen(false);
+                  }}
+                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
+                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400 animate-pulse" : "text-neutral-400"}`} />
+                    <span className="font-semibold text-xs">Temporary Chat</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isTemporaryChat ? "bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10 text-neutral-400"}`}>
+                    {isTemporaryChat ? "ON" : "OFF"}
+                  </span>
+                </button>
+
+                {/* 2. Share Chat */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    shareChat();
+                    setIsHeaderMenuOpen(false);
+                  }}
+                  className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
+                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                  }`}
+                >
+                  <Share2 className="w-4.5 h-4.5 text-neutral-400" />
+                  <span className="font-semibold text-xs">Share Conversation</span>
+                </button>
+
+                {/* 3. Theme Toggle (Sun/Moon) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTheme();
+                    setIsHeaderMenuOpen(false);
+                  }}
+                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
+                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {isDark ? <Sun className="w-4.5 h-4.5 text-amber-400" /> : <Moon className="w-4.5 h-4.5 text-neutral-600" />}
+                    <span className="font-semibold text-xs">Theme Mode</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-neutral-400 capitalize">{theme}</span>
+                </button>
+
+                <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800" />
+
+                {/* Display & Text Customization */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsModalOpen(true);
+                    setIsHeaderMenuOpen(false);
+                  }}
+                  className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
+                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                  }`}
+                >
+                  <Sliders className="w-4.5 h-4.5 text-neutral-400" />
+                  <span className="font-semibold text-xs">Display & Fonts</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
