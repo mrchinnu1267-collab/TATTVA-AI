@@ -82,8 +82,7 @@ export default function DownloadPage() {
         {/* Action Buttons */}
         <div className="w-full max-w-md flex flex-col sm:flex-row gap-3 mb-10">
           <a
-            href="/tattva-ai.apk"
-            download="TATTVA_AI.apk"
+            href="/api/download"
             className="flex-1 py-3.5 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-semibold text-sm shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.98]"
           >
             <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -93,8 +92,7 @@ export default function DownloadPage() {
           </a>
 
           <a
-            href="/tattva-ai.zip"
-            download="TATTVA_AI.zip"
+            href="/api/download?format=zip"
             className="py-3.5 px-5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700 font-medium text-sm flex items-center justify-center gap-2 transition"
           >
             <svg className="w-4 h-4 fill-current opacity-70" viewBox="0 0 24 24">
