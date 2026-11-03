@@ -4184,7 +4184,73 @@ export default function ChatPage() {
                     This conversation will not appear in your chat history or use memory.
                   </p>
                 </div>
-              ) : null
+              ) : (
+                <div className="my-auto py-8 sm:py-14 text-center max-w-2xl mx-auto flex flex-col items-center justify-center animate-in fade-in duration-300 select-none">
+                  {/* Subtle Logo Badge */}
+                  <div className="relative mb-5 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-3xl border border-black/10 dark:border-white/10 bg-white shadow-md p-1.5">
+                    <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
+                  </div>
+
+                  {/* Engaging Question Asked to the User in New Chat Opening */}
+                  <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
+                    What would you like to explore today?
+                  </h2>
+                  <p className="mt-2 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-md leading-relaxed">
+                    Ask me any question, solve complex problems, write clean code, or brainstorm ideas.
+                  </p>
+
+                  {/* Suggested Question Prompt Cards */}
+                  <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full text-left">
+                    {[
+                      {
+                        title: "Explain a concept",
+                        desc: "Explain quantum computing in simple everyday terms",
+                        prompt: "Explain quantum computing in simple everyday terms with real-world analogies.",
+                        icon: "💡",
+                      },
+                      {
+                        title: "Code & Architecture",
+                        desc: "How do I build a scalable full-stack application?",
+                        prompt: "How do I design and structure a scalable full-stack web application with modern best practices?",
+                        icon: "💻",
+                      },
+                      {
+                        title: "Travel & Explore",
+                        desc: "Plan a 3-day travel itinerary with top food spots",
+                        prompt: "Plan a comprehensive 3-day travel itinerary with top attractions, hidden gems, and local food spots in South India.",
+                        icon: "🗺️",
+                      },
+                      {
+                        title: "Brainstorm Ideas",
+                        desc: "Give me 5 innovative product ideas using AI",
+                        prompt: "Give me 5 high-potential, innovative product ideas leveraging AI for modern businesses.",
+                        icon: "🚀",
+                      },
+                    ].map((card, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => sendMessage(card.prompt)}
+                        className={`group p-3.5 sm:p-4 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 shadow-xs hover:shadow-sm ${
+                          isDark
+                            ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 hover:border-neutral-700 text-neutral-200"
+                            : "border-black/10 bg-white hover:bg-neutral-50 hover:border-black/20 text-neutral-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-base">{card.icon}</span>
+                          <span className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white">
+                            {card.title}
+                          </span>
+                        </div>
+                        <p className="text-[11px] sm:text-xs text-neutral-400 dark:text-neutral-400 line-clamp-2 leading-relaxed">
+                          {card.desc}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
             ) : (
               messages.map((msg, idx) => {
                 const prevMsg = idx > 0 ? messages[idx - 1] : null;
