@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val PREFS_NAME = "TattvaPrefs"
         private const val KEY_SERVER_URL = "server_url"
-        private const val DEFAULT_URL = "http://10.0.2.2:3000"
+        private const val DEFAULT_URL = "https://tattva-ai-phi.vercel.app"
     }
 
     private val filePickerLauncher = registerForActivityResult(
@@ -87,10 +87,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request runtime permissions for voice assistant and attachments
+        // Request runtime permissions for voice assistant, camera, and real-time location weather
         val requiredPerms = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CAMERA
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             requiredPerms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -138,6 +140,7 @@ class MainActivity : ComponentActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
+            setGeolocationEnabled(true)
             mediaPlaybackRequiresUserGesture = false // Allows voice assistant replies without extra user tap
             allowFileAccess = true
             allowContentAccess = true
@@ -155,6 +158,14 @@ class MainActivity : ComponentActivity() {
         webView.addJavascriptInterface(AndroidBridge(), "AndroidBridge")
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: GeolocationPermissions.Callback?
+            ) {
+                // Grant geolocation access to web view for live weather reports
+                callback?.invoke(origin, true, false)
+            }
+
             override fun onPermissionRequest(request: PermissionRequest?) {
                 runOnUiThread {
                     request?.grant(request.resources)
@@ -191,8 +202,26 @@ class MainActivity : ComponentActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
+                val uri = request.url
+                val scheme = uri.scheme?.lowercase() ?: ""
+                val host = uri.host?.lowercase() ?: ""
+
+                if (scheme == "tel" || scheme == "mailto" || scheme == "sms") {
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        true
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+
                 val serverUrl = getServerUrl()
                 return if (url.startsWith(serverUrl) ||
+                    url.startsWith("https://tattva-ai-phi.vercel.app") ||
+                    host.contains("vercel.app") ||
+                    host.contains("supabase.co") ||
+                    host.contains("accounts.google.com") ||
+                    host.contains("github.com") ||
                     url.startsWith("http://192.168.") ||
                     url.startsWith("http://10.") ||
                     url.startsWith("http://172.") ||
@@ -347,7 +376,7 @@ class MainActivity : ComponentActivity() {
         val input = EditText(this).apply {
             setText(currentUrl)
             setSelection(currentUrl.length)
-            hint = "e.g. http://192.168.0.207:3000 or https://your-server.com"
+            hint = "e.g. https://tattva-ai-phi.vercel.app or http://192.168.0.207:3000"
         }
 
         AlertDialog.Builder(this)
