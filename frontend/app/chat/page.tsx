@@ -2124,6 +2124,18 @@ export default function ChatPage() {
     }
   }
 
+  // Trigger system notification on Android or Browser for AI responses
+  function notifyResponse(text: string) {
+    if (typeof window === "undefined" || !text) return;
+    try {
+      if ((window as any).AndroidBridge?.postResponseNotification) {
+        (window as any).AndroidBridge.postResponseNotification("TATTVA AI", text);
+      } else if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("TATTVA AI", { body: text });
+      }
+    } catch {}
+  }
+
   // Send message handler (supports text, code, document generation, and reasoning)
   async function sendMessage(explicitPrompt?: string) {
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
@@ -2228,6 +2240,7 @@ export default function ChatPage() {
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant, activeSessionId);
+      notifyResponse(assistantMsg.content);
 
       // Refresh memory profile after response in case new memories were extracted
       loadUserMemoryData(userEmail);
@@ -2355,6 +2368,7 @@ export default function ChatPage() {
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant);
+      notifyResponse(assistantMsg.content);
       loadUserMemoryData(userEmail);
 
       if (sareEnabled) {
@@ -2449,6 +2463,7 @@ export default function ChatPage() {
       setMessages(updated);
       messagesCountRef.current = updated.length;
       saveCurrentSession(updated);
+      notifyResponse(newAssistantMsg.content);
       loadUserMemoryData(userEmail);
 
       if (sareEnabled) {

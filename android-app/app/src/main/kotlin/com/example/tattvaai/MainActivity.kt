@@ -4,10 +4,15 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.DownloadManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.net.http.SslError
@@ -22,6 +27,8 @@ import android.webkit.*
 import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import java.io.File
 import java.io.FileOutputStream
 
@@ -40,6 +47,8 @@ class MainActivity : ComponentActivity() {
         private const val PREFS_NAME = "TattvaPrefs"
         private const val KEY_SERVER_URL = "server_url"
         private const val DEFAULT_URL = "https://tattva-ai-phi.vercel.app"
+        private const val CHANNEL_ID = "tattva_ai_responses"
+        private const val CHANNEL_NAME = "TATTVA AI Responses"
     }
 
     private val filePickerLauncher = registerForActivityResult(
@@ -67,12 +76,19 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * JavaScript Interface to reliably bridge file downloads from WebView to Android Downloads
+     * JavaScript Interface to reliably bridge file downloads and notifications from WebView to Android
      */
     inner class AndroidBridge {
         @JavascriptInterface
         fun saveBlobOrData(base64OrDataUri: String, filename: String, mimeType: String) {
             saveBase64ToDownloads(base64OrDataUri, filename, mimeType)
+        }
+
+        @JavascriptInterface
+        fun postResponseNotification(title: String, message: String) {
+            runOnUiThread {
+                showResponseNotification(title, message)
+            }
         }
 
         @JavascriptInterface
@@ -87,17 +103,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request runtime permissions for voice assistant, camera, and real-time location weather
+        // Request runtime permissions for voice assistant, camera, location weather, and notifications
         val requiredPerms = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CAMERA,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requiredPerms.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             requiredPerms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
         permissionsLauncher.launch(requiredPerms.toTypedArray())
+
+        createNotificationChannel()
 
         val rootLayout = FrameLayout(this).apply {
             layoutParams = ViewGroup.LayoutParams(
@@ -245,6 +266,11 @@ class MainActivity : ComponentActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 errorLayout.visibility = View.GONE
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                injectNotificationBridge(view)
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -463,5 +489,103 @@ class MainActivity : ComponentActivity() {
             .setNeutralButton("Server Settings") { _, _ -> showServerConfigDialog() }
             .setNegativeButton("Stay", null)
             .show()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for all AI responses and messages"
+                enableVibration(true)
+                enableLights(true)
+                lightColor = Color.parseColor("#38BDF8")
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun injectNotificationBridge(view: WebView?) {
+        val js = """
+            (function() {
+                if (window.__tattvaNotifierInitialized) return;
+                window.__tattvaNotifierInitialized = true;
+
+                // 1. Shim standard HTML5 Notification API to trigger native Android notifications
+                window.Notification = class {
+                    constructor(title, options) {
+                        var body = (options && (options.body || options.text)) || "";
+                        if (window.AndroidBridge && window.AndroidBridge.postResponseNotification) {
+                            window.AndroidBridge.postResponseNotification(title || "TATTVA AI", body);
+                        }
+                    }
+                    static permission = "granted";
+                    static requestPermission(cb) {
+                        if (cb) cb("granted");
+                        return Promise.resolve("granted");
+                    }
+                };
+
+                // 2. Intercept fetch responses for voice & weather to trigger notifications
+                var origFetch = window.fetch;
+                window.fetch = async function(...args) {
+                    var response = await origFetch.apply(this, args);
+                    try {
+                        var targetUrl = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+                        if (targetUrl.includes('/api/voice-chat') || targetUrl.includes('/api/weather')) {
+                            var clone = response.clone();
+                            clone.json().then(function(data) {
+                                var text = data.reply || data.spokenText || data.summaryText || '';
+                                if (text && window.AndroidBridge && window.AndroidBridge.postResponseNotification) {
+                                    window.AndroidBridge.postResponseNotification("TATTVA AI", text);
+                                }
+                            }).catch(function() {});
+                        }
+                    } catch (err) {}
+                    return response;
+                };
+            })();
+        """.trimIndent()
+        view?.evaluateJavascript(js, null)
+    }
+
+    fun showResponseNotification(rawTitle: String?, rawMessage: String?) {
+        try {
+            val title = if (rawTitle.isNullOrBlank()) "TATTVA AI" else rawTitle
+            val message = if (rawMessage.isNullOrBlank()) "New response generated." else rawMessage
+
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val snippet = if (message.length > 120) message.take(120) + "..." else message
+
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(title)
+                .setContentText(snippet)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .build()
+
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % 100000).toInt(), notification)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TattvaAI", "Notification error: ${e.message}")
+        }
     }
 }

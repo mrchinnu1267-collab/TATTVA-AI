@@ -439,6 +439,14 @@ export default function LiveVoiceAssistantPage() {
         const data = await res.json();
         const aiReply = data.reply || "I am listening. How can I help you?";
 
+        try {
+          if (typeof window !== "undefined" && (window as any).AndroidBridge?.postResponseNotification) {
+            (window as any).AndroidBridge.postResponseNotification("TATTVA AI", aiReply);
+          } else if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            new Notification("TATTVA AI", { body: aiReply });
+          }
+        } catch {}
+
         const assistantTurn: TranscriptTurn = {
           id: crypto.randomUUID(),
           role: "assistant",
