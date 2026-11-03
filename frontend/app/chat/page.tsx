@@ -636,6 +636,18 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
   );
 }
 
+import dynamic from "next/dynamic";
+
+const NativeMap = dynamic(() => import("../components/NativeMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full min-h-[350px] flex flex-col items-center justify-center bg-[#121316] text-neutral-400 gap-3">
+      <span className="h-7 w-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-xs font-semibold text-neutral-300">Loading interactive map...</span>
+    </div>
+  ),
+});
+
 export default function ChatPage() {
   const router = useRouter();
 
@@ -1005,66 +1017,7 @@ export default function ChatPage() {
     sendMessage(`Give me a detailed guide and top recommendations for ${loc}: best places to visit, popular local food, travel tips, and cultural highlights.`);
   }
 
-  // Generate self-contained, CSP-immune interactive Leaflet HTML inside srcDoc
-  const mapSrcDoc = useMemo(() => {
-    const lat = mapCoords.lat;
-    const lng = mapCoords.lng;
-    const cleanLabel = (mapLocationName || mapsQuery || "Location").replace(/"/g, '&quot;').replace(/'/g, "\\'");
-    const isSat = mapsMode === "satellite";
 
-    return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    * { box-sizing: border-box; }
-    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #121316; }
-    .leaflet-bar { border: none !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; border-radius: 12px !important; overflow: hidden; }
-    .leaflet-bar a { background: #1e1f23 !important; color: #fff !important; border-bottom: 1px solid #333 !important; }
-    .leaflet-bar a:hover { background: #2d3036 !important; }
-    .leaflet-popup-content-wrapper { background: #1e1f23 !important; color: #f3f4f6 !important; border-radius: 14px !important; border: 1px solid rgba(255,255,255,0.1) !important; box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
-    .leaflet-popup-tip { background: #1e1f23 !important; }
-    .custom-pin { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: #10b981; color: #fff; box-shadow: 0 0 16px rgba(16,185,129,0.7); border: 2px solid #fff; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script>
-    try {
-      var map = L.map('map', { zoomControl: true }).setView([${lat}, ${lng}], 14);
-
-      ${isSat ? `
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 19,
-        attribution: '&copy; Esri World Imagery'
-      }).addTo(map);
-      ` : `
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-      `}
-
-      var pinIcon = L.divIcon({
-        className: 'custom-pin-wrap',
-        html: '<div class="custom-pin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>',
-        iconSize: [34, 34],
-        iconAnchor: [17, 34],
-        popupAnchor: [0, -34]
-      });
-
-      var marker = L.marker([${lat}, ${lng}], { icon: pinIcon }).addTo(map);
-      marker.bindPopup("<div style='padding:4px;'><b>${cleanLabel}</b><br/><span style='font-size:11px;color:#9ca3af;'>Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</span></div>").openPopup();
-    } catch(err) {
-      console.error(err);
-    }
-  </script>
-</body>
-</html>`;
-  }, [mapCoords, mapsMode, mapLocationName, mapsQuery]);
 
   // Geolocation request for real-time weather & location-based reports
   const requestLocation = useCallback(() => {
@@ -5155,21 +5108,36 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {/* Live Interactive Map Iframe Container with CSP-Immune Leaflet & OpenStreetMap / Satellite Engine */}
-            <div className="flex-1 min-h-0 relative bg-neutral-100 dark:bg-neutral-950">
+            {/* Native DOM Leaflet Map Container (NO IFRAME, NO CSP RESTRICTIONS) */}
+            <div className="flex-1 min-h-0 relative bg-neutral-950">
               {isMapLoading && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-                  <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/80 text-white text-xs font-semibold shadow-xl border border-white/10">
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-xs">
+                  <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/90 text-white text-xs font-semibold shadow-xl border border-white/10">
                     <span className="h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                     <span>Locating place...</span>
                   </div>
                 </div>
               )}
-              <iframe
-                title="TATTVA Maps Live Explorer"
-                srcDoc={mapSrcDoc}
-                className="w-full h-full border-0"
-                sandbox="allow-scripts allow-popups allow-forms allow-same-origin"
+              <NativeMap
+                lat={mapCoords.lat}
+                lng={mapCoords.lng}
+                mode={mapsMode}
+                label={mapLocationName || mapsQuery}
+                onMapClick={async (clickedLat, clickedLng) => {
+                  setMapCoords({ lat: clickedLat, lng: clickedLng });
+                  try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${clickedLat}&lon=${clickedLng}`, {
+                      headers: { "User-Agent": "TattvaAI-Map/1.0" },
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      const place = data.display_name || `${clickedLat.toFixed(4)}, ${clickedLng.toFixed(4)}`;
+                      setMapLocationName(place);
+                      setMapsQuery(place.split(",")[0]);
+                      setMapsSearchInput(place.split(",")[0]);
+                    }
+                  } catch {}
+                }}
               />
             </div>
 
