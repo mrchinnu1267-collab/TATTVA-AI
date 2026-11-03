@@ -41,8 +41,6 @@ import {
   User as UserIcon,
   Settings,
   ShieldCheck,
-  Fingerprint,
-  Smartphone,
   HelpCircle,
   LogOut,
   ChevronUp,
@@ -777,117 +775,6 @@ export default function ChatPage() {
   // Archive Modal state
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
-  // App Security: Mobile Password & Biometric / Fingerprint Protection
-  const [isSecurityEnabled, setIsSecurityEnabled] = useState(false);
-  const [isSecurityLocked, setIsSecurityLocked] = useState(false);
-  const [isSecuritySettingsOpen, setIsSecuritySettingsOpen] = useState(false);
-  const [hasBiometrics, setHasBiometrics] = useState(false);
-  const [securityPin, setSecurityPin] = useState("1234");
-  const [lockInputPin, setLockInputPin] = useState("");
-  const [lockError, setLockError] = useState("");
-  const [newPinInput, setNewPinInput] = useState("");
-  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
-
-  // Check device biometric support & load security configuration
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const enabled = localStorage.getItem("tattva_security_enabled") === "true";
-      const savedPin = localStorage.getItem("tattva_security_pin") || "1234";
-      setIsSecurityEnabled(enabled);
-      setSecurityPin(savedPin);
-      if (enabled) {
-        setIsSecurityLocked(true);
-      }
-
-      if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
-        PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-          .then((avail) => setHasBiometrics(avail))
-          .catch(() => setHasBiometrics(false));
-      }
-    }
-  }, []);
-
-  // Biometric Unlock via WebAuthn platform authenticator (Android Fingerprint, Windows Hello, Face ID)
-  const unlockWithBiometrics = useCallback(async () => {
-    if (typeof window === "undefined" || !window.PublicKeyCredential) {
-      setLockError("Biometric authentication not supported on this browser.");
-      return;
-    }
-    setIsBiometricAuthenticating(true);
-    setLockError("");
-    try {
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      const userId = new Uint8Array(16);
-      window.crypto.getRandomValues(userId);
-
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge,
-          rp: { name: "TATTVA AI Security" },
-          user: {
-            id: userId,
-            name: userEmail || "tattva_user",
-            displayName: "TATTVA AI Verified Device",
-          },
-          pubKeyCredParams: [
-            { alg: -7, type: "public-key" },
-            { alg: -257, type: "public-key" },
-          ],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform",
-            userVerification: "required",
-          },
-          timeout: 60000,
-        },
-      });
-
-      if (credential) {
-        setIsSecurityLocked(false);
-        setLockError("");
-        setLockInputPin("");
-        showToast("Unlocked via Device Biometrics 🔓");
-      }
-    } catch (err: unknown) {
-      console.warn("[Biometrics] Authenticator canceled or failed:", err);
-      setLockError("Biometric verification cancelled or unavailable. Use PIN.");
-    } finally {
-      setIsBiometricAuthenticating(false);
-    }
-  }, [userEmail]);
-
-  // Unlock with Mobile Password / PIN
-  const handlePinUnlock = useCallback(() => {
-    const input = lockInputPin.trim();
-    if (input === securityPin) {
-      setIsSecurityLocked(false);
-      setLockError("");
-      setLockInputPin("");
-      showToast("App Unlocked 🔓");
-    } else {
-      setLockError("Incorrect Password or PIN. Please try again.");
-    }
-  }, [lockInputPin, securityPin]);
-
-  // Toggle Security Lock setting
-  const toggleSecurityEnabled = useCallback((enable: boolean) => {
-    setIsSecurityEnabled(enable);
-    localStorage.setItem("tattva_security_enabled", enable ? "true" : "false");
-    showToast(enable ? "App Security Lock Activated 🛡️" : "App Security Lock Disabled");
-  }, []);
-
-  // Update Security PIN / Password
-  const updateSecurityPin = useCallback((newPin: string) => {
-    const trimmed = newPin.trim();
-    if (trimmed.length < 4) {
-      showToast("PIN / Password must be at least 4 digits.");
-      return;
-    }
-    setSecurityPin(trimmed);
-    localStorage.setItem("tattva_security_pin", trimmed);
-    setNewPinInput("");
-    showToast("Mobile Password / PIN Updated Successfully ✦");
-  }, []);
   const [speechState, setSpeechState] = useState<"idle" | "speaking" | "paused">("idle");
 
   // Contextual dropdown menu & rename state
@@ -991,65 +878,6 @@ export default function ChatPage() {
       setSidebarOpen(false);
     }
   }, []);
-
-  // Touch swipe gestures for opening/closing Chat History sidebar
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-
-  useEffect(() => {
-    function handleTouchStart(e: TouchEvent) {
-      if (e.touches.length !== 1) return;
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
-      touchStartRef.current = {
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-        time: Date.now(),
-      };
-    }
-
-    function handleTouchEnd(e: TouchEvent) {
-      if (!touchStartRef.current || e.changedTouches.length !== 1) return;
-      const touch = e.changedTouches[0];
-      const startX = touchStartRef.current.x;
-      const startY = touchStartRef.current.y;
-      const startTime = touchStartRef.current.time;
-      touchStartRef.current = null;
-
-      const deltaX = touch.clientX - startX;
-      const deltaY = touch.clientY - startY;
-      const deltaTime = Date.now() - startTime;
-
-      // Ignore slow gestures (> 900ms)
-      if (deltaTime > 900) return;
-
-      // 1. Horizontal Swipes: Open / Close Chat History Sidebar
-      if (Math.abs(deltaX) > Math.abs(deltaY) * 0.85) {
-        if (deltaX > 45) {
-          if (startX < Math.max(140, window.innerWidth * 0.45) || !sidebarOpen) {
-            setSidebarOpen(true);
-          }
-        } else if (deltaX < -45 && sidebarOpen) {
-          setSidebarOpen(false);
-        }
-      }
-
-    }
-
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-
-    return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [sidebarOpen]);
 
   // 300ms Debounced Global Search across all conversation titles, user messages, and AI responses
   useEffect(() => {
@@ -3016,14 +2844,6 @@ export default function ChatPage() {
           2. MAIN CONTENT AREA: SIDEBAR + CHAT STREAM
       ========================================================================= */}
       <div className="flex-1 min-h-0 flex overflow-hidden relative">
-        {/* Mobile Edge Swipe Guide for Chat History */}
-        {!sidebarOpen && (
-          <div
-            className="fixed left-0 top-14 bottom-20 w-6 z-20 md:hidden pointer-events-auto touch-pan-x"
-            title="Swipe right to view chat history"
-            aria-label="Swipe right for chat history"
-          />
-        )}
         {/* Mobile Backdrop for Sidebar */}
         {sidebarOpen && (
           <div
@@ -3675,42 +3495,6 @@ export default function ChatPage() {
                         <span>Manage Account</span>
                       </button>
 
-                      {/* App Security & Biometrics */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          setIsSecuritySettingsOpen(true);
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Fingerprint className="w-4 h-4 text-cyan-500" />
-                          <span>Security &amp; Fingerprint</span>
-                        </div>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
-                          isSecurityEnabled ? "bg-emerald-500/20 text-emerald-400" : "bg-neutral-200 dark:bg-neutral-800 text-neutral-400"
-                        }`}>
-                          {isSecurityEnabled ? "ACTIVE" : "OFF"}
-                        </span>
-                      </button>
-
-                      {/* Lock App Now (Visible when security is enabled) */}
-                      {isSecurityEnabled && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsProfileMenuOpen(false);
-                            setIsSecurityLocked(true);
-                            showToast("App Locked 🔒");
-                          }}
-                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition cursor-pointer"
-                        >
-                          <Lock className="w-4 h-4 text-amber-500" />
-                          <span>Lock App Now</span>
-                        </button>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => {
@@ -3947,7 +3731,7 @@ export default function ChatPage() {
           >
             <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
-              <div className="pt-8 sm:pt-14 pb-8 text-center max-w-xl mx-auto flex flex-col items-center justify-center animate-in fade-in duration-200">
+              <div className="my-auto py-10 sm:py-16 text-center max-w-xl mx-auto">
                 <div className="mx-auto flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-md mb-4 p-1.5">
                   <img
                     src="/logo.png"
@@ -3956,66 +3740,10 @@ export default function ChatPage() {
                   />
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">How can TATTVA AI help you today?</h2>
-                <p className="mt-2 text-xs sm:text-sm text-neutral-500 leading-relaxed max-w-md">
-                  Ask complex questions, write robust code, generate photorealistic images, or talk using voice.
+                <p className="mt-2 text-xs sm:text-sm text-neutral-500 leading-relaxed max-w-md mx-auto">
+                  Ask complex questions in any language, write robust code without emojis, generate photorealistic
+                  artworks, or talk directly using voice.
                 </p>
-
-                {/* Quick starter cards positioned in the upper-middle sweet spot */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6 w-full text-left">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInput("Tell me about the latest AI research breakthroughs and autonomous reasoning models");
-                      textareaRef.current?.focus();
-                    }}
-                    className={`p-4 rounded-2xl border text-sm font-medium transition cursor-pointer text-left shadow-2xs hover:shadow-xs active:scale-98 ${
-                      isDark ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-200" : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-800"
-                    }`}
-                  >
-                    <div className="font-bold mb-1">✦ Deep Research</div>
-                    <div className="text-xs text-neutral-400">Discover recent AI breakthroughs</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInput("Write an optimized, production-grade Python script for data processing");
-                      textareaRef.current?.focus();
-                    }}
-                    className={`p-4 rounded-2xl border text-sm font-medium transition cursor-pointer text-left shadow-2xs hover:shadow-xs active:scale-98 ${
-                      isDark ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-200" : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-800"
-                    }`}
-                  >
-                    <div className="font-bold mb-1">✦ Code Generator</div>
-                    <div className="text-xs text-neutral-400">Write & debug clean code</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInput("A futuristic electric supercar in neon cyberpunk Tokyo, 8k hyperrealistic");
-                      textareaRef.current?.focus();
-                    }}
-                    className={`p-4 rounded-2xl border text-sm font-medium transition cursor-pointer text-left shadow-2xs hover:shadow-xs active:scale-98 ${
-                      isDark ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-200" : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-800"
-                    }`}
-                  >
-                    <div className="font-bold mb-1">✦ Image Studio</div>
-                    <div className="text-xs text-neutral-400">Synthesize creative photorealistic art</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      requestLocation();
-                      setInput("Give me the live weather report and forecast for my current location");
-                      textareaRef.current?.focus();
-                    }}
-                    className={`p-4 rounded-2xl border text-sm font-medium transition cursor-pointer text-left shadow-2xs hover:shadow-xs active:scale-98 ${
-                      isDark ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-200" : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-800"
-                    }`}
-                  >
-                    <div className="font-bold mb-1">✦ Live Weather</div>
-                    <div className="text-xs text-neutral-400">Accurate forecast with GPS location</div>
-                  </button>
-                </div>
               </div>
             ) : (
               messages.map((msg, idx) => {
@@ -6596,215 +6324,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* =========================================================================
-          APP SECURITY LOCK SCREEN OVERLAY (FINGERPRINT / MOBILE PASSWORD)
-      ========================================================================= */}
-      {isSecurityLocked && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-200 select-none"
-        >
-          <div
-            className={`w-full max-w-sm rounded-3xl border p-6 sm:p-8 shadow-2xl text-center flex flex-col items-center ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-neutral-200 bg-white text-neutral-900"
-            }`}
-          >
-            {/* Cyber-Lotus Security Shield Icon */}
-            <div className="relative mb-5">
-              <div className="h-20 w-20 rounded-3xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shadow-lg shadow-cyan-500/10 p-2">
-                <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-cyan-500 text-black flex items-center justify-center shadow-md">
-                <Lock className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            <h2 className="text-xl font-bold tracking-tight mb-1">TATTVA AI Protected</h2>
-            <p className="text-xs text-neutral-400 mb-6">
-              Enter your mobile password or verify fingerprint to unlock
-            </p>
-
-            {/* Biometric Button (if device is compatible) */}
-            {hasBiometrics && (
-              <button
-                type="button"
-                onClick={unlockWithBiometrics}
-                disabled={isBiometricAuthenticating}
-                className="w-full mb-4 py-3.5 px-4 rounded-2xl bg-cyan-500/15 hover:bg-cyan-500/25 active:scale-98 text-cyan-400 border border-cyan-500/30 flex items-center justify-center gap-3 font-semibold text-sm transition shadow-sm cursor-pointer min-h-[50px]"
-              >
-                <Fingerprint className={`w-5 h-5 ${isBiometricAuthenticating ? "animate-pulse" : ""}`} />
-                <span>{isBiometricAuthenticating ? "Verifying Fingerprint..." : "Unlock with Fingerprint"}</span>
-              </button>
-            )}
-
-            {/* PIN / Mobile Password Input */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handlePinUnlock();
-              }}
-              className="w-full space-y-3"
-            >
-              <div className="relative">
-                <input
-                  type="password"
-                  autoFocus
-                  maxLength={16}
-                  value={lockInputPin}
-                  onChange={(e) => {
-                    setLockInputPin(e.target.value);
-                    if (lockError) setLockError("");
-                  }}
-                  placeholder="Enter Password / PIN"
-                  className={`w-full rounded-2xl border px-4 py-3.5 text-center text-base tracking-widest outline-none font-mono transition min-h-[50px] ${
-                    isDark
-                      ? "border-neutral-700 bg-neutral-900/80 text-white focus:border-cyan-500"
-                      : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-cyan-500"
-                  }`}
-                />
-              </div>
-
-              {lockError && (
-                <p className="text-xs text-red-500 font-medium">
-                  {lockError}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-3.5 px-4 rounded-2xl bg-white text-black dark:bg-white dark:text-black font-bold text-sm hover:opacity-90 active:scale-98 transition shadow-md min-h-[50px] cursor-pointer"
-              >
-                Unlock
-              </button>
-            </form>
-
-            <div className="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800/80 w-full text-[11px] text-neutral-500 flex items-center justify-between">
-              <span>Protected by TATTVA AI</span>
-              <span className="font-mono text-cyan-500 font-semibold">{hasBiometrics ? "BIOMETRICS OK" : "PIN SECURED"}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          SECURITY SETTINGS MODAL
-      ========================================================================= */}
-      {isSecuritySettingsOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-150"
-          onClick={() => setIsSecuritySettingsOpen(false)}
-        >
-          <div
-            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-neutral-200 bg-white text-neutral-900"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-500">
-                  <Fingerprint className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">App Security</h3>
-                  <p className="text-xs text-neutral-400">Mobile Password &amp; Fingerprint</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSecuritySettingsOpen(false)}
-                className="p-1.5 rounded-xl text-neutral-400 hover:text-white transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4">
-              {/* Toggle App Security */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 bg-black/[0.02] dark:bg-white/[0.02]">
-                <div>
-                  <div className="text-sm font-bold">App Lock Protection</div>
-                  <div className="text-xs text-neutral-400">Require fingerprint or PIN to open app</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSecurityEnabled(!isSecurityEnabled)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    isSecurityEnabled ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
-                  }`}
-                >
-                  <span
-                    className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                      isSecurityEnabled ? "translate-x-6" : "translate-x-0.5"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Hardware Biometrics Status */}
-              <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-neutral-400" />
-                  <span>Device Compatibility</span>
-                </div>
-                <span className={`font-semibold px-2 py-0.5 rounded-full ${
-                  hasBiometrics ? "bg-emerald-500/15 text-emerald-400" : "bg-neutral-200 dark:bg-neutral-800 text-neutral-400"
-                }`}>
-                  {hasBiometrics ? "Fingerprint Compatible ✓" : "Password / PIN Mode"}
-                </span>
-              </div>
-
-              {/* Configure Mobile PIN / Password */}
-              <div className="p-3.5 rounded-2xl border border-black/[0.06] dark:border-neutral-800 space-y-2">
-                <div className="text-xs font-bold uppercase tracking-wider text-neutral-400">Change PIN / Password</div>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    maxLength={16}
-                    value={newPinInput}
-                    onChange={(e) => setNewPinInput(e.target.value)}
-                    placeholder="New 4-12 digit PIN"
-                    className="flex-1 rounded-xl border border-black/10 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm font-mono outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => updateSecurityPin(newPinInput)}
-                    className="py-2 px-4 rounded-xl bg-cyan-500 text-black font-bold text-xs hover:bg-cyan-400 transition cursor-pointer"
-                  >
-                    Save
-                  </button>
-                </div>
-                <p className="text-[11px] text-neutral-500">Current PIN: •••• (Default: 1234)</p>
-              </div>
-
-              {/* Test Biometrics Button */}
-              {hasBiometrics && (
-                <button
-                  type="button"
-                  onClick={unlockWithBiometrics}
-                  className="w-full py-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 font-semibold text-xs hover:bg-cyan-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Fingerprint className="w-4 h-4" />
-                  <span>Test Device Fingerprint Sensor</span>
-                </button>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-black/[0.06] dark:border-neutral-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsSecuritySettingsOpen(false)}
-                className="py-2 px-5 rounded-xl bg-neutral-200 dark:bg-neutral-800 text-xs font-bold hover:opacity-80 transition cursor-pointer"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
