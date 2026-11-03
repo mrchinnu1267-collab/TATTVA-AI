@@ -880,6 +880,16 @@ export default function ChatPage() {
   // Temporary Chat & Deep Thinking states
   const [isTemporaryChat, setIsTemporaryChat] = useState(false);
   const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
+
+  // Interactive TATTVA Maps State (matching Image 2)
+  const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
+  const [mapsQuery, setMapsQuery] = useState("Bangalore, India");
+  const [mapsSearchInput, setMapsSearchInput] = useState("");
+  const [mapsMode, setMapsMode] = useState<"roadmap" | "satellite">("roadmap");
+  const [mapsDirectionsMode, setMapsDirectionsMode] = useState(false);
+  const [mapsOrigin, setMapsOrigin] = useState("");
+  const [mapsDestination, setMapsDestination] = useState("");
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [imageOutputRatio, setImageOutputRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
 
   function toggleTemporaryChat() {
@@ -906,6 +916,60 @@ export default function ChatPage() {
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
+
+  // Locate user GPS for Maps
+  function locateUserForMap() {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      showToast("Geolocation is not supported on this device");
+      return;
+    }
+    setIsLocatingUser(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setIsLocatingUser(false);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        userLocationRef.current = { latitude: lat, longitude: lng };
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          if (res.ok) {
+            const data = await res.json();
+            const place = data.address?.city || data.address?.town || data.address?.suburb || data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            setMapsQuery(place);
+            setMapsSearchInput(place);
+            showToast(`GPS Location centered: ${place} 📍`);
+            return;
+          }
+        } catch {}
+        const coordStr = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+        setMapsQuery(coordStr);
+        setMapsSearchInput(coordStr);
+        showToast("Centered map to GPS coordinates 📍");
+      },
+      (err) => {
+        setIsLocatingUser(false);
+        showToast("GPS Access: " + (err.message || "Permission not granted"));
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
+
+  function handleMapSearch(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!mapsSearchInput.trim()) return;
+    setMapsQuery(mapsSearchInput.trim());
+  }
+
+  function handleMapCategory(cat: string) {
+    const q = mapsQuery ? `${cat} in ${mapsQuery}` : cat;
+    setMapsSearchInput(q);
+    setMapsQuery(q);
+  }
+
+  function askAIAboutLocation(loc: string) {
+    setIsMapsModalOpen(false);
+    sendMessage(`Give me a detailed guide and top recommendations for ${loc}: best places to visit, popular local food, travel tips, and cultural highlights.`);
+  }
 
   // Geolocation request for real-time weather & location-based reports
   const requestLocation = useCallback(() => {
@@ -2931,80 +2995,6 @@ export default function ChatPage() {
                 <Menu className="w-6 h-6" />
               )}
             </button>
-
-            {/* Interactive TATTVA AI Branding Bubble - Enlarged Logo & Comfort Target */}
-            <div className="relative" data-branding-bubble>
-              <button
-                type="button"
-                onClick={() => setIsInfoBubbleOpen(!isInfoBubbleOpen)}
-                className={`group flex items-center gap-3.5 rounded-2xl border px-4 sm:px-5 py-2.5 sm:py-3 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-sm min-h-[54px] select-none active:scale-98 ${
-                  isDark
-                    ? "border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 text-white hover:border-neutral-700"
-                    : "border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-900 hover:border-black/20"
-                }`}
-                title="About TATTVA AI & Creator"
-              >
-                <div className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white p-1 shadow-xs group-hover:scale-105 transition-transform shrink-0">
-                  <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
-                </div>
-                <div className="leading-tight text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base sm:text-lg font-extrabold tracking-tight">TATTVA AI</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 text-neutral-400 font-bold">v1.0</span>
-                  </div>
-                  <span className="block text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 font-semibold truncate max-w-[180px] sm:max-w-none">
-                    by Kotapati Gowtham Chowdary
-                  </span>
-                </div>
-                <Info className="w-4 h-4 sm:w-5 sm:h-5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200 ml-1 shrink-0" />
-              </button>
-
-              {/* Elegant Popover */}
-              {isInfoBubbleOpen && (
-                <div
-                  className={`absolute left-0 top-full mt-2 w-72 sm:w-84 max-w-[calc(100vw-2rem)] rounded-2xl border p-4 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                    isDark
-                      ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
-                      : "border-black/10 bg-white/95 text-neutral-800"
-                  }`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-xl overflow-hidden border border-black/10 bg-white p-0.5 shrink-0">
-                        <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-bold text-sm text-neutral-900 dark:text-white">TATTVA AI</h3>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 font-semibold text-neutral-500">v1.0.0</span>
-                        </div>
-                        <p className="text-[11px] text-neutral-500">Created by Kotapati Gowtham Chowdary</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsInfoBubbleOpen(false)}
-                      className="p-1 rounded-lg text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="pt-3 text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
-                    <p className="font-medium text-neutral-900 dark:text-white mb-1">About</p>
-                    <p className="text-neutral-500 dark:text-neutral-400 text-[11px] leading-relaxed">
-                      An AI-powered intelligent assistant designed to help users with conversations, coding, reasoning, creative tasks, and multimodal interactions.
-                    </p>
-                  </div>
-
-                  <div className="mt-3 pt-2.5 border-t border-black/[0.06] dark:border-neutral-800 flex items-center justify-between text-[10px] text-neutral-400">
-                    <span>Engineered with Precision</span>
-                    <span className="font-semibold text-neutral-600 dark:text-neutral-300">Next-Gen Intelligence</span>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Right Header Controls: Temporary Chat, Share & Theme */}
@@ -3089,9 +3079,14 @@ export default function ChatPage() {
                   className="h-full w-full object-contain"
                 />
               </div>
-              <span className="text-base sm:text-lg font-extrabold tracking-tight text-neutral-800 dark:text-neutral-200">
-                TATTVA AI
-              </span>
+              <div className="flex flex-col">
+                <span className="text-base sm:text-lg font-extrabold tracking-tight text-neutral-800 dark:text-neutral-200">
+                  TATTVA AI
+                </span>
+                <span className="text-[10px] text-neutral-400 font-medium">
+                  by Kotapati Gowtham Chowdary
+                </span>
+              </div>
             </div>
             <button
               type="button"
@@ -3122,6 +3117,33 @@ export default function ChatPage() {
                 <span>New Chat</span>
               </div>
               <span className="text-xs font-mono opacity-80">✦</span>
+            </button>
+
+            {/* Maps Button matching Image 2 */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMapsModalOpen(true);
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
+                isMapsModalOpen
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400 shadow-2xs"
+                  : isDark
+                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
+              }`}
+              title="Open interactive Maps & Places explorer"
+            >
+              <div className="flex items-center gap-2.5">
+                <MapPin className="w-4.5 h-4.5 text-emerald-500" />
+                <span>Maps</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-bold border border-emerald-500/20">
+                Live
+              </span>
             </button>
 
             {/* Temporary Chat Button */}
@@ -4660,6 +4682,26 @@ export default function ChatPage() {
                       }`}
                       onClick={(e) => e.stopPropagation()}
                     >
+                      {/* Maps & Places Explorer matching Image 2 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMapsModalOpen(true);
+                          setIsAttachmentMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                        }`}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                          <MapPin className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="block font-semibold text-xs">Maps & Places</span>
+                          <span className="block text-[10px] text-neutral-400 truncate">Explore live interactive maps & routes</span>
+                        </div>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -4834,6 +4876,239 @@ export default function ChatPage() {
           </div>
         </main>
       </div>
+
+      {/* =========================================================================
+          TATTVA MAPS EXPLORER MODAL (matching Image 2)
+      ========================================================================= */}
+      {isMapsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl p-2 sm:p-4 md:p-6 animate-fade-in"
+          onClick={() => setIsMapsModalOpen(false)}
+        >
+          <div
+            className={`relative w-full max-w-5xl h-[92vh] sm:h-[88vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-colors ${
+              isDark ? "bg-[#121316] border-neutral-800 text-white" : "bg-white border-black/10 text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Header of Maps Modal */}
+            <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-black/[0.08] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-xs">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-extrabold tracking-tight">TATTVA Maps</h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-bold border border-emerald-500/20">
+                      Interactive
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate max-w-[200px] sm:max-w-md">
+                    {mapsQuery || "Search any place, city, or route worldwide"}
+                  </p>
+                </div>
+              </div>
+
+              {/* View Mode Controls and Close Button */}
+              <div className="flex items-center gap-2">
+                {/* Roadmap vs Satellite Toggle */}
+                <div className="inline-flex rounded-xl border border-black/10 dark:border-neutral-700 p-0.5 bg-black/5 dark:bg-white/5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setMapsMode("roadmap")}
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                      mapsMode === "roadmap"
+                        ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs"
+                        : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    }`}
+                  >
+                    Map
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapsMode("satellite")}
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                      mapsMode === "satellite"
+                        ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs"
+                        : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    }`}
+                  >
+                    Satellite
+                  </button>
+                </div>
+
+                {/* Directions Mode Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setMapsDirectionsMode(!mapsDirectionsMode)}
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer active:scale-95 ${
+                    mapsDirectionsMode
+                      ? "border-blue-500/40 bg-blue-500/15 text-blue-400"
+                      : "border-black/10 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500"
+                  }`}
+                  title="Toggle directions mode"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Directions</span>
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsMapsModalOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                  title="Close Maps"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar & Location Controls */}
+            <div className="flex-shrink-0 p-3 sm:p-4 border-b border-black/[0.06] dark:border-neutral-800 space-y-2.5 bg-white dark:bg-[#121316]">
+              {!mapsDirectionsMode ? (
+                <form onSubmit={handleMapSearch} className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                    <input
+                      type="text"
+                      value={mapsSearchInput}
+                      onChange={(e) => setMapsSearchInput(e.target.value)}
+                      placeholder="Search any place, city, address, or landmark (e.g. Paris, Goa, Times Square)..."
+                      className={`w-full rounded-2xl border pl-10 pr-4 py-2.5 text-xs sm:text-sm outline-none transition ${
+                        isDark
+                          ? "border-neutral-800 bg-neutral-900/90 text-white focus:border-emerald-500/50"
+                          : "border-black/10 bg-neutral-50 text-black focus:border-emerald-500/50"
+                      }`}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer active:scale-95 shrink-0"
+                  >
+                    <Search className="w-4 h-4" />
+                    <span>Search</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={locateUserForMap}
+                    disabled={isLocatingUser}
+                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl border text-xs sm:text-sm font-semibold transition cursor-pointer active:scale-95 shrink-0 ${
+                      isLocatingUser
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500 animate-pulse"
+                        : "border-black/10 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                    }`}
+                    title="Find current GPS location"
+                  >
+                    <MapPin className={`w-4 h-4 text-emerald-500 ${isLocatingUser ? "animate-spin" : ""}`} />
+                    <span className="hidden sm:inline">{isLocatingUser ? "Locating..." : "Locate Me"}</span>
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={mapsOrigin}
+                      onChange={(e) => setMapsOrigin(e.target.value)}
+                      placeholder="Starting point (or 'My Location')..."
+                      className={`w-full rounded-2xl border px-3.5 py-2 text-xs sm:text-sm outline-none transition ${
+                        isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-neutral-50 text-black"
+                      }`}
+                    />
+                    <input
+                      type="text"
+                      value={mapsDestination}
+                      onChange={(e) => setMapsDestination(e.target.value)}
+                      placeholder="Destination place or address..."
+                      className={`w-full rounded-2xl border px-3.5 py-2 text-xs sm:text-sm outline-none transition ${
+                        isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-neutral-50 text-black"
+                      }`}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Discovery Category Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs no-scrollbar">
+                {[
+                  { label: "Cafes", icon: "☕" },
+                  { label: "Restaurants", icon: "🍽️" },
+                  { label: "Hotels", icon: "🏨" },
+                  { label: "Tourist Attractions", icon: "🏛️" },
+                  { label: "Fuel & EV", icon: "⚡" },
+                  { label: "Hospitals", icon: "🏥" },
+                  { label: "Malls & Shopping", icon: "🛍️" },
+                ].map((cat) => (
+                  <button
+                    key={cat.label}
+                    type="button"
+                    onClick={() => handleMapCategory(cat.label)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-medium whitespace-nowrap transition cursor-pointer active:scale-95 ${
+                      isDark
+                        ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-emerald-500/40 hover:text-white"
+                        : "border-black/10 bg-neutral-100 text-neutral-700 hover:border-emerald-500/40 hover:text-black"
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live Interactive Map Iframe Container */}
+            <div className="flex-1 min-h-0 relative bg-neutral-100 dark:bg-neutral-950">
+              <iframe
+                title="TATTVA Maps Live Explorer"
+                src={
+                  mapsDirectionsMode && mapsDestination
+                    ? `https://maps.google.com/maps?saddr=${encodeURIComponent(mapsOrigin || mapsQuery || "My Location")}&daddr=${encodeURIComponent(mapsDestination)}&output=embed`
+                    : `https://maps.google.com/maps?q=${encodeURIComponent(mapsQuery || "Bangalore, India")}&t=${mapsMode === "satellite" ? "k" : ""}&z=14&ie=UTF8&iwloc=&output=embed`
+                }
+                className="w-full h-full border-0"
+                loading="lazy"
+                allowFullScreen
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+
+            {/* Bottom Actions Bar */}
+            <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-t border-black/[0.08] dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/70">
+              <div className="flex items-center gap-2">
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery || "Location")}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition cursor-pointer active:scale-95 ${
+                    isDark
+                      ? "border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+                      : "border-black/10 bg-white hover:bg-neutral-100 text-neutral-800"
+                  }`}
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Open in Google Maps</span>
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => askAIAboutLocation(mapsQuery)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold shadow-md transition cursor-pointer active:scale-95"
+                  title="Ask TATTVA AI to plan a trip or give recommendations for this place"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Ask TATTVA AI about this place</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
           4. LIGHTBOX / FULLSCREEN MODAL (WITH DOWNLOAD & SHARE SYMBOLS)
