@@ -662,12 +662,8 @@ export default function ChatPage() {
   const PRIMARY_ACCOUNT_NAME = "mr.chinnu";
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userEmail, setUserEmail] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("tattva_user_session_email") || PRIMARY_ACCOUNT_EMAIL;
-    }
-    return PRIMARY_ACCOUNT_EMAIL;
-  });
+  const [userEmail, setUserEmail] = useState<string>(PRIMARY_ACCOUNT_EMAIL);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
   const [guestChatCount, setGuestChatCount] = useState<number>(0);
   const [authReady, setAuthReady] = useState(false);
 
@@ -1050,12 +1046,10 @@ export default function ChatPage() {
           };
           userLocationRef.current = loc;
           try {
-            const res = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${loc.latitude}&longitude=${loc.longitude}&localityLanguage=en`
-            );
+            const res = await fetch(`/api/geocode?lat=${loc.latitude}&lon=${loc.longitude}`);
             if (res.ok) {
               const data = await res.json();
-              const name = data.city || data.locality || data.principalSubdivision;
+              const name = data.city || data.displayName?.split(",")[0];
               if (name) setUserLocationName(name);
             }
           } catch {
@@ -1072,6 +1066,7 @@ export default function ChatPage() {
 
   // Keyboard shortcut Ctrl+K / Cmd+K for global search & pre-fetch location
   useEffect(() => {
+    setIsMounted(true);
     requestLocation();
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -3815,7 +3810,7 @@ export default function ChatPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header item with email & account status */}
-                <div className="px-3 py-2 border-b border-black/[0.06] dark:border-neutral-800/80">
+                <div className="px-3 py-2 border-b border-black/[0.06] dark:border-neutral-800/80" suppressHydrationWarning>
                   <p className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
                     {isGuest ? "Guest Access" : "Account"}
                   </p>
@@ -4031,6 +4026,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-3.5 min-w-0">
                 {/* User Avatar with Initials - Enlarged */}
                 <div
+                  suppressHydrationWarning
                   className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-extrabold shadow-sm ring-1 ${
                     isGuest
                       ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-400/40"
@@ -4040,7 +4036,7 @@ export default function ChatPage() {
                   {isGuest ? "G" : (userEmail ? userEmail[0].toUpperCase() : "U")}
                 </div>
                 {/* Display Name and Status - Enlarged Account Typography */}
-                <div className="text-left min-w-0">
+                <div className="text-left min-w-0" suppressHydrationWarning>
                   <div className="text-base font-extrabold truncate text-neutral-900 dark:text-neutral-100">
                     {isGuest ? "Guest User" : (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0])}
                   </div>

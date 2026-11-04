@@ -37,6 +37,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // Only handle same-origin requests; never intercept cross-origin API or external calls
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Never cache API calls, live voice, or auth requests (Security & Accuracy)
   if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
