@@ -5,6 +5,9 @@ import Image from "next/image";
 export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
   title: "Download TATTVA AI for Android (APK)",
+  alternates: {
+    canonical: "/download",
+  },
   description: "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
   openGraph: {
     title: "Download TATTVA AI for Android (APK)",
