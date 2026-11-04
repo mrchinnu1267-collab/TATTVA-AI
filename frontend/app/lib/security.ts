@@ -475,7 +475,9 @@ export type SecurityEventType =
   | "MALICIOUS_FILE_BLOCKED"
   | "UNAUTHORIZED_DATA_ACCESS"
   | "KEY_ROTATION_EVENT"
-  | "SESSION_REVOKED";
+  | "SESSION_REVOKED"
+  | "MCP_CONNECTOR_EVENT"
+  | "MCP_SECURITY_BLOCKED";
 
 export type SecurityAuditLog = {
   timestamp: string;

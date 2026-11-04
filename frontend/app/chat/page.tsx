@@ -85,7 +85,10 @@ import {
   Key,
   CheckCircle2,
   XCircle,
+  Plug,
 } from "lucide-react";
+import ConnectorSettings from "../components/connectors/ConnectorSettings";
+import ConnectorPicker from "../components/connectors/ConnectorPicker";
 import type {
   MemoryItem,
   MemoryCategory,
@@ -146,6 +149,14 @@ type ChatMessage = {
   userFeedback?: { rating: "positive" | "negative"; category?: string; comment?: string };
   citations?: Array<{ title: string; url: string; snippet?: string }>;
   toolsExecuted?: string[];
+  toolCalls?: Array<{
+    serverName: string;
+    toolName: string;
+    input?: any;
+    output?: any;
+    durationMs?: number;
+    error?: string;
+  }>;
   reasoningPlan?: any;
   agentState?: any;
 };
@@ -625,6 +636,9 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
             lowerLang === "csv" ||
             lowerLang === "pptx" ||
             lowerLang === "ppt" ||
+            lowerLang === "odt" ||
+            lowerLang === "rtf" ||
+            lowerLang === "epub" ||
             lowerLang === "zip" ||
             lowerFilename.endsWith(".pdf") ||
             lowerFilename.endsWith(".docx") ||
@@ -633,6 +647,10 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
             lowerFilename.endsWith(".xls") ||
             lowerFilename.endsWith(".csv") ||
             lowerFilename.endsWith(".pptx") ||
+            lowerFilename.endsWith(".ppt") ||
+            lowerFilename.endsWith(".odt") ||
+            lowerFilename.endsWith(".rtf") ||
+            lowerFilename.endsWith(".epub") ||
             lowerFilename.endsWith(".zip") ||
             part.code.trim().startsWith("%PDF") ||
             part.code.trim().startsWith("PK\x03\x04");
@@ -931,7 +949,11 @@ export default function ChatPage() {
   };
 
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(defaultDisplaySettings);
-  const [settingsActiveTab, setSettingsActiveTab] = useState<"display" | "general" | "providers">("display");
+  const [settingsActiveTab, setSettingsActiveTab] = useState<"display" | "general" | "providers" | "connectors">("display");
+
+  // Claude Connectors (MCP) State
+  const [activeConnectorIds, setActiveConnectorIds] = useState<string[]>([]);
+  const [isConnectorPickerOpen, setIsConnectorPickerOpen] = useState(false);
 
   // Custom AI Providers (BYOK) & Security Vault
   const [customProviderSettings, setCustomProviderSettings] = useState<CustomProviderSettings>(DEFAULT_PROVIDER_SETTINGS);
@@ -2859,6 +2881,7 @@ export default function ChatPage() {
         headers: getCustomProviderHeaders(),
         body: JSON.stringify({
           messages: apiMessages,
+          connectorIds: activeConnectorIds.length > 0 ? activeConnectorIds : undefined,
           mode: activeTool === "code" ? "chat" : undefined,
           thinking: isThinkingEnabled,
           isTemporary: isTemporaryChat,
@@ -2888,6 +2911,7 @@ export default function ChatPage() {
         recalledMemories: data.recalledMemories,
         citations: data.citations,
         toolsExecuted: data.toolsExecuted,
+        toolCalls: data.toolCalls,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
       };
@@ -4736,6 +4760,41 @@ export default function ChatPage() {
                         </div>
 
                         <div className="flex-1 min-w-0">
+                          {/* Visible Claude Connector Tool Call Indicators */}
+                          {msg.toolCalls && msg.toolCalls.length > 0 && (
+                            <div className="mb-2.5 flex flex-wrap gap-1.5">
+                              {msg.toolCalls.map((tc, tcIdx) => (
+                                <div
+                                  key={tcIdx}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-semibold shadow-2xs"
+                                >
+                                  <Plug className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                  <span>
+                                    Using <b>{tc.serverName}</b> ({tc.toolName})
+                                  </span>
+                                  {typeof tc.durationMs === "number" && (
+                                    <span className="text-[10px] text-purple-400/70 font-mono">
+                                      {tc.durationMs}ms
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {!msg.toolCalls && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
+                            <div className="mb-2.5 flex flex-wrap gap-1.5">
+                              {msg.toolsExecuted.map((t, tIdx) => (
+                                <div
+                                  key={tIdx}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-semibold shadow-2xs"
+                                >
+                                  <Plug className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                  <span>Using {t}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           {/* Markdown / Text content rendered directly on conversation surface */}
                           <MarkdownView content={msg.content} isDark={isDark} />
 
@@ -5391,9 +5450,78 @@ export default function ChatPage() {
                             <span className="block text-[10px] text-neutral-400 truncate">{isTemporaryChat ? "Turn OFF temporary mode" : "Turn ON temporary mode"}</span>
                           </div>
                         </button>
+
+                        {/* Claude Connectors (MCP) Picker */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsConnectorPickerOpen(!isConnectorPickerOpen);
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
+                            activeConnectorIds.length > 0
+                              ? "bg-purple-500/20 text-purple-400 border-purple-500/40"
+                              : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                          }`}>
+                            <Plug className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="block font-semibold text-xs">Claude Connectors</span>
+                              {activeConnectorIds.length > 0 && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+                                  {activeConnectorIds.length} Active
+                                </span>
+                              )}
+                            </div>
+                            <span className="block text-[10px] text-neutral-400 truncate">MCP tools, servers &amp; APIs</span>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Popover for ConnectorPicker */}
+                    {isConnectorPickerOpen && (
+                      <div
+                        className={`absolute bottom-full left-0 mb-3 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                          isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ConnectorPicker
+                          isDark={isDark}
+                          activeConnectorIds={activeConnectorIds}
+                          onToggleConnector={(id) => {
+                            setActiveConnectorIds((prev) =>
+                              prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+                            );
+                          }}
+                          onOpenSettings={() => {
+                            setIsConnectorPickerOpen(false);
+                            setSettingsActiveTab("connectors");
+                            setIsSettingsModalOpen(true);
+                          }}
+                        />
                       </div>
                     )}
                   </div>
+
+                  {/* Active Connectors Indicator Pill */}
+                  {activeConnectorIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsConnectorPickerOpen(!isConnectorPickerOpen)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-[11px] font-bold transition cursor-pointer select-none"
+                      title="Manage active Claude connectors"
+                    >
+                      <Plug className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                      <span>{activeConnectorIds.length} Connector{activeConnectorIds.length > 1 ? "s" : ""}</span>
+                    </button>
+                  )}
 
                   {/* Right: Mic & Voice/Send Button */}
                   <div className="flex items-center gap-2 shrink-0">
@@ -6260,6 +6388,18 @@ export default function ChatPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setSettingsActiveTab("connectors")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  settingsActiveTab === "connectors"
+                    ? "bg-white dark:bg-neutral-800 text-purple-600 dark:text-purple-400 shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Plug className="w-3.5 h-3.5 text-purple-400" />
+                <span>Connectors</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setSettingsActiveTab("general")}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   settingsActiveTab === "general"
@@ -6810,6 +6950,8 @@ export default function ChatPage() {
                     </button>
                   </div>
                 </div>
+              ) : settingsActiveTab === "connectors" ? (
+                <ConnectorSettings isDark={isDark} showToast={showToast} />
               ) : (
                 /* General Preferences Tab */
                 <div className="space-y-4">

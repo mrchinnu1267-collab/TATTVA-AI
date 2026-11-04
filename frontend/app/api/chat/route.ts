@@ -131,6 +131,27 @@ export async function POST(request: Request) {
       return NextResponse.json(customResult);
     }
 
+    // Claude MCP Connectors Integration: Route through Claude Connectors when connectorIds are provided
+    if (body.connectorIds && Array.isArray(body.connectorIds) && body.connectorIds.length > 0) {
+      const { claudeConnectors } = await import("../../lib/mcp/claude-connectors");
+      const connectorResult = await claudeConnectors.executeChat(session.userId, {
+        messages: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
+        connectorIds: body.connectorIds,
+        model: body.model || "claude-3-5-sonnet-20241022",
+        temperature: body.temperature ?? 0.7,
+      });
+
+      return NextResponse.json({
+        role: "assistant",
+        content: connectorResult.text,
+        kind: "text",
+        toolCalls: connectorResult.toolCalls,
+        toolsExecuted: connectorResult.toolCalls.map((tc) => `${tc.serverName || tc.connectorName} (${tc.toolName})`),
+        usage: connectorResult.usage,
+        stopReason: connectorResult.stopReason,
+      });
+    }
+
     // Dispatch through the Master AI Orchestrator
     const orchestratorResult = await aiOrchestrator.processRequest({
       messages: body.messages,

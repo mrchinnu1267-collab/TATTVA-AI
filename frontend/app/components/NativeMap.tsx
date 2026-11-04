@@ -82,7 +82,7 @@ export default function NativeMap({
       center: [lat, lng],
       zoom: zoom,
       zoomControl: false,
-      attributionControl: true,
+      attributionControl: false,
     });
     mapRef.current = map;
 
