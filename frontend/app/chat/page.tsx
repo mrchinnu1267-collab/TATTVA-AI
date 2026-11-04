@@ -1329,12 +1329,47 @@ export default function ChatPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Pre-fill input if ?prompt= is passed from Maps or tools
+  // Handle location query & prompt forwarding from Satellite Maps
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const promptParam = params.get("prompt");
-      if (promptParam) {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const mapQ = params.get("map_q");
+    const mapPlace = params.get("map_place");
+    const mapLat = params.get("map_lat");
+    const mapLng = params.get("map_lng");
+    const autoReply = params.get("autoreply") === "1" || params.get("auto") === "true";
+    const promptParam = params.get("prompt");
+
+    if (mapQ || (mapPlace && promptParam)) {
+      const question = mapQ || promptParam || "Give me a complete guide and insights for this location";
+      let fullMessage = question;
+      if (mapPlace) {
+        const coordsText = mapLat && mapLng ? ` (${parseFloat(mapLat).toFixed(4)}° N, ${parseFloat(mapLng).toFixed(4)}° E)` : "";
+        fullMessage = `📍 [Satellite Location: ${mapPlace}${coordsText}]\n\n${question}`;
+      }
+
+      window.history.replaceState({}, "", "/chat");
+
+      if (autoReply) {
+        setTimeout(() => {
+          sendMessage(fullMessage);
+        }, 350);
+      } else {
+        setInput(fullMessage);
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 200);
+      }
+      return;
+    }
+
+    if (promptParam) {
+      window.history.replaceState({}, "", "/chat");
+      if (autoReply) {
+        setTimeout(() => {
+          sendMessage(promptParam);
+        }, 350);
+      } else {
         setInput(promptParam);
         setTimeout(() => {
           textareaRef.current?.focus();

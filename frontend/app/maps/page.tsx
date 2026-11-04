@@ -21,8 +21,12 @@ import {
   Image as ImageIcon,
   ChevronRight,
   Maximize2,
+  Camera,
+  Send,
+  HelpCircle,
 } from "lucide-react";
 import type { PlaceResult } from "../api/map/places/route";
+import type { AreaPhoto } from "../api/map/area-photos/route";
 
 // Dynamically import Leaflet NativeMap with ssr: false
 const NativeMap = dynamic(() => import("../components/NativeMap"), {
@@ -61,6 +65,15 @@ function MapsContent() {
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
 
+  // Actual Area Photos Explorer State (around the world)
+  const [areaPhotos, setAreaPhotos] = useState<AreaPhoto[]>([]);
+  const [isAreaPhotosOpen, setIsAreaPhotosOpen] = useState(false);
+  const [isLoadingAreaPhotos, setIsLoadingAreaPhotos] = useState(false);
+  const [selectedAreaPhoto, setSelectedAreaPhoto] = useState<AreaPhoto | null>(null);
+
+  // Ask AI Questions State
+  const [questionInput, setQuestionInput] = useState("");
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -68,13 +81,11 @@ function MapsContent() {
 
   // EVERY TIME USER OPENS SATELLITE MAPS: Automatically locate exact user location
   useEffect(() => {
-    // 1. Check if user already asked for a specific place in URL
     if (initialQuery && initialQuery !== "Your Location") {
       handleSearch(undefined, initialQuery);
       return;
     }
 
-    // 2. Load cached coordinates if available for instant rendering
     if (typeof window !== "undefined") {
       try {
         const cached = localStorage.getItem("tattva_user_last_coords");
@@ -92,7 +103,6 @@ function MapsContent() {
       } catch {}
     }
 
-    // 3. Automatically trigger live GPS location detection every time
     handleLocateMe(true);
   }, []);
 
@@ -115,7 +125,6 @@ function MapsContent() {
         setUserCoords(newCoords);
 
         try {
-          // Reverse geocode via server-side geocode route (immune to CSP)
           const res = await fetch(`/api/geocode?lat=${latitude}&lon=${longitude}`);
           if (res.ok) {
             const data = await res.json();
@@ -126,13 +135,11 @@ function MapsContent() {
             setSearchInput(shortName);
             showToast(`Exact Location: ${shortName} 🛰️`);
 
-            // Save to local storage for quick subsequent loads
             localStorage.setItem(
               "tattva_user_last_coords",
               JSON.stringify({ lat: latitude, lng: longitude, name: place })
             );
 
-            // Fetch nearby places for the user's location
             fetchNearbyPlaces("all", newCoords, shortName);
             return;
           }
@@ -163,7 +170,6 @@ function MapsContent() {
     setIsLoading(true);
     setQuery(q);
 
-    // Check if query is looking for places (e.g., "hotels in Paris", "cafes in Goa")
     const lowerQ = q.toLowerCase();
     const isCategorySearch =
       lowerQ.includes("hotel") ||
@@ -174,7 +180,6 @@ function MapsContent() {
       lowerQ.includes("resort");
 
     try {
-      // 1. Geocode place query
       const res = await fetch(`/api/map?q=${encodeURIComponent(q)}&mode=${mode}`);
       if (res.ok) {
         const data = await res.json();
@@ -185,7 +190,6 @@ function MapsContent() {
           setLocationName(name);
           showToast(`Shifted to: ${name.split(",")[0]} 🛰️`);
 
-          // Fetch places for this location
           const cat = lowerQ.includes("hotel")
             ? "hotel"
             : lowerQ.includes("cafe")
@@ -204,7 +208,6 @@ function MapsContent() {
         }
       }
 
-      // 2. Fallback to geocoding endpoint
       const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
       if (geoRes.ok) {
         const geoData = await geoRes.json();
@@ -245,7 +248,6 @@ function MapsContent() {
         if (data.success && Array.isArray(data.places)) {
           setPlaces(data.places);
           if (data.places.length > 0) {
-            // Automatically select first place if user explicitly searched category
             if (cat !== "all") {
               setSelectedPlace(data.places[0]);
               setActivePhotoIdx(0);
@@ -257,6 +259,28 @@ function MapsContent() {
       console.warn("Could not fetch places");
     } finally {
       setIsLoadingPlaces(false);
+    }
+  }
+
+  // Fetch actual authentic photos of the area worldwide
+  async function handleOpenAreaPhotos() {
+    setIsAreaPhotosOpen(true);
+    setIsLoadingAreaPhotos(true);
+    try {
+      const q = locationName ? locationName.split(",")[0].trim() : query;
+      const res = await fetch(
+        `/api/map/area-photos?lat=${coords.lat}&lng=${coords.lng}&q=${encodeURIComponent(q)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.photos)) {
+          setAreaPhotos(data.photos);
+        }
+      }
+    } catch {
+      showToast("Could not load area photos");
+    } finally {
+      setIsLoadingAreaPhotos(false);
     }
   }
 
@@ -279,11 +303,25 @@ function MapsContent() {
     showToast(`Shifted to ${place.name} 🛰️`);
   }
 
-  // Ask AI about this place
-  function handleAskAI(place?: PlaceResult) {
-    const target = place ? `${place.name} in ${place.city}` : locationName || query;
-    const prompt = `Give me a comprehensive guide and insider recommendations for ${target}: top attractions, ratings, menus, safety tips, and travel secrets.`;
-    router.push(`/chat?prompt=${encodeURIComponent(prompt)}`);
+  // Ask a question about the current location & redirect to chat with auto-reply
+  function handleAskQuestion(customQuestion?: string) {
+    const q = (customQuestion !== undefined ? customQuestion : questionInput).trim();
+    if (!q) {
+      showToast("Please enter a question to ask TATTVA AI");
+      return;
+    }
+
+    const currentPlace = locationName || query;
+    const params = new URLSearchParams({
+      map_q: q,
+      map_place: currentPlace,
+      map_lat: coords.lat.toString(),
+      map_lng: coords.lng.toString(),
+      autoreply: "1",
+    });
+
+    showToast(`Redirecting to Chat with ${currentPlace.split(",")[0]} context... 🚀`);
+    router.push(`/chat?${params.toString()}`);
   }
 
   return (
@@ -324,8 +362,19 @@ function MapsContent() {
             </div>
           </div>
 
-          {/* Right: Mode Toggle, Locate Me & Share */}
+          {/* Right: Actual Area Images Button, Mode Toggle, Locate Me & Share */}
           <div className="flex items-center gap-2">
+            {/* View Actual Area Images Button */}
+            <button
+              type="button"
+              onClick={handleOpenAreaPhotos}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+              title="View all actual photographs and Google Maps imagery of this area"
+            >
+              <Camera className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden sm:inline">Area Photos</span>
+            </button>
+
             <div className="inline-flex rounded-xl border border-white/15 p-0.5 bg-white/5 text-xs font-semibold">
               <button
                 type="button"
@@ -392,7 +441,7 @@ function MapsContent() {
           </div>
         </div>
 
-        {/* Search Bar: Redirects to any other place or searches hotels/cafes */}
+        {/* Place Search Bar: Redirects to any destination on Earth */}
         <form onSubmit={handleSearch} className="mt-2.5 flex items-center gap-2 max-w-7xl mx-auto">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
@@ -465,7 +514,7 @@ function MapsContent() {
           </div>
         )}
 
-        {/* Real NativeMap Leaflet Engine with User GPS Beacon and Places Markers */}
+        {/* Real NativeMap Leaflet Engine with User GPS Beacon and Clean Viewport */}
         <NativeMap
           lat={coords.lat}
           lng={coords.lng}
@@ -497,7 +546,7 @@ function MapsContent() {
 
         {/* Floating Discovered Places Carousel (Bottom-Left) */}
         {places.length > 0 && !selectedPlace && (
-          <div className="absolute bottom-20 left-3 right-3 sm:left-6 sm:right-auto sm:max-w-md z-20 pointer-events-auto">
+          <div className="absolute bottom-24 left-3 right-3 sm:left-6 sm:right-auto sm:max-w-md z-20 pointer-events-auto">
             <div className="flex items-center justify-between mb-1.5 px-1">
               <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
                 <span>📍 Nearby Places</span>
@@ -530,7 +579,8 @@ function MapsContent() {
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.onerror = null;
-                        target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
+                        target.src =
+                          "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
                       }}
                     />
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-xs text-[10px] font-bold text-white border border-white/20">
@@ -564,7 +614,7 @@ function MapsContent() {
 
         {/* Detailed Place Inspection Drawer / Modal with Google Images and Ratings */}
         {selectedPlace && (
-          <div className="absolute bottom-16 sm:bottom-20 left-3 right-3 sm:left-6 sm:w-96 max-h-[75vh] overflow-y-auto z-30 rounded-3xl border border-white/20 bg-[#121316]/95 backdrop-blur-2xl shadow-2xl p-4 text-white animate-in slide-in-from-bottom duration-200">
+          <div className="absolute bottom-20 left-3 right-3 sm:left-6 sm:w-96 max-h-[72vh] overflow-y-auto z-30 rounded-3xl border border-white/20 bg-[#121316]/95 backdrop-blur-2xl shadow-2xl p-4 text-white animate-in slide-in-from-bottom duration-200">
             {/* Header & Close */}
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="min-w-0">
@@ -597,7 +647,8 @@ function MapsContent() {
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.onerror = null;
-                    target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
+                    target.src =
+                      "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
                   }}
                 />
                 <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-xl bg-black/80 backdrop-blur-md text-[10px] font-semibold text-neutral-200 border border-white/20 flex items-center gap-1.5">
@@ -625,7 +676,9 @@ function MapsContent() {
                       type="button"
                       onClick={() => setActivePhotoIdx(idx)}
                       className={`relative h-12 w-16 rounded-lg overflow-hidden shrink-0 border-2 transition cursor-pointer ${
-                        activePhotoIdx === idx ? "border-emerald-400 scale-105" : "border-transparent opacity-60 hover:opacity-100"
+                        activePhotoIdx === idx
+                          ? "border-emerald-400 scale-105"
+                          : "border-transparent opacity-60 hover:opacity-100"
                       }`}
                     >
                       <img
@@ -635,7 +688,8 @@ function MapsContent() {
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.onerror = null;
-                          target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
+                          target.src =
+                            "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
                         }}
                       />
                     </button>
@@ -724,7 +778,7 @@ function MapsContent() {
 
               <button
                 type="button"
-                onClick={() => handleAskAI(selectedPlace)}
+                onClick={() => handleAskQuestion(`Tell me complete details, room prices, food specials, and insider tips about ${selectedPlace.name}`)}
                 className="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition cursor-pointer active:scale-95 shadow-md"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -733,51 +787,206 @@ function MapsContent() {
             </div>
           </div>
         )}
+
+        {/* Global Area Photos Gallery Modal (Real Images from around the world) */}
+        {isAreaPhotosOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-3 sm:p-6 animate-in fade-in">
+            <div className="relative w-full max-w-4xl max-h-[88vh] flex flex-col rounded-3xl border border-white/20 bg-[#121316] shadow-2xl overflow-hidden">
+              {/* Modal Header */}
+              <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-blue-400" />
+                    <h2 className="text-base sm:text-lg font-bold text-white">
+                      Actual Area Photos: {locationName.split(",")[0]}
+                    </h2>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Real satellite, aerial, and street photography around the world powered by Google Maps & geocoded feeds
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`https://earth.google.com/web/search/${encodeURIComponent(locationName || query)}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-xs font-semibold text-neutral-200"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Google Earth 3D</span>
+                  </a>
+
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((locationName || query) + " photos")}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-sm"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Google Maps Photos</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAreaPhotosOpen(false);
+                      setSelectedAreaPhoto(null);
+                    }}
+                    className="h-9 w-9 rounded-full border border-white/10 bg-white/5 hover:bg-white/15 flex items-center justify-center text-neutral-400 hover:text-white transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Photos Grid Content */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 no-scrollbar">
+                {isLoadingAreaPhotos ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-3">
+                    <span className="h-7 w-7 border-3 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs text-neutral-300 font-semibold">Fetching authentic area photography...</span>
+                  </div>
+                ) : areaPhotos.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-center p-6">
+                    <ImageIcon className="w-10 h-10 text-neutral-600 mb-2" />
+                    <p className="text-sm font-bold text-neutral-300">No direct geocoded images found in radius</p>
+                    <p className="text-xs text-neutral-500 mt-1 max-w-sm">
+                      Explore live satellite view or check Google Maps Photos for full user photo contributions.
+                    </p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationName || query)}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-md inline-flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Search on Google Maps</span>
+                    </a>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                    {areaPhotos.map((photo, pIdx) => (
+                      <div
+                        key={pIdx}
+                        onClick={() => setSelectedAreaPhoto(photo)}
+                        className="group relative h-48 rounded-2xl overflow-hidden bg-neutral-900 border border-white/10 cursor-pointer shadow-md hover:border-blue-400/50 transition-all hover:scale-[1.01]"
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                          loading="lazy"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src =
+                              "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90 group-hover:opacity-100 transition" />
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                          <p className="text-xs font-bold text-white truncate drop-shadow-sm">{photo.title}</p>
+                          <span className="text-[10px] text-blue-300 font-mono flex items-center gap-1 mt-0.5">
+                            <span>Verified Area Photo</span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fullscreen Photo Lightbox */}
+        {selectedAreaPhoto && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/95 p-3 sm:p-6 animate-in fade-in">
+            <button
+              type="button"
+              onClick={() => setSelectedAreaPhoto(null)}
+              className="absolute top-4 right-4 z-50 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+              <img
+                src={selectedAreaPhoto.url}
+                alt={selectedAreaPhoto.title}
+                className="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-white/20"
+              />
+              <div className="mt-3 text-center">
+                <h4 className="text-sm font-bold text-white">{selectedAreaPhoto.title}</h4>
+                <p className="text-xs text-neutral-400 mt-0.5 max-w-lg">{selectedAreaPhoto.description}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* Bottom Floating Bar */}
-      <footer className="flex-shrink-0 z-20 border-t border-white/10 bg-[#121316]/95 backdrop-blur-xl px-4 sm:px-6 py-3 pb-[max(env(safe-area-inset-bottom,0px),16px)] sm:pb-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          {/* Place Title & GPS details */}
-          <div className="min-w-0 flex items-center gap-2.5">
+      {/* Bottom Floating Bar: Interactive Search to Ask Questions about this location */}
+      <footer className="flex-shrink-0 z-20 border-t border-white/10 bg-[#121316]/95 backdrop-blur-xl px-3 sm:px-6 py-2.5 pb-[max(env(safe-area-inset-bottom,0px),12px)] sm:pb-2.5">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          {/* Left: Place Title & GPS details */}
+          <div className="min-w-0 flex items-center gap-2.5 shrink-0">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
               <MapPin className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-xs sm:text-sm font-bold text-white truncate max-w-[160px] sm:max-w-md">
-                {locationName || query}
+              <h2 className="text-xs sm:text-sm font-bold text-white truncate max-w-[150px] sm:max-w-xs">
+                {locationName.split(",")[0] || query}
               </h2>
               <p className="text-[10px] text-neutral-400 font-mono">
-                {coords.lat.toFixed(4)}° N, {coords.lng.toFixed(4)}° E
-                {userCoords && (
-                  <span className="ml-2 text-blue-400 font-semibold">• Live GPS Active</span>
-                )}
+                {coords.lat.toFixed(4)}°, {coords.lng.toFixed(4)}°
+                {userCoords && <span className="ml-1.5 text-blue-400 font-semibold">• Live GPS</span>}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                locationName || query
-              )}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-semibold transition"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
-              <span>Google Maps</span>
-            </a>
-
+          {/* Center: Search to Ask Questions about this location */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleAskQuestion();
+            }}
+            className="flex-1 max-w-2xl flex items-center gap-2"
+          >
+            <div className="relative flex-1">
+              <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#D95B26]" />
+              <input
+                type="text"
+                value={questionInput}
+                onChange={(e) => setQuestionInput(e.target.value)}
+                placeholder={`Ask any question about ${locationName.split(",")[0] || "this location"} (history, food, hotels, safety)...`}
+                className="w-full rounded-2xl border border-white/15 bg-white/5 pl-10 pr-4 py-2 text-xs text-white placeholder-neutral-400 outline-none focus:border-[#D95B26] transition"
+              />
+            </div>
             <button
-              type="button"
-              onClick={() => handleAskAI()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold shadow-md transition cursor-pointer active:scale-95"
+              type="submit"
+              className="px-3.5 py-2 rounded-2xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-md flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Ask TATTVA AI</span>
+              <span>Ask TATTVA</span>
             </button>
+          </form>
+
+          {/* Quick Suggestions & Google Maps */}
+          <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+            {[
+              { label: "Attractions", q: "What are the top 5 must-visit attractions and landmarks here?" },
+              { label: "Food", q: "What are the best authentic local food dishes and restaurants here?" },
+              { label: "Safety", q: "How safe is this area for travelers and what are local safety tips?" },
+            ].map((s, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleAskQuestion(s.q)}
+                className="px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/15 text-[11px] text-neutral-300 hover:text-white transition cursor-pointer"
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
         </div>
       </footer>
