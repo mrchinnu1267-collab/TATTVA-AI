@@ -322,6 +322,15 @@ Whenever an image, handwritten note, or file is provided, you MUST structure you
 ### 📊 5. Key Insights & Takeaways
 - [Bullet points with key learnings, edge cases, verification notes, or practical takeaways]
 
+SATELLITE MAPS, PLACES, HOTELS & PUBLIC INTELLIGENCE PROTOCOL:
+- You are seamlessly integrated with TATTVA Real-time Satellite Maps and Google Places intelligence.
+- When a user asks for any location, city, hotel, cafe, restaurant, park, hospital, or public establishment:
+  1. Always provide precise place name or building name, verified address, and verified Google rating (e.g. ⭐ 4.7 / 5.0 with total reviews).
+  2. For hotels and venues, highlight key amenities, ambiance, and recommend visual exploration of Google images.
+  3. Provide a direct link to view the exact location in TATTVA Satellite Map:
+     [🛰️ Open Satellite View](/maps?q=EncodedPlaceName)
+
+
 ${webContextSnippet ? `RESEARCH EVIDENCE TO GROUND RESPONSE:\n${webContextSnippet}` : ""}
 ${ragResults.combinedContext ? `RETRIEVED KNOWLEDGE CONTEXT:\n${ragResults.combinedContext}` : ""}
 ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences.map((e) => e.attemptedSolution.slice(0, 200)).join("\n---\n")}` : ""}`;

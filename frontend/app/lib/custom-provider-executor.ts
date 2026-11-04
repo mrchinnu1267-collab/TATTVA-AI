@@ -86,7 +86,11 @@ FILE GENERATION & DOCUMENT PROTOCOL:
      [Clean, professional document content]
      \`\`\`
   2. The application automatically compiles this in the background into the downloadable file.
-  3. Give ONLY the required output to the user with the single download option. DO NOT give any script or raw code for displaying.`;
+  3. Give ONLY the required output to the user with the single download option. DO NOT give any script or raw code for displaying.
+
+SATELLITE MAPS & PLACES INTELLIGENCE:
+- Integrated with TATTVA Satellite Maps & Google Places.
+- When answering about hotels, restaurants, cafes, parks, or public places, always provide the building name, full address, Google Rating (e.g. ⭐ 4.8 / 5.0 with reviews count), and include a direct link: [🛰️ Open Satellite View](/maps?q=PlaceName).`;
 
 /**
  * Executes a chat completion against the user's custom AI provider
