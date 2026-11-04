@@ -527,6 +527,11 @@ function MapsContent() {
                       alt={p.name}
                       className="w-full h-full object-cover"
                       loading="lazy"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
+                      }}
                     />
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-xs text-[10px] font-bold text-white border border-white/20">
                       {p.category === "hotel"
@@ -589,6 +594,11 @@ function MapsContent() {
                   src={selectedPlace.photos[activePhotoIdx] || selectedPlace.photos[0]}
                   alt={selectedPlace.name}
                   className="w-full h-full object-cover transition duration-300"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
+                  }}
                 />
                 <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-xl bg-black/80 backdrop-blur-md text-[10px] font-semibold text-neutral-200 border border-white/20 flex items-center gap-1.5">
                   <ImageIcon className="w-3 h-3 text-emerald-400" />
@@ -618,7 +628,16 @@ function MapsContent() {
                         activePhotoIdx === idx ? "border-emerald-400 scale-105" : "border-transparent opacity-60 hover:opacity-100"
                       }`}
                     >
-                      <img src={url} alt={`Photo ${idx}`} className="w-full h-full object-cover" />
+                      <img
+                        src={url}
+                        alt={`Photo ${idx}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80";
+                        }}
+                      />
                     </button>
                   ))}
                 </div>
