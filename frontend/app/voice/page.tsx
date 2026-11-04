@@ -132,6 +132,7 @@ export default function LiveVoiceAssistantPage() {
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const voiceBufferRef = useRef<string>("");
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const isAssistantSpeakingRef = useRef<boolean>(false);
   const isProcessingTurnRef = useRef<boolean>(false);
   const lastSubmittedPromptRef = useRef<string>("");
@@ -201,6 +202,11 @@ export default function LiveVoiceAssistantPage() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       currentUtteranceRef.current = null;
+    }
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current.currentTime = 0;
+      audioPlayerRef.current = null;
     }
     isAssistantSpeakingRef.current = false;
     isProcessingTurnRef.current = false;
@@ -307,17 +313,17 @@ export default function LiveVoiceAssistantPage() {
     }
   }, [isDark]);
 
-  // Clean narration to speech synthesis
+  // Clean narration to speech synthesis with universal audio streaming fallback
   const speakSpokenResponse = useCallback(
     (text: string, onDone?: () => void) => {
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-        setErrorMessage("Text-to-speech is not supported on this browser.");
-        return;
-      }
-
-      // Stop any prior speech
-      if (window.speechSynthesis.speaking) {
+      // Stop any prior speech or audio playback
+      if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
+      }
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.currentTime = 0;
+        audioPlayerRef.current = null;
       }
 
       // Clean narration: strip code fences, markdown links, asterisks
@@ -336,60 +342,119 @@ export default function LiveVoiceAssistantPage() {
         return;
       }
 
-      const utterance = new SpeechSynthesisUtterance(cleanSpoken);
-      currentUtteranceRef.current = utterance;
-
       const { lang: detectedLang } = detectLanguage(cleanSpoken);
-      utterance.lang = selectedLanguage !== "auto" ? selectedLanguage : detectedLang;
+      const targetLang = selectedLanguage !== "auto" ? selectedLanguage : detectedLang;
 
-      // Select high-quality female voice
-      const femaleVoice = selectFemaleVoice(utterance.lang);
-      if (femaleVoice) {
-        utterance.voice = femaleVoice;
-      }
+      // Universal audio streaming fallback for Android WebView or mobile browsers
+      const playAudioFallback = () => {
+        try {
+          const ttsLang = targetLang === "te" ? "te" : targetLang === "hi" ? "hi" : "en";
+          const audioUrl = `/api/tts?text=${encodeURIComponent(cleanSpoken)}&lang=${ttsLang}`;
+          const audio = new Audio(audioUrl);
+          audioPlayerRef.current = audio;
 
-      utterance.pitch = 1.15; // Natural pleasant female frequency
-      utterance.rate = 1.0;
-
-      utterance.onstart = () => {
-        isAssistantSpeakingRef.current = true;
-        setVoiceState("speaking");
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-        voiceBufferRef.current = "";
-        setLiveUserSpeech("");
-      };
-
-      utterance.onend = () => {
-        currentUtteranceRef.current = null;
-        // 450ms safety cooldown after speech ends so speaker reverb doesn't trigger mic
-        setTimeout(() => {
-          isAssistantSpeakingRef.current = false;
-          isProcessingTurnRef.current = false;
+          isAssistantSpeakingRef.current = true;
+          setVoiceState("speaking");
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
           voiceBufferRef.current = "";
           setLiveUserSpeech("");
-          if (isSessionActive && !isMuted) {
-            setVoiceState("listening");
-          }
+
+          audio.onended = () => {
+            audioPlayerRef.current = null;
+            setTimeout(() => {
+              isAssistantSpeakingRef.current = false;
+              isProcessingTurnRef.current = false;
+              voiceBufferRef.current = "";
+              setLiveUserSpeech("");
+              if (isSessionActive && !isMuted) {
+                setVoiceState("listening");
+              }
+              if (onDone) onDone();
+            }, 450);
+          };
+
+          audio.onerror = () => {
+            audioPlayerRef.current = null;
+            isAssistantSpeakingRef.current = false;
+            isProcessingTurnRef.current = false;
+            if (isSessionActive && !isMuted) {
+              setVoiceState("listening");
+            }
+            if (onDone) onDone();
+          };
+
+          audio.play().catch(() => {
+            isAssistantSpeakingRef.current = false;
+            isProcessingTurnRef.current = false;
+            if (onDone) onDone();
+          });
+        } catch {
+          isAssistantSpeakingRef.current = false;
+          isProcessingTurnRef.current = false;
           if (onDone) onDone();
-        }, 450);
-      };
-
-      utterance.onerror = () => {
-        currentUtteranceRef.current = null;
-        isAssistantSpeakingRef.current = false;
-        isProcessingTurnRef.current = false;
-        voiceBufferRef.current = "";
-        setLiveUserSpeech("");
-        if (isSessionActive && !isMuted) {
-          setVoiceState("listening");
         }
-        if (onDone) onDone();
       };
 
-      window.speechSynthesis.speak(utterance);
+      const hasSpeechSynth =
+        typeof window !== "undefined" &&
+        "speechSynthesis" in window &&
+        Boolean(window.speechSynthesis);
+
+      if (!hasSpeechSynth) {
+        playAudioFallback();
+        return;
+      }
+
+      try {
+        const utterance = new SpeechSynthesisUtterance(cleanSpoken);
+        currentUtteranceRef.current = utterance;
+        utterance.lang = targetLang;
+
+        const femaleVoice = selectFemaleVoice(utterance.lang);
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+        }
+
+        utterance.pitch = 1.15;
+        utterance.rate = 1.0;
+
+        utterance.onstart = () => {
+          isAssistantSpeakingRef.current = true;
+          setVoiceState("speaking");
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+          voiceBufferRef.current = "";
+          setLiveUserSpeech("");
+        };
+
+        utterance.onend = () => {
+          currentUtteranceRef.current = null;
+          setTimeout(() => {
+            isAssistantSpeakingRef.current = false;
+            isProcessingTurnRef.current = false;
+            voiceBufferRef.current = "";
+            setLiveUserSpeech("");
+            if (isSessionActive && !isMuted) {
+              setVoiceState("listening");
+            }
+            if (onDone) onDone();
+          }, 450);
+        };
+
+        utterance.onerror = () => {
+          currentUtteranceRef.current = null;
+          playAudioFallback();
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        playAudioFallback();
+      }
     },
     [selectedLanguage, isSessionActive, isMuted]
   );

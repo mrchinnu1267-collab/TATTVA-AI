@@ -86,9 +86,13 @@ import {
   CheckCircle2,
   XCircle,
   Plug,
+  Camera,
+  Gauge,
+  ArrowLeft,
 } from "lucide-react";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
+import BrowseConnectors from "../components/connectors/BrowseConnectors";
 import type {
   MemoryItem,
   MemoryCategory,
@@ -831,6 +835,7 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
@@ -860,6 +865,8 @@ export default function ChatPage() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isBrowseConnectorsOpen, setIsBrowseConnectorsOpen] = useState(false);
+  const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers">("menu");
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isManageAccountModalOpen, setIsManageAccountModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
@@ -949,7 +956,6 @@ export default function ChatPage() {
   };
 
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(defaultDisplaySettings);
-  const [settingsActiveTab, setSettingsActiveTab] = useState<"display" | "general" | "providers" | "connectors">("display");
 
   // Claude Connectors (MCP) State
   const [activeConnectorIds, setActiveConnectorIds] = useState<string[]>([]);
@@ -5238,6 +5244,7 @@ export default function ChatPage() {
               {/* Hidden file inputs */}
               <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" />
               <input ref={imageInputRef} type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
               <input ref={pdfInputRef} type="file" multiple accept=".pdf" onChange={handleFileSelect} className="hidden" />
               <input ref={docInputRef} type="file" multiple accept=".docx,.doc,.txt,.rtf,.odt" onChange={handleFileSelect} className="hidden" />
               <input ref={sheetInputRef} type="file" multiple accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" />
@@ -5290,196 +5297,134 @@ export default function ChatPage() {
                       <Plus className="w-6 h-6 transition-transform duration-200 stroke-[2]" />
                     </button>
 
-                    {/* Attachment & Tools Dropdown Popover */}
+                    {/* Attachment & Tools Dropdown Popover matching Image 2 */}
                     {isAttachmentMenuOpen && (
                       <div
-                        className={`absolute bottom-full left-0 mb-3 w-68 sm:w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                          isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                        className={`absolute bottom-full left-0 mb-3 w-64 sm:w-72 rounded-[28px] border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                          isDark ? "border-neutral-700 bg-[#222222]/98 text-white" : "border-black/10 bg-white/98 text-neutral-900"
                         }`}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* Maps & Places Explorer matching Image 2 */}
+                        {/* 1. Camera (Image 2) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            cameraInputRef.current?.click();
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                            <Camera className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <span className="font-semibold text-[15px] tracking-tight">Camera</span>
+                        </button>
+
+                        {/* 2. Photos (Image 2) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            imageInputRef.current?.click();
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                            <ImageIcon className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <span className="font-semibold text-[15px] tracking-tight">Photos</span>
+                        </button>
+
+                        {/* 3. Files (Image 2) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                            <Paperclip className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <span className="font-semibold text-[15px] tracking-tight">Files</span>
+                        </button>
+
+                        {/* 4. Plugins / Connectors (Image 2 & 5) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAttachmentMenuOpen(false);
+                            setIsBrowseConnectorsOpen(true);
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                            <Plug className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <div className="flex-1 min-w-0 flex items-center justify-between">
+                            <span className="font-semibold text-[15px] tracking-tight">Plugins</span>
+                            {activeConnectorIds.length > 0 && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/25 text-purple-300">
+                                {activeConnectorIds.length} Active
+                              </span>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* 5. Think harder (Image 2) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsThinkingEnabled(!isThinkingEnabled);
+                            showToast(!isThinkingEnabled ? "Think harder Enabled" : "Think harder Turned Off");
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition shadow-2xs ${
+                            isThinkingEnabled ? "bg-sky-500/30 text-sky-400" : "bg-white/10 text-white"
+                          }`}>
+                            <Gauge className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <div className="flex-1 min-w-0 flex items-center justify-between">
+                            <span className="font-semibold text-[15px] tracking-tight">Think harder</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isThinkingEnabled ? "bg-sky-500/25 text-sky-300" : "text-neutral-500"
+                            }`}>
+                              {isThinkingEnabled ? "ON" : "OFF"}
+                            </span>
+                          </div>
+                        </button>
+
+                        {/* 6. Satellite Maps */}
                         <button
                           type="button"
                           onClick={() => {
                             router.push("/maps");
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
                         >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                            <MapPin className="w-4 h-4" />
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                            <MapPin className="w-5 h-5 stroke-[2]" />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Satellite Maps</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">Real-time satellite feed & places</span>
-                          </div>
+                          <span className="font-semibold text-[15px] tracking-tight">Satellite Maps</span>
                         </button>
 
+                        {/* 7. Live Voice */}
                         <button
                           type="button"
                           onClick={() => {
                             setIsAttachmentMenuOpen(false);
                             router.push("/voice");
                           }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
                         >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                            <Radio className="w-4 h-4 animate-pulse" />
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                            <Radio className="w-5 h-5 stroke-[2] animate-pulse" />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Live Voice Mode</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">Real-time voice conversation</span>
-                          </div>
-                        </button>
-
-                        {/* ✍️ Handwriting & Note Solver */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!input.trim()) {
-                              setInput("Please analyze this handwritten note: transcribe all handwriting accurately, explain the concepts and context, and provide step-by-step solutions for any questions or problems found.");
-                            }
-                            imageInputRef.current?.click();
-                            setIsAttachmentMenuOpen(false);
-                            showToast("Upload handwritten note or photo ✍️");
-                          }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                            <SquarePen className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Handwriting &amp; Note Solver</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">Transcribe, explain &amp; solve handwriting</span>
-                          </div>
-                        </button>
-
-                        {/* 📄 Universal File & Document Analyzer */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!input.trim()) {
-                              setInput("Please analyze this file in depth: extract all content, explain the core concepts and findings, and provide complete solutions for any identified tasks.");
-                            }
-                            fileInputRef.current?.click();
-                            setIsAttachmentMenuOpen(false);
-                            showToast("Upload any file to analyze 📄");
-                          }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500 border border-purple-500/20 shrink-0">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Analyze Any File</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">PDFs, CSVs, docs, code &amp; spreadsheets</span>
-                          </div>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            fileInputRef.current?.click();
-                            setIsAttachmentMenuOpen(false);
-                          }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
-                            <FolderArchive className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Media &amp; Files</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">Upload images, audio, docs</span>
-                          </div>
-                        </button>
-
-                        {/* Deep Thinking Mode Toggle inside + menu */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsThinkingEnabled(!isThinkingEnabled);
-                            showToast(!isThinkingEnabled ? "Deep Thinking / Reasoning Enabled" : "Deep Thinking Turned Off");
-                            setIsAttachmentMenuOpen(false);
-                          }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
-                        >
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
-                            isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF] border-sky-500/30" : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
-                          }`}>
-                            <Brain className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="block font-semibold text-xs">Deep Thinking</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF]" : "text-neutral-500"}`}>
-                                {isThinkingEnabled ? "ON" : "OFF"}
-                              </span>
-                            </div>
-                            <span className="block text-[10px] text-neutral-400 truncate">Extended reasoning & logic</span>
-                          </div>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            toggleTemporaryChat();
-                            setIsAttachmentMenuOpen(false);
-                          }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                            <Ghost className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Temporary Chat</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">{isTemporaryChat ? "Turn OFF temporary mode" : "Turn ON temporary mode"}</span>
-                          </div>
-                        </button>
-
-                        {/* Claude Connectors (MCP) Picker */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsConnectorPickerOpen(!isConnectorPickerOpen);
-                            setIsAttachmentMenuOpen(false);
-                          }}
-                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                          }`}
-                        >
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
-                            activeConnectorIds.length > 0
-                              ? "bg-purple-500/20 text-purple-400 border-purple-500/40"
-                              : "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                          }`}>
-                            <Plug className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="block font-semibold text-xs">Claude Connectors</span>
-                              {activeConnectorIds.length > 0 && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
-                                  {activeConnectorIds.length} Active
-                                </span>
-                              )}
-                            </div>
-                            <span className="block text-[10px] text-neutral-400 truncate">MCP tools, servers &amp; APIs</span>
-                          </div>
+                          <span className="font-semibold text-[15px] tracking-tight">Live Voice</span>
                         </button>
                       </div>
                     )}
@@ -5502,8 +5447,7 @@ export default function ChatPage() {
                           }}
                           onOpenSettings={() => {
                             setIsConnectorPickerOpen(false);
-                            setSettingsActiveTab("connectors");
-                            setIsSettingsModalOpen(true);
+                            setIsBrowseConnectorsOpen(true);
                           }}
                         />
                       </div>
@@ -6340,12 +6284,39 @@ export default function ChatPage() {
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between p-4 sm:p-5 border-b border-black/[0.06] dark:border-neutral-800">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-500">
-                  <Type className="w-5 h-5" />
-                </div>
+                {settingsActiveTab !== "menu" ? (
+                  <button
+                    type="button"
+                    onClick={() => setSettingsActiveTab("menu")}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-neutral-700 dark:text-neutral-200 text-xs font-bold transition cursor-pointer select-none"
+                  >
+                    <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+                    <span>Back</span>
+                  </button>
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-500">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                )}
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold">Display, Font &amp; Style</h3>
-                  <p className="text-[11px] text-neutral-400">Android-inspired font, sizing &amp; accessibility controls</p>
+                  <h3 className="text-base sm:text-lg font-bold">
+                    {settingsActiveTab === "display"
+                      ? "Display, Font & Style"
+                      : settingsActiveTab === "providers"
+                      ? "AI Providers (BYOK)"
+                      : settingsActiveTab === "general"
+                      ? "General Preferences"
+                      : "Settings"}
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    {settingsActiveTab === "display"
+                      ? "Android-inspired font, sizing & accessibility controls"
+                      : settingsActiveTab === "providers"
+                      ? "Configure custom API keys and provider endpoints"
+                      : settingsActiveTab === "general"
+                      ? "Manage themes, voice narration & chat data"
+                      : "Manage display, AI providers, connectors & preferences"}
+                  </p>
                 </div>
               </div>
               <button
@@ -6357,64 +6328,112 @@ export default function ChatPage() {
               </button>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex-shrink-0 flex p-1.5 mx-4 mt-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 gap-1">
-              <button
-                type="button"
-                onClick={() => setSettingsActiveTab("display")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  settingsActiveTab === "display"
-                    ? "bg-white dark:bg-neutral-800 text-black dark:text-white shadow-xs"
-                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                }`}
-              >
-                <Type className="w-3.5 h-3.5" />
-                <span>Display</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingsActiveTab("providers")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  settingsActiveTab === "providers"
-                    ? "bg-white dark:bg-neutral-800 text-cyan-600 dark:text-cyan-400 shadow-xs"
-                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                }`}
-              >
-                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                <span>AI Providers</span>
-                {customProviderSettings.enabled && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingsActiveTab("connectors")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  settingsActiveTab === "connectors"
-                    ? "bg-white dark:bg-neutral-800 text-purple-600 dark:text-purple-400 shadow-xs"
-                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                }`}
-              >
-                <Plug className="w-3.5 h-3.5 text-purple-400" />
-                <span>Connectors</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingsActiveTab("general")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  settingsActiveTab === "general"
-                    ? "bg-white dark:bg-neutral-800 text-black dark:text-white shadow-xs"
-                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                }`}
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>General</span>
-              </button>
-            </div>
-
             {/* Scrollable Content Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              {settingsActiveTab === "display" ? (
+              {settingsActiveTab === "menu" ? (
+                <div className="space-y-3 p-1">
+                  {/* 1. Display & Typography */}
+                  <div
+                    onClick={() => setSettingsActiveTab("display")}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                      isDark
+                        ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800/80 text-white"
+                        : "border-black/10 bg-neutral-50 hover:bg-neutral-100 text-neutral-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                        <Type className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">Display, Font &amp; Style</p>
+                        <p className="text-[11px] text-neutral-400">Font family, sizing, contrast &amp; scaling</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-neutral-400" />
+                  </div>
+
+                  {/* 2. Custom AI Providers */}
+                  <div
+                    onClick={() => setSettingsActiveTab("providers")}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                      isDark
+                        ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800/80 text-white"
+                        : "border-black/10 bg-neutral-50 hover:bg-neutral-100 text-neutral-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <Cpu className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm">AI Providers (BYOK)</p>
+                          {customProviderSettings.enabled && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-neutral-400">Bring your own Gemini, OpenAI, Claude, Groq keys</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-neutral-400" />
+                  </div>
+
+                  {/* 3. Claude Connectors (Opens Browse Connectors Image 5) */}
+                  <div
+                    onClick={() => {
+                      setIsSettingsModalOpen(false);
+                      setIsBrowseConnectorsOpen(true);
+                    }}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                      isDark
+                        ? "border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/15 text-white"
+                        : "border-purple-500/20 bg-purple-50 hover:bg-purple-100/80 text-neutral-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                        <Plug className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm">Browse Connectors (MCP)</p>
+                          {activeConnectorIds.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-500/25 text-purple-300 text-[10px] font-bold">
+                              {activeConnectorIds.length} Connected
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-neutral-400">Google Drive, Sheets, Gmail, Canva, GitHub &amp; MCP</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-purple-400" />
+                  </div>
+
+                  {/* 4. General Preferences */}
+                  <div
+                    onClick={() => setSettingsActiveTab("general")}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                      isDark
+                        ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800/80 text-white"
+                        : "border-black/10 bg-neutral-50 hover:bg-neutral-100 text-neutral-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <Settings className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">General Preferences</p>
+                        <p className="text-[11px] text-neutral-400">Color theme, Sare auto-voice, data backup</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-neutral-400" />
+                  </div>
+                </div>
+              ) : settingsActiveTab === "display" ? (
                 <>
                   {/* Live Interactive Typography Preview Box */}
                   <div className="p-4 rounded-2xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-100/60 dark:bg-white/[0.02]">
@@ -6950,8 +6969,6 @@ export default function ChatPage() {
                     </button>
                   </div>
                 </div>
-              ) : settingsActiveTab === "connectors" ? (
-                <ConnectorSettings isDark={isDark} showToast={showToast} />
               ) : (
                 /* General Preferences Tab */
                 <div className="space-y-4">
@@ -7064,6 +7081,17 @@ export default function ChatPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 2b. FULL-SCREEN BROWSE CONNECTORS SCREEN (MATCHING IMAGE 5) */}
+      {isBrowseConnectorsOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#141414] animate-in fade-in duration-200">
+          <BrowseConnectors
+            isDark={isDark}
+            onBack={() => setIsBrowseConnectorsOpen(false)}
+            showToast={showToast}
+          />
         </div>
       )}
 
