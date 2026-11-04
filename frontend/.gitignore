@@ -34,6 +34,9 @@ Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
 
+# Unignore API routes inside app/api/models
+!app/api/models/
+
 # Allow public distribution files
 *.apk
 !public/*.apk

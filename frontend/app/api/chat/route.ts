@@ -6,10 +6,16 @@ import {
   logSecurityEvent,
 } from "../../lib/security";
 import { getWeatherReport, isWeatherQuery } from "../../lib/weather-service";
+import {
+  executeCustomProvider,
+  scrubCredentials,
+  CustomProviderId,
+} from "../../lib/custom-provider-executor";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  let customKeyForScrubbing: string | undefined;
   try {
     const body = await request.json().catch(() => null);
     if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
@@ -105,6 +111,26 @@ export async function POST(request: Request) {
       }
     }
 
+    // Check for BYOK / User Custom AI Provider
+    const customProvider = request.headers.get("x-custom-provider") as CustomProviderId | null;
+    const customKey = request.headers.get("x-custom-key") || undefined;
+    const customModel = request.headers.get("x-custom-model") || undefined;
+    const customBaseUrl = request.headers.get("x-custom-base-url") || undefined;
+    customKeyForScrubbing = customKey;
+
+    if (customProvider && (customKey || customProvider === "custom")) {
+      const customResult = await executeCustomProvider({
+        provider: customProvider,
+        apiKey: customKey,
+        model: customModel || "default",
+        baseUrl: customBaseUrl,
+        messages: body.messages,
+        temperature: body.temperature ?? 0.7,
+      });
+
+      return NextResponse.json(customResult);
+    }
+
     // Dispatch through the Master AI Orchestrator
     const orchestratorResult = await aiOrchestrator.processRequest({
       messages: body.messages,
@@ -120,12 +146,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json(orchestratorResult);
   } catch (error) {
-    console.error("[TATTVA Chat] Error:", error);
+    const rawError = error instanceof Error ? error.message : String(error);
+    const safeError = scrubCredentials(rawError, customKeyForScrubbing);
+    console.error("[TATTVA Chat] Error:", safeError);
     return NextResponse.json(
       {
         role: "assistant",
-        content: "An unexpected error occurred in TATTVA Chat. Please try again.",
-        error: error instanceof Error ? error.message : String(error),
+        content: `Error: ${safeError}`,
+        error: safeError,
       },
       { status: 500 }
     );

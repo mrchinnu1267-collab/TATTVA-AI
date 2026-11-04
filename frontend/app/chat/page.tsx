@@ -80,6 +80,11 @@ import {
   Wrench,
   Cpu,
   MapPin,
+  Eye,
+  EyeOff,
+  Key,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import type {
   MemoryItem,
@@ -89,6 +94,16 @@ import type {
 } from "../lib/memory-types";
 import { DEFAULT_PERSONALIZATION_SETTINGS } from "../lib/memory-types";
 import { triggerDownload } from "../lib/download-helper";
+import {
+  CustomProviderSettings,
+  DEFAULT_PROVIDER_SETTINGS,
+  POPULAR_PROVIDER_MODELS,
+  loadVaultSettings,
+  saveVaultSettings,
+  purgeVaultCredentials,
+  maskApiKey,
+  ProviderType,
+} from "../lib/security/client-vault";
 import {
   createAccount,
   loginUser,
@@ -819,7 +834,131 @@ export default function ChatPage() {
   };
 
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(defaultDisplaySettings);
-  const [settingsActiveTab, setSettingsActiveTab] = useState<"display" | "general">("display");
+  const [settingsActiveTab, setSettingsActiveTab] = useState<"display" | "general" | "providers">("display");
+
+  // Custom AI Providers (BYOK) & Security Vault
+  const [customProviderSettings, setCustomProviderSettings] = useState<CustomProviderSettings>(DEFAULT_PROVIDER_SETTINGS);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isTestingProvider, setIsTestingProvider] = useState(false);
+  const [providerTestFeedback, setProviderTestFeedback] = useState<{
+    success?: boolean;
+    message?: string;
+    latencyMs?: number;
+  } | null>(null);
+
+  // Load Vault settings on client mount (Zero-Knowledge on-device AES-GCM)
+  useEffect(() => {
+    loadVaultSettings().then((loaded) => {
+      if (loaded) setCustomProviderSettings(loaded);
+    });
+  }, []);
+
+  const handleUpdateActiveProvider = useCallback((prov: ProviderType) => {
+    setCustomProviderSettings((prev) => {
+      const updated = { ...prev, activeProvider: prov };
+      saveVaultSettings(updated);
+      return updated;
+    });
+    setProviderTestFeedback(null);
+  }, []);
+
+  const handleUpdateProviderEntry = useCallback((prov: ProviderType, field: string, val: string) => {
+    setCustomProviderSettings((prev) => {
+      const currentEntry = prev.providers[prov] || { apiKey: "", model: "" };
+      const updatedEntry = { ...currentEntry, [field]: val, updatedAt: Date.now() };
+      const updated = {
+        ...prev,
+        providers: {
+          ...prev.providers,
+          [prov]: updatedEntry,
+        },
+      };
+      saveVaultSettings(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleToggleCustomProviders = useCallback((enable: boolean) => {
+    setCustomProviderSettings((prev) => {
+      const updated = { ...prev, enabled: enable };
+      saveVaultSettings(updated);
+      return updated;
+    });
+    showToast(enable ? "Custom AI Intelligence Enabled ✦" : "Reverted to Built-in TATTVA Intelligence");
+  }, []);
+
+  const handleTestConnection = useCallback(async () => {
+    const active = customProviderSettings.activeProvider;
+    const entry = customProviderSettings.providers[active];
+    if (!entry) return;
+    if (active !== "custom" && !entry.apiKey?.trim()) {
+      setProviderTestFeedback({
+        success: false,
+        message: `Please enter an API Key for ${active.toUpperCase()} first.`,
+      });
+      return;
+    }
+
+    setIsTestingProvider(true);
+    setProviderTestFeedback(null);
+    try {
+      const res = await fetch("/api/models/test-provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: active,
+          apiKey: entry.apiKey,
+          model: entry.model,
+          baseUrl: entry.baseUrl,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProviderTestFeedback({
+          success: true,
+          message: `Verified! Latency: ${data.latencyMs}ms (${data.model})`,
+          latencyMs: data.latencyMs,
+        });
+        showToast(`Connected to ${active.toUpperCase()} successfully!`);
+      } else {
+        setProviderTestFeedback({
+          success: false,
+          message: data.error || "Connection test failed.",
+        });
+      }
+    } catch (err: any) {
+      setProviderTestFeedback({
+        success: false,
+        message: err.message || "Failed to reach endpoint.",
+      });
+    } finally {
+      setIsTestingProvider(false);
+    }
+  }, [customProviderSettings]);
+
+  const handlePurgeVault = useCallback(() => {
+    if (confirm("Are you sure you want to permanently purge all saved API keys from this device? This action cannot be undone.")) {
+      purgeVaultCredentials();
+      setCustomProviderSettings(DEFAULT_PROVIDER_SETTINGS);
+      setProviderTestFeedback(null);
+      showToast("All custom provider keys purged permanently.");
+    }
+  }, []);
+
+  const getCustomProviderHeaders = useCallback((): Record<string, string> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (customProviderSettings.enabled) {
+      const active = customProviderSettings.activeProvider;
+      const entry = customProviderSettings.providers[active];
+      if (entry && (entry.apiKey || active === "custom")) {
+        headers["x-custom-provider"] = active;
+        if (entry.apiKey) headers["x-custom-key"] = entry.apiKey.trim();
+        if (entry.model) headers["x-custom-model"] = entry.model.trim();
+        if (entry.baseUrl) headers["x-custom-base-url"] = entry.baseUrl.trim();
+      }
+    }
+    return headers;
+  }, [customProviderSettings]);
 
   // Load & apply Display Settings to document.body
   useEffect(() => {
@@ -2584,7 +2723,7 @@ export default function ChatPage() {
 
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getCustomProviderHeaders(),
         body: JSON.stringify({
           messages: apiMessages,
           mode: activeTool === "code" ? "chat" : undefined,
@@ -2714,7 +2853,7 @@ export default function ChatPage() {
 
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getCustomProviderHeaders(),
         body: JSON.stringify({
           messages: apiMessages,
           mode: activeTool === "code" ? "chat" : undefined,
@@ -2809,7 +2948,7 @@ export default function ChatPage() {
 
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getCustomProviderHeaders(),
         body: JSON.stringify({
           messages: apiMessages,
           mode: activeTool === "code" ? "chat" : undefined,
@@ -3114,8 +3253,25 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* Right: New Chat Icon & Options 3-Dots Menu */}
+          {/* Right: Custom Provider Chip, New Chat Icon & Options 3-Dots Menu */}
           <div className="flex items-center gap-1.5" data-header-menu>
+            {/* BYOK Custom Provider Chip */}
+            {customProviderSettings.enabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsActiveTab("providers");
+                  setIsSettingsModalOpen(true);
+                }}
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:border-emerald-500 transition cursor-pointer"
+                title="Custom AI Provider Active • Click to manage"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="capitalize">{customProviderSettings.activeProvider}</span>
+                <span className="text-neutral-500 dark:text-neutral-400">({customProviderSettings.providers[customProviderSettings.activeProvider]?.model || "custom"})</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => createNewChat()}
@@ -3144,7 +3300,7 @@ export default function ChatPage() {
             {/* 3-Dots Dropdown Popover matching Image */}
             {isHeaderMenuOpen && (
               <div
-                className={`absolute right-0 top-full mt-2 w-60 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                className={`absolute right-0 top-full mt-2 w-64 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
                   isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
                 }`}
                 onClick={(e) => e.stopPropagation()}
@@ -3204,10 +3360,32 @@ export default function ChatPage() {
 
                 <div className="my-1 border-t border-black/[0.06] dark:border-neutral-800" />
 
-                {/* Display & Text Customization */}
+                {/* 4. AI Providers & Keys (BYOK) */}
                 <button
                   type="button"
                   onClick={() => {
+                    setSettingsActiveTab("providers");
+                    setIsSettingsModalOpen(true);
+                    setIsHeaderMenuOpen(false);
+                  }}
+                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
+                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Cpu className="w-4.5 h-4.5 text-cyan-400" />
+                    <span className="font-semibold text-xs">AI Providers (BYOK)</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${customProviderSettings.enabled ? "bg-emerald-500 text-black" : "bg-black/5 dark:bg-white/10 text-neutral-400"}`}>
+                    {customProviderSettings.enabled ? "CUSTOM" : "AUTO"}
+                  </span>
+                </button>
+
+                {/* 5. Display & Text Customization */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsActiveTab("display");
                     setIsSettingsModalOpen(true);
                     setIsHeaderMenuOpen(false);
                   }}
@@ -3216,7 +3394,7 @@ export default function ChatPage() {
                   }`}
                 >
                   <Sliders className="w-4.5 h-4.5 text-neutral-400" />
-                  <span className="font-semibold text-xs">Display & Fonts</span>
+                  <span className="font-semibold text-xs">Display &amp; Fonts</span>
                 </button>
               </div>
             )}
@@ -5869,30 +6047,45 @@ export default function ChatPage() {
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex-shrink-0 flex p-1.5 mx-4 mt-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+            <div className="flex-shrink-0 flex p-1.5 mx-4 mt-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 gap-1">
               <button
                 type="button"
                 onClick={() => setSettingsActiveTab("display")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   settingsActiveTab === "display"
                     ? "bg-white dark:bg-neutral-800 text-black dark:text-white shadow-xs"
                     : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
                 }`}
               >
                 <Type className="w-3.5 h-3.5" />
-                <span>Font &amp; Display</span>
+                <span>Display</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsActiveTab("providers")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  settingsActiveTab === "providers"
+                    ? "bg-white dark:bg-neutral-800 text-cyan-600 dark:text-cyan-400 shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                <span>AI Providers</span>
+                {customProviderSettings.enabled && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => setSettingsActiveTab("general")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   settingsActiveTab === "general"
                     ? "bg-white dark:bg-neutral-800 text-black dark:text-white shadow-xs"
                     : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
                 }`}
               >
                 <Settings className="w-3.5 h-3.5" />
-                <span>General Preferences</span>
+                <span>General</span>
               </button>
             </div>
 
@@ -6168,6 +6361,272 @@ export default function ChatPage() {
                     </button>
                   </div>
                 </>
+              ) : settingsActiveTab === "providers" ? (
+                /* AI Providers & BYOK Tab */
+                <div className="space-y-4">
+                  {/* Security Guarantee Card */}
+                  <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 space-y-1.5">
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                      <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span>Zero-Knowledge Local Security Vault</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-300">
+                      Your API keys are encrypted directly on your device using <strong>AES-GCM (256-bit Web Crypto)</strong>. Keys are <strong>never saved to our database or written to disk</strong>. When you chat, credentials are sent over encrypted TLS headers strictly to fulfill that single request.
+                    </p>
+                  </div>
+
+                  {/* Master Toggle: Enable Custom Provider */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-white">Enable Custom AI Intelligence (BYOK)</p>
+                      <p className="text-[11px] text-neutral-400">
+                        {customProviderSettings.enabled
+                          ? `Active: ${customProviderSettings.activeProvider.toUpperCase()} (${customProviderSettings.providers[customProviderSettings.activeProvider]?.model || "default"})`
+                          : "Using built-in TATTVA Hybrid AI Fleet"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCustomProviders(!customProviderSettings.enabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                        customProviderSettings.enabled ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                          customProviderSettings.enabled ? "translate-x-5.5" : "translate-x-0.5"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Provider Selection Grid */}
+                  <div className="space-y-2">
+                    <p className="font-bold text-neutral-900 dark:text-white">Select AI Provider</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: "openai", name: "OpenAI", sub: "GPT-4o, o1, o3-mini" },
+                        { id: "gemini", name: "Google Gemini", sub: "Gemini 2.5 Pro & Flash" },
+                        { id: "anthropic", name: "Anthropic Claude", sub: "Claude 3.5 Sonnet & Haiku" },
+                        { id: "groq", name: "Groq", sub: "Ultra-Fast Llama 3.3" },
+                        { id: "openrouter", name: "OpenRouter", sub: "Universal Fleet" },
+                        { id: "custom", name: "Local / Custom", sub: "Ollama, LM Studio, vLLM" },
+                      ].map((p) => {
+                        const isSelected = customProviderSettings.activeProvider === p.id;
+                        const hasKey = Boolean(customProviderSettings.providers[p.id as ProviderType]?.apiKey?.trim());
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleUpdateActiveProvider(p.id as ProviderType)}
+                            className={`p-3 rounded-2xl border text-left transition cursor-pointer select-none relative ${
+                              isSelected
+                                ? "border-cyan-500 bg-cyan-500/10 dark:bg-cyan-500/15 shadow-xs"
+                                : "border-black/10 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-800/40 hover:border-black/20 dark:hover:border-neutral-700"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`font-bold text-xs ${isSelected ? "text-cyan-500 dark:text-cyan-400" : "text-neutral-900 dark:text-white"}`}>
+                                {p.name}
+                              </span>
+                              {hasKey && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Key Configured" />
+                              )}
+                            </div>
+                            <span className="text-[10px] text-neutral-400 line-clamp-1">{p.sub}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Active Provider Configuration Card */}
+                  {(() => {
+                    const activeProv = customProviderSettings.activeProvider;
+                    const entry = customProviderSettings.providers[activeProv] || { apiKey: "", model: "" };
+                    const popularModels = POPULAR_PROVIDER_MODELS[activeProv] || [];
+
+                    return (
+                      <div className="p-4 rounded-2xl border border-black/10 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/60 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-neutral-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                            <Key className="w-3.5 h-3.5 text-cyan-500" />
+                            <span>{activeProv.toUpperCase()} Credentials &amp; Model</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-cyan-500">
+                            {entry.apiKey ? maskApiKey(entry.apiKey) : "No Key Set"}
+                          </span>
+                        </div>
+
+                        {/* Model Presets & Input */}
+                        <div className="space-y-1.5">
+                          <label className="font-semibold text-neutral-700 dark:text-neutral-300">Model Name / ID</label>
+                          <div className="flex flex-wrap gap-1.5 mb-1.5">
+                            {popularModels.map((pm) => (
+                              <button
+                                key={pm.id}
+                                type="button"
+                                onClick={() => handleUpdateProviderEntry(activeProv, "model", pm.id)}
+                                className={`text-[10px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer ${
+                                  entry.model === pm.id
+                                    ? "bg-cyan-500 text-black border-cyan-500 font-bold"
+                                    : "border-black/10 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-cyan-500/50"
+                                }`}
+                              >
+                                {pm.name}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            value={entry.model || ""}
+                            onChange={(e) => handleUpdateProviderEntry(activeProv, "model", e.target.value)}
+                            placeholder="e.g. gpt-4o, gemini-2.5-flash, llama3"
+                            className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-cyan-500"
+                          />
+                        </div>
+
+                        {/* Base URL (for custom provider or proxies) */}
+                        {(activeProv === "custom" || activeProv === "groq" || activeProv === "openai") && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="font-semibold text-neutral-700 dark:text-neutral-300">API Base URL</label>
+                              {activeProv === "custom" && (
+                                <div className="flex gap-1 text-[10px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateProviderEntry("custom", "baseUrl", "http://localhost:11434/v1")}
+                                    className="text-cyan-500 hover:underline cursor-pointer"
+                                  >
+                                    Ollama (:11434)
+                                  </button>
+                                  <span className="text-neutral-400">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateProviderEntry("custom", "baseUrl", "http://localhost:1234/v1")}
+                                    className="text-cyan-500 hover:underline cursor-pointer"
+                                  >
+                                    LM Studio (:1234)
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <input
+                              type="text"
+                              value={entry.baseUrl || ""}
+                              onChange={(e) => handleUpdateProviderEntry(activeProv, "baseUrl", e.target.value)}
+                              placeholder={activeProv === "custom" ? "http://localhost:11434/v1" : "https://api.openai.com/v1"}
+                              className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-cyan-500"
+                            />
+                          </div>
+                        )}
+
+                        {/* API Key Input */}
+                        <div className="space-y-1.5">
+                          <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                            {activeProv === "custom" ? "API Key (Optional for Local Ollama/vLLM)" : `${activeProv.toUpperCase()} API Key`}
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showApiKey ? "text" : "password"}
+                              value={entry.apiKey || ""}
+                              onChange={(e) => handleUpdateProviderEntry(activeProv, "apiKey", e.target.value)}
+                              placeholder={
+                                activeProv === "openai"
+                                  ? "sk-proj-..."
+                                  : activeProv === "gemini"
+                                  ? "AIzaSy..."
+                                  : activeProv === "anthropic"
+                                  ? "sk-ant-api03-..."
+                                  : activeProv === "groq"
+                                  ? "gsk_..."
+                                  : "Enter provider secret key"
+                              }
+                              className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 pr-10 text-xs font-mono text-neutral-900 dark:text-white outline-none focus:border-cyan-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-200 cursor-pointer"
+                              title={showApiKey ? "Hide Key" : "Show Key"}
+                            >
+                              {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Feedback Banner */}
+                        {providerTestFeedback && (
+                          <div
+                            className={`p-2.5 rounded-xl border flex items-start gap-2 text-[11px] ${
+                              providerTestFeedback.success
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                            }`}
+                          >
+                            {providerTestFeedback.success ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                            ) : (
+                              <XCircle className="w-4 h-4 shrink-0 text-red-500" />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-semibold">{providerTestFeedback.message}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Test Connection & Action Buttons */}
+                        <div className="pt-1 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            disabled={isTestingProvider}
+                            onClick={handleTestConnection}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-black/15 dark:border-neutral-700 hover:border-cyan-500 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-semibold text-xs transition cursor-pointer disabled:opacity-50"
+                          >
+                            {isTestingProvider ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-500" />
+                                <span>Testing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Cpu className="w-3.5 h-3.5 text-cyan-500" />
+                                <span>Test Connection</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              saveVaultSettings(customProviderSettings);
+                              showToast(`Saved ${activeProv.toUpperCase()} Credentials to Vault ✦`);
+                            }}
+                            className="px-4 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs shadow-xs transition cursor-pointer"
+                          >
+                            Save Credentials
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Purge All Keys Section */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-red-500/20 bg-red-500/5">
+                    <div>
+                      <p className="font-semibold text-red-600 dark:text-red-400">Purge Stored API Keys</p>
+                      <p className="text-[11px] text-neutral-400">Permanently delete all custom keys from this device</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handlePurgeVault}
+                      className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-600 text-white px-3 py-1.5 font-semibold hover:bg-red-700 transition shadow-xs cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Purge All</span>
+                    </button>
+                  </div>
+                </div>
               ) : (
                 /* General Preferences Tab */
                 <div className="space-y-4">
