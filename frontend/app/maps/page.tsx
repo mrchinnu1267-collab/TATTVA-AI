@@ -79,6 +79,40 @@ function MapsContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Comprehensive SEO & Accessibility guard: Ensure every image on /maps always has an alt attribute
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const auditAllImages = () => {
+      document.querySelectorAll("img").forEach((img) => {
+        const alt = img.getAttribute("alt");
+        if (!alt || alt.trim() === "") {
+          img.setAttribute("alt", "Satellite map imagery layer");
+          img.setAttribute("role", "presentation");
+        }
+      });
+    };
+
+    auditAllImages();
+    const interval = setInterval(auditAllImages, 300);
+
+    const observer = new MutationObserver(() => {
+      auditAllImages();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["src", "alt"],
+    });
+
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
+  }, []);
+
   // EVERY TIME USER OPENS SATELLITE MAPS: Automatically locate exact user location
   useEffect(() => {
     if (initialQuery && initialQuery !== "Your Location") {

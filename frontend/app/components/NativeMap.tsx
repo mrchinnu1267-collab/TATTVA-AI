@@ -59,16 +59,31 @@ export default function NativeMap({
       errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     });
 
+    // Synchronously ensure alt and role="presentation" on every tile element at creation time
+    const layerAny = layer as any;
+    const origCreateTile = layerAny.createTile.bind(layer);
+    layerAny.createTile = function (coords: L.Coords, done: L.DoneCallback) {
+      const tile = origCreateTile(coords, done) as HTMLImageElement;
+      tile.alt = "Satellite map imagery layer";
+      tile.setAttribute("alt", "Satellite map imagery layer");
+      tile.setAttribute("role", "presentation");
+      return tile;
+    };
+
     layer.on("tileload", function (event: any) {
-      if (event.tile && !event.tile.hasAttribute("alt")) {
-        event.tile.setAttribute("alt", "");
+      if (event.tile) {
+        event.tile.alt = "Satellite map imagery layer";
+        event.tile.setAttribute("alt", "Satellite map imagery layer");
+        event.tile.setAttribute("role", "presentation");
       }
     });
 
     layer.on("tileerror", function (error: any) {
       const tile = error.tile;
       if (tile) {
-        tile.setAttribute("alt", "");
+        tile.alt = "Satellite map imagery layer";
+        tile.setAttribute("alt", "Satellite map imagery layer");
+        tile.setAttribute("role", "presentation");
         if (!tile.dataset.retried) {
           tile.dataset.retried = "true";
           if (tileMode === "satellite") {
@@ -141,6 +156,12 @@ export default function NativeMap({
       }
     });
 
+    // Set accessible container role & label
+    if (containerRef.current) {
+      containerRef.current.setAttribute("role", "region");
+      containerRef.current.setAttribute("aria-label", "Interactive Satellite Map Explorer");
+    }
+
     // Invalidate size immediately
     map.invalidateSize();
     const t1 = setTimeout(() => map.invalidateSize(), 100);
@@ -154,10 +175,42 @@ export default function NativeMap({
       ro.observe(containerRef.current);
     }
 
+    // MutationObserver to enforce alt on all dynamically inserted tile images
+    let domObserver: MutationObserver | null = null;
+    if (typeof MutationObserver !== "undefined" && containerRef.current) {
+      domObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) {
+              const el = node as HTMLElement;
+              if (el.tagName === "IMG") {
+                const img = el as HTMLImageElement;
+                if (!img.getAttribute("alt") || img.getAttribute("alt") === "") {
+                  img.alt = "Satellite map imagery layer";
+                  img.setAttribute("alt", "Satellite map imagery layer");
+                  img.setAttribute("role", "presentation");
+                }
+              }
+              const innerImgs = el.querySelectorAll ? el.querySelectorAll("img") : [];
+              innerImgs.forEach((img) => {
+                if (!img.getAttribute("alt") || img.getAttribute("alt") === "") {
+                  img.alt = "Satellite map imagery layer";
+                  img.setAttribute("alt", "Satellite map imagery layer");
+                  img.setAttribute("role", "presentation");
+                }
+              });
+            }
+          });
+        });
+      });
+      domObserver.observe(containerRef.current, { childList: true, subtree: true });
+    }
+
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
       if (ro) ro.disconnect();
+      if (domObserver) domObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };
