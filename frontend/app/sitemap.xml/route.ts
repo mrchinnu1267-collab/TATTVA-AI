@@ -28,6 +28,7 @@ export async function GET() {
   ).join("\n");
 
   const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urlEntries}
 </urlset>`;
@@ -38,7 +39,7 @@ ${urlEntries}
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=86400",
       "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; style-src 'none'; script-src 'none';",
+      "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline';",
     },
   });
 }
