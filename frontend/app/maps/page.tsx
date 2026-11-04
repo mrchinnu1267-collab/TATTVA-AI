@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -378,14 +379,13 @@ export default function MapsPage() {
         <div className="flex items-center justify-between gap-3 max-w-7xl mx-auto">
           {/* Left: Back to Chat Button & Branding */}
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => router.push("/chat")}
+            <Link
+              href="/chat"
               className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition cursor-pointer active:scale-95"
               title="Return to Chat"
             >
               <ChevronLeft className="w-5 h-5" />
-            </button>
+            </Link>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white flex items-center gap-1.5">
@@ -1030,6 +1030,22 @@ export default function MapsPage() {
           </div>
         </div>
       </footer>
+
+      {/* Semantic Content & SEO Overview */}
+      <section className="sr-only" aria-label="About TATTVA Satellite Maps">
+        <h2>High-Resolution Live Satellite Maps &amp; Local Places Explorer</h2>
+        <p>
+          TATTVA Satellite Maps offers interactive global earth observation, real-time satellite imagery,
+          and an authentic local place discovery engine. Explore worldwide destinations, discover top-rated hotels,
+          cafes, restaurants, parks, and attractions with verified ratings, reviews, photos, and live GPS positioning.
+        </p>
+        <ul>
+          <li>High-resolution satellite and roadmap views powered by ESRI and OpenStreetMap.</li>
+          <li>Real-time GPS geolocation and coordinates mapping.</li>
+          <li>Direct AI-assisted location search and travel question answering.</li>
+          <li>Authentic area photography and Google Maps venue insights.</li>
+        </ul>
+      </section>
     </div>
   );
 }

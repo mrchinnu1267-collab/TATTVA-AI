@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import ChatPage from "./chat/page";
 
 export const metadata: Metadata = {
@@ -9,11 +10,24 @@ export const metadata: Metadata = {
 
 const structuredData = {
   "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "TATTVA AI",
-  url: "https://tattva-ai-phi.vercel.app/",
-  description:
-    "An intelligent AI platform for exploring information and improving productivity.",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: "TATTVA AI",
+      url: "https://tattva-ai-phi.vercel.app/",
+      description:
+        "An intelligent AI platform for exploring information and improving productivity.",
+    },
+    {
+      "@type": "SiteNavigationElement",
+      name: ["Satellite Maps", "Live Voice Assistant", "Download App"],
+      url: [
+        "https://tattva-ai-phi.vercel.app/maps",
+        "https://tattva-ai-phi.vercel.app/voice",
+        "https://tattva-ai-phi.vercel.app/download",
+      ],
+    },
+  ],
 };
 
 export default function Home() {
@@ -25,6 +39,11 @@ export default function Home() {
           __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
         }}
       />
+      <nav aria-label="Explore TATTVA AI Features" className="sr-only">
+        <Link href="/maps">TATTVA Satellite Maps &amp; Places Explorer</Link>
+        <Link href="/voice">TATTVA AI Voice Assistant</Link>
+        <Link href="/download">Download TATTVA AI Desktop &amp; Mobile App</Link>
+      </nav>
       <ChatPage />
     </>
   );

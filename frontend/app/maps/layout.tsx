@@ -37,11 +37,57 @@ export const metadata: Metadata = {
   },
 };
 
+const mapsStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      name: "TATTVA Satellite Maps & Places Explorer",
+      url: "https://tattva-ai-phi.vercel.app/maps",
+      applicationCategory: "MapsAndNavigationApplication",
+      operatingSystem: "All",
+      description:
+        "Explore real-time high-resolution satellite imagery, discover nearby places, hotels, cafes, parks, and view ratings and directions on TATTVA AI.",
+      browserRequirements: "Requires JavaScript. Requires HTML5.",
+      author: {
+        "@type": "Person",
+        name: "kotapati Gowtham Chowdary",
+      },
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://tattva-ai-phi.vercel.app",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Satellite Maps",
+          item: "https://tattva-ai-phi.vercel.app/maps",
+        },
+      ],
+    },
+  ],
+};
+
 export default function MapsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(mapsStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      {children}
+    </>
+  );
 }
-

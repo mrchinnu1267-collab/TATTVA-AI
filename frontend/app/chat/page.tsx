@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "../lib/supabase";
@@ -3640,10 +3641,9 @@ export default function ChatPage() {
             </button>
 
             {/* Maps Button matching Image 2 */}
-            <button
-              type="button"
+            <Link
+              href="/maps"
               onClick={() => {
-                router.push("/maps");
                 if (typeof window !== "undefined" && window.innerWidth < 768) {
                   setSidebarOpen(false);
                 }
@@ -3662,7 +3662,7 @@ export default function ChatPage() {
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/20">
                 Live 🛰️
               </span>
-            </button>
+            </Link>
 
             {/* Temporary Chat Button */}
             <button
@@ -5398,10 +5398,9 @@ export default function ChatPage() {
                         </button>
 
                         {/* 6. Satellite Maps */}
-                        <button
-                          type="button"
+                        <Link
+                          href="/maps"
                           onClick={() => {
-                            router.push("/maps");
                             setIsAttachmentMenuOpen(false);
                           }}
                           className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
@@ -5410,14 +5409,13 @@ export default function ChatPage() {
                             <MapPin className="w-5 h-5 stroke-[2]" />
                           </div>
                           <span className="font-semibold text-[15px] tracking-tight">Satellite Maps</span>
-                        </button>
+                        </Link>
 
                         {/* 7. Live Voice */}
-                        <button
-                          type="button"
+                        <Link
+                          href="/voice"
                           onClick={() => {
                             setIsAttachmentMenuOpen(false);
-                            router.push("/voice");
                           }}
                           className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
                         >
@@ -5425,7 +5423,7 @@ export default function ChatPage() {
                             <Radio className="w-5 h-5 stroke-[2] animate-pulse" />
                           </div>
                           <span className="font-semibold text-[15px] tracking-tight">Live Voice</span>
-                        </button>
+                        </Link>
                       </div>
                     )}
 
