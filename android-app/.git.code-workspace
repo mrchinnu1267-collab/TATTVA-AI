@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "../.git"
+		},
+		{
+			"path": "../.vercel"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../desktop-app"
+		},
+		{
+			"path": "../frontend"
+		},
+		{
+			"path": "../image-engine"
+		},
+		{
+			"path": "../ios-app"
+		}
+	]
+}

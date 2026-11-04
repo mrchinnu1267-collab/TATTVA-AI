@@ -23,6 +23,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  PanelLeft,
+  SquarePen,
+  Edit3,
   MessageSquare,
   AlertCircle,
   Maximize2,
@@ -2951,8 +2954,8 @@ export default function ChatPage() {
 
   return (
     <div
-      className={`fixed inset-0 w-full h-full max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-black selection:text-white ${
-        isDark ? "bg-[#0d0e11] text-neutral-100" : "bg-white text-black"
+      className={`fixed inset-0 w-full h-full max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-neutral-800 selection:text-white ${
+        isDark ? "bg-black text-neutral-100" : "bg-white text-black"
       }`}
     >
       {/* Toast Notification */}
@@ -3037,55 +3040,61 @@ export default function ChatPage() {
       )}
 
       {/* =========================================================================
-          1. TOP NAVIGATION BAR (MINIMALIST + LIQUID ACCENTS)
+          1. TOP NAVIGATION BAR (MINIMALIST CHATGPT STYLE)
       ========================================================================= */}
       <header
-        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),36px)] sm:pt-0 ${
-          isDark ? "border-neutral-800/80 bg-[#0d0e11]/95 text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
+        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),24px)] sm:pt-0 ${
+          isDark ? "border-transparent bg-black text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
         }`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5">
-          <div className="flex items-center gap-3 sm:gap-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2 sm:py-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-3.5 min-w-[54px] min-h-[54px] rounded-2xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
-                isDark ? "text-neutral-300 hover:text-white hover:bg-neutral-800" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+              className={`p-2.5 rounded-xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
+                isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
               }`}
-              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
             >
-              {sidebarOpen ? (
-                <ChevronLeft className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
+              <PanelLeft className="w-6 h-6 stroke-[1.8]" />
             </button>
           </div>
 
-          {/* Center: TATTVA AI Name on Every New Chat - Disappears After Searching */}
-          {messages.length === 0 && (
-            <div className="flex items-center gap-2 animate-in fade-in duration-300 select-none">
-              <span className="text-base sm:text-lg font-black tracking-wider text-neutral-900 dark:text-neutral-100">
-                TATTVA AI
+          {/* Center: Clean & empty on new chat; shows title during active session */}
+          <div className="flex items-center gap-2 select-none">
+            {messages.length > 0 && (
+              <span className="text-sm font-semibold tracking-wide text-neutral-400 truncate max-w-[200px] sm:max-w-md">
+                {getActiveSessionName()}
               </span>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Right: 3 Vertical Dots (Consolidates Temporary Chat, Share & Theme) */}
-          <div className="relative flex items-center gap-2" data-header-menu>
+          {/* Right: New Chat Icon & Options 3-Dots Menu */}
+          <div className="flex items-center gap-1.5" data-header-menu>
+            <button
+              type="button"
+              onClick={() => createNewChat()}
+              className={`p-2.5 rounded-xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
+                isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+              }`}
+              title="New chat"
+            >
+              <SquarePen className="w-5 h-5 stroke-[1.8]" />
+            </button>
             <button
               type="button"
               onClick={() => setIsHeaderMenuOpen(!isHeaderMenuOpen)}
-              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-2xl border transition cursor-pointer select-none active:scale-95 ${
+              className={`p-2.5 flex items-center justify-center rounded-xl transition cursor-pointer select-none active:scale-95 ${
                 isHeaderMenuOpen
-                  ? "bg-neutral-800 text-white border-neutral-700"
+                  ? "bg-neutral-800 text-white"
                   : isDark
-                  ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:text-white hover:bg-neutral-800"
-                  : "border-black/10 bg-white text-neutral-700 hover:text-black hover:bg-neutral-100"
+                  ? "text-neutral-400 hover:text-white hover:bg-white/10"
+                  : "text-neutral-600 hover:text-black hover:bg-neutral-100"
               }`}
               title="Options"
             >
-              <MoreVertical className="w-5 h-5" />
+              <MoreVertical className="w-5 h-5 stroke-[1.8]" />
             </button>
 
             {/* 3-Dots Dropdown Popover matching Image */}
@@ -4170,9 +4179,9 @@ export default function ChatPage() {
           <div
             ref={chatContainerRef}
             onScroll={handleChatScroll}
-            className="flex-1 min-h-0 overflow-y-auto w-full relative"
+            className="flex-1 min-h-0 overflow-y-auto w-full relative flex flex-col"
           >
-            <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6">
+            <div className={`p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full ${messages.length === 0 ? "flex-1 flex flex-col justify-between" : "space-y-6"}`}>
             {messages.length === 0 ? (
               isTemporaryChat ? (
                 <div className="my-auto py-12 text-center max-w-md mx-auto flex flex-col items-center justify-center animate-in fade-in select-none">
@@ -4185,69 +4194,50 @@ export default function ChatPage() {
                   </p>
                 </div>
               ) : (
-                <div className="my-auto py-8 sm:py-14 text-center max-w-2xl mx-auto flex flex-col items-center justify-center animate-in fade-in duration-300 select-none">
-                  {/* Subtle Logo Badge */}
-                  <div className="relative mb-5 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-3xl border border-black/10 dark:border-white/10 bg-white shadow-md p-1.5">
-                    <img src="/logo.png" alt="TATTVA AI" className="h-full w-full object-contain" />
+                <div className="flex-1 flex flex-col justify-between py-4 sm:py-8 w-full select-none min-h-[55vh] sm:min-h-[65vh]">
+                  {/* Vertically Centered Title matching Screenshot */}
+                  <div className="my-auto text-center py-12 sm:py-20 animate-in fade-in duration-300">
+                    <h1 className="text-2xl sm:text-3xl font-medium tracking-normal text-white">
+                      Where should we begin?
+                    </h1>
                   </div>
 
-                  {/* Engaging Question Asked to the User in New Chat Opening */}
-                  <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
-                    What would you like to explore today?
-                  </h2>
-                  <p className="mt-2 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-md leading-relaxed">
-                    Ask me any question, solve complex problems, write clean code, or brainstorm ideas.
-                  </p>
-
-                  {/* Suggested Question Prompt Cards */}
-                  <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full text-left">
-                    {[
-                      {
-                        title: "Explain a concept",
-                        desc: "Explain quantum computing in simple everyday terms",
-                        prompt: "Explain quantum computing in simple everyday terms with real-world analogies.",
-                        icon: "💡",
-                      },
-                      {
-                        title: "Code & Architecture",
-                        desc: "How do I build a scalable full-stack application?",
-                        prompt: "How do I design and structure a scalable full-stack web application with modern best practices?",
-                        icon: "💻",
-                      },
-                      {
-                        title: "Travel & Explore",
-                        desc: "Plan a 3-day travel itinerary with top food spots",
-                        prompt: "Plan a comprehensive 3-day travel itinerary with top attractions, hidden gems, and local food spots in South India.",
-                        icon: "🗺️",
-                      },
-                      {
-                        title: "Brainstorm Ideas",
-                        desc: "Give me 5 innovative product ideas using AI",
-                        prompt: "Give me 5 high-potential, innovative product ideas leveraging AI for modern businesses.",
-                        icon: "🚀",
-                      },
-                    ].map((card, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => sendMessage(card.prompt)}
-                        className={`group p-3.5 sm:p-4 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 shadow-xs hover:shadow-sm ${
-                          isDark
-                            ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 hover:border-neutral-700 text-neutral-200"
-                            : "border-black/10 bg-white hover:bg-neutral-50 hover:border-black/20 text-neutral-800"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-base">{card.icon}</span>
-                          <span className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white">
-                            {card.title}
-                          </span>
-                        </div>
-                        <p className="text-[11px] sm:text-xs text-neutral-400 dark:text-neutral-400 line-clamp-2 leading-relaxed">
-                          {card.desc}
-                        </p>
-                      </button>
-                    ))}
+                  {/* 3 Stacked Suggestions directly above composer matching Screenshot */}
+                  <div className="space-y-4 pb-2 px-1 text-sm sm:text-base animate-in fade-in duration-300">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInput("Create an image or sticker of ");
+                        textareaRef.current?.focus();
+                      }}
+                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                    >
+                      <ImageIcon className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Create an image or sticker</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInput("Help me write and edit ");
+                        textareaRef.current?.focus();
+                      }}
+                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                    >
+                      <Edit3 className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Write or edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTool("web");
+                        textareaRef.current?.focus();
+                        showToast("Web Search mode enabled 🌐");
+                      }}
+                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                    >
+                      <Globe className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search the web</span>
+                    </button>
                   </div>
                 </div>
               )
@@ -4670,10 +4660,10 @@ export default function ChatPage() {
               3. ADVANCED AI CHAT COMPOSER (FROZEN AT BOTTOM, NEVER MOVES WITH SCROLL)
           ========================================================================= */}
           <div
-            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pt-2 pb-[max(env(safe-area-inset-bottom,0px),20px)] sm:pb-3 transition-colors duration-200 ${
+            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pt-2 pb-[max(env(safe-area-inset-bottom,0px),24px)] sm:pb-4 transition-colors duration-200 ${
               isDark
-                ? "bg-gradient-to-t from-[#0d0e11] via-[#0d0e11]/95 to-transparent"
-                : "bg-gradient-to-t from-white via-white/95 to-transparent"
+                ? "bg-black"
+                : "bg-white"
             }`}
           >
             <div className="mx-auto max-w-3xl w-full pointer-events-auto relative">
@@ -4838,149 +4828,15 @@ export default function ChatPage() {
               <input ref={sheetInputRef} type="file" multiple accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" />
               <input ref={codeInputRef} type="file" multiple accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat" onChange={handleFileSelect} className="hidden" />
 
-              {/* Seamless Pill Bar matching Image 2 (16:1 to 20:1 Ratio) */}
+              {/* Seamless Box matching ChatGPT Mobile interface (Screenshot) */}
               <div
-                className={`relative flex items-center gap-2 sm:gap-3 w-full rounded-full border px-3 sm:px-4 py-2 sm:py-2.5 shadow-lg min-h-[52px] sm:min-h-[56px] transition-all duration-200 ${
+                className={`relative flex flex-col justify-between w-full rounded-[28px] border p-2.5 sm:p-3 shadow-xl transition-all duration-200 ${
                   isDark
-                    ? "bg-[#1E1F23] border-white/10 text-white focus-within:border-white/20"
-                    : "bg-white border-black/10 text-black shadow-md focus-within:border-black/25"
+                    ? "bg-[#212124] border-white/10 text-white focus-within:border-white/20"
+                    : "bg-[#f4f4f4] border-black/10 text-black shadow-md focus-within:border-black/25"
                 }`}
               >
-                {/* 1. Left (+) Button (Attachment & Tools Menu) */}
-                <div className="relative" data-attachment-menu>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
-                      setIsToolsMenuOpen(false);
-                    }}
-                    className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full transition-all cursor-pointer select-none active:scale-95 ${
-                      isAttachmentMenuOpen
-                        ? "rotate-45 bg-neutral-200 dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                        : "text-neutral-400 hover:text-white hover:bg-white/10 dark:hover:bg-white/10"
-                    }`}
-                    title="Attach files, media, or AI tools"
-                  >
-                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-200" />
-                  </button>
-
-                  {/* Attachment & Tools Dropdown Popover */}
-                  {isAttachmentMenuOpen && (
-                    <div
-                      className={`absolute bottom-full left-0 mb-3 w-68 sm:w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                        isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Maps & Places Explorer matching Image 2 */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMapsModalOpen(true);
-                          setIsAttachmentMenuOpen(false);
-                        }}
-                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                        }`}
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="block font-semibold text-xs">Maps & Places</span>
-                          <span className="block text-[10px] text-neutral-400 truncate">Explore live interactive maps & routes</span>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAttachmentMenuOpen(false);
-                          router.push("/voice");
-                        }}
-                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                        }`}
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                          <Radio className="w-4 h-4 animate-pulse" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="block font-semibold text-xs">Live Voice Mode</span>
-                          <span className="block text-[10px] text-neutral-400 truncate">Real-time voice conversation</span>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          fileInputRef.current?.click();
-                          setIsAttachmentMenuOpen(false);
-                        }}
-                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                        }`}
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
-                          <FolderArchive className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="block font-semibold text-xs">Media & Files</span>
-                          <span className="block text-[10px] text-neutral-400 truncate">Upload images, PDFs, docs, sheets</span>
-                        </div>
-                      </button>
-
-                      {/* Deep Thinking Mode Toggle inside + menu */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsThinkingEnabled(!isThinkingEnabled);
-                          showToast(!isThinkingEnabled ? "Deep Thinking / Reasoning Enabled" : "Deep Thinking Turned Off");
-                          setIsAttachmentMenuOpen(false);
-                        }}
-                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                        }`}
-                      >
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
-                          isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF] border-sky-500/30" : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
-                        }`}>
-                          <Brain className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="block font-semibold text-xs">Deep Thinking</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF]" : "text-neutral-500"}`}>
-                              {isThinkingEnabled ? "ON" : "OFF"}
-                            </span>
-                          </div>
-                          <span className="block text-[10px] text-neutral-400 truncate">Extended reasoning & logic</span>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          toggleTemporaryChat();
-                          setIsAttachmentMenuOpen(false);
-                        }}
-                        className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
-                          isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                        }`}
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                          <Ghost className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="block font-semibold text-xs">Temporary Chat</span>
-                          <span className="block text-[10px] text-neutral-400 truncate">{isTemporaryChat ? "Turn OFF temporary mode" : "Turn ON temporary mode"}</span>
-                        </div>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Text Input matching Image 2: "Ask TATTVA AI" */}
+                {/* 1. Top Row: Text Input */}
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -4994,66 +4850,203 @@ export default function ChatPage() {
                   }}
                   rows={1}
                   placeholder={isListening ? "Listening to voice input..." : "Ask TATTVA AI"}
-                  className={`flex-1 resize-none bg-transparent py-1 px-1 text-sm sm:text-base outline-none max-h-40 min-h-[28px] leading-relaxed ${
+                  className={`w-full resize-none bg-transparent px-2 pt-1 pb-1 text-base sm:text-base outline-none max-h-36 min-h-[38px] leading-relaxed ${
                     isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
                   }`}
                 />
 
-                {/* 3. Right Side Controls matching Image 2 */}
-                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                  {/* 🎤 Speech-to-Text Microphone Button */}
-                  <button
-                    type="button"
-                    onClick={startVoiceRecognition}
-                    className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${
-                      isListening
-                        ? "bg-red-500 text-white animate-pulse shadow-md ring-2 ring-red-400/50"
-                        : isDark
-                        ? "text-neutral-300 hover:text-white hover:bg-white/10"
-                        : "text-neutral-600 hover:text-black hover:bg-neutral-100"
-                    }`}
-                    title={isListening ? "Stop listening" : "Speech-to-text input"}
-                  >
-                    {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5" />}
-                  </button>
-
-                  {/* Terracotta Orange Circular Voice Wave / Send Action */}
-                  {loading ? (
-                    <button
-                      type="button"
-                      onClick={stopGeneration}
-                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
-                      title="Stop generation"
-                    >
-                      <Square className="w-4 h-4 fill-current" />
-                    </button>
-                  ) : input.trim() || attachments.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => sendMessage()}
-                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
-                      title="Send message"
-                    >
-                      <ArrowUp className="w-5 h-5 stroke-[2.5]" />
-                    </button>
-                  ) : (
+                {/* 2. Bottom Row: (+) on Left, Mic & Voice Wave on Right */}
+                <div className="flex items-center justify-between w-full pt-1 px-1">
+                  {/* Left: (+) Attachment & Tools Menu */}
+                  <div className="relative" data-attachment-menu>
                     <button
                       type="button"
                       onClick={() => {
-                        router.push("/voice");
+                        setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+                        setIsToolsMenuOpen(false);
                       }}
-                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
-                      title="Start Live Voice conversation"
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all cursor-pointer select-none active:scale-95 ${
+                        isAttachmentMenuOpen
+                          ? "rotate-45 bg-white/20 text-white"
+                          : "text-neutral-300 hover:text-white hover:bg-white/10"
+                      }`}
+                      title="Attach files, media, or AI tools"
                     >
-                      {/* 4-bar Audio Waveform Icon */}
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" />
-                        <rect x="8.5" y="4" width="2.5" height="16" rx="1.25" />
-                        <rect x="13.5" y="6" width="2.5" height="12" rx="1.25" />
-                        <rect x="18.5" y="9" width="2.5" height="6" rx="1.25" />
-                      </svg>
+                      <Plus className="w-6 h-6 transition-transform duration-200 stroke-[2]" />
                     </button>
-                  )}
+
+                    {/* Attachment & Tools Dropdown Popover */}
+                    {isAttachmentMenuOpen && (
+                      <div
+                        className={`absolute bottom-full left-0 mb-3 w-68 sm:w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                          isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Maps & Places Explorer matching Image 2 */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMapsModalOpen(true);
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-semibold text-xs">Maps & Places</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">Explore live interactive maps & routes</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAttachmentMenuOpen(false);
+                            router.push("/voice");
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                            <Radio className="w-4 h-4 animate-pulse" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-semibold text-xs">Live Voice Mode</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">Real-time voice conversation</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
+                            <FolderArchive className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-semibold text-xs">Media & Files</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">Upload images, PDFs, docs, sheets</span>
+                          </div>
+                        </button>
+
+                        {/* Deep Thinking Mode Toggle inside + menu */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsThinkingEnabled(!isThinkingEnabled);
+                            showToast(!isThinkingEnabled ? "Deep Thinking / Reasoning Enabled" : "Deep Thinking Turned Off");
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-xl border shrink-0 ${
+                            isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF] border-sky-500/30" : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
+                          }`}>
+                            <Brain className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="block font-semibold text-xs">Deep Thinking</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isThinkingEnabled ? "bg-sky-500/20 text-[#6BA1FF]" : "text-neutral-500"}`}>
+                                {isThinkingEnabled ? "ON" : "OFF"}
+                              </span>
+                            </div>
+                            <span className="block text-[10px] text-neutral-400 truncate">Extended reasoning & logic</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleTemporaryChat();
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                            <Ghost className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-semibold text-xs">Temporary Chat</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">{isTemporaryChat ? "Turn OFF temporary mode" : "Turn ON temporary mode"}</span>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Mic & Voice/Send Button */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* 🎤 Speech-to-Text Microphone Button */}
+                    <button
+                      type="button"
+                      onClick={startVoiceRecognition}
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${
+                        isListening
+                          ? "bg-red-500 text-white animate-pulse shadow-md ring-2 ring-red-400/50"
+                          : isDark
+                          ? "text-neutral-300 hover:text-white hover:bg-white/10"
+                          : "text-neutral-600 hover:text-black hover:bg-neutral-200"
+                      }`}
+                      title={isListening ? "Stop listening" : "Speech-to-text input"}
+                    >
+                      {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 stroke-[1.8]" />}
+                    </button>
+
+                    {/* Terracotta Orange Circular Voice Wave / Send Action */}
+                    {loading ? (
+                      <button
+                        type="button"
+                        onClick={stopGeneration}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
+                        title="Stop generation"
+                      >
+                        <Square className="w-4 h-4 fill-current" />
+                      </button>
+                    ) : input.trim() || attachments.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => sendMessage()}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
+                        title="Send message"
+                      >
+                        <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          router.push("/voice");
+                        }}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
+                        title="Start Live Voice conversation"
+                      >
+                        {/* 4-bar Audio Waveform Icon matching ChatGPT Mobile */}
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" />
+                          <rect x="8.5" y="4" width="2.5" height="16" rx="1.25" />
+                          <rect x="13.5" y="6" width="2.5" height="12" rx="1.25" />
+                          <rect x="18.5" y="9" width="2.5" height="6" rx="1.25" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               {/* Small Friendly Disclaimer: hidden on mobile to prevent Android navigation bar clash, visible on desktop */}
