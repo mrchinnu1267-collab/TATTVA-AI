@@ -39,6 +39,9 @@ export const metadata: Metadata = {
     title: "TATTVA AI",
   },
   applicationName: "TATTVA AI",
+  verification: {
+    google: "b_R0NO2oE0V0iBui13IyWdgZ9AROxg3MLEu_2NETiOE",
+  },
 };
 
 export default function RootLayout({
@@ -49,6 +52,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="google-site-verification" content="b_R0NO2oE0V0iBui13IyWdgZ9AROxg3MLEu_2NETiOE" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
         <link rel="icon" href="/favicon.png" type="image/png" />
