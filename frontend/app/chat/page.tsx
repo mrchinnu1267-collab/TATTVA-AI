@@ -1495,17 +1495,24 @@ export default function ChatPage() {
     setSessions(loadedSessions);
     setSessionsLoading(false);
 
-    // 4. Permanently store & restore active conversation so used chats are never lost
-    const storedActiveId = typeof window !== "undefined" ? localStorage.getItem("tattva_active_session_id") : null;
-    const sessionToRestore =
-      loadedSessions.find((s) => s.id === storedActiveId) ||
-      (loadedSessions.length > 0 ? loadedSessions[0] : null);
+    // 4. On every new app launch/opening, always open a fresh clean New Chat ("Where should we begin?")
+    // All previous conversations are safely preserved in history and accessible from the sidebar.
+    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const explicitSessionParam = urlParams ? urlParams.get("session") : null;
 
-    if (sessionToRestore && sessionToRestore.messages && sessionToRestore.messages.length > 0) {
-      setCurrentSessionId(sessionToRestore.id);
-      setMessages(sessionToRestore.messages);
-      messagesCountRef.current = sessionToRestore.messages.length;
+    if (explicitSessionParam) {
+      const targetSession = loadedSessions.find((s) => s.id === explicitSessionParam);
+      if (targetSession && targetSession.messages && targetSession.messages.length > 0) {
+        setCurrentSessionId(targetSession.id);
+        setMessages(targetSession.messages);
+        messagesCountRef.current = targetSession.messages.length;
+      } else {
+        setCurrentSessionId("");
+        setMessages([]);
+        messagesCountRef.current = 0;
+      }
     } else {
+      // Default behavior on every app opening: Open a fresh new chat
       setCurrentSessionId("");
       setMessages([]);
       messagesCountRef.current = 0;
@@ -1587,6 +1594,17 @@ export default function ChatPage() {
     setAttachments([]);
     setInput("");
     setError("");
+    setActiveTool("none");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tattva_active_session_id");
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false);
+      }
+    }
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
+    }
     showToast("Started fresh chat session ✦");
   }
 
@@ -1602,8 +1620,11 @@ export default function ChatPage() {
     setAttachments([]);
     setInput("");
     setError("");
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setSidebarOpen(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tattva_active_session_id", session.id);
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false);
+      }
     }
   }
 
