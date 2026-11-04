@@ -47,6 +47,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Never intercept SEO crawler files (sitemap.xml, robots.txt)
+  if (
+    url.pathname === '/sitemap.xml' ||
+    url.pathname === '/robots.txt' ||
+    url.pathname.endsWith('.xml') ||
+    url.pathname.endsWith('.txt')
+  ) {
+    return;
+  }
+
   // Static assets (images, fonts, scripts): Cache-first with network fallback
   if (
     url.pathname.endsWith('.png') ||

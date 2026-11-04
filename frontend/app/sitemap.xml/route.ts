@@ -1,15 +1,15 @@
 const BASE_URL = "https://tattva-ai-phi.vercel.app";
 
-// Public, indexable routes only
-// Excludes private dashboards, workspaces, auth pages, and internal APIs
+// Canonical, genuinely public, indexable landing pages only
+// Excludes:
+// - /chat (duplicate of homepage /)
+// - /media and /image-studio (internal workspace tools)
+// - /dashboard, /login, /signup, /register, /reset-password (private & authentication routes)
 const PUBLIC_ROUTES = [
   { path: "", changefreq: "weekly", priority: "1.0" },
-  { path: "/chat", changefreq: "weekly", priority: "0.9" },
-  { path: "/voice", changefreq: "weekly", priority: "0.8" },
+  { path: "/download", changefreq: "monthly", priority: "0.8" },
   { path: "/maps", changefreq: "weekly", priority: "0.8" },
-  { path: "/download", changefreq: "monthly", priority: "0.7" },
-  { path: "/media", changefreq: "weekly", priority: "0.7" },
-  { path: "/image-studio", changefreq: "weekly", priority: "0.7" },
+  { path: "/voice", changefreq: "weekly", priority: "0.8" },
 ];
 
 export const dynamic = "force-static";
@@ -38,7 +38,7 @@ ${urlEntries}
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=86400",
       "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; style-src 'none'; script-src 'none';",
     },
   });
 }
-
