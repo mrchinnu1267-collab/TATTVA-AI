@@ -215,15 +215,29 @@ export class MasterAIOrchestrator {
       };
     }
 
-    // 6. PIPELINE ROUTING: DEEP STRUCTURED REASONING & MATH / CODING
-    if (effectiveIntent === "reasoning" || effectiveIntent === "coding" || effectiveIntent === "mathematics") {
-      const convHistory = messages.map((m) => ({ role: m.role, content: m.content }));
-      const reasoningRes = await reasoningEngine.solveComplexTask(cleanUserPrompt, effectiveIntent, convHistory);
+    // 6. PIPELINE ROUTING: DEEP STRUCTURED REASONING, MATH, CODING & HANDWRITING / DOCUMENT SOLVER
+    if (
+      effectiveIntent === "reasoning" ||
+      effectiveIntent === "coding" ||
+      effectiveIntent === "mathematics" ||
+      effectiveIntent === "document_analysis"
+    ) {
+      const convHistory = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        attachments: m.attachments,
+      }));
+      const reasoningRes = await reasoningEngine.solveComplexTask(
+        cleanUserPrompt || "Please analyze this file/handwriting thoroughly, explain the concepts, and provide complete step-by-step solutions for any questions or problems found.",
+        effectiveIntent,
+        convHistory,
+        latestMessage.attachments
+      );
 
       // Record experience
       void experienceEngine.recordExperience({
         taskType: effectiveIntent,
-        problemStatement: cleanUserPrompt,
+        problemStatement: cleanUserPrompt || "File & Handwriting Analysis",
         attemptedSolution: reasoningRes.finalAnswer,
         passedVerification: reasoningRes.verificationPassed,
         keyLearnings: reasoningRes.plan.steps.map((s) => s.title),
@@ -275,6 +289,25 @@ LANGUAGE & FORMATTING:
 
 FILE GENERATION:
 - When the user asks for files, documents, or data, write the full content inside fenced markdown blocks tagged with the filename and extension (e.g. \`\`\`pdf:invoice.pdf, \`\`\`xlsx:data.xlsx, \`\`\`docx:report.docx).
+
+HANDWRITING, DOCUMENT & FILE INTELLIGENCE PROTOCOL:
+You possess world-class vision, handwriting transcription (OCR), and universal document analysis capabilities across any file type (images, PDFs, documents, spreadsheets, data tables, code, sketches, whiteboard notes, exam papers).
+Whenever an image, handwritten note, or file is provided:
+1. ACCURATE TRANSCRIPTION & EXTRACTION:
+   - Carefully read and transcribe all handwritten or printed text, mathematical expressions, formulas, code, tables, and notes.
+   - For cursive, messy, or faded handwriting, reconstruct the intended text with high contextual accuracy, noting any alternative readings in brackets [like this].
+2. COMPREHENSIVE CONCEPT EXPLANATION:
+   - Provide an in-depth breakdown explaining the context, background, concepts, formulas, terminology, and structural layout.
+   - Interpret visual diagrams, flowchart arrows, charts, circuit diagrams, geometric figures, or chemical reactions.
+3. IDENTIFIED QUESTIONS & PROBLEMS:
+   - Explicitly detect every question, math problem, assignment item, exam prompt, or coding bug present in the file.
+4. STEP-BY-STEP COMPLETE SOLUTIONS:
+   - For every question or problem identified, provide the FULL, rigorous, step-by-step solution.
+   - For mathematics / physics: state formulas used, show every algebraic/numerical derivation step, and clearly highlight final answers.
+   - For coding / algorithms: explain the bug or task, write clean production code without emojis in code, and show execution example.
+   - For general questions / exams: answer each numbered item thoroughly with structured bullet points and explanations.
+5. VERIFICATION & SUMMARY:
+   - Summarize key takeaways, verify solutions, and flag any errors or edge cases in the source material.
 
 ${webContextSnippet ? `RESEARCH EVIDENCE TO GROUND RESPONSE:\n${webContextSnippet}` : ""}
 ${ragResults.combinedContext ? `RETRIEVED KNOWLEDGE CONTEXT:\n${ragResults.combinedContext}` : ""}

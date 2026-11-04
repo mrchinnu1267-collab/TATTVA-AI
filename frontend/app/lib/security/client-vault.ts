@@ -286,3 +286,4 @@ export function sanitizeLogOutput(text: string): string {
     .replace(/AIza[0-9A-Za-z-_]{30,}/g, "AIza••••••••[REDACTED]")
     .replace(/bearer\s+[a-zA-Z0-9_\-\.]{15,}/gi, "Bearer [REDACTED]");
 }
+

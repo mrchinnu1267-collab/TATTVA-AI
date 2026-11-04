@@ -22,6 +22,7 @@ export interface CustomExecutionPayload {
   messages: Array<{
     role: "user" | "assistant" | "system";
     content: string;
+    attachments?: Array<{ name?: string; type: string; data: string }>;
   }>;
   temperature?: number;
   maxTokens?: number;
@@ -72,6 +73,42 @@ export async function executeCustomProvider(
     switch (provider) {
       case "openai": {
         const url = baseUrl?.trim() ? `${baseUrl.replace(/\/+$/, "")}/chat/completions` : "https://api.openai.com/v1/chat/completions";
+        const formattedOpenAiMessages = messages.map((m) => {
+          let text = m.content;
+          const imageUrls: string[] = [];
+
+          if (m.attachments && m.attachments.length > 0) {
+            for (const att of m.attachments) {
+              if (att.data && att.data.includes(";base64,")) {
+                const [hdr, b64] = att.data.split(";base64,");
+                const mime = (hdr.replace("data:", "") || "image/png").toLowerCase();
+                if (mime.startsWith("image/")) {
+                  imageUrls.push(att.data);
+                } else {
+                  try {
+                    const dec = Buffer.from(b64, "base64").toString("utf-8");
+                    text += `\n\n[ATTACHED FILE: ${att.name || "document"} (${mime})]:\n\`\`\`\n${dec}\n\`\`\`\n`;
+                  } catch {
+                    // ignore
+                  }
+                }
+              }
+            }
+          }
+
+          if (imageUrls.length > 0) {
+            return {
+              role: m.role,
+              content: [
+                { type: "text", text },
+                ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+              ],
+            };
+          }
+
+          return { role: m.role, content: text };
+        });
+
         const res = await fetch(url, {
           method: "POST",
           headers: {
@@ -80,7 +117,7 @@ export async function executeCustomProvider(
           },
           body: JSON.stringify({
             model: model || "gpt-4o",
-            messages,
+            messages: formattedOpenAiMessages,
             temperature,
             ...(maxTokens ? { max_tokens: maxTokens } : {}),
           }),
@@ -104,10 +141,33 @@ export async function executeCustomProvider(
         const systemMsg = messages.find((m) => m.role === "system")?.content;
         const contents = messages
           .filter((m) => m.role !== "system")
-          .map((m) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }],
-          }));
+          .map((m) => {
+            const parts: any[] = [];
+            if (m.attachments && m.attachments.length > 0) {
+              for (const att of m.attachments) {
+                if (att.data && att.data.includes(";base64,")) {
+                  const [hdr, b64] = att.data.split(";base64,");
+                  const mime = (hdr.replace("data:", "") || "image/png").toLowerCase();
+
+                  if (mime.startsWith("image/") || mime === "application/pdf") {
+                    parts.push({ inlineData: { mimeType: mime, data: b64 } });
+                  } else {
+                    try {
+                      const dec = Buffer.from(b64, "base64").toString("utf-8");
+                      parts.push({ text: `\n\n[ATTACHED FILE: ${att.name || "document"} (${mime})]:\n\`\`\`\n${dec}\n\`\`\`\n` });
+                    } catch {
+                      parts.push({ inlineData: { mimeType: mime, data: b64 } });
+                    }
+                  }
+                }
+              }
+            }
+            parts.push({ text: m.content });
+            return {
+              role: m.role === "assistant" ? "model" : "user",
+              parts,
+            };
+          });
 
         const result = await ai.models.generateContent({
           model: model || "gemini-2.5-flash",
@@ -128,10 +188,52 @@ export async function executeCustomProvider(
         const systemMsg = messages.find((m) => m.role === "system")?.content;
         const anthropicMessages = messages
           .filter((m) => m.role !== "system")
-          .map((m) => ({
-            role: m.role === "assistant" ? "assistant" : "user",
-            content: m.content,
-          }));
+          .map((m) => {
+            let text = m.content;
+            const imageBlocks: any[] = [];
+
+            if (m.attachments && m.attachments.length > 0) {
+              for (const att of m.attachments) {
+                if (att.data && att.data.includes(";base64,")) {
+                  const [hdr, b64] = att.data.split(";base64,");
+                  const mime = (hdr.replace("data:", "") || "image/png").toLowerCase();
+
+                  if (mime.startsWith("image/")) {
+                    imageBlocks.push({
+                      type: "image",
+                      source: {
+                        type: "base64",
+                        media_type: mime,
+                        data: b64,
+                      },
+                    });
+                  } else {
+                    try {
+                      const dec = Buffer.from(b64, "base64").toString("utf-8");
+                      text += `\n\n[ATTACHED FILE: ${att.name || "document"} (${mime})]:\n\`\`\`\n${dec}\n\`\`\`\n`;
+                    } catch {
+                      // ignore
+                    }
+                  }
+                }
+              }
+            }
+
+            if (imageBlocks.length > 0) {
+              return {
+                role: m.role === "assistant" ? "assistant" : "user",
+                content: [
+                  { type: "text", text },
+                  ...imageBlocks,
+                ],
+              };
+            }
+
+            return {
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: text,
+            };
+          });
 
         const res = await fetch(url, {
           method: "POST",
@@ -266,3 +368,4 @@ export async function executeCustomProvider(
     throw new Error(safeMsg);
   }
 }
+

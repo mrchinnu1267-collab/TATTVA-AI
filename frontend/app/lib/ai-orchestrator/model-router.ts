@@ -12,7 +12,7 @@ export interface ModelCallOptions {
     role: "user" | "assistant" | "system";
     content: string;
     image?: string;
-    attachments?: Array<{ type: string; data: string }>;
+    attachments?: Array<{ name?: string; type: string; data: string }>;
   }>;
   systemInstruction?: string;
   temperature?: number;
@@ -115,7 +115,7 @@ export class ModelRouter {
     }
 
     // High complexity tasks: prioritize high-capacity reasoning models
-    if (complexity >= 7 || intent === "coding" || intent === "mathematics" || intent === "agent_task") {
+    if (complexity >= 7 || intent === "coding" || intent === "mathematics" || intent === "agent_task" || intent === "document_analysis") {
       const geminiHeavy = this.availableModels.find((m) => m.id === "gemini-3.6-flash" && m.isAvailable);
       if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
 
@@ -225,13 +225,27 @@ export class ModelRouter {
       if (msg.role === "system") continue;
       const parts: any[] = [];
 
-      // Multimodal attachments
+      // Multimodal attachments: images, handwritten notes, PDFs, spreadsheets, and code files
       if (msg.attachments && msg.attachments.length > 0) {
         for (const att of msg.attachments) {
           if (att.data && att.data.includes(";base64,")) {
             const [hdr, b64] = att.data.split(";base64,");
-            const mimeType = hdr.replace("data:", "") || "image/png";
-            parts.push({ inlineData: { mimeType, data: b64 } });
+            const mimeType = (hdr.replace("data:", "") || "image/png").toLowerCase();
+
+            // Native multimodal vision/doc inlineData for images and PDFs
+            if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+              parts.push({ inlineData: { mimeType, data: b64 } });
+            } else {
+              // For text files, CSV, spreadsheets, code, JSON, markdown, decode base64 into structured text
+              try {
+                const decodedText = Buffer.from(b64, "base64").toString("utf-8");
+                parts.push({
+                  text: `\n\n[ATTACHED FILE: ${att.name || "document"} (${mimeType})]:\n\`\`\`\n${decodedText}\n\`\`\`\n`,
+                });
+              } catch {
+                parts.push({ inlineData: { mimeType, data: b64 } });
+              }
+            }
           }
         }
       }
@@ -263,10 +277,45 @@ export class ModelRouter {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY");
 
-    const openRouterMessages = options.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const openRouterMessages: any[] = options.messages.map((m) => {
+      let contentStr = m.content;
+      const imageUrls: string[] = [];
+
+      if (m.attachments && m.attachments.length > 0) {
+        for (const att of m.attachments) {
+          if (att.data && att.data.includes(";base64,")) {
+            const [hdr, b64] = att.data.split(";base64,");
+            const mimeType = (hdr.replace("data:", "") || "image/png").toLowerCase();
+
+            if (mimeType.startsWith("image/")) {
+              imageUrls.push(att.data);
+            } else {
+              try {
+                const textContent = Buffer.from(b64, "base64").toString("utf-8");
+                contentStr += `\n\n[FILE: ${att.name || "document"}]:\n\`\`\`\n${textContent}\n\`\`\`\n`;
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      }
+
+      if (imageUrls.length > 0) {
+        return {
+          role: m.role,
+          content: [
+            { type: "text", text: contentStr },
+            ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+          ],
+        };
+      }
+
+      return {
+        role: m.role,
+        content: contentStr,
+      };
+    });
 
     if (options.systemInstruction) {
       openRouterMessages.unshift({ role: "system", content: options.systemInstruction });

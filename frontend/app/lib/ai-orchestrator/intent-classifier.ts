@@ -72,8 +72,11 @@ const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
   {
     intent: "document_analysis",
     patterns: [
-      /\b(analyze|summarize|extract|read)\b.*(document|pdf|docx|file|contract|report|spreadsheet)/i,
-      /what does this file say/i,
+      /\b(analyze|summarize|extract|read|transcribe|explain|solve|understand)\b.*(handwriting|handwritten|notes?|paper|document|pdf|docx|file|contract|report|spreadsheet|sheet|whiteboard|prescription|diagram|formula|scan)/i,
+      /what does this (file|image|note|handwriting|paper|document) (say|mean|show|solve)/i,
+      /\b(handwriting|handwritten|cursive|hand written|whiteboard|prescription)\b/i,
+      /transcribe (this|the) (handwriting|note|image|text)/i,
+      /solve (this|the|these) (question|problem|equation|math|exercise) in (the|this) (file|image|note|paper)/i,
     ],
   },
   {
@@ -150,8 +153,23 @@ export async function classifyIntent(
   } else if (primaryIntent === "data_analysis") {
     complexityScore = 6;
     suggestedTools.push("data_calculator", "document_processor");
+  } else if (primaryIntent === "document_analysis") {
+    complexityScore = 8;
+    suggestedTools.push("document_processor", "data_calculator");
   } else if (primaryIntent === "file_generation") {
     complexityScore = 5;
+  }
+
+  // If a file or image is attached and the user asks to explain/solve or prompt is short, classify as document_analysis
+  if ((hasAttachedFile || hasAttachedImage) && (primaryIntent === "general_chat" || !cleanPrompt || cleanPrompt.length < 15)) {
+    if (
+      !cleanPrompt ||
+      /explain|solve|solution|analyze|read|what is this|transcribe|help|answer|calculate|formula|check/i.test(cleanPrompt)
+    ) {
+      primaryIntent = "document_analysis";
+      complexityScore = 8;
+      suggestedTools.push("document_processor", "data_calculator");
+    }
   }
 
   // Multilingual check

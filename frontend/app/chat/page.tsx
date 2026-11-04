@@ -2719,6 +2719,7 @@ export default function ChatPage() {
       const apiMessages = updatedWithUser.map((m) => ({
         role: m.role,
         content: m.id === userMsgId ? promptToSend : m.content,
+        attachments: m.attachments,
       }));
 
       const res = await fetch("/api/chat", {
@@ -2849,6 +2850,7 @@ export default function ChatPage() {
       const apiMessages = truncated.map((m) => ({
         role: m.role,
         content: m.content,
+        attachments: m.attachments,
       }));
 
       const res = await fetch("/api/chat", {
@@ -2944,6 +2946,7 @@ export default function ChatPage() {
       const apiMessages = truncated.map((m) => ({
         role: m.role,
         content: m.content,
+        attachments: m.attachments,
       }));
 
       const res = await fetch("/api/chat", {
@@ -5143,6 +5146,54 @@ export default function ChatPage() {
                           </div>
                         </button>
 
+                        {/* ✍️ Handwriting & Note Solver */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!input.trim()) {
+                              setInput("Please analyze this handwritten note: transcribe all handwriting accurately, explain the concepts and context, and provide step-by-step solutions for any questions or problems found.");
+                            }
+                            imageInputRef.current?.click();
+                            setIsAttachmentMenuOpen(false);
+                            showToast("Upload handwritten note or photo ✍️");
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                            <SquarePen className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-semibold text-xs">Handwriting &amp; Note Solver</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">Transcribe, explain &amp; solve handwriting</span>
+                          </div>
+                        </button>
+
+                        {/* 📄 Universal File & Document Analyzer */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!input.trim()) {
+                              setInput("Please analyze this file in depth: extract all content, explain the core concepts and findings, and provide complete solutions for any identified tasks.");
+                            }
+                            fileInputRef.current?.click();
+                            setIsAttachmentMenuOpen(false);
+                            showToast("Upload any file to analyze 📄");
+                          }}
+                          className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                            isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500 border border-purple-500/20 shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-semibold text-xs">Analyze Any File</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">PDFs, CSVs, docs, code &amp; spreadsheets</span>
+                          </div>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -5157,8 +5208,8 @@ export default function ChatPage() {
                             <FolderArchive className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Media & Files</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">Upload images, PDFs, docs, sheets</span>
+                            <span className="block font-semibold text-xs">Media &amp; Files</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">Upload images, audio, docs</span>
                           </div>
                         </button>
 
