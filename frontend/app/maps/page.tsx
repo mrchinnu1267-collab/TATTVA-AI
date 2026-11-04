@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   Search,
@@ -40,14 +40,12 @@ const NativeMap = dynamic(() => import("../components/NativeMap"), {
   ),
 });
 
-function MapsContent() {
+export default function MapsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const initialQuery = searchParams.get("q") || "";
-  const [query, setQuery] = useState(initialQuery || "Your Location");
-  const [searchInput, setSearchInput] = useState(initialQuery);
-  const [locationName, setLocationName] = useState(initialQuery || "Locating your exact location...");
+  const [query, setQuery] = useState("Your Location");
+  const [searchInput, setSearchInput] = useState("");
+  const [locationName, setLocationName] = useState("Locating your exact location...");
   const [coords, setCoords] = useState<{ lat: number; lng: number }>({
     lat: 12.9716,
     lng: 77.5946,
@@ -115,8 +113,16 @@ function MapsContent() {
 
   // EVERY TIME USER OPENS SATELLITE MAPS: Automatically locate exact user location
   useEffect(() => {
-    if (initialQuery && initialQuery !== "Your Location") {
-      handleSearch(undefined, initialQuery);
+    let initialQ = "";
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      initialQ = sp.get("q") || "";
+    }
+
+    if (initialQ && initialQ !== "Your Location") {
+      setQuery(initialQ);
+      setSearchInput(initialQ);
+      handleSearch(undefined, initialQ);
       return;
     }
 
@@ -1025,19 +1031,5 @@ function MapsContent() {
         </div>
       </footer>
     </div>
-  );
-}
-
-export default function MapsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="w-full h-full min-h-screen flex items-center justify-center bg-[#0a0a0c] text-white">
-          <div className="h-8 w-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <MapsContent />
-    </Suspense>
   );
 }
