@@ -1098,6 +1098,20 @@ export default function ChatPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Pre-fill input if ?prompt= is passed from Maps or tools
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const promptParam = params.get("prompt");
+      if (promptParam) {
+        setInput(promptParam);
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 200);
+      }
+    }
+  }, []);
+
   // Close menus when clicking or tapping outside
   useEffect(() => {
     function handleClickOutside(e: Event) {
@@ -3270,26 +3284,24 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => {
-                setIsMapsModalOpen(true);
+                router.push("/maps");
                 if (typeof window !== "undefined" && window.innerWidth < 768) {
                   setSidebarOpen(false);
                 }
               }}
               className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
-                isMapsModalOpen
-                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400 shadow-2xs"
-                  : isDark
+                isDark
                   ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
               }`}
-              title="Open interactive Maps & Places explorer"
+              title="Open full interactive Satellite Maps"
             >
               <div className="flex items-center gap-2.5">
                 <MapPin className="w-4.5 h-4.5 text-emerald-500" />
-                <span>Maps</span>
+                <span>Satellite Maps</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-bold border border-emerald-500/20">
-                Live
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/20">
+                Live 🛰️
               </span>
             </button>
 
@@ -4901,7 +4913,7 @@ export default function ChatPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setIsMapsModalOpen(true);
+                            router.push("/maps");
                             setIsAttachmentMenuOpen(false);
                           }}
                           className={`flex items-center gap-3 w-full rounded-xl px-3 py-2 text-left transition cursor-pointer ${
@@ -4912,8 +4924,8 @@ export default function ChatPage() {
                             <MapPin className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="block font-semibold text-xs">Maps & Places</span>
-                            <span className="block text-[10px] text-neutral-400 truncate">Explore live interactive maps & routes</span>
+                            <span className="block font-semibold text-xs">Satellite Maps</span>
+                            <span className="block text-[10px] text-neutral-400 truncate">Real-time satellite feed & places</span>
                           </div>
                         </button>
 

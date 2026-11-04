@@ -1091,7 +1091,7 @@ nextjs-portal {
   animation: ringExpand 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
-/* Leaflet Full-Screen Map Container Fix */
+/* Leaflet Full-Screen Map Container & Tile Rendering Fix */
 .leaflet-container {
   width: 100% !important;
   height: 100% !important;
@@ -1100,5 +1100,27 @@ nextjs-portal {
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  background: #0d0e11 !important;
+  background: #0a0a0c !important;
+  z-index: 1 !important;
+}
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+}
+
+.leaflet-tile {
+  visibility: inherit !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
