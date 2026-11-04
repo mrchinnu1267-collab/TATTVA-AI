@@ -1045,6 +1045,11 @@ export default function MapsPage() {
           <li>Direct AI-assisted location search and travel question answering.</li>
           <li>Authentic area photography and Google Maps venue insights.</li>
         </ul>
+        <nav aria-label="Explore other TATTVA AI features">
+          <Link href="/">TATTVA AI Web Chat</Link>
+          <Link href="/voice">TATTVA AI Voice Assistant</Link>
+          <Link href="/download">Download TATTVA AI App</Link>
+        </nav>
       </section>
     </div>
   );

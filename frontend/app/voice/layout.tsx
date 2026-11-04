@@ -37,11 +37,57 @@ export const metadata: Metadata = {
   },
 };
 
+const voiceStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      name: "TATTVA AI Voice Assistant",
+      url: "https://tattva-ai-phi.vercel.app/voice",
+      applicationCategory: "MultimediaApplication",
+      operatingSystem: "All",
+      description:
+        "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent audio responses.",
+      browserRequirements: "Requires WebRTC. Requires Microphone Access.",
+      author: {
+        "@type": "Person",
+        name: "kotapati Gowtham Chowdary",
+      },
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://tattva-ai-phi.vercel.app",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Voice Assistant",
+          item: "https://tattva-ai-phi.vercel.app/voice",
+        },
+      ],
+    },
+  ],
+};
+
 export default function VoiceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(voiceStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      {children}
+    </>
+  );
 }
-

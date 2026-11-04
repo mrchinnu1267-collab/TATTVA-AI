@@ -6,19 +6,66 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
   title: "Download TATTVA AI for Android (APK)",
   alternates: {
-    canonical: "/download",
+    canonical: "https://tattva-ai-phi.vercel.app/download",
   },
-  description: "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+  description:
+    "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
   openGraph: {
     title: "Download TATTVA AI for Android (APK)",
-    description: "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+    description:
+      "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
     images: [{ url: "/logo.png", width: 512, height: 512, alt: "TATTVA AI Logo" }],
   },
+};
+
+const downloadStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      name: "TATTVA AI for Android",
+      operatingSystem: "Android",
+      applicationCategory: "BusinessApplication",
+      url: "https://tattva-ai-phi.vercel.app/download",
+      downloadUrl: "https://tattva-ai-phi.vercel.app/api/download",
+      softwareVersion: "1.2",
+      fileSize: "12.2MB",
+      description:
+        "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+      author: {
+        "@type": "Person",
+        name: "kotapati Gowtham Chowdary",
+      },
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://tattva-ai-phi.vercel.app",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Download",
+          item: "https://tattva-ai-phi.vercel.app/download",
+        },
+      ],
+    },
+  ],
 };
 
 export default function DownloadPage() {
   return (
     <div className="min-h-screen bg-[#070A11] text-white flex flex-col justify-between selection:bg-cyan-500/30">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(downloadStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
       {/* Background ambient glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gradient-to-b from-cyan-500/15 via-indigo-500/10 to-transparent rounded-full blur-3xl" />
@@ -149,11 +196,15 @@ export default function DownloadPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 max-w-5xl mx-auto w-full px-6 py-6 border-t border-white/5 text-center text-xs text-slate-500">
-        Conceptualized &amp; Engineered by kotapati Gowtham Chowdary &bull; TATTVA AI Mobile v1.2
+      {/* Footer with Cross-Page Internal Links */}
+      <footer className="relative z-10 max-w-5xl mx-auto w-full px-6 py-6 border-t border-white/5 text-center text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <span>Conceptualized &amp; Engineered by kotapati Gowtham Chowdary &bull; TATTVA AI Mobile v1.2</span>
+        <div className="flex items-center gap-4 text-xs font-medium">
+          <Link href="/" className="hover:text-cyan-400 transition">Web Chat</Link>
+          <Link href="/maps" className="hover:text-cyan-400 transition">Satellite Maps</Link>
+          <Link href="/voice" className="hover:text-cyan-400 transition">Voice Assistant</Link>
+        </div>
       </footer>
     </div>
   );
 }
-

@@ -22,6 +22,7 @@ import {
   AlertCircle,
   FolderArchive,
   MapPin,
+  Globe,
 } from "lucide-react";
 
 type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
@@ -852,6 +853,20 @@ export default function LiveVoiceAssistantPage() {
             <MapPin className="w-3.5 h-3.5 text-emerald-500" />
             <span>{userLocationName || "Location"}</span>
           </button>
+
+          {/* Satellite Maps Link */}
+          <a
+            href="/maps"
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+              isDark
+                ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+                : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-100"
+            }`}
+            title="Open Interactive Satellite Maps"
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="hidden sm:inline">Maps</span>
+          </a>
 
           {/* Media Studio Link (PDF, DOCX, PPTX, XLSX, CSV) */}
           <a
