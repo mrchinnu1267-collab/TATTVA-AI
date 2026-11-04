@@ -573,7 +573,7 @@ function MapsContent() {
                   <div className="relative h-24 w-full rounded-xl overflow-hidden mb-2 bg-neutral-900">
                     <img
                       src={p.photos[0]}
-                      alt={p.name}
+                      alt={p.name ? `${p.name} - ${p.categoryLabel || "Place preview"}` : "Nearby place photo"}
                       className="w-full h-full object-cover"
                       loading="lazy"
                       onError={(e) => {
@@ -642,7 +642,7 @@ function MapsContent() {
               <div className="relative h-44 w-full rounded-2xl overflow-hidden bg-neutral-900 border border-white/10">
                 <img
                   src={selectedPlace.photos[activePhotoIdx] || selectedPlace.photos[0]}
-                  alt={selectedPlace.name}
+                  alt={selectedPlace.name ? `${selectedPlace.name} - Photo ${activePhotoIdx + 1} of ${selectedPlace.photos.length}` : "Place photo view"}
                   className="w-full h-full object-cover transition duration-300"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -683,7 +683,7 @@ function MapsContent() {
                     >
                       <img
                         src={url}
-                        alt={`Photo ${idx}`}
+                        alt={selectedPlace.name ? `${selectedPlace.name} thumbnail ${idx + 1}` : `Place photo thumbnail ${idx + 1}`}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
@@ -874,7 +874,7 @@ function MapsContent() {
                       >
                         <img
                           src={photo.url}
-                          alt={photo.title}
+                          alt={photo.title ? `${photo.title} - Verified area photo` : "Verified area satellite photo"}
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                           loading="lazy"
                           onError={(e) => {
@@ -913,7 +913,7 @@ function MapsContent() {
             <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
               <img
                 src={selectedAreaPhoto.url}
-                alt={selectedAreaPhoto.title}
+                alt={selectedAreaPhoto.title ? `${selectedAreaPhoto.title} - Full resolution photo` : "Full resolution area photo"}
                 className="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-white/20"
               />
               <div className="mt-3 text-center">

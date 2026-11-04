@@ -59,14 +59,23 @@ export default function NativeMap({
       errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     });
 
+    layer.on("tileload", function (event: any) {
+      if (event.tile && !event.tile.hasAttribute("alt")) {
+        event.tile.setAttribute("alt", "");
+      }
+    });
+
     layer.on("tileerror", function (error: any) {
       const tile = error.tile;
-      if (tile && !tile.dataset.retried) {
-        tile.dataset.retried = "true";
-        if (tileMode === "satellite") {
-          tile.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${error.coords.z}/${error.coords.y}/${error.coords.x}`;
-        } else {
-          tile.src = `https://tile.openstreetmap.org/${error.coords.z}/${error.coords.x}/${error.coords.y}.png`;
+      if (tile) {
+        tile.setAttribute("alt", "");
+        if (!tile.dataset.retried) {
+          tile.dataset.retried = "true";
+          if (tileMode === "satellite") {
+            tile.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${error.coords.z}/${error.coords.y}/${error.coords.x}`;
+          } else {
+            tile.src = `https://tile.openstreetmap.org/${error.coords.z}/${error.coords.x}/${error.coords.y}.png`;
+          }
         }
       }
     });
