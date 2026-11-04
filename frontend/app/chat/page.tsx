@@ -899,11 +899,11 @@ export default function ChatPage() {
   // Header 3-Dots Menu State (consolidating Temporary, Share, Theme)
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
 
-  // Interactive TATTVA Maps State (matching Image 2)
+  // Interactive TATTVA Maps State (Satellite view by default)
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
   const [mapsQuery, setMapsQuery] = useState("Bangalore, India");
   const [mapsSearchInput, setMapsSearchInput] = useState("");
-  const [mapsMode, setMapsMode] = useState<"roadmap" | "satellite">("roadmap");
+  const [mapsMode, setMapsMode] = useState<"roadmap" | "satellite">("satellite");
   const [mapsDirectionsMode, setMapsDirectionsMode] = useState(false);
   const [mapsOrigin, setMapsOrigin] = useState("");
   const [mapsDestination, setMapsDestination] = useState("");
@@ -989,23 +989,37 @@ export default function ChatPage() {
     setIsMapLoading(true);
     setMapsQuery(q);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      // 1. Try our direct high-performance Map & Satellite API
+      const res = await fetch(`/api/map?q=${encodeURIComponent(q)}&mode=${mapsMode}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.results && data.results.length > 0) {
-          const first = data.results[0];
+        if (data.success && typeof data.lat === "number" && typeof data.lng === "number") {
+          setMapCoords({ lat: data.lat, lng: data.lng });
+          setMapLocationName(data.displayName || q);
+          showToast(`Satellite View: ${data.displayName ? data.displayName.split(",")[0] : q} 🛰️`);
+          setIsMapLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to geocoding endpoint
+      const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        if (geoData.results && geoData.results.length > 0) {
+          const first = geoData.results[0];
           const newLat = parseFloat(first.lat);
           const newLng = parseFloat(first.lon);
           setMapCoords({ lat: newLat, lng: newLng });
           setMapLocationName(first.display_name);
-          showToast(`Found: ${first.display_name.split(",")[0]} 📍`);
+          showToast(`Satellite View: ${first.display_name.split(",")[0]} 🛰️`);
           setIsMapLoading(false);
           return;
         }
       }
       showToast(`No exact coordinates found for "${q}". Showing approximate region.`);
     } catch {
-      showToast("Geocoding lookup failed. Please try again.");
+      showToast("Map service lookup error. Please try again.");
     } finally {
       setIsMapLoading(false);
     }
@@ -5259,6 +5273,7 @@ export default function ChatPage() {
                   lng={mapCoords.lng}
                   mode={mapsMode}
                   label={mapLocationName || mapsQuery}
+                  onModeChange={(m) => setMapsMode(m)}
                   onMapClick={async (clickedLat, clickedLng) => {
                     setMapCoords({ lat: clickedLat, lng: clickedLng });
                     try {
