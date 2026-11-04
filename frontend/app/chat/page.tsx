@@ -611,6 +611,103 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
       {parts.map((part, idx) => {
         if (part.type === "code" && part.code) {
           const isCopied = copiedIndex === idx;
+          const lowerLang = (part.lang || "").toLowerCase().trim();
+          const lowerFilename = (part.filename || "").toLowerCase().trim();
+
+          // Document / Downloadable file detection:
+          const isDocumentFile =
+            lowerLang === "file" ||
+            lowerLang === "pdf" ||
+            lowerLang === "docx" ||
+            lowerLang === "doc" ||
+            lowerLang === "xlsx" ||
+            lowerLang === "xls" ||
+            lowerLang === "csv" ||
+            lowerLang === "pptx" ||
+            lowerLang === "ppt" ||
+            lowerLang === "zip" ||
+            lowerFilename.endsWith(".pdf") ||
+            lowerFilename.endsWith(".docx") ||
+            lowerFilename.endsWith(".doc") ||
+            lowerFilename.endsWith(".xlsx") ||
+            lowerFilename.endsWith(".xls") ||
+            lowerFilename.endsWith(".csv") ||
+            lowerFilename.endsWith(".pptx") ||
+            lowerFilename.endsWith(".zip") ||
+            part.code.trim().startsWith("%PDF") ||
+            part.code.trim().startsWith("PK\x03\x04");
+
+          if (isDocumentFile) {
+            let fileName = part.filename;
+            if (!fileName) {
+              if (lowerLang === "pdf" || part.code.trim().startsWith("%PDF")) fileName = "document.pdf";
+              else if (lowerLang === "docx" || lowerLang === "doc") fileName = "document.docx";
+              else if (lowerLang === "xlsx" || lowerLang === "xls") fileName = "spreadsheet.xlsx";
+              else if (lowerLang === "csv") fileName = "data.csv";
+              else if (lowerLang === "pptx" || lowerLang === "ppt") fileName = "presentation.pptx";
+              else fileName = `document.${lowerLang || "txt"}`;
+            }
+
+            const isPdf = fileName.endsWith(".pdf") || lowerLang === "pdf";
+            const isSheet = fileName.endsWith(".xlsx") || fileName.endsWith(".xls") || fileName.endsWith(".csv") || lowerLang === "xlsx" || lowerLang === "csv";
+            const isWord = fileName.endsWith(".docx") || fileName.endsWith(".doc") || lowerLang === "docx";
+            const isPpt = fileName.endsWith(".pptx") || fileName.endsWith(".ppt") || lowerLang === "pptx";
+
+            const fileBadgeColor = isPdf
+              ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+              : isSheet
+              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+              : isWord
+              ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+              : isPpt
+              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+              : "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
+
+            const fileIcon = isPdf ? (
+              <FileText className="w-5 h-5 text-rose-400" />
+            ) : isSheet ? (
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+            ) : isWord ? (
+              <FileText className="w-5 h-5 text-blue-400" />
+            ) : (
+              <FileCode className="w-5 h-5 text-cyan-400" />
+            );
+
+            return (
+              <div
+                key={idx}
+                className={`my-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl border shadow-sm transition-all ${
+                  isDark
+                    ? "border-neutral-800 bg-neutral-900/90 text-neutral-100 hover:border-neutral-700"
+                    : "border-black/10 bg-neutral-50 text-neutral-900 hover:border-black/20"
+                }`}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${fileBadgeColor}`}>
+                    {fileIcon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm truncate font-mono tracking-tight">
+                      {fileName}
+                    </p>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Generated document • Ready to download
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => downloadGeneratedFile(part.code!, part.lang, fileName)}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
+                >
+                  <Download className="w-4 h-4 stroke-[2]" />
+                  <span>Download {fileName}</span>
+                </button>
+              </div>
+            );
+          }
+
           const displayLang = part.filename || part.lang || "file";
           return (
             <div

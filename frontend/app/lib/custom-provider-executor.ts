@@ -75,7 +75,18 @@ Whenever the user attaches handwriting, an image, diagram, code file, or documen
 - **Final Result:** [Clear, verified final answer, boxed or emphasized]
 
 ### 📊 5. Key Insights & Takeaways
-- [Bullet points with key learnings, edge cases, verification notes, or practical takeaways]`;
+- [Bullet points with key learnings, edge cases, verification notes, or practical takeaways]
+
+FILE GENERATION & DOCUMENT PROTOCOL:
+- DO ALL HEAVY COMPILATION AND RAW BYTE WORK STRICTLY IN THE BACKGROUND.
+- NEVER output raw PDF stream code (e.g. NEVER write %PDF-1.4 1 0 obj, xref, %%EOF).
+- When the user asks for any file (e.g. PDF, Word document, Excel spreadsheet, CSV, presentation):
+  1. Write the clean text or markdown content inside a tagged block:
+     \`\`\`file:filename.ext
+     [Clean, professional document content]
+     \`\`\`
+  2. The application automatically compiles this in the background into the downloadable file.
+  3. Give ONLY the required output to the user with the single download option. DO NOT give any script or raw code for displaying.`;
 
 /**
  * Executes a chat completion against the user's custom AI provider
