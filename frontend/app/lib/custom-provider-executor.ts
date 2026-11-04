@@ -54,6 +54,29 @@ export function scrubCredentials(raw: string, userKey?: string): string {
     .replace(/key=[a-zA-Z0-9_\-]{15,}/gi, "key=[REDACTED]");
 }
 
+const DOCUMENT_ANALYSIS_DIRECTIVE = `MANDATORY STRUCTURED OUTPUT FORMAT FOR HANDWRITING & FILE ANALYSIS:
+Whenever the user attaches handwriting, an image, diagram, code file, or document, you MUST format your response using these exact 5 structured sections with clean markdown:
+
+### 📋 1. Transcription & Content Extraction
+- **Document Type:** [e.g., Handwritten Note, Mathematical Equation, Whiteboard, PDF Scan, Code File]
+- **Transcribed Content:**
+[Provide a pristine, faithful transcription of all handwriting, LaTeX equations, code blocks, or structured tables]
+
+### 🔍 2. Concept & Content Explanation
+- **Core Subject:** [Overview of what this note or document covers]
+- **Detailed Explanation:** [Clear explanation of principles, context, diagrams, arrows, formulas, or background theory]
+
+### 🎯 3. Identified Questions & Problems
+- [List every explicit question, math problem, exam task, or bug identified in the file]
+
+### 💡 4. Step-by-Step Verified Solution
+- **Given & Formulas:** [Formulas or initial values applied]
+- **Step-by-Step Working:** [Numbered steps showing every algebraic derivation, code logic, or reasoning step]
+- **Final Result:** [Clear, verified final answer, boxed or emphasized]
+
+### 📊 5. Key Insights & Takeaways
+- [Bullet points with key learnings, edge cases, verification notes, or practical takeaways]`;
+
 /**
  * Executes a chat completion against the user's custom AI provider
  */
@@ -62,6 +85,11 @@ export async function executeCustomProvider(
 ): Promise<CustomExecutionResult> {
   const startTime = Date.now();
   const { provider, apiKey, model, baseUrl, messages, temperature = 0.7, maxTokens } = payload;
+
+  const hasAttachments = messages.some((m) => m.attachments && m.attachments.length > 0);
+  const defaultSystemInstruction = hasAttachments
+    ? `${DOCUMENT_ANALYSIS_DIRECTIVE}\n\nYou are TATTVA AI, created by Kotapati Gowtham Chowdary.`
+    : "You are TATTVA AI, created by Kotapati Gowtham Chowdary.";
 
   if (provider !== "custom" && (!apiKey || apiKey.trim().length === 0)) {
     throw new Error(`API key is required for provider "${provider}". Please configure it in Settings -> AI Providers.`);
@@ -117,7 +145,7 @@ export async function executeCustomProvider(
           },
           body: JSON.stringify({
             model: model || "gpt-4o",
-            messages: formattedOpenAiMessages,
+            messages: [{ role: "system", content: defaultSystemInstruction }, ...formattedOpenAiMessages],
             temperature,
             ...(maxTokens ? { max_tokens: maxTokens } : {}),
           }),
@@ -137,8 +165,8 @@ export async function executeCustomProvider(
         const cleanKey = apiKey?.trim() || "";
         const ai = new GoogleGenAI({ apiKey: cleanKey });
         
-        // Extract system prompt if present
-        const systemMsg = messages.find((m) => m.role === "system")?.content;
+        // Extract system prompt if present or use default structured directive
+        const systemMsg = messages.find((m) => m.role === "system")?.content || defaultSystemInstruction;
         const contents = messages
           .filter((m) => m.role !== "system")
           .map((m) => {
@@ -185,7 +213,7 @@ export async function executeCustomProvider(
 
       case "anthropic": {
         const url = baseUrl?.trim() ? `${baseUrl.replace(/\/+$/, "")}/messages` : "https://api.anthropic.com/v1/messages";
-        const systemMsg = messages.find((m) => m.role === "system")?.content;
+        const systemMsg = messages.find((m) => m.role === "system")?.content || defaultSystemInstruction;
         const anthropicMessages = messages
           .filter((m) => m.role !== "system")
           .map((m) => {
