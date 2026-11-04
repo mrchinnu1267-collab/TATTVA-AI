@@ -80,7 +80,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Prepare response with Comprehensive HTTP Security Headers for pages
+  // 3. Bypass middleware for sitemap and robots endpoints so nothing alters the pure XML/txt stream
+  if (
+    pathname === "/sitemap.xml" ||
+    pathname === "/robots.txt" ||
+    pathname.endsWith(".xml") ||
+    pathname.endsWith(".txt")
+  ) {
+    return NextResponse.next();
+  }
+
+  // 4. Prepare response with Comprehensive HTTP Security Headers for pages
   const response = NextResponse.next();
 
   // Content Security Policy (Strict Zero Trust with Host Preview Tunnel & Localhost support)
@@ -115,8 +125,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - sitemap.xml & robots.txt (search crawler files)
      * - public media assets
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|apk|zip|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap\\.xml|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|apk|zip|ico|xml|txt)$).*)",
   ],
 };
