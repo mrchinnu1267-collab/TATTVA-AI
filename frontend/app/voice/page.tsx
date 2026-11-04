@@ -802,7 +802,9 @@ export default function LiveVoiceAssistantPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-tight">TATTVA Live Voice</span>
+                <h1 className="text-sm font-bold tracking-tight">
+                  TATTVA AI Voice Assistant
+                </h1>
                 <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold px-2 py-0.5 border border-emerald-500/20">
                   Sare
                 </span>
