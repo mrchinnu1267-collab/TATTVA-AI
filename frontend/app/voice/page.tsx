@@ -777,11 +777,12 @@ export default function LiveVoiceAssistantPage() {
       ========================================================================= */}
       <header className="relative z-20 flex items-center justify-between px-6 py-5 border-b border-black/[0.05] dark:border-white/[0.06] backdrop-blur-xl">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => {
-              endSession();
-              router.push("/chat");
+          <a
+            href="/chat"
+            onClick={(e) => {
+              if (isSessionActive) {
+                endSession();
+              }
             }}
             className={`p-2 rounded-2xl border transition ${
               isDark
@@ -791,7 +792,7 @@ export default function LiveVoiceAssistantPage() {
             title="Return to Chat Studio"
           >
             <ArrowLeft className="w-4 h-4" />
-          </button>
+          </a>
 
           <div className="flex items-center gap-2.5">
             <div className="relative flex h-8 w-8 items-center justify-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm p-0.5">
@@ -1211,9 +1212,13 @@ export default function LiveVoiceAssistantPage() {
           )}
         </div>
 
-        {/* Footer info */}
-        <div className="hidden md:block text-[11px] text-neutral-400">
-          <span>Continuous Speech • Female Voice Sare</span>
+        {/* Footer info & Cross-Page Links */}
+        <div className="hidden md:flex items-center gap-3 text-[11px] text-neutral-400">
+          <span>Continuous Speech &bull; Female Voice Sare</span>
+          <span>&bull;</span>
+          <a href="/" className="hover:text-neutral-600 dark:hover:text-neutral-200 transition">Chat</a>
+          <a href="/maps" className="hover:text-neutral-600 dark:hover:text-neutral-200 transition">Maps</a>
+          <a href="/download" className="hover:text-neutral-600 dark:hover:text-neutral-200 transition">App APK</a>
         </div>
       </footer>
     </main>
