@@ -793,11 +793,8 @@ export default function ChatPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const isDark = theme === "dark";
 
-  const PRIMARY_ACCOUNT_EMAIL = "mr.chinnu1267@gmail.com";
-  const PRIMARY_ACCOUNT_NAME = "mr.chinnu";
-
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userEmail, setUserEmail] = useState<string>(PRIMARY_ACCOUNT_EMAIL);
+  const [userEmail, setUserEmail] = useState<string>("");
   const [isMounted, setIsMounted] = useState<boolean>(false);
   const [guestChatCount, setGuestChatCount] = useState<number>(0);
   const [authReady, setAuthReady] = useState(false);
@@ -2140,16 +2137,43 @@ export default function ChatPage() {
       document.documentElement.classList.remove("dark");
     }
 
-    // Check active local user session (default connected to primary account mr.chinnu1267@gmail.com)
-    const cachedEmail = localStorage.getItem("tattva_user_session_email") || PRIMARY_ACCOUNT_EMAIL;
-    setUserEmail(cachedEmail);
-    if (!localStorage.getItem("tattva_user_session_name")) {
-      localStorage.setItem("tattva_user_session_name", PRIMARY_ACCOUNT_NAME);
+    // Check active local user session
+    const rawCachedEmail = localStorage.getItem("tattva_user_session_email");
+    const isOldHardcodedDev = rawCachedEmail === "mr.chinnu1267@gmail.com";
+
+    if (rawCachedEmail && rawCachedEmail.trim().length > 0 && !isOldHardcodedDev && rawCachedEmail !== "guest_user") {
+      setUserEmail(rawCachedEmail);
+      loadUserSessions(rawCachedEmail);
+    } else {
+      if (isOldHardcodedDev) {
+        localStorage.removeItem("tattva_user_session_email");
+        localStorage.removeItem("tattva_user_session_name");
+        localStorage.removeItem("tattva_remember_device");
+      }
+      setUserEmail("");
+      loadUserSessions(null);
     }
-    localStorage.setItem("tattva_user_session_email", cachedEmail);
-    resetGuestCount();
-    setGuestChatCount(0);
-    loadUserSessions(cachedEmail);
+
+    // Verify server session
+    try {
+      fetch("/api/auth/session")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.authenticated && data.user?.email) {
+            setUserEmail(data.user.email);
+            localStorage.setItem("tattva_user_session_email", data.user.email);
+            if (data.user.name) {
+              localStorage.setItem("tattva_user_session_name", data.user.name);
+            }
+            loadUserSessions(data.user.email);
+          } else if (isOldHardcodedDev) {
+            setUserEmail("");
+            setCurrentUser(null);
+            loadUserSessions(null);
+          }
+        })
+        .catch(() => {});
+    } catch {}
 
     // Supabase auth check
     try {
@@ -2167,10 +2191,10 @@ export default function ChatPage() {
           const email = data.session.user.email || "";
           setUserEmail(email);
           localStorage.setItem("tattva_user_session_email", email);
-          if (!cachedEmail || cachedEmail !== email) {
+          if (!rawCachedEmail || rawCachedEmail !== email) {
             loadUserSessions(email);
           }
-        } else if (cachedEmail) {
+        } else if (rawCachedEmail && !isOldHardcodedDev) {
           resetGuestCount();
           setGuestChatCount(0);
         }
@@ -3438,6 +3462,28 @@ export default function ChatPage() {
               </button>
             )}
 
+            {/* Unauthenticated Quick Auth Actions */}
+            {isGuest && (
+              <div className="flex items-center gap-1.5 sm:gap-2 mr-1">
+                <button
+                  type="button"
+                  onClick={() => router.push("/login")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    isDark ? "bg-white/10 text-white hover:bg-white/20" : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
+                  }`}
+                >
+                  Log In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/signup")}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-black hover:opacity-90 transition cursor-pointer shadow-xs"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => createNewChat()}
@@ -4355,46 +4401,88 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Profile Trigger Button in Sidebar Footer - Enlarged Account Bar */}
-            <button
-              type="button"
-              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              className={`flex w-full items-center justify-between p-3 sm:p-3.5 rounded-2xl transition-all min-h-[68px] sm:min-h-[72px] cursor-pointer select-none active:scale-98 ${
-                isProfileMenuOpen
-                  ? "bg-neutral-200 dark:bg-neutral-800"
-                  : "hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
-              }`}
-              title="Open profile & account menu"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                {/* User Avatar with Initials - Enlarged */}
-                <div
-                  suppressHydrationWarning
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-extrabold shadow-sm ring-1 ${
-                    isGuest
-                      ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-400/40"
-                      : "bg-gradient-to-tr from-neutral-800 to-black text-white ring-black/10 dark:ring-white/20"
-                  }`}
-                >
-                  {isGuest ? "G" : (userEmail ? userEmail[0].toUpperCase() : "U")}
-                </div>
-                {/* Display Name and Status - Enlarged Account Typography */}
-                <div className="text-left min-w-0" suppressHydrationWarning>
-                  <div className="text-base font-extrabold truncate text-neutral-900 dark:text-neutral-100">
-                    {isGuest ? "Guest User" : (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0])}
+            {isGuest ? (
+              <div className="space-y-2 p-1">
+                {/* Account Actions Box for New/Unauthenticated Users */}
+                <div className="rounded-2xl border border-black/[0.08] dark:border-white/10 bg-neutral-100/70 dark:bg-neutral-900/80 p-3 shadow-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-black dark:bg-white text-white dark:text-black font-extrabold text-xs shadow-xs">
+                        ✦
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-neutral-900 dark:text-white leading-tight">Join TATTVA AI</p>
+                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Save chats &amp; access features</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                      className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition cursor-pointer"
+                      title="Settings & More"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="text-xs sm:text-sm text-neutral-400 truncate max-w-[170px] flex items-center gap-1.5 mt-0.5 font-medium">
-                    <span className={`h-2.5 w-2.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
-                    <span>{isGuest ? "Logged Out • Sign in" : userEmail}</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Profile Menu Trigger Indicator */}
-              <div className="text-neutral-400 p-1.5">
-                <MoreVertical className="w-6 h-6" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push("/login")}
+                      className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-700 transition cursor-pointer shadow-2xs"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Log In</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/signup")}
+                      className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold bg-black dark:bg-white text-white dark:text-black hover:opacity-90 transition cursor-pointer shadow-xs"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Sign Up</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </button>
+            ) : (
+              /* Profile Trigger Button in Sidebar Footer - Enlarged Account Bar */
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                className={`flex w-full items-center justify-between p-3 sm:p-3.5 rounded-2xl transition-all min-h-[68px] sm:min-h-[72px] cursor-pointer select-none active:scale-98 ${
+                  isProfileMenuOpen
+                    ? "bg-neutral-200 dark:bg-neutral-800"
+                    : "hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
+                }`}
+                title="Open profile & account menu"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  {/* User Avatar with Initials - Enlarged */}
+                  <div
+                    suppressHydrationWarning
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-extrabold shadow-sm ring-1 bg-gradient-to-tr from-neutral-800 to-black text-white ring-black/10 dark:ring-white/20"
+                  >
+                    {userEmail ? userEmail[0].toUpperCase() : "U"}
+                  </div>
+                  {/* Display Name and Status - Enlarged Account Typography */}
+                  <div className="text-left min-w-0" suppressHydrationWarning>
+                    <div className="text-base font-extrabold truncate text-neutral-900 dark:text-neutral-100">
+                      {currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]}
+                    </div>
+                    <div className="text-xs sm:text-sm text-neutral-400 truncate max-w-[170px] flex items-center gap-1.5 mt-0.5 font-medium">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                      <span>{userEmail}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profile Menu Trigger Indicator */}
+                <div className="text-neutral-400 p-1.5">
+                  <MoreVertical className="w-6 h-6" />
+                </div>
+              </button>
+            )}
           </div>
         </aside>
 

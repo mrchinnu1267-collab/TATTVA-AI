@@ -22,14 +22,14 @@ const PRIMARY_OWNER_EMAIL = "mr.chinnu1267@gmail.com";
  * If authenticated, always bind to verified session.email.
  * Defaults to primary owner 'mr.chinnu1267@gmail.com'.
  */
-function resolveAuthorizedEmail(session: { authenticated: boolean; email: string }, requested?: string | null): string {
+function resolveAuthorizedEmail(session: { authenticated: boolean; email: string }, requested?: string | null): string | null {
   if (session.authenticated && session.email) {
     return session.email;
   }
-  if (requested && requested.toLowerCase().trim() === PRIMARY_OWNER_EMAIL) {
-    return PRIMARY_OWNER_EMAIL;
+  if (requested && requested.includes("@") && requested !== "guest_user") {
+    return requested.toLowerCase().trim();
   }
-  return PRIMARY_OWNER_EMAIL;
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -67,6 +67,19 @@ export async function GET(request: Request) {
     }
 
     const authorizedEmail = resolveAuthorizedEmail(session, requestedEmail);
+    if (!authorizedEmail || authorizedEmail === "guest_user") {
+      return NextResponse.json({
+        memories: [],
+        settings: {
+          style: "balanced",
+          conciseness: "balanced",
+          creativity: "balanced",
+          autoStore: false,
+          allowPersonalization: false,
+        },
+        feedbackSummary: { thumbsUp: 0, thumbsDown: 0, totalFeedback: 0, positiveRatio: 100 },
+      });
+    }
 
     if (query) {
       const relevant = await retrieveRelevantMemories(authorizedEmail, query, 5);
@@ -129,6 +142,9 @@ export async function POST(request: Request) {
 
     const { action } = body;
     const authorizedEmail = resolveAuthorizedEmail(session, body.email);
+    if (!authorizedEmail || authorizedEmail === "guest_user") {
+      return NextResponse.json({ success: true, message: "Guest memory not persisted" });
+    }
 
     if (action === "update_settings") {
       const updated = await updatePersonalizationSettings(authorizedEmail, body.settings || {});
@@ -173,6 +189,9 @@ export async function PUT(request: Request) {
     }
 
     const authorizedEmail = resolveAuthorizedEmail(session, body.email);
+    if (!authorizedEmail || authorizedEmail === "guest_user") {
+      return NextResponse.json({ success: true, message: "Guest memory not modified" });
+    }
     const { id, updates } = body;
     const updated = await updateMemory(authorizedEmail, id, updates || {});
     if (!updated) {
@@ -196,6 +215,9 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id");
     const clearAll = searchParams.get("all") === "true";
     const authorizedEmail = resolveAuthorizedEmail(session, searchParams.get("email"));
+    if (!authorizedEmail || authorizedEmail === "guest_user") {
+      return NextResponse.json({ success: true, message: "Guest memory not deleted" });
+    }
 
     if (clearAll) {
       await clearAllMemories(authorizedEmail);

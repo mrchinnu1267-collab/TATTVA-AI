@@ -39,9 +39,11 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(() => {
     if (typeof window !== "undefined") {
-      return getActiveSessionEmail() || "mr.chinnu1267@gmail.com";
+      const active = getActiveSessionEmail();
+      if (active && active !== "mr.chinnu1267@gmail.com") return active;
+      return "";
     }
-    return "mr.chinnu1267@gmail.com";
+    return "";
   });
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

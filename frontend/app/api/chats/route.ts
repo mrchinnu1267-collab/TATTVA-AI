@@ -50,7 +50,14 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const email = session.authenticated && session.email ? session.email : searchParams.get("email") || "mr.chinnu1267@gmail.com";
+    const emailParam = searchParams.get("email");
+    const email = session.authenticated && session.email
+      ? session.email
+      : (emailParam && emailParam !== "guest_user" && emailParam.includes("@") ? emailParam : null);
+
+    if (!email) {
+      return NextResponse.json({ sessions: [] });
+    }
 
     const filePath = getChatFilePath(email);
     if (!fs.existsSync(filePath)) {
@@ -85,7 +92,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Sessions array is required." }, { status: 400 });
     }
 
-    const email = session.authenticated && session.email ? session.email : body.email || "mr.chinnu1267@gmail.com";
+    const email = session.authenticated && session.email
+      ? session.email
+      : (body.email && body.email !== "guest_user" && body.email.includes("@") ? body.email : null);
+
+    if (!email) {
+      return NextResponse.json({ success: true, count: 0, note: "Guest sessions not stored to server" });
+    }
     const filePath = getChatFilePath(email);
 
     try {
