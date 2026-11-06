@@ -66,7 +66,7 @@ export class QueryProcessor {
     // 1. Flowers (e.g. "if i ask different types of flowers i want", "different types of flowers", "flowers")
     if (/\b(different (types|kinds|varieties) of flowers?|types of flowers?|kinds of flowers?|various flowers?|flowers?|flowering plants?)\b/i.test(lower)) {
       return [
-        { searchQuery: "Red rose flower bloom", label: "Red Rose" },
+        { searchQuery: "Red rose flower close-up photography", label: "Red Rose" },
         { searchQuery: "Sunflower blooming field", label: "Sunflower" },
         { searchQuery: "Pink tulip flower bloom", label: "Pink Tulip" },
         { searchQuery: "Lotus flower water bloom", label: "Lotus Flower" },
@@ -160,6 +160,10 @@ export class QueryProcessor {
   static isUnusualOrJunkImage(item: ImageSearchResultItem): boolean {
     const title = (item.title || "").toLowerCase();
     const url = (item.url || "").toLowerCase();
+
+    // 0. Non-photo document formats (DJVU books, PDF documents, vector SVGs, audio/video)
+    if (/\.(djvu|pdf|ogg|ogv|webm|svg|tif|tiff)(\?|$)/i.test(url)) return true;
+    if (/\b(djvu|book|volume|alcott|scanned pages?|frontispiece|title page)\b/i.test(title)) return true;
 
     // 1. Historical medical/archive scans (e.g. Wellcome library drawings/scans)
     if (/\b(wellcome|v00\d+|v004|v002|v003|v001|v005|manuscript|parchment|microfilm)\b/i.test(title + " " + url)) return true;

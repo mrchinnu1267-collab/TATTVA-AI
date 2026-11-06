@@ -73,7 +73,7 @@ export class WikimediaAdapter implements ImageProviderAdapter {
         if (!thumbnailUrl || !originalUrl) continue;
         const mime = imgInfo?.mime || "";
         if (mime && !mime.startsWith("image/")) continue;
-        if (originalUrl.endsWith(".svg") || originalUrl.endsWith(".ogg") || originalUrl.endsWith(".pdf")) continue;
+        if (/\.(svg|ogg|ogv|pdf|djvu|webm|tif|tiff)(\?|$)/i.test(originalUrl)) continue;
 
         // Extract metadata
         const meta = imgInfo?.extmetadata || {};
