@@ -6,6 +6,13 @@ import {
   logSecurityEvent,
 } from "../../lib/security";
 import { getWeatherReport, isWeatherQuery } from "../../lib/weather-service";
+import { getClockReport, isClockQuery, ClockReport } from "../../lib/clock-service";
+import {
+  searchWebImages,
+  isImageSearchQuery,
+  extractImageSearchKeywords,
+  WebImageResult,
+} from "../../lib/web-image-search";
 import {
   executeCustomProvider,
   scrubCredentials,
@@ -59,9 +66,74 @@ export async function POST(request: Request) {
     }
 
     const userEmail = session.authenticated ? session.email : "guest_user";
-
-    // Real-Time Location & Weather Report Grounding
     const latestUserMsg = [...body.messages].reverse().find((m: any) => m.role === "user");
+
+    // 1. INBUILT CLOCK & REAL-TIME GROUNDING
+    let clockData: ClockReport | undefined;
+    if (latestUserMsg && isClockQuery(latestUserMsg.content)) {
+      try {
+        clockData = getClockReport(latestUserMsg.content, body.timeZone || body.clientTimeZone);
+        const lower = latestUserMsg.content.toLowerCase().trim();
+        const isDirectClockRequest =
+          lower === "time" ||
+          lower === "clock" ||
+          lower === "what is the time" ||
+          lower === "what time is it" ||
+          lower === "current time" ||
+          lower === "time now" ||
+          lower === "what's the time" ||
+          lower === "tell me the time" ||
+          lower === "tell time" ||
+          lower === "what day is today" ||
+          lower === "what is today's date" ||
+          lower === "what is the date today" ||
+          lower === "what's today's date" ||
+          lower === "current date";
+
+        if (isDirectClockRequest) {
+          return NextResponse.json({
+            role: "assistant",
+            content: clockData.summaryText,
+            kind: "text",
+            intent: "clock",
+            modelUsed: "TATTVA-Live-Clock-Engine",
+            provider: "local",
+            latencyMs: 30,
+            clockData,
+          });
+        }
+
+        // Inject live ground-truth clock context
+        body.messages.splice(body.messages.length - 1, 0, {
+          role: "user",
+          content: `[Real-Time Live Clock for ${clockData.timeZone}]: Current time is ${clockData.currentTime} on ${clockData.dayOfWeek}, ${clockData.currentDate}. Provide a clear, natural answer with this exact actual time.`,
+        });
+      } catch (cErr) {
+        console.warn("[TATTVA Chat] Clock lookup error:", cErr);
+      }
+    }
+
+    // 2. INBUILT GOOGLE / WEB IMAGE SEARCH ENGINE
+    let retrievedWebImages: WebImageResult[] = [];
+    if (latestUserMsg && isImageSearchQuery(latestUserMsg.content)) {
+      try {
+        const keywords = extractImageSearchKeywords(latestUserMsg.content);
+        retrievedWebImages = await searchWebImages(keywords, 6);
+        if (retrievedWebImages.length > 0) {
+          const imgList = retrievedWebImages
+            .map((img, i) => `[Image ${i + 1}]: "${img.title}" (${img.source})`)
+            .join(", ");
+          body.messages.splice(body.messages.length - 1, 0, {
+            role: "user",
+            content: `[Inbuilt Web Image Search Results]: Real photographs have been fetched from the web for "${keywords}": ${imgList}. Provide an engaging response describing these items, their characteristics, and mention that real photographs are presented in the visual gallery below.`,
+          });
+        }
+      } catch (imgErr) {
+        console.warn("[TATTVA Chat] Inbuilt web image search error:", imgErr);
+      }
+    }
+
+    // 3. REAL-TIME LOCATION & WEATHER GROUNDING
     if (latestUserMsg && isWeatherQuery(latestUserMsg.content)) {
       try {
         const weather = await getWeatherReport({
@@ -72,7 +144,6 @@ export async function POST(request: Request) {
         });
 
         if (weather) {
-          // If the user simply asked for the weather report, we can return the rich report directly for maximum speed and fidelity
           const lower = latestUserMsg.content.toLowerCase().trim();
           const isDirectWeatherRequest =
             lower === "weather" ||
@@ -97,10 +168,10 @@ export async function POST(request: Request) {
               modelUsed: "TATTVA-Live-Weather-Engine",
               provider: "local",
               latencyMs: 150,
+              ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
             });
           }
 
-          // Otherwise inject live ground-truth context into conversation
           body.messages.splice(body.messages.length - 1, 0, {
             role: "user",
             content: `[Real-Time Live Weather Information for ${weather.location.city}, ${weather.location.country}]:\n${weather.summaryText}\nUse this live meteorological data to answer my question accurately.`,
@@ -128,10 +199,14 @@ export async function POST(request: Request) {
         temperature: body.temperature ?? 0.7,
       });
 
-      return NextResponse.json(customResult);
+      return NextResponse.json({
+        ...customResult,
+        ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
+        ...(clockData ? { clockData } : {}),
+      });
     }
 
-    // Claude MCP Connectors Integration: Route through Claude Connectors when connectorIds are provided
+    // Claude MCP Connectors Integration
     if (body.connectorIds && Array.isArray(body.connectorIds) && body.connectorIds.length > 0) {
       const { claudeConnectors } = await import("../../lib/mcp/claude-connectors");
       const connectorResult = await claudeConnectors.executeChat(session.userId, {
@@ -149,6 +224,8 @@ export async function POST(request: Request) {
         toolsExecuted: connectorResult.toolCalls.map((tc) => `${tc.serverName || tc.connectorName} (${tc.toolName})`),
         usage: connectorResult.usage,
         stopReason: connectorResult.stopReason,
+        ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
+        ...(clockData ? { clockData } : {}),
       });
     }
 
@@ -165,7 +242,11 @@ export async function POST(request: Request) {
       preferredModel: body.preferredModel || body.model,
     });
 
-    return NextResponse.json(orchestratorResult);
+    return NextResponse.json({
+      ...orchestratorResult,
+      ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
+      ...(clockData ? { clockData } : {}),
+    });
   } catch (error) {
     const rawError = error instanceof Error ? error.message : String(error);
     const safeError = scrubCredentials(rawError, customKeyForScrubbing);

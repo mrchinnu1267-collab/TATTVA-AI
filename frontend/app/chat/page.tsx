@@ -22,6 +22,9 @@ import {
   Trash2,
   Copy,
   Check,
+  Database,
+  Cloud,
+  Upload,
   ChevronLeft,
   ChevronRight,
   PanelLeft,
@@ -90,7 +93,11 @@ import {
   Camera,
   Gauge,
   ArrowLeft,
+  Clock,
 } from "lucide-react";
+import LiveClockWidget, { ClockData } from "../components/LiveClockWidget";
+import VisualImageGallery from "../components/VisualImageGallery";
+import type { WebImageResult } from "../lib/web-image-search";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
 import BrowseConnectors from "../components/connectors/BrowseConnectors";
@@ -164,6 +171,8 @@ type ChatMessage = {
   }>;
   reasoningPlan?: any;
   agentState?: any;
+  webImages?: WebImageResult[];
+  clockData?: ClockData;
 };
 
 type ChatSession = {
@@ -844,6 +853,24 @@ export default function ChatPage() {
   const voiceBufferRef = useRef<string>("");
   const initialLoadDone = useRef(false);
 
+  // Live Clock header ticker
+  useEffect(() => {
+    const update = () => {
+      try {
+        setHeaderTime(
+          new Date().toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })
+        );
+      } catch {}
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Voice State Guards & Location
   const isAssistantSpeakingRef = useRef<boolean>(false);
   const isVoiceTurnProcessingRef = useRef<boolean>(false);
@@ -864,7 +891,9 @@ export default function ChatPage() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBrowseConnectorsOpen, setIsBrowseConnectorsOpen] = useState(false);
-  const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers">("menu");
+  const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers" | "backup">("menu");
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [headerTime, setHeaderTime] = useState<string>("");
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isManageAccountModalOpen, setIsManageAccountModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
@@ -1749,6 +1778,44 @@ export default function ChatPage() {
       // ignore
     }
 
+    // Auto-migrate any conversations that happened in the guest session into the user's account upon login
+    if (email && email.trim().length > 0 && email !== "guest_user") {
+      try {
+        const guestData = localStorage.getItem("tattva_guest_chats");
+        if (guestData) {
+          const guestSessions: ChatSession[] = JSON.parse(guestData);
+          if (Array.isArray(guestSessions) && guestSessions.length > 0) {
+            const validGuestSessions = guestSessions.filter((s) => s.messages && s.messages.length > 0);
+            if (validGuestSessions.length > 0) {
+              const map = new Map<string, ChatSession>();
+              loadedSessions.forEach((s) => map.set(s.id, s));
+              validGuestSessions.forEach((gs) => {
+                const migrated: ChatSession = {
+                  ...gs,
+                  userEmail: email,
+                  updatedAt: gs.updatedAt || Date.now(),
+                };
+                map.set(migrated.id, migrated);
+              });
+              loadedSessions = Array.from(map.values());
+              localStorage.removeItem("tattva_guest_chats");
+              try {
+                localStorage.setItem(key, JSON.stringify(loadedSessions));
+              } catch {}
+              // Sync migrated sessions to cloud
+              fetch("/api/chats", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, sessions: loadedSessions }),
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Guest conversation migration error:", err);
+      }
+    }
+
     // 2. Fetch from secure cloud vault
     try {
       const res = await fetch(`/api/chats?email=${encodeURIComponent(email || "guest_user")}`);
@@ -2059,6 +2126,128 @@ export default function ChatPage() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast("Conversations exported as JSON 📥");
+  }
+
+  // Manual / On-Demand Cloud Backup
+  async function handleBackupChatsToCloud() {
+    setIsBackingUp(true);
+    try {
+      const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("tattva_user_session_email") || "" : "");
+      const key = getStorageKey(activeEmail);
+
+      // 1. Ensure local storage has latest copy
+      try {
+        localStorage.setItem(key, JSON.stringify(sessions));
+      } catch {}
+
+      // 2. Push to server cloud vault
+      if (activeEmail && activeEmail !== "guest_user") {
+        const res = await fetch("/api/chats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: activeEmail, sessions }),
+        });
+        if (res.ok) {
+          if (typeof window !== "undefined") {
+            localStorage.setItem("tattva_last_backup_timestamp", Date.now().toString());
+          }
+          showToast(`All ${sessions.length} chats backed up to cloud vault ☁️`);
+        } else {
+          showToast("Cloud sync saved locally (Server update pending)");
+        }
+      } else {
+        showToast(`Saved ${sessions.length} conversations to browser vault ✦`);
+      }
+    } catch (err) {
+      console.warn("Cloud backup error:", err);
+      showToast("Backup saved to local storage ✦");
+    } finally {
+      setIsBackingUp(false);
+    }
+  }
+
+  // Manual Cloud Restore on Demand
+  async function handleRestoreChatsFromCloud() {
+    setIsBackingUp(true);
+    try {
+      const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("tattva_user_session_email") || "" : "");
+      if (!activeEmail || activeEmail === "guest_user") {
+        showToast("Sign in to an account to restore cloud backups ☁️");
+        return;
+      }
+      await loadUserSessions(activeEmail);
+      showToast("Restored all conversations from cloud vault ✦");
+    } catch (err) {
+      console.warn("Restore error:", err);
+      showToast("Could not reach cloud backup vault");
+    } finally {
+      setIsBackingUp(false);
+    }
+  }
+
+  // Import JSON file backup and merge into sessions
+  function handleImportChatBackup(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const contentStr = event.target?.result as string;
+        const parsed = JSON.parse(contentStr);
+        const importedSessions: ChatSession[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed.conversations)
+          ? parsed.conversations
+          : Array.isArray(parsed.sessions)
+          ? parsed.sessions
+          : [];
+
+        if (importedSessions.length === 0) {
+          showToast("No valid conversations found in file");
+          return;
+        }
+
+        const map = new Map<string, ChatSession>();
+        sessions.forEach((s) => map.set(s.id, s));
+        let addedCount = 0;
+        importedSessions.forEach((s) => {
+          if (s && s.id && Array.isArray(s.messages) && s.messages.length > 0) {
+            const existing = map.get(s.id);
+            if (!existing) {
+              addedCount++;
+              map.set(s.id, s);
+            } else if ((s.updatedAt || 0) > (existing.updatedAt || 0)) {
+              map.set(s.id, s);
+            }
+          }
+        });
+
+        const merged = Array.from(map.values()).sort(
+          (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
+        );
+        setSessions(merged);
+        const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("tattva_user_session_email") || "" : "");
+        const key = getStorageKey(activeEmail);
+        try {
+          localStorage.setItem(key, JSON.stringify(merged));
+        } catch {}
+
+        if (activeEmail && activeEmail !== "guest_user") {
+          fetch("/api/chats", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: activeEmail, sessions: merged }),
+          }).catch(() => {});
+        }
+
+        showToast(`Successfully restored ${addedCount || importedSessions.length} conversations from backup 📥`);
+      } catch {
+        showToast("Failed to parse backup file. Please use a valid JSON file.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
   // Share chat session with unique URL & Public Share Modal
@@ -2920,6 +3109,9 @@ export default function ChatPage() {
           userName: isUserAuthenticated ? (currentUser?.user_metadata?.full_name || getActiveSessionName() || userEmail.split("@")[0]) : undefined,
           isAuthenticated: isUserAuthenticated,
           location: userLocationRef.current,
+          timeZone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Asia/Kolkata",
+          clientTimeZone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Asia/Kolkata",
+          clientTime: new Date().toISOString(),
         }),
         signal: controller.signal,
       });
@@ -2945,6 +3137,8 @@ export default function ChatPage() {
         toolCalls: data.toolCalls,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
+        webImages: data.webImages,
+        clockData: data.clockData,
       };
 
       const updatedWithAssistant = [...updatedWithUser, assistantMsg];
@@ -3074,6 +3268,8 @@ export default function ChatPage() {
         toolsExecuted: data.toolsExecuted,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
+        webImages: data.webImages,
+        clockData: data.clockData,
       };
 
       const updatedWithAssistant = [...truncated, assistantMsg];
@@ -3170,6 +3366,8 @@ export default function ChatPage() {
         toolsExecuted: data.toolsExecuted,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
+        webImages: data.webImages,
+        clockData: data.clockData,
       };
 
       const updated = [...truncated, newAssistantMsg];
@@ -3445,6 +3643,23 @@ export default function ChatPage() {
 
           {/* Right: Custom Provider Chip, New Chat Icon & Options 3-Dots Menu */}
           <div className="flex items-center gap-1.5" data-header-menu>
+            {/* Inbuilt Live Clock Header Pill */}
+            {headerTime && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInput("What is the exact time right now?");
+                  setTimeout(() => {
+                    textareaRef.current?.focus();
+                  }, 50);
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-mono font-medium transition cursor-pointer text-neutral-600 dark:text-neutral-300"
+                title="Click to ask live time"
+              >
+                <Clock className="w-3.5 h-3.5 text-sky-500 animate-pulse" />
+                <span>{headerTime}</span>
+              </button>
+            )}
             {/* BYOK Custom Provider Chip */}
             {customProviderSettings.enabled && (
               <button
@@ -4262,6 +4477,24 @@ export default function ChatPage() {
                         type="button"
                         onClick={() => {
                           setIsProfileMenuOpen(false);
+                          setSettingsActiveTab("backup");
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Cloud className="w-5 h-5 text-sky-500 shrink-0" />
+                          <span>Chat Backup &amp; Sync</span>
+                        </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold">
+                          Cloud
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
                           setSettingsActiveTab("general");
                           setIsSettingsModalOpen(true);
                         }}
@@ -4269,6 +4502,19 @@ export default function ChatPage() {
                       >
                         <Settings className="w-5 h-5 text-neutral-500 shrink-0" />
                         <span>Settings</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setSettingsActiveTab("backup");
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 min-h-[48px] text-left font-medium text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                      >
+                        <Cloud className="w-5 h-5 text-sky-500 shrink-0" />
+                        <span>Chat Backup &amp; Sync</span>
                       </button>
 
                       <button
@@ -4712,6 +4958,28 @@ export default function ChatPage() {
                       <Globe className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
                       <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search the web</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInput("What is the exact time right now?");
+                        textareaRef.current?.focus();
+                      }}
+                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                    >
+                      <Clock className="w-5 h-5 text-sky-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Check live clock &amp; time</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInput("Show me different types of flowers with real photos");
+                        textareaRef.current?.focus();
+                      }}
+                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                    >
+                      <Camera className="w-5 h-5 text-emerald-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search web images &amp; photos</span>
+                    </button>
                   </div>
                 </div>
               )
@@ -4891,6 +5159,20 @@ export default function ChatPage() {
 
                           {/* Markdown / Text content rendered directly on conversation surface */}
                           <MarkdownView content={msg.content} isDark={isDark} />
+
+                          {/* In-built Live Clock Card */}
+                          {msg.clockData && (
+                            <LiveClockWidget clockData={msg.clockData} isDark={isDark} />
+                          )}
+
+                          {/* Inbuilt Web Image Search Visual Gallery matching Screenshot */}
+                          {msg.webImages && msg.webImages.length > 0 && (
+                            <VisualImageGallery
+                              images={msg.webImages}
+                              onSelectImage={(url: string) => setLightboxImage(url)}
+                              isDark={isDark}
+                            />
+                          )}
 
                           {/* Grounded Web Research Citations */}
                           {msg.citations && msg.citations.length > 0 && (
@@ -6392,6 +6674,8 @@ export default function ChatPage() {
                       ? "AI Providers (BYOK)"
                       : settingsActiveTab === "general"
                       ? "General Preferences"
+                      : settingsActiveTab === "backup"
+                      ? "Chat Backup & Cloud Sync"
                       : "Settings"}
                   </h3>
                   <p className="text-[11px] text-neutral-400">
@@ -6401,6 +6685,8 @@ export default function ChatPage() {
                       ? "Configure custom API keys and provider endpoints"
                       : settingsActiveTab === "general"
                       ? "Manage themes, voice narration & chat data"
+                      : settingsActiveTab === "backup"
+                      ? "Automatic restore on relogin, export JSON & cloud sync"
                       : "Manage display, AI providers, connectors & preferences"}
                   </p>
                 </div>
@@ -6513,10 +6799,36 @@ export default function ChatPage() {
                       </div>
                       <div>
                         <p className="font-bold text-sm">General Preferences</p>
-                        <p className="text-[11px] text-neutral-400">Color theme, Sare auto-voice, data backup</p>
+                        <p className="text-[11px] text-neutral-400">Color theme, Sare auto-voice, data settings</p>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-neutral-400" />
+                  </div>
+
+                  {/* 5. Cloud Backup & Sync */}
+                  <div
+                    onClick={() => setSettingsActiveTab("backup")}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                      isDark
+                        ? "border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/15 text-white"
+                        : "border-sky-500/20 bg-sky-50 hover:bg-sky-100/80 text-neutral-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                        <Cloud className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm">Chat Backup &amp; Cloud Sync</p>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                            Auto-Restore
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-400">Restore chats on relogin, export JSON &amp; cloud sync</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-sky-400" />
                   </div>
                 </div>
               ) : settingsActiveTab === "display" ? (
@@ -7053,6 +7365,96 @@ export default function ChatPage() {
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Purge All</span>
                     </button>
+                  </div>
+                </div>
+              ) : settingsActiveTab === "backup" ? (
+                /* Chat Backup & Cloud Sync Tab */
+                <div className="space-y-4">
+                  {/* Cloud Status Card */}
+                  <div className="p-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 dark:bg-sky-500/10 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </span>
+                        <p className="font-bold text-sm text-neutral-900 dark:text-white">
+                          Cloud Backup Engine
+                        </p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 text-[10px] font-bold">
+                        {userEmail && userEmail !== "guest_user" ? "Linked to Account" : "Guest Mode (Local)"}
+                      </span>
+                    </div>
+
+                    <p className="text-[12px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                      Every time you log in or switch devices, TATTVA AI automatically verifies and restores all your previous conversations and chat history from the secure cloud vault.
+                    </p>
+
+                    <div className="pt-2 border-t border-sky-500/20 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                      <span>Account: <strong className="text-neutral-900 dark:text-white">{userEmail || "Guest Session"}</strong></span>
+                      <span>Total Chats: <strong className="text-neutral-900 dark:text-white">{sessions.length}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Manual Cloud Sync Actions */}
+                  <div className="p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-3">
+                    <div>
+                      <p className="font-bold text-sm text-neutral-900 dark:text-white">Cloud Vault Actions</p>
+                      <p className="text-[11px] text-neutral-400">Instantly push your conversations to the server or restore missing history</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={isBackingUp}
+                        onClick={handleBackupChatsToCloud}
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition cursor-pointer shadow-xs disabled:opacity-50"
+                      >
+                        <Upload className="w-4 h-4" />
+                        <span>{isBackingUp ? "Backing up..." : "Backup to Cloud Now"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isBackingUp}
+                        onClick={handleRestoreChatsFromCloud}
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-4 h-4 text-sky-500 ${isBackingUp ? "animate-spin" : ""}`} />
+                        <span>Restore from Cloud</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Offline JSON Backup & Migration */}
+                  <div className="p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-3">
+                    <div>
+                      <p className="font-bold text-sm text-neutral-900 dark:text-white">Offline File Backup</p>
+                      <p className="text-[11px] text-neutral-400">Export or import a complete JSON backup file of all conversations</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={exportChatData}
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800 transition cursor-pointer shadow-2xs"
+                      >
+                        <Download className="w-4 h-4 text-emerald-500" />
+                        <span>Export Backup (.json)</span>
+                      </button>
+
+                      <label className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800 transition cursor-pointer shadow-2xs">
+                        <Upload className="w-4 h-4 text-purple-500" />
+                        <span>Import Backup (.json)</span>
+                        <input
+                          type="file"
+                          accept=".json,application/json"
+                          onChange={handleImportChatBackup}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               ) : (

@@ -102,6 +102,7 @@ export async function POST(request: Request) {
     const filePath = getChatFilePath(email);
 
     try {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(body.sessions, null, 2), "utf-8");
     } catch {
       try {
