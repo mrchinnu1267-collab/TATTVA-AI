@@ -100,13 +100,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4. Prepare response with Comprehensive HTTP Security Headers for pages
-  const response = NextResponse.next();
+  // 4. Generate Cryptographic Nonce for Strict CSP (Base64 encoded 128-bit UUID)
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const isDev = process.env.NODE_ENV === "development";
 
-  // Content Security Policy (Strict Zero Trust with Host Preview Tunnel & Localhost support)
+  // Content Security Policy (Strict Zero Trust with Nonce & Strict-Dynamic)
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://*.supabase.co${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
@@ -115,9 +116,21 @@ export function middleware(request: NextRequest) {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    "upgrade-insecure-requests",
   ].join("; ");
 
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", cspHeader);
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
   response.headers.set("Content-Security-Policy", cspHeader);
+  response.headers.set("x-nonce", nonce);
   response.headers.set("X-Frame-Options", "DENY"); // Prevent clickjacking
   response.headers.set("X-Content-Type-Options", "nosniff"); // Prevent MIME-type sniffing
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
