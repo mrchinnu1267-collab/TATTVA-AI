@@ -1,6 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import ChatPage from "./chat/page";
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
+
+const ChatPage = dynamic(() => import("./chat/page"), {
+  ssr: true,
+  loading: () => (
+    <div className="flex h-screen w-full items-center justify-center bg-[#0d0e11] text-white">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+        <span className="text-sm font-medium text-neutral-400">Loading TATTVA AI...</span>
+      </div>
+    </div>
+  ),
+});
 
 export const metadata: Metadata = {
   title: "TATTVA AI – Your Intelligent AI Assistant",
@@ -150,7 +163,18 @@ export default function Home() {
         </article>
       </section>
 
-      <ChatPage />
+      <Suspense
+        fallback={
+          <div className="flex h-screen w-full items-center justify-center bg-[#0d0e11] text-white">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+              <span className="text-sm font-medium text-neutral-400">Loading TATTVA AI...</span>
+            </div>
+          </div>
+        }
+      >
+        <ChatPage />
+      </Suspense>
     </>
   );
 }

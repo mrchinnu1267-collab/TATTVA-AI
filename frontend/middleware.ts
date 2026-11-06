@@ -135,7 +135,6 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Content-Type-Options", "nosniff"); // Prevent MIME-type sniffing
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
-  response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
 
   return response;

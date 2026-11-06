@@ -33,11 +33,18 @@ export async function GET(request: Request) {
           data.address?.suburb ||
           data.address?.county ||
           "";
-        return NextResponse.json({
-          city: city,
-          displayName: data.display_name,
-          address: data.address,
-        });
+        return NextResponse.json(
+          {
+            city: city,
+            displayName: data.display_name,
+            address: data.address,
+          },
+          {
+            headers: {
+              "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+            },
+          }
+        );
       }
     } catch {
       // Fallback to BigDataCloud server-side
@@ -90,7 +97,14 @@ export async function GET(request: Request) {
     }
 
     const data = await res.json();
-    return NextResponse.json({ results: data });
+    return NextResponse.json(
+      { results: data },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      }
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Geocode service error";
     return NextResponse.json({ error: msg, results: [] }, { status: 500 });

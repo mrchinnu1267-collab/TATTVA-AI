@@ -22,13 +22,20 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      weather,
-      summary: weather.summaryText,
-      spokenText: weather.spokenSummary,
-      location: weather.location,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        weather,
+        summary: weather.summaryText,
+        spokenText: weather.spokenSummary,
+        location: weather.location,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800",
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error("[API Weather] Error:", error);
     return NextResponse.json(
@@ -63,13 +70,20 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      weather,
-      summary: weather.summaryText,
-      spokenText: weather.spokenSummary,
-      location: weather.location,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        weather,
+        summary: weather.summaryText,
+        spokenText: weather.spokenSummary,
+        location: weather.location,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800",
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error("[API Weather GET] Error:", error);
     return NextResponse.json(

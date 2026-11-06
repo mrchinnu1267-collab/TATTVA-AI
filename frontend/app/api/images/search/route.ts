@@ -35,7 +35,11 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: {
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=86400",
+      },
+    });
   } catch (error) {
     console.error("[Web Image Search API] GET Error:", error);
     return NextResponse.json(
@@ -80,7 +84,11 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: {
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=86400",
+      },
+    });
   } catch (error) {
     console.error("[Web Image Search API] POST Error:", error);
     return NextResponse.json(
