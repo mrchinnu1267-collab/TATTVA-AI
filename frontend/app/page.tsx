@@ -20,8 +20,9 @@ const structuredData = {
     },
     {
       "@type": "SiteNavigationElement",
-      name: ["Satellite Maps", "Live Voice Assistant", "Download App"],
+      name: ["Web Image Search", "Satellite Maps", "Live Voice Assistant", "Download App"],
       url: [
+        "https://tattva-ai-phi.vercel.app/images",
         "https://tattva-ai-phi.vercel.app/maps",
         "https://tattva-ai-phi.vercel.app/voice",
         "https://tattva-ai-phi.vercel.app/download",
@@ -40,6 +41,7 @@ export default function Home() {
         }}
       />
       <nav aria-label="Explore TATTVA AI Features" className="sr-only">
+        <Link href="/images">TATTVA Web Image Search Engine</Link>
         <Link href="/maps">TATTVA Satellite Maps &amp; Places Explorer</Link>
         <Link href="/voice">TATTVA AI Voice Assistant</Link>
         <Link href="/download">Download TATTVA AI Desktop &amp; Mobile App</Link>

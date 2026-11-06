@@ -3911,6 +3911,30 @@ export default function ChatPage() {
               </span>
             </Link>
 
+            {/* Web Image Search Engine Link */}
+            <Link
+              href="/images"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
+                isDark
+                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
+              }`}
+              title="Open Web Image Search Engine"
+            >
+              <div className="flex items-center gap-2.5">
+                <Camera className="w-4.5 h-4.5 text-sky-400" />
+                <span>Web Image Search</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 font-bold border border-sky-500/20">
+                Photos 🔍
+              </span>
+            </Link>
+
             {/* Temporary Chat Button */}
             <button
               type="button"
