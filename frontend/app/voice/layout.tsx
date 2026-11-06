@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
-  title: "TATTVA AI Voice Assistant – Real-Time Voice Conversation",
+  title: "AI Voice Assistant – Real-Time Voice Conversations | TATTVA AI",
   description:
-    "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent audio responses.",
+    "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent voice responses.",
   alternates: {
     canonical: "https://tattva-ai-phi.vercel.app/voice",
   },
@@ -13,9 +13,9 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: "TATTVA AI Voice Assistant | Real-Time Live Voice",
+    title: "AI Voice Assistant – Real-Time Voice Conversations | TATTVA AI",
     description:
-      "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages.",
+      "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent voice responses.",
     url: "https://tattva-ai-phi.vercel.app/voice",
     siteName: "TATTVA AI",
     type: "website",
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "TATTVA AI Voice Assistant | Real-Time Live Voice",
+    title: "AI Voice Assistant – Real-Time Voice Conversations | TATTVA AI",
     description:
-      "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant.",
+      "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent voice responses.",
     images: ["/logo.png"],
   },
 };
@@ -47,8 +47,13 @@ const voiceStructuredData = {
       applicationCategory: "MultimediaApplication",
       operatingSystem: "All",
       description:
-        "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent audio responses.",
+        "Experience ultra-low latency real-time voice conversations with TATTVA AI Voice Assistant. Speak naturally in multiple languages with fluent voice responses.",
       browserRequirements: "Requires WebRTC. Requires Microphone Access.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
       author: {
         "@type": "Person",
         name: "kotapati Gowtham Chowdary",

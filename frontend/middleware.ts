@@ -23,6 +23,16 @@ function checkMiddlewareRateLimit(ip: string, limit: number, windowSec: number):
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const host = request.headers.get("host") || "";
+
+  // Canonical Hostname Redirect: ensure www.tattva-ai-phi.vercel.app redirects to canonical non-www
+  if (host.startsWith("www.tattva-ai-phi.vercel.app")) {
+    const canonicalUrl = new URL(request.url);
+    canonicalUrl.host = "tattva-ai-phi.vercel.app";
+    canonicalUrl.protocol = "https:";
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
+
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || request.headers.get("x-real-ip") || "127.0.0.1";
 
   // 1. API Route Rate Limiting & Protection

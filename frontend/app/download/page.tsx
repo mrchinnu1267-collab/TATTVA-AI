@@ -4,17 +4,31 @@ import Image from "next/image";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
-  title: "Download TATTVA AI for Android (APK)",
+  title: "Download TATTVA AI for Android | TATTVA AI",
+  description:
+    "Download the official TATTVA AI Android app APK. Access real-time voice conversations, satellite maps, local weather, and fast AI reasoning on mobile.",
   alternates: {
     canonical: "https://tattva-ai-phi.vercel.app/download",
   },
-  description:
-    "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
-    title: "Download TATTVA AI for Android (APK)",
+    title: "Download TATTVA AI for Android | TATTVA AI",
     description:
-      "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+      "Download the official TATTVA AI Android app APK. Access real-time voice conversations, satellite maps, local weather, and fast AI reasoning on mobile.",
+    url: "https://tattva-ai-phi.vercel.app/download",
+    siteName: "TATTVA AI",
+    type: "website",
     images: [{ url: "/logo.png", width: 512, height: 512, alt: "TATTVA AI Logo" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Download TATTVA AI for Android | TATTVA AI",
+    description:
+      "Download the official TATTVA AI Android app APK. Access real-time voice conversations, satellite maps, local weather, and fast AI reasoning on mobile.",
+    images: ["/logo.png"],
   },
 };
 
@@ -32,6 +46,11 @@ const downloadStructuredData = {
       fileSize: "12.2MB",
       description:
         "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
       author: {
         "@type": "Person",
         name: "kotapati Gowtham Chowdary",

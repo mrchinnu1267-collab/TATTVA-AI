@@ -376,14 +376,14 @@ export default function WebImageSearchPage() {
               <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-emerald-400 flex items-center justify-center text-white shadow-sm font-bold text-base">
                 T
               </div>
-              <div className="hidden xs:flex flex-col">
+              <h1 className="hidden xs:flex flex-col">
                 <span className="font-bold text-sm tracking-tight leading-none group-hover:text-sky-500 transition">
                   TATTVA AI
                 </span>
                 <span className="text-[10px] font-semibold text-sky-500 tracking-wider uppercase mt-0.5">
                   Images
                 </span>
-              </div>
+              </h1>
             </Link>
           </div>
 

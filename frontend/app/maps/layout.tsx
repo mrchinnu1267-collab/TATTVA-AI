@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
-  title: "Live Satellite Maps & Places Explorer",
+  title: "Live Satellite Maps & Places Explorer | TATTVA AI",
   description:
-    "Explore real-time high-resolution satellite imagery, discover nearby places, hotels, cafes, parks, and view ratings and directions on TATTVA AI.",
+    "Explore high-resolution satellite imagery, discover nearby places, cafes, parks, and view real-time ratings and directions on TATTVA AI Satellite Maps.",
   alternates: {
     canonical: "https://tattva-ai-phi.vercel.app/maps",
   },
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Live Satellite Maps & Places Explorer | TATTVA AI",
     description:
-      "Explore real-time high-resolution satellite imagery, discover nearby places, hotels, cafes, parks, and view ratings on TATTVA AI.",
+      "Explore high-resolution satellite imagery, discover nearby places, cafes, parks, and view real-time ratings and directions on TATTVA AI Satellite Maps.",
     url: "https://tattva-ai-phi.vercel.app/maps",
     siteName: "TATTVA AI",
     type: "website",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Live Satellite Maps & Places Explorer | TATTVA AI",
     description:
-      "Explore real-time high-resolution satellite imagery, discover nearby places, hotels, cafes, parks, and view ratings.",
+      "Explore high-resolution satellite imagery, discover nearby places, cafes, parks, and view real-time ratings and directions on TATTVA AI Satellite Maps.",
     images: ["/logo.png"],
   },
 };
@@ -47,8 +47,13 @@ const mapsStructuredData = {
       applicationCategory: "MapsAndNavigationApplication",
       operatingSystem: "All",
       description:
-        "Explore real-time high-resolution satellite imagery, discover nearby places, hotels, cafes, parks, and view ratings and directions on TATTVA AI.",
+        "Explore high-resolution satellite imagery, discover nearby places, cafes, parks, and view real-time ratings and directions on TATTVA AI Satellite Maps.",
       browserRequirements: "Requires JavaScript. Requires HTML5.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
       author: {
         "@type": "Person",
         name: "kotapati Gowtham Chowdary",

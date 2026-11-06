@@ -6,9 +6,30 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      allow: [
+        "/",
+        "/chat",
+        "/images",
+        "/image-studio",
+        "/maps",
+        "/media",
+        "/voice",
+        "/download",
+        "/_next/static/",
+        "/_next/image/",
+      ],
+      disallow: [
+        "/api/",
+        "/dashboard",
+        "/login",
+        "/signup",
+        "/register",
+        "/create-account",
+        "/reset-password",
+        "/auth/",
+      ],
     },
     sitemap: `${BASE_URL}/sitemap.xml`,
+    host: BASE_URL,
   };
 }
-
