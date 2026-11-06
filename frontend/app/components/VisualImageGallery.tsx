@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { ExternalLink, Search, Camera } from "lucide-react";
+import { ExternalLink, Search, Camera, Globe } from "lucide-react";
 import { WebImageResult } from "../lib/web-image-search";
 
 interface VisualImageGalleryProps {
@@ -64,6 +64,14 @@ export default function VisualImageGallery({
         {displayedImages.map((img, idx) => {
           const isThirdCard = idx === 2 && !expanded && remainingCount > 0;
 
+          // Clean source host display
+          let cleanHost = img.source || "web";
+          if (img.sourceUrl) {
+            try {
+              cleanHost = new URL(img.sourceUrl).hostname.replace("www.", "");
+            } catch {}
+          }
+
           return (
             <div
               key={img.url + idx}
@@ -93,40 +101,48 @@ export default function VisualImageGallery({
                 }}
               />
 
-              {/* Gradient Scrim on hover */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-2.5 sm:p-3">
-                <p className="text-white text-xs font-semibold line-clamp-1 drop-shadow-sm">
+              {/* Title scrim on hover at top */}
+              <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/80 via-black/30 to-transparent p-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <p className="text-white text-[11px] font-semibold line-clamp-1 drop-shadow-sm">
                   {img.title}
                 </p>
-                <div className="flex items-center justify-between text-[10px] text-neutral-300 mt-0.5">
-                  <span className="truncate max-w-[120px]">{img.source}</span>
-                  {img.sourceUrl && (
-                    <a
-                      href={img.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1 rounded bg-black/40 hover:bg-black/80 text-white transition"
-                      title="Open source website"
-                    >
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  )}
-                </div>
               </div>
 
-              {/* Number Badge on the 3rd card matching user screenshot: "📷 4" */}
-              {isThirdCard ? (
-                <div className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/70 backdrop-blur-md text-white text-xs font-bold shadow-lg border border-white/10">
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>+{remainingCount + 1}</span>
-                </div>
-              ) : (
-                <div className="absolute bottom-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-white text-[10px] font-medium">
-                  <Camera className="w-2.5 h-2.5 text-sky-400" />
-                  <span>View</span>
-                </div>
-              )}
+              {/* Bottom Overlay Bar: Shows the source link at the bottom of the image very smally */}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 pt-5 flex items-end justify-between gap-1 z-10">
+                {/* Source link shown very smally at the bottom */}
+                {img.sourceUrl ? (
+                  <a
+                    href={img.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 max-w-[85%] truncate rounded-md bg-black/75 hover:bg-black px-1.5 py-0.5 text-[9px] font-mono text-neutral-300 hover:text-white backdrop-blur-md border border-white/15 transition-colors shadow-2xs"
+                    title={`Source: ${img.sourceUrl}`}
+                  >
+                    <Globe className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                    <span className="truncate">{cleanHost}</span>
+                    <ExternalLink className="w-2 h-2 text-neutral-400 shrink-0 opacity-70" />
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[9px] font-mono text-neutral-300 backdrop-blur-md border border-white/10">
+                    <Globe className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                    <span className="truncate">{cleanHost}</span>
+                  </span>
+                )}
+
+                {/* Badge on 3rd card or tiny view pill */}
+                {isThirdCard ? (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/95 text-white text-[10px] font-bold backdrop-blur-md shadow-xs shrink-0">
+                    <Camera className="w-3 h-3" />
+                    <span>+{remainingCount + 1}</span>
+                  </div>
+                ) : (
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[9px] font-medium backdrop-blur-md shrink-0 border border-white/10">
+                    <span>View</span>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -134,4 +150,3 @@ export default function VisualImageGallery({
     </div>
   );
 }
-

@@ -115,10 +115,10 @@ export async function POST(request: Request) {
 
     // 2. INBUILT GOOGLE / WEB IMAGE SEARCH ENGINE
     let retrievedWebImages: WebImageResult[] = [];
-    if (latestUserMsg && isImageSearchQuery(latestUserMsg.content)) {
+    if (latestUserMsg && (body.imageSearch || body.activeTool === "image_search" || isImageSearchQuery(latestUserMsg.content))) {
       try {
         const keywords = extractImageSearchKeywords(latestUserMsg.content);
-        retrievedWebImages = await searchWebImages(keywords, 6);
+        retrievedWebImages = await searchWebImages(keywords || latestUserMsg.content, 6);
         if (retrievedWebImages.length > 0) {
           const imgList = retrievedWebImages
             .map((img, i) => `[Image ${i + 1}]: "${img.title}" (${img.source})`)

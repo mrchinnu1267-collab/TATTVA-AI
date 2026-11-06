@@ -95,9 +95,8 @@ import {
   ArrowLeft,
   Clock,
 } from "lucide-react";
-import LiveClockWidget, { ClockData } from "../components/LiveClockWidget";
+import LiveClockWidget from "../components/LiveClockWidget";
 import VisualImageGallery from "../components/VisualImageGallery";
-import type { WebImageResult } from "../lib/web-image-search";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
 import BrowseConnectors from "../components/connectors/BrowseConnectors";
@@ -171,8 +170,16 @@ type ChatMessage = {
   }>;
   reasoningPlan?: any;
   agentState?: any;
-  webImages?: WebImageResult[];
-  clockData?: ClockData;
+  webImages?: Array<{
+    url: string;
+    thumbnail?: string;
+    title: string;
+    source: string;
+    sourceUrl?: string;
+    width?: number;
+    height?: number;
+  }>;
+  clockData?: any;
 };
 
 type ChatSession = {
@@ -238,12 +245,12 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
       const targetFormat = normalized.includes("pdf")
         ? "pdf"
         : normalized.includes("docx") || normalized.includes("doc") || normalized.includes("dox")
-        ? "docx"
-        : normalized.includes("pptx") || normalized.includes("ppt")
-        ? "pptx"
-        : normalized.includes("xlsx") || normalized.includes("xls")
-        ? "xlsx"
-        : "csv";
+          ? "docx"
+          : normalized.includes("pptx") || normalized.includes("ppt")
+            ? "pptx"
+            : normalized.includes("xlsx") || normalized.includes("xls")
+              ? "xlsx"
+              : "csv";
 
       const res = await fetch("/api/generate-document", {
         method: "POST",
@@ -441,9 +448,8 @@ function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
       nodes.push(
         <code
           key={m.index}
-          className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${
-            isDark ? "bg-neutral-800 text-neutral-200 border border-neutral-700/60" : "bg-neutral-100 text-neutral-800 border border-neutral-200"
-          }`}
+          className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${isDark ? "bg-neutral-800 text-neutral-200 border border-neutral-700/60" : "bg-neutral-100 text-neutral-800 border border-neutral-200"
+            }`}
         >
           {token.slice(1, -1)}
         </code>
@@ -551,9 +557,8 @@ function FormattedTextBlock({ text, isDark }: { text: string; isDark: boolean })
       elements.push(
         <blockquote
           key={`quote-${i}`}
-          className={`border-l-4 pl-3.5 py-1 my-2 italic ${
-            isDark ? "border-neutral-700 text-neutral-400" : "border-neutral-300 text-neutral-600"
-          }`}
+          className={`border-l-4 pl-3.5 py-1 my-2 italic ${isDark ? "border-neutral-700 text-neutral-400" : "border-neutral-300 text-neutral-600"
+            }`}
         >
           {parseInlineMarkdown(trimmed.replace(/^>\s*/, ""), isDark)}
         </blockquote>
@@ -688,12 +693,12 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
             const fileBadgeColor = isPdf
               ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
               : isSheet
-              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-              : isWord
-              ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
-              : isPpt
-              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-              : "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
+                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                : isWord
+                  ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                  : isPpt
+                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                    : "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
 
             const fileIcon = isPdf ? (
               <FileText className="w-5 h-5 text-rose-400" />
@@ -708,11 +713,10 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
             return (
               <div
                 key={idx}
-                className={`my-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl border shadow-sm transition-all ${
-                  isDark
+                className={`my-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl border shadow-sm transition-all ${isDark
                     ? "border-neutral-800 bg-neutral-900/90 text-neutral-100 hover:border-neutral-700"
                     : "border-black/10 bg-neutral-50 text-neutral-900 hover:border-black/20"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${fileBadgeColor}`}>
@@ -744,9 +748,8 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
           return (
             <div
               key={idx}
-              className={`my-3 overflow-hidden rounded-xl border shadow-sm ${
-                isDark ? "border-neutral-800 bg-neutral-950 text-neutral-100" : "border-neutral-300 bg-neutral-950 text-neutral-100"
-              }`}
+              className={`my-3 overflow-hidden rounded-xl border shadow-sm ${isDark ? "border-neutral-800 bg-neutral-950 text-neutral-100" : "border-neutral-300 bg-neutral-950 text-neutral-100"
+                }`}
             >
               <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900/90 px-4 py-2 text-xs text-neutral-400">
                 <span className="font-mono uppercase tracking-wider text-[11px] font-semibold">{displayLang}</span>
@@ -864,7 +867,7 @@ export default function ChatPage() {
             hour12: true,
           })
         );
-      } catch {}
+      } catch { }
     };
     update();
     const interval = setInterval(update, 1000);
@@ -882,7 +885,7 @@ export default function ChatPage() {
   // Advanced AI Chat Composer State
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
-  const [activeTool, setActiveTool] = useState<"none" | "web" | "research" | "file" | "code">("none");
+  const [activeTool, setActiveTool] = useState<"none" | "web" | "image_search" | "research" | "file" | "code">("none");
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [interimSpeech, setInterimSpeech] = useState("");
 
@@ -1253,7 +1256,7 @@ export default function ChatPage() {
             showToast(`GPS Location centered: ${place} 📍`);
             return;
           }
-        } catch {}
+        } catch { }
         const coordStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         setMapsQuery(coordStr);
         setMapsSearchInput(coordStr);
@@ -1616,11 +1619,11 @@ export default function ChatPage() {
       const updated = prev.map((s) =>
         s.id === sessionId
           ? {
-              ...s,
-              is_pinned: isNowPinned,
-              pinned_at: isNowPinned ? Date.now() : undefined,
-              updatedAt: Date.now(),
-            }
+            ...s,
+            is_pinned: isNowPinned,
+            pinned_at: isNowPinned ? Date.now() : undefined,
+            updatedAt: Date.now(),
+          }
           : s
       );
 
@@ -1648,7 +1651,7 @@ export default function ChatPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Sync to Supabase if authenticated
     try {
@@ -1709,13 +1712,13 @@ export default function ChatPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Sync to Supabase
     try {
       const supabase = createClient();
       supabase.from("conversations").update({ title: newTitle }).eq("id", sessionId).then();
-    } catch {}
+    } catch { }
 
     showToast("Conversation renamed ✏️");
   }
@@ -1801,13 +1804,13 @@ export default function ChatPage() {
               localStorage.removeItem("tattva_guest_chats");
               try {
                 localStorage.setItem(key, JSON.stringify(loadedSessions));
-              } catch {}
+              } catch { }
               // Sync migrated sessions to cloud
               fetch("/api/chats", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, sessions: loadedSessions }),
-              }).catch(() => {});
+              }).catch(() => { });
             }
           }
         }
@@ -1935,7 +1938,7 @@ export default function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: userEmail || "guest_user", sessions: updated }),
-      }).catch(() => {});
+      }).catch(() => { });
 
       return updated;
     });
@@ -2008,7 +2011,7 @@ export default function ChatPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Sync deletion to Supabase
     try {
@@ -2058,18 +2061,18 @@ export default function ChatPage() {
     const key = getStorageKey(userEmail);
     try {
       localStorage.setItem(key, JSON.stringify(nextUpdatedList));
-    } catch {}
+    } catch { }
 
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
-    }).catch(() => {});
+    }).catch(() => { });
 
     try {
       const supabase = createClient();
       supabase.from("conversations").update({ is_archived: true }).eq("id", sessionId).then();
-    } catch {}
+    } catch { }
 
     if (sessionId === currentSessionId) {
       createNewChat();
@@ -2091,18 +2094,18 @@ export default function ChatPage() {
     const key = getStorageKey(userEmail);
     try {
       localStorage.setItem(key, JSON.stringify(nextUpdatedList));
-    } catch {}
+    } catch { }
 
     fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail || "guest_user", sessions: nextUpdatedList }),
-    }).catch(() => {});
+    }).catch(() => { });
 
     try {
       const supabase = createClient();
       supabase.from("conversations").update({ is_archived: false }).eq("id", sessionId).then();
-    } catch {}
+    } catch { }
 
     showToast("Conversation restored ✦");
   }
@@ -2138,7 +2141,7 @@ export default function ChatPage() {
       // 1. Ensure local storage has latest copy
       try {
         localStorage.setItem(key, JSON.stringify(sessions));
-      } catch {}
+      } catch { }
 
       // 2. Push to server cloud vault
       if (activeEmail && activeEmail !== "guest_user") {
@@ -2198,10 +2201,10 @@ export default function ChatPage() {
         const importedSessions: ChatSession[] = Array.isArray(parsed)
           ? parsed
           : Array.isArray(parsed.conversations)
-          ? parsed.conversations
-          : Array.isArray(parsed.sessions)
-          ? parsed.sessions
-          : [];
+            ? parsed.conversations
+            : Array.isArray(parsed.sessions)
+              ? parsed.sessions
+              : [];
 
         if (importedSessions.length === 0) {
           showToast("No valid conversations found in file");
@@ -2231,14 +2234,14 @@ export default function ChatPage() {
         const key = getStorageKey(activeEmail);
         try {
           localStorage.setItem(key, JSON.stringify(merged));
-        } catch {}
+        } catch { }
 
         if (activeEmail && activeEmail !== "guest_user") {
           fetch("/api/chats", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: activeEmail, sessions: merged }),
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         showToast(`Successfully restored ${addedCount || importedSessions.length} conversations from backup 📥`);
@@ -2264,8 +2267,8 @@ export default function ChatPage() {
         baseTarget.messages && baseTarget.messages.length > 0
           ? baseTarget.messages
           : baseTarget.id === currentSessionId && messages.length > 0
-          ? messages
-          : [],
+            ? messages
+            : [],
     };
 
     if (!targetSession.messages.length) {
@@ -2361,8 +2364,8 @@ export default function ChatPage() {
             loadUserSessions(null);
           }
         })
-        .catch(() => {});
-    } catch {}
+        .catch(() => { });
+    } catch { }
 
     // Supabase auth check
     try {
@@ -2439,7 +2442,7 @@ export default function ChatPage() {
       setIsLogoutConfirmOpen(false);
       await logoutUser();
       const supabase = createClient();
-      await supabase.auth.signOut().catch(() => {});
+      await supabase.auth.signOut().catch(() => { });
     } catch (err) {
       console.warn("Logout error:", err);
     } finally {
@@ -2650,13 +2653,13 @@ export default function ChatPage() {
         prev.map((m) =>
           m.id === feedbackModalTarget.messageId
             ? {
-                ...m,
-                userFeedback: {
-                  rating: feedbackModalTarget.initialRating || "negative",
-                  category: selectedFeedbackCategory,
-                  comment: feedbackComment.trim(),
-                },
-              }
+              ...m,
+              userFeedback: {
+                rating: feedbackModalTarget.initialRating || "negative",
+                category: selectedFeedbackCategory,
+                comment: feedbackComment.trim(),
+              },
+            }
             : m
         )
       );
@@ -3028,7 +3031,7 @@ export default function ChatPage() {
       } else if ("Notification" in window && Notification.permission === "granted") {
         new Notification("TATTVA AI", { body: text });
       }
-    } catch {}
+    } catch { }
   }
 
   // Send message handler (supports text, code, document generation, and reasoning)
@@ -3048,6 +3051,8 @@ export default function ChatPage() {
     let promptToSend = rawPrompt;
     if (activeTool === "web") {
       promptToSend = `[Mode: Web Search & Fact Retrieval]: ${rawPrompt}`;
+    } else if (activeTool === "image_search") {
+      promptToSend = `[Mode: Inbuilt Web Image Search & Photography Gallery]: ${rawPrompt}`;
     } else if (activeTool === "research") {
       promptToSend = `[Mode: Deep Research & Comprehensive Analysis]: ${rawPrompt}`;
     } else if (activeTool === "file") {
@@ -3103,6 +3108,8 @@ export default function ChatPage() {
           messages: apiMessages,
           connectorIds: activeConnectorIds.length > 0 ? activeConnectorIds : undefined,
           mode: activeTool === "code" ? "chat" : undefined,
+          activeTool,
+          imageSearch: activeTool === "image_search",
           thinking: isThinkingEnabled,
           isTemporary: isTemporaryChat,
           userEmail: isUserAuthenticated ? userEmail : undefined,
@@ -3525,9 +3532,8 @@ export default function ChatPage() {
 
   return (
     <div
-      className={`fixed inset-0 w-full h-full max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-neutral-800 selection:text-white ${
-        isDark ? "bg-black text-neutral-100" : "bg-white text-black"
-      }`}
+      className={`fixed inset-0 w-full h-full max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-200 selection:bg-neutral-800 selection:text-white ${isDark ? "bg-black text-neutral-100" : "bg-white text-black"
+        }`}
     >
       {/* Toast Notification */}
       {toastMessage && (
@@ -3543,9 +3549,8 @@ export default function ChatPage() {
           onClick={() => setImageMenuOpen(null)}
         >
           <div
-            className={`w-64 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl animate-scale-in ${
-              isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-white text-black"
-            }`}
+            className={`w-64 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl animate-scale-in ${isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-white text-black"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-2 border-b border-black/[0.06] text-xs font-semibold text-neutral-400">
@@ -3558,9 +3563,8 @@ export default function ChatPage() {
                   downloadImage(imageMenuOpen.image);
                   setImageMenuOpen(null);
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
-                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
-                }`}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                  }`}
               >
                 <Download className="w-4 h-4" />
                 <span>Download Image</span>
@@ -3569,16 +3573,15 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => {
                   if (navigator.share) {
-                    navigator.share({ title: "TATTVA AI Image", url: imageMenuOpen.image }).catch(() => {});
+                    navigator.share({ title: "TATTVA AI Image", url: imageMenuOpen.image }).catch(() => { });
                   } else {
                     navigator.clipboard.writeText(imageMenuOpen.image);
                     showToast("Image URI copied 📋");
                   }
                   setImageMenuOpen(null);
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
-                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
-                }`}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                  }`}
               >
                 <Share2 className="w-4 h-4" />
                 <span>Share Image</span>
@@ -3598,9 +3601,8 @@ export default function ChatPage() {
                   textareaRef.current?.focus();
                   showToast("Image loaded for targeted modification ✦");
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
-                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
-                }`}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                  }`}
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Modify This Image</span>
@@ -3614,18 +3616,16 @@ export default function ChatPage() {
           1. TOP NAVIGATION BAR (MINIMALIST CHATGPT STYLE)
       ========================================================================= */}
       <header
-        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),24px)] sm:pt-0 ${
-          isDark ? "border-transparent bg-black text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
-        }`}
+        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),24px)] sm:pt-0 ${isDark ? "border-transparent bg-black text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
+          }`}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2 sm:py-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-2.5 rounded-xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
-                isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
-              }`}
+              className={`p-2.5 rounded-xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+                }`}
               title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
             >
               <PanelLeft className="w-6 h-6 stroke-[1.8]" />
@@ -3683,9 +3683,8 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/login")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    isDark ? "bg-white/10 text-white hover:bg-white/20" : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${isDark ? "bg-white/10 text-white hover:bg-white/20" : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
+                    }`}
                 >
                   Log In
                 </button>
@@ -3702,9 +3701,8 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => createNewChat()}
-              className={`p-2.5 rounded-xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${
-                isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
-              }`}
+              className={`p-2.5 rounded-xl flex items-center justify-center transition cursor-pointer select-none active:scale-95 ${isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+                }`}
               title="New chat"
             >
               <SquarePen className="w-5 h-5 stroke-[1.8]" />
@@ -3712,13 +3710,12 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setIsHeaderMenuOpen(!isHeaderMenuOpen)}
-              className={`p-2.5 flex items-center justify-center rounded-xl transition cursor-pointer select-none active:scale-95 ${
-                isHeaderMenuOpen
+              className={`p-2.5 flex items-center justify-center rounded-xl transition cursor-pointer select-none active:scale-95 ${isHeaderMenuOpen
                   ? "bg-neutral-800 text-white"
                   : isDark
-                  ? "text-neutral-400 hover:text-white hover:bg-white/10"
-                  : "text-neutral-600 hover:text-black hover:bg-neutral-100"
-              }`}
+                    ? "text-neutral-400 hover:text-white hover:bg-white/10"
+                    : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+                }`}
               title="Options"
             >
               <MoreVertical className="w-5 h-5 stroke-[1.8]" />
@@ -3727,9 +3724,8 @@ export default function ChatPage() {
             {/* 3-Dots Dropdown Popover matching Image */}
             {isHeaderMenuOpen && (
               <div
-                className={`absolute right-0 top-full mt-2 w-64 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                  isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
-                }`}
+                className={`absolute right-0 top-full mt-2 w-64 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                  }`}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* 1. Temporary Chat (Ghost) */}
@@ -3739,9 +3735,8 @@ export default function ChatPage() {
                     toggleTemporaryChat();
                     setIsHeaderMenuOpen(false);
                   }}
-                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
-                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                  }`}
+                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400 animate-pulse" : "text-neutral-400"}`} />
@@ -3759,9 +3754,8 @@ export default function ChatPage() {
                     shareChat();
                     setIsHeaderMenuOpen(false);
                   }}
-                  className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
-                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                  }`}
+                  className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                 >
                   <Share2 className="w-4.5 h-4.5 text-neutral-400" />
                   <span className="font-semibold text-xs">Share Conversation</span>
@@ -3774,9 +3768,8 @@ export default function ChatPage() {
                     toggleTheme();
                     setIsHeaderMenuOpen(false);
                   }}
-                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
-                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                  }`}
+                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     {isDark ? <Sun className="w-4.5 h-4.5 text-amber-400" /> : <Moon className="w-4.5 h-4.5 text-neutral-600" />}
@@ -3795,9 +3788,8 @@ export default function ChatPage() {
                     setIsSettingsModalOpen(true);
                     setIsHeaderMenuOpen(false);
                   }}
-                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
-                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                  }`}
+                  className={`flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Cpu className="w-4.5 h-4.5 text-cyan-400" />
@@ -3816,9 +3808,8 @@ export default function ChatPage() {
                     setIsSettingsModalOpen(true);
                     setIsHeaderMenuOpen(false);
                   }}
-                  className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
-                    isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
-                  }`}
+                  className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${isDark ? "hover:bg-neutral-800 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                 >
                   <Sliders className="w-4.5 h-4.5 text-neutral-400" />
                   <span className="font-semibold text-xs">Display &amp; Fonts</span>
@@ -3843,13 +3834,11 @@ export default function ChatPage() {
 
         {/* Left Sidebar: ChatGPT-Inspired Collapsible Sidebar - Enlarged & Touch Friendly */}
         <aside
-          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col flex-shrink-0 h-full max-h-full border-r transition-all duration-300 ease-in-out ${
-            sidebarOpen
+          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col flex-shrink-0 h-full max-h-full border-r transition-all duration-300 ease-in-out ${sidebarOpen
               ? "w-[285px] sm:w-[300px] max-w-[85vw] translate-x-0"
               : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden pointer-events-none"
-          } ${
-            isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
-          } backdrop-blur-xl shadow-xl md:shadow-none`}
+            } ${isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
+            } backdrop-blur-xl shadow-xl md:shadow-none`}
         >
           {/* Sidebar Top: Enlarged Logo + Close Button (Frozen) */}
           <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top,0px),36px)] sm:pt-4 px-3.5 sm:px-4 pb-3.5 sm:pb-4 border-b border-black/[0.06] flex items-center justify-between">
@@ -3873,9 +3862,8 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
-              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-xl transition cursor-pointer active:scale-95 ${
-                isDark ? "hover:bg-neutral-800 text-neutral-400 hover:text-white" : "hover:bg-neutral-200 text-neutral-600 hover:text-black"
-              }`}
+              className={`p-3 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-xl transition cursor-pointer active:scale-95 ${isDark ? "hover:bg-neutral-800 text-neutral-400 hover:text-white" : "hover:bg-neutral-200 text-neutral-600 hover:text-black"
+                }`}
               title="Close sidebar"
             >
               <ChevronLeft className="w-6 h-6" />
@@ -3888,11 +3876,10 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={createNewChat}
-              className={`flex items-center justify-between w-full rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold transition shadow-xs min-h-[50px] cursor-pointer select-none active:scale-98 ${
-                isDark
+              className={`flex items-center justify-between w-full rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold transition shadow-xs min-h-[50px] cursor-pointer select-none active:scale-98 ${isDark
                   ? "bg-neutral-800 text-white hover:bg-neutral-700"
                   : "bg-black text-white hover:bg-neutral-800"
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Plus className="w-5 h-5" />
@@ -3909,11 +3896,10 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
-                isDark
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
                   ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
-              }`}
+                }`}
               title="Open full interactive Satellite Maps"
             >
               <div className="flex items-center gap-2.5">
@@ -3929,22 +3915,20 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={toggleTemporaryChat}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
-                isTemporaryChat
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isTemporaryChat
                   ? "border-amber-500/50 bg-amber-500/15 text-amber-400 shadow-2xs"
                   : isDark
-                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
-                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-              }`}
+                    ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                    : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
+                }`}
               title="Temporary chat (not saved in history)"
             >
               <div className="flex items-center gap-2.5">
                 <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400" : "text-neutral-400"}`} />
                 <span>Temporary Chat</span>
               </div>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
-                isTemporaryChat ? "bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10 text-neutral-400"
-              }`}>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${isTemporaryChat ? "bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10 text-neutral-400"
+                }`}>
                 {isTemporaryChat ? "ON" : "OFF"}
               </span>
             </button>
@@ -3953,11 +3937,10 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-medium transition min-h-[46px] cursor-pointer select-none active:scale-98 ${
-                isDark
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-medium transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
                   ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-              }`}
+                }`}
               title="Search all conversations (Ctrl+K)"
             >
               <div className="flex items-center gap-2.5">
@@ -3974,11 +3957,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setIsArchiveModalOpen(true)}
-                className={`flex items-center justify-center gap-2 w-full rounded-2xl border py-2.5 px-3 text-xs sm:text-sm font-medium transition cursor-pointer min-h-[42px] select-none active:scale-98 ${
-                  isDark
+                className={`flex items-center justify-center gap-2 w-full rounded-2xl border py-2.5 px-3 text-xs sm:text-sm font-medium transition cursor-pointer min-h-[42px] select-none active:scale-98 ${isDark
                     ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
                     : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-                }`}
+                  }`}
                 title="View archived chats"
               >
                 <FolderArchive className="w-4 h-4 text-blue-500" />
@@ -4080,15 +4062,14 @@ export default function ChatPage() {
                           ) : (
                             <div
                               onClick={() => selectSession(s)}
-                              className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${
-                                active
+                              className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${active
                                   ? isDark
                                     ? "bg-neutral-800 text-white font-semibold"
                                     : "bg-white text-black font-semibold shadow-xs border border-black/5"
                                   : isDark
-                                  ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
-                                  : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
-                              }`}
+                                    ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
+                                    : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+                                }`}
                             >
                               <div className="flex items-center gap-2 truncate">
                                 <Pin className="w-3 h-3 flex-shrink-0 text-neutral-500 fill-neutral-400/30" />
@@ -4103,9 +4084,8 @@ export default function ChatPage() {
                                   e.stopPropagation();
                                   setActiveMenuSessionId(menuOpen ? null : s.id);
                                 }}
-                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${
-                                  menuOpen ? "!opacity-100" : ""
-                                }`}
+                                className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${menuOpen ? "!opacity-100" : ""
+                                  }`}
                                 title="Conversation options"
                               >
                                 <MoreVertical className="w-3.5 h-3.5" />
@@ -4119,11 +4099,10 @@ export default function ChatPage() {
                               data-session-menu="true"
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => e.stopPropagation()}
-                              className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${
-                                isDark
+                              className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${isDark
                                   ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                   : "border-black/10 bg-white text-neutral-800"
-                              }`}
+                                }`}
                             >
                               <button
                                 type="button"
@@ -4272,15 +4251,14 @@ export default function ChatPage() {
                         ) : (
                           <div
                             onClick={() => selectSession(s)}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${
-                              active
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs cursor-pointer transition ${active
                                 ? isDark
                                   ? "bg-neutral-800 text-white font-semibold"
                                   : "bg-white text-black font-semibold shadow-xs border border-black/5"
                                 : isDark
-                                ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
-                                : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
-                            }`}
+                                  ? "text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
+                                  : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+                              }`}
                           >
                             <div className="flex items-center gap-2 truncate">
                               <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
@@ -4295,9 +4273,8 @@ export default function ChatPage() {
                                 e.stopPropagation();
                                 setActiveMenuSessionId(menuOpen ? null : s.id);
                               }}
-                              className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${
-                                menuOpen ? "!opacity-100" : ""
-                              }`}
+                              className={`p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${menuOpen ? "!opacity-100" : ""
+                                }`}
                               title="Conversation options"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
@@ -4311,11 +4288,10 @@ export default function ChatPage() {
                             data-session-menu="true"
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
-                            className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${
-                              isDark
+                            className={`absolute right-1 top-full mt-1 z-50 w-44 rounded-xl border p-1 shadow-2xl text-xs backdrop-blur-xl ${isDark
                                 ? "border-neutral-700 bg-neutral-900 text-neutral-200"
                                 : "border-black/10 bg-white text-neutral-800"
-                            }`}
+                              }`}
                           >
                             <button
                               type="button"
@@ -4406,11 +4382,10 @@ export default function ChatPage() {
             {/* Profile Dropdown Menu (Floats upwards) */}
             {isProfileMenuOpen && (
               <div
-                className={`absolute bottom-full left-2 right-2 mb-2 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                  isDark
+                className={`absolute bottom-full left-2 right-2 mb-2 rounded-2xl border p-1.5 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${isDark
                     ? "border-neutral-700 bg-neutral-900/95 text-neutral-200"
                     : "border-black/10 bg-white/95 text-neutral-800"
-                }`}
+                  }`}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header item with email & account status */}
@@ -4696,11 +4671,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className={`flex w-full items-center justify-between p-3 sm:p-3.5 rounded-2xl transition-all min-h-[68px] sm:min-h-[72px] cursor-pointer select-none active:scale-98 ${
-                  isProfileMenuOpen
+                className={`flex w-full items-center justify-between p-3 sm:p-3.5 rounded-2xl transition-all min-h-[68px] sm:min-h-[72px] cursor-pointer select-none active:scale-98 ${isProfileMenuOpen
                     ? "bg-neutral-200 dark:bg-neutral-800"
                     : "hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
-                }`}
+                  }`}
                 title="Open profile & account menu"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -4743,9 +4717,8 @@ export default function ChatPage() {
             onClick={() => setSearchModalOpen(false)}
           >
             <div
-              className={`w-full max-w-xl rounded-2xl border p-4 shadow-2xl transition-all ${
-                isDark ? "border-neutral-800 bg-[#18181b] text-white" : "border-neutral-200 bg-white text-neutral-900"
-              }`}
+              className={`w-full max-w-xl rounded-2xl border p-4 shadow-2xl transition-all ${isDark ? "border-neutral-800 bg-[#18181b] text-white" : "border-neutral-200 bg-white text-neutral-900"
+                }`}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Search Input Bar */}
@@ -4757,9 +4730,8 @@ export default function ChatPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search across all conversations, messages, or topics..."
-                  className={`w-full bg-transparent text-sm outline-none placeholder-neutral-400 ${
-                    isDark ? "text-white" : "text-black"
-                  }`}
+                  className={`w-full bg-transparent text-sm outline-none placeholder-neutral-400 ${isDark ? "text-white" : "text-black"
+                    }`}
                 />
                 {searchQuery && (
                   <button
@@ -4781,8 +4753,8 @@ export default function ChatPage() {
                   {isSearching
                     ? "Searching..."
                     : searchQuery
-                    ? `${searchResults.length} results found`
-                    : "Type to search complete chat history"}
+                      ? `${searchResults.length} results found`
+                      : "Type to search complete chat history"}
                 </span>
                 <span className="text-[11px]">Click to jump to conversation</span>
               </div>
@@ -4803,11 +4775,10 @@ export default function ChatPage() {
                     <div
                       key={`${r.session.id}_${idx}`}
                       onClick={() => selectSearchResult(r)}
-                      className={`p-3 rounded-xl border text-xs cursor-pointer transition ${
-                        isDark
+                      className={`p-3 rounded-xl border text-xs cursor-pointer transition ${isDark
                           ? "border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 hover:border-neutral-700"
                           : "border-neutral-200 bg-neutral-50/70 hover:bg-white hover:border-neutral-300 shadow-2xs"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5 font-bold truncate">
@@ -4815,19 +4786,18 @@ export default function ChatPage() {
                           <span className="truncate">{r.session.title}</span>
                         </div>
                         <span
-                          className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${
-                            r.matchType === "title"
+                          className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${r.matchType === "title"
                               ? "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300"
                               : r.matchType === "user"
-                              ? "bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300"
-                              : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-300"
-                          }`}
+                                ? "bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300"
+                                : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            }`}
                         >
                           {r.matchType === "title"
                             ? "Title Match"
                             : r.matchType === "user"
-                            ? "User Prompt"
-                            : "AI Answer"}
+                              ? "User Prompt"
+                              : "AI Answer"}
                         </span>
                       </div>
                       <p className="text-neutral-600 dark:text-neutral-300 line-clamp-2 leading-relaxed">
@@ -4863,15 +4833,14 @@ export default function ChatPage() {
           {/* Sare Voice Status Banner (Frozen) */}
           {sareEnabled && (
             <div
-              className={`flex-shrink-0 z-20 flex items-center justify-between px-6 py-2.5 text-xs font-semibold backdrop-blur-md transition-colors ${
-                sareStatus === "listening"
+              className={`flex-shrink-0 z-20 flex items-center justify-between px-6 py-2.5 text-xs font-semibold backdrop-blur-md transition-colors ${sareStatus === "listening"
                   ? "bg-black text-white animate-pulse"
                   : sareStatus === "speaking"
-                  ? "bg-neutral-800 text-white"
-                  : isDark
-                  ? "bg-neutral-900/90 text-neutral-300"
-                  : "bg-neutral-100/90 text-black"
-              }`}
+                    ? "bg-neutral-800 text-white"
+                    : isDark
+                      ? "bg-neutral-900/90 text-neutral-300"
+                      : "bg-neutral-100/90 text-black"
+                }`}
             >
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
@@ -4879,10 +4848,10 @@ export default function ChatPage() {
                   {sareStatus === "listening"
                     ? "Sare is listening to your voice... Speak anytime"
                     : sareStatus === "speaking"
-                    ? "Sare is speaking..."
-                    : sareStatus === "thinking"
-                    ? "Sare is processing your voice..."
-                    : "Sare Voice Assistant active"}
+                      ? "Sare is speaking..."
+                      : sareStatus === "thinking"
+                        ? "Sare is processing your voice..."
+                        : "Sare Voice Assistant active"}
                 </span>
               </div>
               <button
@@ -4902,548 +4871,538 @@ export default function ChatPage() {
             className="flex-1 min-h-0 overflow-y-auto w-full relative flex flex-col"
           >
             <div className={`p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full ${messages.length === 0 ? "flex-1 flex flex-col justify-between" : "space-y-6"}`}>
-            {messages.length === 0 ? (
-              isTemporaryChat ? (
-                <div className="my-auto py-12 text-center max-w-md mx-auto flex flex-col items-center justify-center animate-in fade-in select-none">
-                  <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
-                    <Ghost className="w-7 h-7" />
+              {messages.length === 0 ? (
+                isTemporaryChat ? (
+                  <div className="my-auto py-12 text-center max-w-md mx-auto flex flex-col items-center justify-center animate-in fade-in select-none">
+                    <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
+                      <Ghost className="w-7 h-7" />
+                    </div>
+                    <h3 className="font-bold text-lg text-neutral-900 dark:text-neutral-100">Temporary Chat</h3>
+                    <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
+                      This conversation will not appear in your chat history or use memory.
+                    </p>
                   </div>
-                  <h3 className="font-bold text-lg text-neutral-900 dark:text-neutral-100">Temporary Chat</h3>
-                  <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
-                    This conversation will not appear in your chat history or use memory.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col justify-between py-4 sm:py-8 w-full select-none min-h-[55vh] sm:min-h-[65vh]">
-                  {/* Vertically Centered Title matching Screenshot */}
-                  <div className="my-auto text-center py-12 sm:py-20 animate-in fade-in duration-300">
-                    <h1 className="text-2xl sm:text-3xl font-medium tracking-normal text-white">
-                      Where should we begin?
-                    </h1>
-                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col justify-between py-4 sm:py-8 w-full select-none min-h-[55vh] sm:min-h-[65vh]">
+                    {/* Vertically Centered Title matching Screenshot */}
+                    <div className="my-auto text-center py-12 sm:py-20 animate-in fade-in duration-300">
+                      <h1 className="text-2xl sm:text-3xl font-medium tracking-normal text-white">
+                        Where should we begin?
+                      </h1>
+                    </div>
 
-                  {/* 3 Stacked Suggestions directly above composer matching Screenshot */}
-                  <div className="space-y-4 pb-2 px-1 text-sm sm:text-base animate-in fade-in duration-300">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInput("Create an image or sticker of ");
-                        textareaRef.current?.focus();
-                      }}
-                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                    >
-                      <ImageIcon className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Create an image or sticker</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInput("Help me write and edit ");
-                        textareaRef.current?.focus();
-                      }}
-                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                    >
-                      <Edit3 className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Write or edit</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTool("web");
-                        textareaRef.current?.focus();
-                        showToast("Web Search mode enabled 🌐");
-                      }}
-                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                    >
-                      <Globe className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search the web</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInput("What is the exact time right now?");
-                        textareaRef.current?.focus();
-                      }}
-                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                    >
-                      <Clock className="w-5 h-5 text-sky-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Check live clock &amp; time</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInput("Show me different types of flowers with real photos");
-                        textareaRef.current?.focus();
-                      }}
-                      className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                    >
-                      <Camera className="w-5 h-5 text-emerald-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                      <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search web images &amp; photos</span>
-                    </button>
+                    {/* 3 Stacked Suggestions directly above composer matching Screenshot */}
+                    <div className="space-y-4 pb-2 px-1 text-sm sm:text-base animate-in fade-in duration-300">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput("Create an image or sticker of ");
+                          textareaRef.current?.focus();
+                        }}
+                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                      >
+                        <ImageIcon className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Create an image or sticker</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput("Help me write and edit ");
+                          textareaRef.current?.focus();
+                        }}
+                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                      >
+                        <Edit3 className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Write or edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTool("web");
+                          textareaRef.current?.focus();
+                          showToast("Web Search mode enabled 🌐");
+                        }}
+                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                      >
+                        <Globe className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search the web</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput("What is the exact time right now?");
+                          textareaRef.current?.focus();
+                        }}
+                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                      >
+                        <Clock className="w-5 h-5 text-sky-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Check live clock &amp; time</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput("Show me different types of flowers with real photos");
+                          textareaRef.current?.focus();
+                        }}
+                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
+                      >
+                        <Camera className="w-5 h-5 text-emerald-400 group-hover:text-white shrink-0 stroke-[1.6]" />
+                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search web images &amp; photos</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )
-            ) : (
-              messages.map((msg, idx) => {
-                const prevMsg = idx > 0 ? messages[idx - 1] : null;
-                const isUser = msg.role === "user";
-                const showDate =
-                  !prevMsg ||
-                  new Date(msg.timestamp || Date.now()).toDateString() !==
+                )
+              ) : (
+                messages.map((msg, idx) => {
+                  const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                  const isUser = msg.role === "user";
+                  const showDate =
+                    !prevMsg ||
+                    new Date(msg.timestamp || Date.now()).toDateString() !==
                     new Date(prevMsg.timestamp || Date.now()).toDateString();
 
-                return (
-                  <div key={msg.id}>
-                    {/* Non-disturbing centered chat date divider */}
-                    {showDate && (
-                      <div className="my-6 flex items-center justify-center select-none">
-                        <span
-                          className={`rounded-full border px-3.5 py-1 text-[11px] font-medium shadow-xs backdrop-blur-md ${
-                            isDark
-                              ? "border-neutral-800 bg-neutral-900 text-neutral-400"
-                              : "border-black/[0.08] bg-neutral-100/80 text-neutral-500"
-                          }`}
-                        >
-                          {formatChatDate(msg.timestamp)}
-                        </span>
-                      </div>
-                    )}
-
-                    {isUser ? (
-                      /* USER MESSAGE: Compact Bubble + Hover Edit/Copy Toolbar */
-                      <div className="flex flex-col items-end gap-1.5 group/user w-full">
-                        {editingMessageId === msg.id ? (
-                          /* Inline Edit Form */
-                          <div
-                            className={`w-full max-w-2xl sm:max-w-3xl ml-auto rounded-2xl border p-3.5 shadow-sm transition-all ${
-                              isDark
-                                ? "border-neutral-700 bg-neutral-900 text-white"
-                                : "border-neutral-300 bg-neutral-100 text-neutral-900"
-                            }`}
-                          >
-                            <textarea
-                              value={editContent}
-                              onChange={(e) => setEditContent(e.target.value)}
-                              className="w-full bg-transparent resize-y min-h-[80px] p-1 text-sm focus:outline-none leading-relaxed"
-                              rows={3}
-                              autoFocus
-                            />
-                            <div className="flex justify-end items-center gap-2 mt-2 pt-2 border-t border-black/[0.06] dark:border-white/[0.06]">
-                              <button
-                                type="button"
-                                onClick={cancelEditingMessage}
-                                className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition cursor-pointer ${
-                                  isDark
-                                    ? "border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                                    : "border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700"
-                                }`}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => saveAndResubmitEdit(msg.id, editContent)}
-                                className="px-3.5 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-xs font-semibold hover:opacity-90 transition shadow-sm cursor-pointer"
-                              >
-                                Save &amp; Submit
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div
-                              className={`relative max-w-[85%] sm:max-w-[75%] rounded-3xl px-4 py-2.5 sm:px-5 sm:py-3 text-[14px] sm:text-[15px] leading-relaxed break-words shadow-2xs ${
-                                isDark
-                                  ? "bg-neutral-800 text-neutral-100"
-                                  : "bg-neutral-100 text-neutral-900"
+                  return (
+                    <div key={msg.id}>
+                      {/* Non-disturbing centered chat date divider */}
+                      {showDate && (
+                        <div className="my-6 flex items-center justify-center select-none">
+                          <span
+                            className={`rounded-full border px-3.5 py-1 text-[11px] font-medium shadow-xs backdrop-blur-md ${isDark
+                                ? "border-neutral-800 bg-neutral-900 text-neutral-400"
+                                : "border-black/[0.08] bg-neutral-100/80 text-neutral-500"
                               }`}
-                            >
-                              {/* Attachments */}
-                              {msg.attachments && msg.attachments.length > 0 && (
-                                <div className="mb-2 flex flex-wrap gap-2">
-                                  {msg.attachments.map((att, aIdx) => (
-                                    <div
-                                      key={aIdx}
-                                      className="overflow-hidden rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-200 dark:bg-neutral-900"
-                                    >
-                                      {att.preview ? (
-                                        <Image
-                                          src={att.preview}
-                                          alt={att.name}
-                                          width={160}
-                                          height={90}
-                                          className="w-28 sm:w-36 aspect-video object-cover"
-                                        />
-                                      ) : (
-                                        <div className="p-2 text-xs">📄 {att.name}</div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              <p className="whitespace-pre-wrap">{msg.content}</p>
-                            </div>
-
-                            {/* User Message Action Toolbar on hover */}
-                            <div className="flex items-center gap-1 opacity-0 group-hover/user:opacity-100 transition-opacity pr-1 text-xs text-neutral-400">
-                              <button
-                                type="button"
-                                onClick={() => startEditingMessage(msg)}
-                                className="p-1 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition cursor-pointer"
-                                title="Edit message"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => copyMessage(msg.content, msg.id)}
-                                className="p-1 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition cursor-pointer"
-                                title="Copy text"
-                              >
-                                {copiedMessageId === msg.id ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      /* ASSISTANT MESSAGE: Clean Surface Presentation (No Box), Pure Typography */
-                      <div className="flex gap-3 sm:gap-4 items-start w-full group/assistant">
-                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm mt-1 p-0.5">
-                          <img
-                            src="/logo.png"
-                            alt="TATTVA AI"
-                            className="h-full w-full object-contain"
-                          />
+                          >
+                            {formatChatDate(msg.timestamp)}
+                          </span>
                         </div>
+                      )}
 
-                        <div className="flex-1 min-w-0">
-                          {/* Visible Claude Connector Tool Call Indicators */}
-                          {msg.toolCalls && msg.toolCalls.length > 0 && (
-                            <div className="mb-2.5 flex flex-wrap gap-1.5">
-                              {msg.toolCalls.map((tc, tcIdx) => (
-                                <div
-                                  key={tcIdx}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-semibold shadow-2xs"
+                      {isUser ? (
+                        /* USER MESSAGE: Compact Bubble + Hover Edit/Copy Toolbar */
+                        <div className="flex flex-col items-end gap-1.5 group/user w-full">
+                          {editingMessageId === msg.id ? (
+                            /* Inline Edit Form */
+                            <div
+                              className={`w-full max-w-2xl sm:max-w-3xl ml-auto rounded-2xl border p-3.5 shadow-sm transition-all ${isDark
+                                  ? "border-neutral-700 bg-neutral-900 text-white"
+                                  : "border-neutral-300 bg-neutral-100 text-neutral-900"
+                                }`}
+                            >
+                              <textarea
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                className="w-full bg-transparent resize-y min-h-[80px] p-1 text-sm focus:outline-none leading-relaxed"
+                                rows={3}
+                                autoFocus
+                              />
+                              <div className="flex justify-end items-center gap-2 mt-2 pt-2 border-t border-black/[0.06] dark:border-white/[0.06]">
+                                <button
+                                  type="button"
+                                  onClick={cancelEditingMessage}
+                                  className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition cursor-pointer ${isDark
+                                      ? "border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                                      : "border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700"
+                                    }`}
                                 >
-                                  <Plug className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                                  <span>
-                                    Using <b>{tc.serverName}</b> ({tc.toolName})
-                                  </span>
-                                  {typeof tc.durationMs === "number" && (
-                                    <span className="text-[10px] text-purple-400/70 font-mono">
-                                      {tc.durationMs}ms
-                                    </span>
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => saveAndResubmitEdit(msg.id, editContent)}
+                                  className="px-3.5 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-xs font-semibold hover:opacity-90 transition shadow-sm cursor-pointer"
+                                >
+                                  Save &amp; Submit
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div
+                                className={`relative max-w-[85%] sm:max-w-[75%] rounded-3xl px-4 py-2.5 sm:px-5 sm:py-3 text-[14px] sm:text-[15px] leading-relaxed break-words shadow-2xs ${isDark
+                                    ? "bg-neutral-800 text-neutral-100"
+                                    : "bg-neutral-100 text-neutral-900"
+                                  }`}
+                              >
+                                {/* Attachments */}
+                                {msg.attachments && msg.attachments.length > 0 && (
+                                  <div className="mb-2 flex flex-wrap gap-2">
+                                    {msg.attachments.map((att, aIdx) => (
+                                      <div
+                                        key={aIdx}
+                                        className="overflow-hidden rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-200 dark:bg-neutral-900"
+                                      >
+                                        {att.preview ? (
+                                          <Image
+                                            src={att.preview}
+                                            alt={att.name}
+                                            width={160}
+                                            height={90}
+                                            className="w-28 sm:w-36 aspect-video object-cover"
+                                          />
+                                        ) : (
+                                          <div className="p-2 text-xs">📄 {att.name}</div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                              </div>
+
+                              {/* User Message Action Toolbar on hover */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover/user:opacity-100 transition-opacity pr-1 text-xs text-neutral-400">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingMessage(msg)}
+                                  className="p-1 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition cursor-pointer"
+                                  title="Edit message"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => copyMessage(msg.content, msg.id)}
+                                  className="p-1 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white transition cursor-pointer"
+                                  title="Copy text"
+                                >
+                                  {copiedMessageId === msg.id ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
                                   )}
-                                </div>
-                              ))}
-                            </div>
+                                </button>
+                              </div>
+                            </>
                           )}
-                          {!msg.toolCalls && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
-                            <div className="mb-2.5 flex flex-wrap gap-1.5">
-                              {msg.toolsExecuted.map((t, tIdx) => (
-                                <div
-                                  key={tIdx}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-semibold shadow-2xs"
-                                >
-                                  <Plug className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                                  <span>Using {t}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Markdown / Text content rendered directly on conversation surface */}
-                          <MarkdownView content={msg.content} isDark={isDark} />
-
-                          {/* In-built Live Clock Card */}
-                          {msg.clockData && (
-                            <LiveClockWidget clockData={msg.clockData} isDark={isDark} />
-                          )}
-
-                          {/* Inbuilt Web Image Search Visual Gallery matching Screenshot */}
-                          {msg.webImages && msg.webImages.length > 0 && (
-                            <VisualImageGallery
-                              images={msg.webImages}
-                              onSelectImage={(url: string) => setLightboxImage(url)}
-                              isDark={isDark}
+                        </div>
+                      ) : (
+                        /* ASSISTANT MESSAGE: Clean Surface Presentation (No Box), Pure Typography */
+                        <div className="flex gap-3 sm:gap-4 items-start w-full group/assistant">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm mt-1 p-0.5">
+                            <img
+                              src="/logo.png"
+                              alt="TATTVA AI"
+                              className="h-full w-full object-contain"
                             />
-                          )}
+                          </div>
 
-                          {/* Grounded Web Research Citations */}
-                          {msg.citations && msg.citations.length > 0 && (
-                            <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-2 border-t border-black/[0.05] dark:border-white/[0.05]">
-                              <span className="text-[11px] font-medium text-neutral-500 mr-1 flex items-center gap-1">
-                                <Globe className="w-3 h-3 text-blue-500" /> Sources:
-                              </span>
-                              {msg.citations.map((c, cIdx) => (
-                                <a
-                                  key={cIdx}
-                                  href={c.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] border border-black/10 dark:border-neutral-700 bg-neutral-100/80 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-blue-500 transition-colors shadow-2xs"
-                                  title={c.snippet || c.title}
-                                >
-                                  <span className="font-semibold text-neutral-400">[{cIdx + 1}]</span>
-                                  <span className="max-w-[140px] truncate">{c.title}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                                </a>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Structured Reasoning & Verification Plan */}
-                          {msg.reasoningPlan && (
-                            <details className="mt-2.5 rounded-xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-2.5 text-xs">
-                              <summary className="font-medium text-neutral-600 dark:text-neutral-400 cursor-pointer select-none flex items-center gap-1.5 hover:text-black dark:hover:text-white transition">
-                                <Cpu className="w-3.5 h-3.5 text-indigo-500" />
-                                <span>Reasoning &amp; Verification Plan ({msg.reasoningPlan.steps?.length || 0} steps)</span>
-                              </summary>
-                              <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-indigo-500/30 text-neutral-600 dark:text-neutral-300">
-                                {msg.reasoningPlan.steps?.map((st: any, sIdx: number) => (
-                                  <div key={sIdx} className="text-[11px] leading-relaxed">
-                                    <span className="font-semibold text-indigo-500">Step {st.stepNumber}:</span> {st.title} — {st.thought}
+                          <div className="flex-1 min-w-0">
+                            {/* Visible Claude Connector Tool Call Indicators */}
+                            {msg.toolCalls && msg.toolCalls.length > 0 && (
+                              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                                {msg.toolCalls.map((tc, tcIdx) => (
+                                  <div
+                                    key={tcIdx}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-semibold shadow-2xs"
+                                  >
+                                    <Plug className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                    <span>
+                                      Using <b>{tc.serverName}</b> ({tc.toolName})
+                                    </span>
+                                    {typeof tc.durationMs === "number" && (
+                                      <span className="text-[10px] text-purple-400/70 font-mono">
+                                        {tc.durationMs}ms
+                                      </span>
+                                    )}
                                   </div>
                                 ))}
-                                {msg.reasoningPlan.verificationHypothesis && (
-                                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
-                                    ✓ Verification: {msg.reasoningPlan.verificationHypothesis}
+                              </div>
+                            )}
+                            {!msg.toolCalls && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
+                              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                                {msg.toolsExecuted.map((t, tIdx) => (
+                                  <div
+                                    key={tIdx}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-semibold shadow-2xs"
+                                  >
+                                    <Plug className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                    <span>Using {t}</span>
                                   </div>
-                                )}
+                                ))}
                               </div>
-                            </details>
-                          )}
+                            )}
 
-                          {/* Generated Image Card (1:1, 16:9, 9:16 Ratios) */}
-                          {msg.image && (
-                            <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
-                              {/* Aspect Ratio Switcher Pills */}
-                              <div className="p-2.5 px-3 border-b border-black/[0.06] dark:border-neutral-800/80 flex items-center justify-between text-xs">
-                                <span className="font-semibold text-neutral-400 text-[11px] uppercase tracking-wider">Aspect Ratio</span>
-                                <div className="flex items-center gap-1.5">
-                                  {(["1:1", "16:9", "9:16"] as const).map((r) => (
-                                    <button
-                                      key={r}
-                                      type="button"
-                                      onClick={() => setImageOutputRatio(r)}
-                                      className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold transition cursor-pointer ${
-                                        imageOutputRatio === r
-                                          ? "bg-cyan-500 text-black shadow-xs"
-                                          : "bg-black/5 dark:bg-white/10 text-neutral-400 hover:text-white"
-                                      }`}
-                                    >
-                                      {r}
-                                    </button>
+                            {/* Markdown / Text content rendered directly on conversation surface */}
+                            <MarkdownView content={msg.content} isDark={isDark} />
+
+                            {/* In-built Live Clock Card */}
+                            {msg.clockData && (
+                              <LiveClockWidget clockData={msg.clockData} isDark={isDark} />
+                            )}
+
+                            {/* Inbuilt Web Image Search Visual Gallery matching Screenshot */}
+                            {msg.webImages && msg.webImages.length > 0 && (
+                              <VisualImageGallery
+                                images={msg.webImages}
+                                onSelectImage={(url: string) => setLightboxImage(url)}
+                                isDark={isDark}
+                              />
+                            )}
+
+                            {/* Grounded Web Research Citations */}
+                            {msg.citations && msg.citations.length > 0 && (
+                              <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-2 border-t border-black/[0.05] dark:border-white/[0.05]">
+                                <span className="text-[11px] font-medium text-neutral-500 mr-1 flex items-center gap-1">
+                                  <Globe className="w-3 h-3 text-blue-500" /> Sources:
+                                </span>
+                                {msg.citations.map((c, cIdx) => (
+                                  <a
+                                    key={cIdx}
+                                    href={c.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] border border-black/10 dark:border-neutral-700 bg-neutral-100/80 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-blue-500 transition-colors shadow-2xs"
+                                    title={c.snippet || c.title}
+                                  >
+                                    <span className="font-semibold text-neutral-400">[{cIdx + 1}]</span>
+                                    <span className="max-w-[140px] truncate">{c.title}</span>
+                                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Structured Reasoning & Verification Plan */}
+                            {msg.reasoningPlan && (
+                              <details className="mt-2.5 rounded-xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-2.5 text-xs">
+                                <summary className="font-medium text-neutral-600 dark:text-neutral-400 cursor-pointer select-none flex items-center gap-1.5 hover:text-black dark:hover:text-white transition">
+                                  <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+                                  <span>Reasoning &amp; Verification Plan ({msg.reasoningPlan.steps?.length || 0} steps)</span>
+                                </summary>
+                                <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-indigo-500/30 text-neutral-600 dark:text-neutral-300">
+                                  {msg.reasoningPlan.steps?.map((st: any, sIdx: number) => (
+                                    <div key={sIdx} className="text-[11px] leading-relaxed">
+                                      <span className="font-semibold text-indigo-500">Step {st.stepNumber}:</span> {st.title} — {st.thought}
+                                    </div>
                                   ))}
-                                </div>
-                              </div>
-
-                              <div
-                                className={`relative group cursor-pointer overflow-hidden bg-black/5 flex items-center justify-center ${
-                                  imageOutputRatio === "16:9"
-                                    ? "aspect-video"
-                                    : imageOutputRatio === "9:16"
-                                    ? "aspect-[9/16] max-h-[520px] mx-auto"
-                                    : "aspect-square max-h-[480px] mx-auto"
-                                }`}
-                                onClick={() => setLightboxImage(msg.image!)}
-                                onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
-                                onTouchEnd={handleImageTouchEnd}
-                                onMouseDown={(e) => handleImageTouchStart(msg.image!, e)}
-                                onMouseUp={handleImageTouchEnd}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
-                                }}
-                              >
-                                <Image
-                                  src={msg.image}
-                                  alt={msg.content}
-                                  width={800}
-                                  height={800}
-                                  unoptimized
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
-                                />
-
-                                <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      downloadImage(msg.image!);
-                                    }}
-                                    className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
-                                    title="Download Image"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
-                                    }}
-                                    className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
-                                    title="Share / Actions"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
-                                <div className="text-neutral-500 font-mono text-[11px] flex items-center gap-1.5">
-                                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">HD 1024px</span>
-                                  <span>{msg.imageMetadata?.model || "TATTVA Neural Vision HD"}</span>
-                                  {msg.imageMetadata?.generation_time_seconds && (
-                                    <span> • {msg.imageMetadata.generation_time_seconds}s</span>
+                                  {msg.reasoningPlan.verificationHypothesis && (
+                                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+                                      ✓ Verification: {msg.reasoningPlan.verificationHypothesis}
+                                    </div>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-neutral-400">Long-press image for options</span>
+                              </details>
+                            )}
+
+                            {/* Generated Image Card (1:1, 16:9, 9:16 Ratios) */}
+                            {msg.image && (
+                              <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
+                                {/* Aspect Ratio Switcher Pills */}
+                                <div className="p-2.5 px-3 border-b border-black/[0.06] dark:border-neutral-800/80 flex items-center justify-between text-xs">
+                                  <span className="font-semibold text-neutral-400 text-[11px] uppercase tracking-wider">Aspect Ratio</span>
+                                  <div className="flex items-center gap-1.5">
+                                    {(["1:1", "16:9", "9:16"] as const).map((r) => (
+                                      <button
+                                        key={r}
+                                        type="button"
+                                        onClick={() => setImageOutputRatio(r)}
+                                        className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold transition cursor-pointer ${imageOutputRatio === r
+                                            ? "bg-cyan-500 text-black shadow-xs"
+                                            : "bg-black/5 dark:bg-white/10 text-neutral-400 hover:text-white"
+                                          }`}
+                                      >
+                                        {r}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={`relative group cursor-pointer overflow-hidden bg-black/5 flex items-center justify-center ${imageOutputRatio === "16:9"
+                                      ? "aspect-video"
+                                      : imageOutputRatio === "9:16"
+                                        ? "aspect-[9/16] max-h-[520px] mx-auto"
+                                        : "aspect-square max-h-[480px] mx-auto"
+                                    }`}
+                                  onClick={() => setLightboxImage(msg.image!)}
+                                  onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
+                                  onTouchEnd={handleImageTouchEnd}
+                                  onMouseDown={(e) => handleImageTouchStart(msg.image!, e)}
+                                  onMouseUp={handleImageTouchEnd}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
+                                  }}
+                                >
+                                  <Image
+                                    src={msg.image}
+                                    alt={msg.content}
+                                    width={800}
+                                    height={800}
+                                    unoptimized
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+                                  />
+
+                                  <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        downloadImage(msg.image!);
+                                      }}
+                                      className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                      title="Download Image"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
+                                      }}
+                                      className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                      title="Share / Actions"
+                                    >
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
+                                  <div className="text-neutral-500 font-mono text-[11px] flex items-center gap-1.5">
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">HD 1024px</span>
+                                    <span>{msg.imageMetadata?.model || "TATTVA Neural Vision HD"}</span>
+                                    {msg.imageMetadata?.generation_time_seconds && (
+                                      <span> • {msg.imageMetadata.generation_time_seconds}s</span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-neutral-400">Long-press image for options</span>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                          {/* Assistant Action Toolbar */}
-                          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-400">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono opacity-60">TATTVA Intelligence</span>
-                              {/* Recalled Memory Badge */}
-                              {msg.recalledMemories && msg.recalledMemories.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setIsMemoryModalOpen(true)}
-                                  className="flex items-center gap-1 rounded-md bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
-                                  title={msg.recalledMemories.map((m) => `• [${m.category || "memory"}] ${m.content}`).join("\n")}
-                                >
-                                  <Brain className="w-3 h-3 text-purple-500" />
-                                  <span>{msg.recalledMemories.length} recalled</span>
-                                </button>
-                              )}
-                              {/* Tools Executed Badge */}
-                              {msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
-                                <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
-                                  <Wrench className="w-3 h-3 text-emerald-500" />
-                                  <span>{msg.toolsExecuted.join(", ")}</span>
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              {/* Feedback Thumbs Up / Down */}
-                              <div className="flex items-center gap-0.5 border-r border-black/[0.06] dark:border-white/[0.06] pr-1.5 mr-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickFeedback(msg.id, "positive")}
-                                  className={`p-1 rounded-md transition-colors cursor-pointer ${
-                                    msg.userFeedback?.rating === "positive"
-                                      ? "text-emerald-500 bg-emerald-500/10 font-bold"
-                                      : "text-neutral-400 hover:text-emerald-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                  }`}
-                                  title="Helpful response"
-                                >
-                                  <ThumbsUp className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => openFeedbackModal(msg.id, "negative")}
-                                  className={`p-1 rounded-md transition-colors cursor-pointer ${
-                                    msg.userFeedback?.rating === "negative"
-                                      ? "text-red-500 bg-red-500/10 font-bold"
-                                      : "text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                  }`}
-                                  title="Provide feedback"
-                                >
-                                  <ThumbsDown className="w-3.5 h-3.5" />
-                                </button>
+                            {/* Assistant Action Toolbar */}
+                            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-400">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono opacity-60">TATTVA Intelligence</span>
+                                {/* Recalled Memory Badge */}
+                                {msg.recalledMemories && msg.recalledMemories.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsMemoryModalOpen(true)}
+                                    className="flex items-center gap-1 rounded-md bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
+                                    title={msg.recalledMemories.map((m) => `• [${m.category || "memory"}] ${m.content}`).join("\n")}
+                                  >
+                                    <Brain className="w-3 h-3 text-purple-500" />
+                                    <span>{msg.recalledMemories.length} recalled</span>
+                                  </button>
+                                )}
+                                {/* Tools Executed Badge */}
+                                {msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
+                                  <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
+                                    <Wrench className="w-3 h-3 text-emerald-500" />
+                                    <span>{msg.toolsExecuted.join(", ")}</span>
+                                  </span>
+                                )}
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => speakText(msg.content, msg.id)}
-                                className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
-                                  speakingMessageId === msg.id
-                                    ? "bg-black text-white font-bold"
-                                    : "text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                }`}
-                                title="Listen to this response"
-                              >
-                                {speakingMessageId === msg.id ? (
-                                  <VolumeX className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Volume2 className="w-3.5 h-3.5" />
-                                )}
-                                <span>{speakingMessageId === msg.id ? "Stop" : "Speak"}</span>
-                              </button>
+                              <div className="flex items-center gap-1">
+                                {/* Feedback Thumbs Up / Down */}
+                                <div className="flex items-center gap-0.5 border-r border-black/[0.06] dark:border-white/[0.06] pr-1.5 mr-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickFeedback(msg.id, "positive")}
+                                    className={`p-1 rounded-md transition-colors cursor-pointer ${msg.userFeedback?.rating === "positive"
+                                        ? "text-emerald-500 bg-emerald-500/10 font-bold"
+                                        : "text-neutral-400 hover:text-emerald-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                      }`}
+                                    title="Helpful response"
+                                  >
+                                    <ThumbsUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openFeedbackModal(msg.id, "negative")}
+                                    className={`p-1 rounded-md transition-colors cursor-pointer ${msg.userFeedback?.rating === "negative"
+                                        ? "text-red-500 bg-red-500/10 font-bold"
+                                        : "text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                      }`}
+                                    title="Provide feedback"
+                                  >
+                                    <ThumbsDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
 
-                              <button
-                                type="button"
-                                onClick={() => copyMessage(msg.content, msg.id)}
-                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                                title="Copy descriptive text"
-                              >
-                                {copiedMessageId === msg.id ? (
-                                  <Check className="w-3.5 h-3.5 text-green-500" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                                <span>{copiedMessageId === msg.id ? "Copied" : "Copy"}</span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => speakText(msg.content, msg.id)}
+                                  className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${speakingMessageId === msg.id
+                                      ? "bg-black text-white font-bold"
+                                      : "text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                    }`}
+                                  title="Listen to this response"
+                                >
+                                  {speakingMessageId === msg.id ? (
+                                    <VolumeX className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Volume2 className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{speakingMessageId === msg.id ? "Stop" : "Speak"}</span>
+                                </button>
 
-                              <button
-                                type="button"
-                                onClick={() => regenerateResponse(msg.id)}
-                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                                title="Regenerate response"
-                              >
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span>Regenerate</span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => copyMessage(msg.content, msg.id)}
+                                  className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                                  title="Copy descriptive text"
+                                >
+                                  {copiedMessageId === msg.id ? (
+                                    <Check className="w-3.5 h-3.5 text-green-500" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{copiedMessageId === msg.id ? "Copied" : "Copy"}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => regenerateResponse(msg.id)}
+                                  className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                                  title="Regenerate response"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span>Regenerate</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  );
+                })
+              )}
+
+              {/* Loading pulse indicator */}
+              {loading && (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm animate-pulse p-0.5">
+                    <img
+                      src="/logo.png"
+                      alt="TATTVA AI"
+                      className="h-full w-full object-contain"
+                    />
                   </div>
-                );
-              })
-            )}
-
-            {/* Loading pulse indicator */}
-            {loading && (
-              <div className="flex items-center gap-3">
-                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm animate-pulse p-0.5">
-                  <img
-                    src="/logo.png"
-                    alt="TATTVA AI"
-                    className="h-full w-full object-contain"
-                  />
+                  <div
+                    className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs shadow-sm ${isDark ? "border-neutral-800 bg-neutral-900 text-neutral-200" : "border-black/[0.08] bg-white text-neutral-800"
+                      }`}
+                  >
+                    <span className="inline-block h-2 w-2 rounded-full bg-black dark:bg-white animate-ping" />
+                    <span className="font-medium">{statusMessage || "Processing with TATTVA Intelligence..."}</span>
+                  </div>
                 </div>
-                <div
-                  className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs shadow-sm ${
-                    isDark ? "border-neutral-800 bg-neutral-900 text-neutral-200" : "border-black/[0.08] bg-white text-neutral-800"
-                  }`}
-                >
-                  <span className="inline-block h-2 w-2 rounded-full bg-black dark:bg-white animate-ping" />
-                  <span className="font-medium">{statusMessage || "Processing with TATTVA Intelligence..."}</span>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
+                  ⚠️ {error}
                 </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
-                ⚠️ {error}
-              </div>
-            )}
+              )}
 
 
 
-            <div ref={chatBottomRef} />
+              <div ref={chatBottomRef} />
             </div>
           </div>
 
@@ -5451,11 +5410,10 @@ export default function ChatPage() {
               3. ADVANCED AI CHAT COMPOSER (FROZEN AT BOTTOM, NEVER MOVES WITH SCROLL)
           ========================================================================= */}
           <div
-            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pt-2 pb-[max(env(safe-area-inset-bottom,0px),24px)] sm:pb-4 transition-colors duration-200 ${
-              isDark
+            className={`flex-shrink-0 z-20 w-full px-3 sm:px-6 pt-2 pb-[max(env(safe-area-inset-bottom,0px),24px)] sm:pb-4 transition-colors duration-200 ${isDark
                 ? "bg-black"
                 : "bg-white"
-            }`}
+              }`}
           >
             <div className="mx-auto max-w-3xl w-full pointer-events-auto relative">
               {/* Floating Scroll-to-Bottom Button */}
@@ -5467,11 +5425,10 @@ export default function ChatPage() {
                       chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
                       setShowScrollBtn(false);
                     }}
-                    className={`flex h-9 w-9 items-center justify-center rounded-full border shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer backdrop-blur-md ${
-                      isDark
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer backdrop-blur-md ${isDark
                         ? "bg-neutral-900/90 border-neutral-700 text-neutral-200 hover:text-white shadow-black/40"
                         : "bg-white/95 border-neutral-200 text-neutral-700 hover:text-black shadow-neutral-300/60"
-                    }`}
+                      }`}
                     title="Scroll to latest message"
                   >
                     <ChevronDown className="w-4 h-4" />
@@ -5483,11 +5440,10 @@ export default function ChatPage() {
               {/* Status / Interim Voice Banner */}
               {(statusMessage || interimSpeech || isListening) && (
                 <div
-                  className={`mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-2xs ${
-                    isDark
+                  className={`mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-2xs ${isDark
                       ? "bg-neutral-800/90 border-neutral-700 text-neutral-300"
                       : "bg-neutral-100 border-neutral-200 text-neutral-700"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2 truncate">
                     {isListening ? (
@@ -5502,8 +5458,8 @@ export default function ChatPage() {
                       {interimSpeech
                         ? `Listening: "${interimSpeech}"`
                         : isListening
-                        ? "Listening for voice input... Speak naturally"
-                        : statusMessage}
+                          ? "Listening for voice input... Speak naturally"
+                          : statusMessage}
                     </span>
                   </div>
                   {isListening && (
@@ -5522,18 +5478,19 @@ export default function ChatPage() {
               {activeTool !== "none" && (
                 <div className="mb-2 flex items-center gap-1.5 px-1">
                   <div
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border shadow-2xs ${
-                      isDark
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border shadow-2xs ${isDark
                         ? "border-neutral-700 bg-neutral-800 text-neutral-200"
                         : "border-neutral-200 bg-neutral-100 text-neutral-800"
-                    }`}
+                      }`}
                   >
                     {activeTool === "web" && <Globe className="w-3.5 h-3.5 text-blue-500" />}
+                    {activeTool === "image_search" && <Search className="w-3.5 h-3.5 text-sky-400" />}
                     {activeTool === "research" && <Compass className="w-3.5 h-3.5 text-purple-500" />}
                     {activeTool === "file" && <FileText className="w-3.5 h-3.5 text-emerald-500" />}
                     {activeTool === "code" && <Code2 className="w-3.5 h-3.5 text-cyan-500" />}
                     <span className="font-semibold">
                       {activeTool === "web" && "Web Search Active"}
+                      {activeTool === "image_search" && "Web Image Search Active"}
                       {activeTool === "research" && "Deep Research Active"}
                       {activeTool === "file" && "File Analysis Active"}
                       {activeTool === "code" && "Code Assistance Active"}
@@ -5622,11 +5579,10 @@ export default function ChatPage() {
 
               {/* Seamless Box matching ChatGPT Mobile interface (Screenshot) */}
               <div
-                className={`relative flex flex-col justify-between w-full rounded-[28px] border p-2.5 sm:p-3 shadow-xl transition-all duration-200 ${
-                  isDark
+                className={`relative flex flex-col justify-between w-full rounded-[28px] border p-2.5 sm:p-3 shadow-xl transition-all duration-200 ${isDark
                     ? "bg-[#212124] border-white/10 text-white focus-within:border-white/20"
                     : "bg-[#f4f4f4] border-black/10 text-black shadow-md focus-within:border-black/25"
-                }`}
+                  }`}
               >
                 {/* 1. Top Row: Text Input */}
                 <textarea
@@ -5642,9 +5598,8 @@ export default function ChatPage() {
                   }}
                   rows={1}
                   placeholder={isListening ? "Listening to voice input..." : "Ask TATTVA AI"}
-                  className={`w-full resize-none bg-transparent px-2 pt-1 pb-1 text-base sm:text-base outline-none max-h-36 min-h-[38px] leading-relaxed ${
-                    isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
-                  }`}
+                  className={`w-full resize-none bg-transparent px-2 pt-1 pb-1 text-base sm:text-base outline-none max-h-36 min-h-[38px] leading-relaxed ${isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
+                    }`}
                 />
 
                 {/* 2. Bottom Row: (+) on Left, Mic & Voice Wave on Right */}
@@ -5657,11 +5612,10 @@ export default function ChatPage() {
                         setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
                         setIsToolsMenuOpen(false);
                       }}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all cursor-pointer select-none active:scale-95 ${
-                        isAttachmentMenuOpen
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all cursor-pointer select-none active:scale-95 ${isAttachmentMenuOpen
                           ? "rotate-45 bg-white/20 text-white"
                           : "text-neutral-300 hover:text-white hover:bg-white/10"
-                      }`}
+                        }`}
                       title="Attach files, media, or AI tools"
                     >
                       <Plus className="w-6 h-6 transition-transform duration-200 stroke-[2]" />
@@ -5670,9 +5624,8 @@ export default function ChatPage() {
                     {/* Attachment & Tools Dropdown Popover matching Image 2 */}
                     {isAttachmentMenuOpen && (
                       <div
-                        className={`absolute bottom-full left-0 mb-3 w-64 sm:w-72 rounded-[28px] border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                          isDark ? "border-neutral-700 bg-[#222222]/98 text-white" : "border-black/10 bg-white/98 text-neutral-900"
-                        }`}
+                        className={`absolute bottom-full left-0 mb-3 w-64 sm:w-72 rounded-[28px] border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${isDark ? "border-neutral-700 bg-[#222222]/98 text-white" : "border-black/10 bg-white/98 text-neutral-900"
+                          }`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* 1. Camera (Image 2) */}
@@ -5703,6 +5656,28 @@ export default function ChatPage() {
                             <ImageIcon className="w-5 h-5 stroke-[2]" />
                           </div>
                           <span className="font-semibold text-[15px] tracking-tight">Photos</span>
+                        </button>
+
+                        {/* Web Image Search Engine */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTool(activeTool === "image_search" ? "none" : "image_search");
+                            setIsAttachmentMenuOpen(false);
+                            textareaRef.current?.focus();
+                            showToast(activeTool === "image_search" ? "Image Search deactivated" : "Web Image Search enabled 🔍");
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-sky-400 shadow-2xs">
+                            <Search className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <div className="flex-1 min-w-0 flex items-center justify-between">
+                            <span className="font-semibold text-[15px] tracking-tight">Web Image Search</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-mono">
+                              Online
+                            </span>
+                          </div>
                         </button>
 
                         {/* 3. Files (Image 2) */}
@@ -5752,16 +5727,14 @@ export default function ChatPage() {
                           }}
                           className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
                         >
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition shadow-2xs ${
-                            isThinkingEnabled ? "bg-sky-500/30 text-sky-400" : "bg-white/10 text-white"
-                          }`}>
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition shadow-2xs ${isThinkingEnabled ? "bg-sky-500/30 text-sky-400" : "bg-white/10 text-white"
+                            }`}>
                             <Gauge className="w-5 h-5 stroke-[2]" />
                           </div>
                           <div className="flex-1 min-w-0 flex items-center justify-between">
                             <span className="font-semibold text-[15px] tracking-tight">Think harder</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              isThinkingEnabled ? "bg-sky-500/25 text-sky-300" : "text-neutral-500"
-                            }`}>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isThinkingEnabled ? "bg-sky-500/25 text-sky-300" : "text-neutral-500"
+                              }`}>
                               {isThinkingEnabled ? "ON" : "OFF"}
                             </span>
                           </div>
@@ -5800,9 +5773,8 @@ export default function ChatPage() {
                     {/* Popover for ConnectorPicker */}
                     {isConnectorPickerOpen && (
                       <div
-                        className={`absolute bottom-full left-0 mb-3 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                          isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
-                        }`}
+                        className={`absolute bottom-full left-0 mb-3 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
+                          }`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <ConnectorPicker
@@ -5841,13 +5813,12 @@ export default function ChatPage() {
                     <button
                       type="button"
                       onClick={startVoiceRecognition}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${
-                        isListening
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${isListening
                           ? "bg-red-500 text-white animate-pulse shadow-md ring-2 ring-red-400/50"
                           : isDark
-                          ? "text-neutral-300 hover:text-white hover:bg-white/10"
-                          : "text-neutral-600 hover:text-black hover:bg-neutral-200"
-                      }`}
+                            ? "text-neutral-300 hover:text-white hover:bg-white/10"
+                            : "text-neutral-600 hover:text-black hover:bg-neutral-200"
+                        }`}
                       title={isListening ? "Stop listening" : "Speech-to-text input"}
                     >
                       {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 stroke-[1.8]" />}
@@ -5894,9 +5865,8 @@ export default function ChatPage() {
                 </div>
               </div>
               {/* Small Friendly Disclaimer: hidden on mobile to prevent Android navigation bar clash, visible on desktop */}
-              <p className={`hidden sm:block mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${
-                isDark ? "text-neutral-500" : "text-neutral-400"
-              }`}>
+              <p className={`hidden sm:block mt-2 text-center text-[11px] leading-normal max-w-xl mx-auto select-none ${isDark ? "text-neutral-500" : "text-neutral-400"
+                }`}>
                 TATTVA AI can make mistakes. Verify important information.
               </p>
             </div>
@@ -5913,9 +5883,8 @@ export default function ChatPage() {
           onClick={() => setIsMapsModalOpen(false)}
         >
           <div
-            className={`relative w-full max-w-5xl h-[92vh] sm:h-[88vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-colors ${
-              isDark ? "bg-[#121316] border-neutral-800 text-white" : "bg-white border-black/10 text-neutral-900"
-            }`}
+            className={`relative w-full max-w-5xl h-[92vh] sm:h-[88vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-colors ${isDark ? "bg-[#121316] border-neutral-800 text-white" : "bg-white border-black/10 text-neutral-900"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top Header of Maps Modal */}
@@ -5944,22 +5913,20 @@ export default function ChatPage() {
                   <button
                     type="button"
                     onClick={() => setMapsMode("roadmap")}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                      mapsMode === "roadmap"
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${mapsMode === "roadmap"
                         ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs"
                         : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                    }`}
+                      }`}
                   >
                     Map
                   </button>
                   <button
                     type="button"
                     onClick={() => setMapsMode("satellite")}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                      mapsMode === "satellite"
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${mapsMode === "satellite"
                         ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs"
                         : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                    }`}
+                      }`}
                   >
                     Satellite
                   </button>
@@ -5969,11 +5936,10 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={() => setMapsDirectionsMode(!mapsDirectionsMode)}
-                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer active:scale-95 ${
-                    mapsDirectionsMode
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer active:scale-95 ${mapsDirectionsMode
                       ? "border-blue-500/40 bg-blue-500/15 text-blue-400"
                       : "border-black/10 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500"
-                  }`}
+                    }`}
                   title="Toggle directions mode"
                 >
                   <Compass className="w-3.5 h-3.5" />
@@ -6003,11 +5969,10 @@ export default function ChatPage() {
                       value={mapsSearchInput}
                       onChange={(e) => setMapsSearchInput(e.target.value)}
                       placeholder="Search any place, city, address, or landmark (e.g. Paris, Goa, Times Square)..."
-                      className={`w-full rounded-2xl border pl-10 pr-4 py-2.5 text-xs sm:text-sm outline-none transition ${
-                        isDark
+                      className={`w-full rounded-2xl border pl-10 pr-4 py-2.5 text-xs sm:text-sm outline-none transition ${isDark
                           ? "border-neutral-800 bg-neutral-900/90 text-white focus:border-emerald-500/50"
                           : "border-black/10 bg-neutral-50 text-black focus:border-emerald-500/50"
-                      }`}
+                        }`}
                     />
                   </div>
 
@@ -6023,11 +5988,10 @@ export default function ChatPage() {
                     type="button"
                     onClick={locateUserForMap}
                     disabled={isLocatingUser}
-                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl border text-xs sm:text-sm font-semibold transition cursor-pointer active:scale-95 shrink-0 ${
-                      isLocatingUser
+                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl border text-xs sm:text-sm font-semibold transition cursor-pointer active:scale-95 shrink-0 ${isLocatingUser
                         ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500 animate-pulse"
                         : "border-black/10 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
-                    }`}
+                      }`}
                     title="Find current GPS location"
                   >
                     <MapPin className={`w-4 h-4 text-emerald-500 ${isLocatingUser ? "animate-spin" : ""}`} />
@@ -6042,18 +6006,16 @@ export default function ChatPage() {
                       value={mapsOrigin}
                       onChange={(e) => setMapsOrigin(e.target.value)}
                       placeholder="Starting point (or 'My Location')..."
-                      className={`w-full rounded-2xl border px-3.5 py-2 text-xs sm:text-sm outline-none transition ${
-                        isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-neutral-50 text-black"
-                      }`}
+                      className={`w-full rounded-2xl border px-3.5 py-2 text-xs sm:text-sm outline-none transition ${isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-neutral-50 text-black"
+                        }`}
                     />
                     <input
                       type="text"
                       value={mapsDestination}
                       onChange={(e) => setMapsDestination(e.target.value)}
                       placeholder="Destination place or address..."
-                      className={`w-full rounded-2xl border px-3.5 py-2 text-xs sm:text-sm outline-none transition ${
-                        isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-neutral-50 text-black"
-                      }`}
+                      className={`w-full rounded-2xl border px-3.5 py-2 text-xs sm:text-sm outline-none transition ${isDark ? "border-neutral-800 bg-neutral-900 text-white" : "border-black/10 bg-neutral-50 text-black"
+                        }`}
                     />
                   </div>
                 </div>
@@ -6074,11 +6036,10 @@ export default function ChatPage() {
                     key={cat.label}
                     type="button"
                     onClick={() => handleMapCategory(cat.label)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-medium whitespace-nowrap transition cursor-pointer active:scale-95 ${
-                      isDark
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-medium whitespace-nowrap transition cursor-pointer active:scale-95 ${isDark
                         ? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-emerald-500/40 hover:text-white"
                         : "border-black/10 bg-neutral-100 text-neutral-700 hover:border-emerald-500/40 hover:text-black"
-                    }`}
+                      }`}
                   >
                     <span>{cat.icon}</span>
                     <span>{cat.label}</span>
@@ -6117,7 +6078,7 @@ export default function ChatPage() {
                         setMapsQuery(place.split(",")[0]);
                         setMapsSearchInput(place.split(",")[0]);
                       }
-                    } catch {}
+                    } catch { }
                   }}
                 />
               </div>
@@ -6130,11 +6091,10 @@ export default function ChatPage() {
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery || "Location")}`}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition cursor-pointer active:scale-95 ${
-                    isDark
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition cursor-pointer active:scale-95 ${isDark
                       ? "border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
                       : "border-black/10 bg-white hover:bg-neutral-100 text-neutral-800"
-                  }`}
+                    }`}
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                   <span>Open in Google Maps</span>
@@ -6191,7 +6151,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => {
                   if (navigator.share) {
-                    navigator.share({ title: "TATTVA AI Artwork", url: lightboxImage }).catch(() => {});
+                    navigator.share({ title: "TATTVA AI Artwork", url: lightboxImage }).catch(() => { });
                   } else {
                     navigator.clipboard.writeText(lightboxImage);
                     showToast("Image URI copied 📋");
@@ -6213,6 +6173,23 @@ export default function ChatPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Floating Bottom Source Link for Web Image */}
+            {lightboxImage.startsWith("http") && (
+              <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
+                <a
+                  href={lightboxImage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-xl bg-black/80 text-white px-3 py-1.5 text-xs font-mono backdrop-blur-md hover:bg-black transition border border-white/15 shadow-lg"
+                  title="Open original source"
+                >
+                  <Globe className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Open Original Source</span>
+                  <ExternalLink className="w-3 h-3 text-neutral-400" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -6225,9 +6202,8 @@ export default function ChatPage() {
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsProfileModalOpen(false)}>
           <div
-            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
-            }`}
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
@@ -6264,9 +6240,8 @@ export default function ChatPage() {
                   </p>
                 </div>
                 <div className="shrink-0">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                    isGuest ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                  }`}>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${isGuest ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                    }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} />
                     {isGuest ? "Guest" : "Verified Pro"}
                   </span>
@@ -6331,9 +6306,8 @@ export default function ChatPage() {
           onClick={() => setIsLogoutConfirmOpen(false)}
         >
           <div
-            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
+            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+              }`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -6349,11 +6323,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setIsLogoutConfirmOpen(false)}
-                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition ${
-                  isDark
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition ${isDark
                     ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                     : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
-                }`}
+                  }`}
               >
                 Cancel
               </button>
@@ -6379,9 +6352,8 @@ export default function ChatPage() {
           onClick={() => setDeleteConfirmSession(null)}
         >
           <div
-            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
+            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+              }`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -6397,11 +6369,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setDeleteConfirmSession(null)}
-                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                  isDark
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${isDark
                     ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                     : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
-                }`}
+                  }`}
               >
                 Cancel
               </button>
@@ -6431,9 +6402,8 @@ export default function ChatPage() {
           onClick={() => setShareModalOpen(false)}
         >
           <div
-            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800">
@@ -6456,9 +6426,8 @@ export default function ChatPage() {
             </div>
 
             <div className="my-5 space-y-3">
-              <div className={`flex items-center gap-2 rounded-2xl border p-2 text-xs font-mono select-all ${
-                isDark ? "border-neutral-800 bg-neutral-900 text-neutral-300" : "border-neutral-200 bg-neutral-100 text-neutral-800"
-              }`}>
+              <div className={`flex items-center gap-2 rounded-2xl border p-2 text-xs font-mono select-all ${isDark ? "border-neutral-800 bg-neutral-900 text-neutral-300" : "border-neutral-200 bg-neutral-100 text-neutral-800"
+                }`}>
                 <input
                   type="text"
                   readOnly
@@ -6472,11 +6441,10 @@ export default function ChatPage() {
                     setShareCopied(true);
                     setTimeout(() => setShareCopied(false), 2000);
                   }}
-                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold text-xs transition cursor-pointer shadow-xs ${
-                    shareCopied
+                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold text-xs transition cursor-pointer shadow-xs ${shareCopied
                       ? "bg-emerald-600 text-white"
                       : "bg-black dark:bg-white text-white dark:text-black hover:opacity-90"
-                  }`}
+                    }`}
                 >
                   {shareCopied ? (
                     <>
@@ -6510,7 +6478,7 @@ export default function ChatPage() {
                       navigator.share({
                         title: "TATTVA AI Shared Chat",
                         url: shareUrl,
-                      }).catch(() => {});
+                      }).catch(() => { });
                     }}
                     className="text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
                   >
@@ -6524,11 +6492,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setShareModalOpen(false)}
-                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                  isDark
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${isDark
                     ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                     : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
-                }`}
+                  }`}
               >
                 Done
               </button>
@@ -6546,9 +6513,8 @@ export default function ChatPage() {
           onClick={() => setIsArchiveModalOpen(false)}
         >
           <div
-            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl transition-all max-h-[85vh] flex flex-col ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
+            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl transition-all max-h-[85vh] flex flex-col ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800 shrink-0">
@@ -6585,9 +6551,8 @@ export default function ChatPage() {
                   .map((s) => (
                     <div
                       key={s.id}
-                      className={`flex items-center justify-between p-3 rounded-2xl border text-xs transition ${
-                        isDark ? "border-neutral-800 bg-neutral-900/60" : "border-neutral-200 bg-neutral-50"
-                      }`}
+                      className={`flex items-center justify-between p-3 rounded-2xl border text-xs transition ${isDark ? "border-neutral-800 bg-neutral-900/60" : "border-neutral-200 bg-neutral-50"
+                        }`}
                     >
                       <div className="min-w-0 flex-1 mr-3">
                         <p className="font-semibold truncate text-neutral-900 dark:text-white">{s.title}</p>
@@ -6622,11 +6587,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setIsArchiveModalOpen(false)}
-                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                  isDark
+                className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${isDark
                     ? "border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                     : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
-                }`}
+                  }`}
               >
                 Close
               </button>
@@ -6644,9 +6608,8 @@ export default function ChatPage() {
           onClick={() => setIsSettingsModalOpen(false)}
         >
           <div
-            className={`w-full max-w-xl max-h-[92vh] flex flex-col rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all overflow-hidden ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
-            }`}
+            className={`w-full max-w-xl max-h-[92vh] flex flex-col rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all overflow-hidden ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -6671,23 +6634,23 @@ export default function ChatPage() {
                     {settingsActiveTab === "display"
                       ? "Display, Font & Style"
                       : settingsActiveTab === "providers"
-                      ? "AI Providers (BYOK)"
-                      : settingsActiveTab === "general"
-                      ? "General Preferences"
-                      : settingsActiveTab === "backup"
-                      ? "Chat Backup & Cloud Sync"
-                      : "Settings"}
+                        ? "AI Providers (BYOK)"
+                        : settingsActiveTab === "general"
+                          ? "General Preferences"
+                          : settingsActiveTab === "backup"
+                            ? "Chat Backup & Cloud Sync"
+                            : "Settings"}
                   </h3>
                   <p className="text-[11px] text-neutral-400">
                     {settingsActiveTab === "display"
                       ? "Android-inspired font, sizing & accessibility controls"
                       : settingsActiveTab === "providers"
-                      ? "Configure custom API keys and provider endpoints"
-                      : settingsActiveTab === "general"
-                      ? "Manage themes, voice narration & chat data"
-                      : settingsActiveTab === "backup"
-                      ? "Automatic restore on relogin, export JSON & cloud sync"
-                      : "Manage display, AI providers, connectors & preferences"}
+                        ? "Configure custom API keys and provider endpoints"
+                        : settingsActiveTab === "general"
+                          ? "Manage themes, voice narration & chat data"
+                          : settingsActiveTab === "backup"
+                            ? "Automatic restore on relogin, export JSON & cloud sync"
+                            : "Manage display, AI providers, connectors & preferences"}
                   </p>
                 </div>
               </div>
@@ -6707,11 +6670,10 @@ export default function ChatPage() {
                   {/* 1. Display & Typography */}
                   <div
                     onClick={() => setSettingsActiveTab("display")}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-                      isDark
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${isDark
                         ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800/80 text-white"
                         : "border-black/10 bg-neutral-50 hover:bg-neutral-100 text-neutral-900"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
@@ -6728,11 +6690,10 @@ export default function ChatPage() {
                   {/* 2. Custom AI Providers */}
                   <div
                     onClick={() => setSettingsActiveTab("providers")}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-                      isDark
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${isDark
                         ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800/80 text-white"
                         : "border-black/10 bg-neutral-50 hover:bg-neutral-100 text-neutral-900"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -6759,11 +6720,10 @@ export default function ChatPage() {
                       setIsSettingsModalOpen(false);
                       setIsBrowseConnectorsOpen(true);
                     }}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-                      isDark
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${isDark
                         ? "border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/15 text-white"
                         : "border-purple-500/20 bg-purple-50 hover:bg-purple-100/80 text-neutral-900"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
@@ -6787,11 +6747,10 @@ export default function ChatPage() {
                   {/* 4. General Preferences */}
                   <div
                     onClick={() => setSettingsActiveTab("general")}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-                      isDark
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${isDark
                         ? "border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800/80 text-white"
                         : "border-black/10 bg-neutral-50 hover:bg-neutral-100 text-neutral-900"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -6808,11 +6767,10 @@ export default function ChatPage() {
                   {/* 5. Cloud Backup & Sync */}
                   <div
                     onClick={() => setSettingsActiveTab("backup")}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-                      isDark
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${isDark
                         ? "border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/15 text-white"
                         : "border-sky-500/20 bg-sky-50 hover:bg-sky-100/80 text-neutral-900"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
@@ -6864,11 +6822,10 @@ export default function ChatPage() {
                           key={f.id}
                           type="button"
                           onClick={() => updateDisplaySetting("fontStyle", f.id as any)}
-                          className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer select-none active:scale-95 ${
-                            displaySettings.fontStyle === f.id
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer select-none active:scale-95 ${displaySettings.fontStyle === f.id
                               ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold shadow-xs"
                               : "border-black/10 dark:border-neutral-700 bg-transparent text-neutral-600 dark:text-neutral-400 hover:border-black/20"
-                          }`}
+                            }`}
                         >
                           {f.name}
                         </button>
@@ -6898,11 +6855,10 @@ export default function ChatPage() {
                           key={s.id}
                           type="button"
                           onClick={() => updateDisplaySetting("fontSize", s.id as any)}
-                          className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer select-none active:scale-95 ${
-                            displaySettings.fontSize === s.id
+                          className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer select-none active:scale-95 ${displaySettings.fontSize === s.id
                               ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold shadow-xs"
                               : "border-black/10 dark:border-neutral-700 bg-transparent text-neutral-600 dark:text-neutral-400 hover:border-black/20"
-                          }`}
+                            }`}
                         >
                           <div className="font-bold text-xs">{s.label}</div>
                           <div className="text-[10px] opacity-70 font-mono">{s.scale}</div>
@@ -6931,11 +6887,10 @@ export default function ChatPage() {
                           key={w.id}
                           type="button"
                           onClick={() => updateDisplaySetting("fontWeight", w.id as any)}
-                          className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer select-none active:scale-95 ${
-                            displaySettings.fontWeight === w.id
+                          className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer select-none active:scale-95 ${displaySettings.fontWeight === w.id
                               ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold shadow-xs"
                               : "border-black/10 dark:border-neutral-700 bg-transparent text-neutral-600 dark:text-neutral-400 hover:border-black/20"
-                          }`}
+                            }`}
                         >
                           <div className="font-bold text-xs">{w.label}</div>
                           <div className="text-[10px] opacity-70 font-mono">{w.w}</div>
@@ -6955,14 +6910,12 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={() => updateDisplaySetting("isBoldText", !displaySettings.isBoldText)}
-                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                          displaySettings.isBoldText ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
-                        }`}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${displaySettings.isBoldText ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                          }`}
                       >
                         <span
-                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                            displaySettings.isBoldText ? "translate-x-6" : "translate-x-0.5"
-                          }`}
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${displaySettings.isBoldText ? "translate-x-6" : "translate-x-0.5"
+                            }`}
                         />
                       </button>
                     </div>
@@ -6976,14 +6929,12 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={() => updateDisplaySetting("isItalic", !displaySettings.isItalic)}
-                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                          displaySettings.isItalic ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
-                        }`}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${displaySettings.isItalic ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                          }`}
                       >
                         <span
-                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                            displaySettings.isItalic ? "translate-x-6" : "translate-x-0.5"
-                          }`}
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${displaySettings.isItalic ? "translate-x-6" : "translate-x-0.5"
+                            }`}
                         />
                       </button>
                     </div>
@@ -7003,11 +6954,10 @@ export default function ChatPage() {
                             key={sp.id}
                             type="button"
                             onClick={() => updateDisplaySetting("letterSpacing", sp.id as any)}
-                            className={`py-2 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer select-none active:scale-95 ${
-                              displaySettings.letterSpacing === sp.id
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer select-none active:scale-95 ${displaySettings.letterSpacing === sp.id
                                 ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold"
                                 : "border-black/10 dark:border-neutral-700 text-neutral-500"
-                            }`}
+                              }`}
                           >
                             {sp.label}
                           </button>
@@ -7028,11 +6978,10 @@ export default function ChatPage() {
                             key={ln.id}
                             type="button"
                             onClick={() => updateDisplaySetting("lineSpacing", ln.id as any)}
-                            className={`py-2 px-1 text-center rounded-xl border text-[11px] font-semibold transition cursor-pointer select-none active:scale-95 ${
-                              displaySettings.lineSpacing === ln.id
+                            className={`py-2 px-1 text-center rounded-xl border text-[11px] font-semibold transition cursor-pointer select-none active:scale-95 ${displaySettings.lineSpacing === ln.id
                                 ? "border-cyan-500 bg-cyan-500/15 text-cyan-400 font-bold"
                                 : "border-black/10 dark:border-neutral-700 text-neutral-500"
-                            }`}
+                              }`}
                           >
                             {ln.label}
                           </button>
@@ -7052,14 +7001,12 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={() => updateDisplaySetting("screenZoom", displaySettings.screenZoom === "zoomed" ? "normal" : "zoomed")}
-                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                          displaySettings.screenZoom === "zoomed" ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
-                        }`}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${displaySettings.screenZoom === "zoomed" ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                          }`}
                       >
                         <span
-                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                            displaySettings.screenZoom === "zoomed" ? "translate-x-6" : "translate-x-0.5"
-                          }`}
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${displaySettings.screenZoom === "zoomed" ? "translate-x-6" : "translate-x-0.5"
+                            }`}
                         />
                       </button>
                     </div>
@@ -7073,14 +7020,12 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={() => updateDisplaySetting("isHighContrast", !displaySettings.isHighContrast)}
-                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                          displaySettings.isHighContrast ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
-                        }`}
+                        className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${displaySettings.isHighContrast ? "bg-cyan-500" : "bg-neutral-300 dark:bg-neutral-700"
+                          }`}
                       >
                         <span
-                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                            displaySettings.isHighContrast ? "translate-x-6" : "translate-x-0.5"
-                          }`}
+                          className={`block h-5 w-5 rounded-full bg-white transition-transform ${displaySettings.isHighContrast ? "translate-x-6" : "translate-x-0.5"
+                            }`}
                         />
                       </button>
                     </div>
@@ -7128,14 +7073,12 @@ export default function ChatPage() {
                     <button
                       type="button"
                       onClick={() => handleToggleCustomProviders(!customProviderSettings.enabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                        customProviderSettings.enabled ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
-                      }`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${customProviderSettings.enabled ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+                        }`}
                     >
                       <span
-                        className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                          customProviderSettings.enabled ? "translate-x-5.5" : "translate-x-0.5"
-                        }`}
+                        className={`block h-5 w-5 rounded-full bg-white transition-transform ${customProviderSettings.enabled ? "translate-x-5.5" : "translate-x-0.5"
+                          }`}
                       />
                     </button>
                   </div>
@@ -7159,11 +7102,10 @@ export default function ChatPage() {
                             key={p.id}
                             type="button"
                             onClick={() => handleUpdateActiveProvider(p.id as ProviderType)}
-                            className={`p-3 rounded-2xl border text-left transition cursor-pointer select-none relative ${
-                              isSelected
+                            className={`p-3 rounded-2xl border text-left transition cursor-pointer select-none relative ${isSelected
                                 ? "border-cyan-500 bg-cyan-500/10 dark:bg-cyan-500/15 shadow-xs"
                                 : "border-black/10 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-800/40 hover:border-black/20 dark:hover:border-neutral-700"
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center justify-between mb-1">
                               <span className={`font-bold text-xs ${isSelected ? "text-cyan-500 dark:text-cyan-400" : "text-neutral-900 dark:text-white"}`}>
@@ -7207,11 +7149,10 @@ export default function ChatPage() {
                                 key={pm.id}
                                 type="button"
                                 onClick={() => handleUpdateProviderEntry(activeProv, "model", pm.id)}
-                                className={`text-[10px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer ${
-                                  entry.model === pm.id
+                                className={`text-[10px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer ${entry.model === pm.id
                                     ? "bg-cyan-500 text-black border-cyan-500 font-bold"
                                     : "border-black/10 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-cyan-500/50"
-                                }`}
+                                  }`}
                               >
                                 {pm.name}
                               </button>
@@ -7275,12 +7216,12 @@ export default function ChatPage() {
                                 activeProv === "openai"
                                   ? "sk-proj-..."
                                   : activeProv === "gemini"
-                                  ? "AIzaSy..."
-                                  : activeProv === "anthropic"
-                                  ? "sk-ant-api03-..."
-                                  : activeProv === "groq"
-                                  ? "gsk_..."
-                                  : "Enter provider secret key"
+                                    ? "AIzaSy..."
+                                    : activeProv === "anthropic"
+                                      ? "sk-ant-api03-..."
+                                      : activeProv === "groq"
+                                        ? "gsk_..."
+                                        : "Enter provider secret key"
                               }
                               className="w-full rounded-xl border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 pr-10 text-xs font-mono text-neutral-900 dark:text-white outline-none focus:border-cyan-500"
                             />
@@ -7298,11 +7239,10 @@ export default function ChatPage() {
                         {/* Feedback Banner */}
                         {providerTestFeedback && (
                           <div
-                            className={`p-2.5 rounded-xl border flex items-start gap-2 text-[11px] ${
-                              providerTestFeedback.success
+                            className={`p-2.5 rounded-xl border flex items-start gap-2 text-[11px] ${providerTestFeedback.success
                                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                 : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
-                            }`}
+                              }`}
                           >
                             {providerTestFeedback.success ? (
                               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
@@ -7485,11 +7425,10 @@ export default function ChatPage() {
                     <button
                       type="button"
                       onClick={toggleSareVoiceMode}
-                      className={`rounded-xl px-3 py-1.5 font-semibold transition cursor-pointer ${
-                        sareEnabled
+                      className={`rounded-xl px-3 py-1.5 font-semibold transition cursor-pointer ${sareEnabled
                           ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
                           : "border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400"
-                      }`}
+                        }`}
                     >
                       {sareEnabled ? "Enabled (ON)" : "Disabled (OFF)"}
                     </button>
@@ -7588,9 +7527,8 @@ export default function ChatPage() {
       {isManageAccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsManageAccountModalOpen(false)}>
           <div
-            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
-            }`}
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
@@ -7677,9 +7615,8 @@ export default function ChatPage() {
       {isHelpModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsHelpModalOpen(false)}>
           <div
-            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
-            }`}
+            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-neutral-800">
@@ -7763,9 +7700,8 @@ export default function ChatPage() {
           onClick={() => setIsMemoryModalOpen(false)}
         >
           <div
-            className={`w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all overflow-hidden ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
-            }`}
+            className={`w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all overflow-hidden ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-neutral-900"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -7800,11 +7736,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setMemoryTab("memories")}
-                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
-                  memoryTab === "memories"
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${memoryTab === "memories"
                     ? "border-purple-600 text-purple-600 dark:text-purple-400"
                     : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                }`}
+                  }`}
               >
                 <Brain className="w-3.5 h-3.5" />
                 <span>Memories ({memories.length})</span>
@@ -7813,11 +7748,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setMemoryTab("preferences")}
-                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
-                  memoryTab === "preferences"
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${memoryTab === "preferences"
                     ? "border-purple-600 text-purple-600 dark:text-purple-400"
                     : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                }`}
+                  }`}
               >
                 <Sliders className="w-3.5 h-3.5" />
                 <span>Personalization Rules</span>
@@ -7826,11 +7760,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setMemoryTab("analytics")}
-                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
-                  memoryTab === "analytics"
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${memoryTab === "analytics"
                     ? "border-purple-600 text-purple-600 dark:text-purple-400"
                     : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                }`}
+                  }`}
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>Feedback Insights</span>
@@ -7839,11 +7772,10 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setMemoryTab("privacy")}
-                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${
-                  memoryTab === "privacy"
+                className={`flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold border-b-2 transition shrink-0 ${memoryTab === "privacy"
                     ? "border-purple-600 text-purple-600 dark:text-purple-400"
                     : "border-transparent text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                }`}
+                  }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Privacy &amp; Data</span>
@@ -7870,11 +7802,10 @@ export default function ChatPage() {
                           key={cat.id}
                           type="button"
                           onClick={() => setSelectedMemoryCategory(cat.id)}
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                            selectedMemoryCategory === cat.id
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${selectedMemoryCategory === cat.id
                               ? "bg-purple-600 text-white shadow-xs"
                               : "border border-black/10 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200"
-                          }`}
+                            }`}
                         >
                           {cat.label}
                         </button>
@@ -7986,21 +7917,19 @@ export default function ChatPage() {
                           return (
                             <div
                               key={item.id}
-                              className={`p-3.5 rounded-2xl border transition-all ${
-                                !item.active
+                              className={`p-3.5 rounded-2xl border transition-all ${!item.active
                                   ? "opacity-50 border-black/[0.04] dark:border-neutral-800/50 bg-neutral-100/40 dark:bg-neutral-900/40"
                                   : isDark
-                                  ? "border-neutral-800 bg-[#18191d] hover:border-neutral-700"
-                                  : "border-black/[0.06] bg-neutral-50/70 hover:border-black/15 shadow-2xs"
-                              }`}
+                                    ? "border-neutral-800 bg-[#18191d] hover:border-neutral-700"
+                                    : "border-black/[0.06] bg-neutral-50/70 hover:border-black/15 shadow-2xs"
+                                }`}
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1.5 flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <span
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border uppercase tracking-wider ${
-                                        categoryColors[item.category] || categoryColors.preference
-                                      }`}
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border uppercase tracking-wider ${categoryColors[item.category] || categoryColors.preference
+                                        }`}
                                     >
                                       {item.category.replace("_", " ")}
                                     </span>
@@ -8050,11 +7979,10 @@ export default function ChatPage() {
                                     <button
                                       type="button"
                                       onClick={() => handleUpdateMemory(item.id, { active: !item.active })}
-                                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
-                                        item.active
+                                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${item.active
                                           ? "text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20"
                                           : "text-neutral-400 bg-neutral-200 dark:bg-neutral-800"
-                                      }`}
+                                        }`}
                                       title={item.active ? "Pause memory" : "Activate memory"}
                                     >
                                       {item.active ? "Active" : "Paused"}
@@ -8118,14 +8046,12 @@ export default function ChatPage() {
                       onClick={() =>
                         handleUpdatePersonalizationSettings({ enabled: !personalizationSettings.enabled })
                       }
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        personalizationSettings.enabled ? "bg-purple-600" : "bg-neutral-300 dark:bg-neutral-700"
-                      }`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${personalizationSettings.enabled ? "bg-purple-600" : "bg-neutral-300 dark:bg-neutral-700"
+                        }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          personalizationSettings.enabled ? "translate-x-6" : "translate-x-1"
-                        }`}
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${personalizationSettings.enabled ? "translate-x-6" : "translate-x-1"
+                          }`}
                       />
                     </button>
                   </div>
@@ -8146,11 +8072,10 @@ export default function ChatPage() {
                           key={lvl.id}
                           type="button"
                           onClick={() => handleUpdatePersonalizationSettings({ technicalDepth: lvl.id as any })}
-                          className={`p-2.5 rounded-xl border text-left transition ${
-                            personalizationSettings.technicalDepth === lvl.id
+                          className={`p-2.5 rounded-xl border text-left transition ${personalizationSettings.technicalDepth === lvl.id
                               ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 shadow-xs"
                               : "border-black/[0.08] dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                          }`}
+                            }`}
                         >
                           <p className="font-bold">{lvl.label}</p>
                           <p className="text-[10px] text-neutral-400 mt-0.5">{lvl.desc}</p>
@@ -8175,11 +8100,10 @@ export default function ChatPage() {
                           key={len.id}
                           type="button"
                           onClick={() => handleUpdatePersonalizationSettings({ responseLength: len.id as any })}
-                          className={`p-2 rounded-xl border text-center transition font-semibold text-xs ${
-                            personalizationSettings.responseLength === len.id
+                          className={`p-2 rounded-xl border text-center transition font-semibold text-xs ${personalizationSettings.responseLength === len.id
                               ? "border-purple-600 bg-purple-600 text-white shadow-xs"
                               : "border-black/[0.08] dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                          }`}
+                            }`}
                         >
                           {len.label}
                         </button>
@@ -8353,19 +8277,17 @@ export default function ChatPage() {
           onClick={() => setFeedbackModalTarget(null)}
         >
           <div
-            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${
-              isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
-            }`}
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-neutral-800">
               <div className="flex items-center gap-2.5">
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-xl text-white ${
-                    feedbackModalTarget.initialRating === "positive"
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl text-white ${feedbackModalTarget.initialRating === "positive"
                       ? "bg-emerald-600"
                       : "bg-neutral-800 dark:bg-neutral-700"
-                  }`}
+                    }`}
                 >
                   {feedbackModalTarget.initialRating === "positive" ? (
                     <ThumbsUp className="w-4 h-4" />
@@ -8409,11 +8331,10 @@ export default function ChatPage() {
                         key={opt.id}
                         type="button"
                         onClick={() => setSelectedFeedbackCategory(opt.id as FeedbackCategory)}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition font-medium ${
-                          isSelected
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition font-medium ${isSelected
                             ? "border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 shadow-xs"
                             : "border-black/[0.08] dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                        }`}
+                          }`}
                       >
                         <IconComponent className="w-3.5 h-3.5 shrink-0" />
                         <span className="truncate">{opt.label}</span>
