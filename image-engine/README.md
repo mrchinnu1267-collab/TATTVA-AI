@@ -1,11 +1,10 @@
 # TATTVA Local Image Engine (optional)
 
 Offline FastAPI backend for TATTVA's image engine. The Next.js app (`/api/image`)
-prefers cloud providers (Gemini, Hugging Face, Pollinations) and falls back to
-this server when `LOCAL_IMAGE_ENGINE_URL` is reachable.
+uses cloud providers (Gemini, Hugging Face) and falls back to
+this local CUDA server when `LOCAL_IMAGE_ENGINE_URL` is reachable.
 
-> The hosted app works without this engine. The free Pollinations path is rate
-> limited (one image / 45 s, 768x768 max); cloud keys need billing/credits.
+> Real photograph search is served via the built-in Web Image Search Engine (Wikimedia Commons + Openverse). Cloud image generation keys need billing/credits.
 
 ## Requirements
 

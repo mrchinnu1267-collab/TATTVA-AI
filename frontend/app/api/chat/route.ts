@@ -238,7 +238,7 @@ export async function POST(request: Request) {
         sessionId: body.sessionId,
         conversationHistory: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
       },
-      mode: body.mode,
+      mode: retrievedWebImages.length > 0 ? "chat" : body.mode,
       preferredModel: body.preferredModel || body.model,
     });
 
