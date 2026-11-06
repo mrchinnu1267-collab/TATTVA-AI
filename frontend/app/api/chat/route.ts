@@ -106,7 +106,7 @@ export async function POST(request: Request) {
         // Inject live ground-truth clock context
         body.messages.splice(body.messages.length - 1, 0, {
           role: "user",
-          content: `[Real-Time Live Clock for ${clockData.timeZone}]: Current time is ${clockData.currentTime} on ${clockData.dayOfWeek}, ${clockData.currentDate}. Provide a clear, natural answer with this exact actual time.`,
+          content: `[Real-Time Live Clock for ${clockData.timeZone}]: Current time is ${clockData.currentTime} on ${clockData.currentDate}. Provide a clear, natural answer with this exact actual time.`,
         });
       } catch (cErr) {
         console.warn("[TATTVA Chat] Clock lookup error:", cErr);

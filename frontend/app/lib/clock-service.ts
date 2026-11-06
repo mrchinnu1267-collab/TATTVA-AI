@@ -148,7 +148,7 @@ export function getClockReport(userQuery: string, defaultTimeZone?: string): Clo
   const dayOfWeek = dayFormatter.format(now);
 
   const locationDisplay = targetCity ? targetCity : selectedTimeZone.replace("_", " ");
-  const summaryText = `The current time${targetCity ? ` in ${targetCity}` : ""} is **${currentTime}** (${dayOfWeek}, ${currentDate}) [${selectedTimeZone} / UTC${utcOffset}].`;
+  const summaryText = `The current time${targetCity ? ` in ${targetCity}` : ""} is **${currentTime}** (${currentDate}) [${selectedTimeZone} / UTC${utcOffset}].`;
 
   return {
     currentTime,
