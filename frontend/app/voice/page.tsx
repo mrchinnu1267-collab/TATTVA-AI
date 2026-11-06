@@ -24,6 +24,7 @@ import {
   MapPin,
   Globe,
 } from "lucide-react";
+import { trackVoiceAssistantUsed } from "../lib/gtag";
 
 type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -654,6 +655,12 @@ export default function LiveVoiceAssistantPage() {
     setErrorMessage(null);
     setVoiceState("listening");
 
+    try {
+      trackVoiceAssistantUsed("started", selectedLanguage);
+    } catch {
+      // ignore
+    }
+
     // Acquire location for accurate weather & local inquiries
     requestLocation();
 
@@ -673,6 +680,11 @@ export default function LiveVoiceAssistantPage() {
 
   // Stop / End Live Voice Session
   const endSession = useCallback(() => {
+    try {
+      trackVoiceAssistantUsed("completed", selectedLanguage);
+    } catch {
+      // ignore
+    }
     interruptAssistant();
 
     if (silenceTimerRef.current) {

@@ -40,6 +40,7 @@ import {
   ImageProviderId,
   SearchEngineResponse,
 } from "../lib/image-search/types";
+import { trackImageGeneration } from "../lib/gtag";
 
 // Quick category pills
 const CATEGORIES: { label: string; value: ImageCategory }[] = [
@@ -160,6 +161,11 @@ export default function WebImageSearchPage() {
       if (pageNum === 1) {
         setLoading(true);
         setActiveTab("search");
+        try {
+          trackImageGeneration("search", selectedCategory);
+        } catch {
+          // ignore
+        }
       } else {
         setLoadingMore(true);
       }

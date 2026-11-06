@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createClient } from "../lib/supabase";
+import { trackLogout } from "../lib/gtag";
 
 type ModelAnswer = {
   model: string;
@@ -159,6 +160,7 @@ export default function Dashboard() {
     setSigningOut(true);
 
     try {
+      trackLogout();
       const supabase = createClient();
       const { error: signOutError } = await supabase.auth.signOut();
 

@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { triggerDownload } from "../lib/download-helper";
+import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
 import type {
   AspectRatio,
   ImageMetadata,
@@ -272,6 +273,12 @@ export default function ImageStudioPage() {
     setCopied(false);
 
     try {
+      trackImageGeneration("studio", style || provider);
+    } catch {
+      // ignore
+    }
+
+    try {
       const response = await fetch("/api/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -368,7 +375,14 @@ export default function ImageStudioPage() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setReferenceImage(String(reader.result || ""));
+    reader.onload = () => {
+      setReferenceImage(String(reader.result || ""));
+      try {
+        trackFileUploaded(file.type || "image", file.size / 1024);
+      } catch {
+        // ignore
+      }
+    };
     reader.readAsDataURL(file);
     setError("");
   }, []);

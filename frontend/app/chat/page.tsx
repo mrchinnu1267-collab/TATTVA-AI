@@ -98,6 +98,7 @@ import {
 import LiveClockWidget from "../components/LiveClockWidget";
 import VisualImageGallery from "../components/VisualImageGallery";
 import InbuiltImageSearchModal from "../components/InbuiltImageSearchModal";
+import { trackLogout, trackChatMessageSent, trackFileUploaded } from "../lib/gtag";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
 import BrowseConnectors from "../components/connectors/BrowseConnectors";
@@ -2442,6 +2443,7 @@ export default function ChatPage() {
   // 2. Execute Secure Logout upon Confirmation
   async function handleConfirmLogout() {
     try {
+      trackLogout();
       setIsLogoutConfirmOpen(false);
       await logoutUser();
       const supabase = createClient();
@@ -3042,6 +3044,12 @@ export default function ChatPage() {
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
     if (!rawPrompt && attachments.length === 0) return;
 
+    try {
+      trackChatMessageSent(activeTool, rawPrompt.length);
+    } catch {
+      // ignore
+    }
+
     // Check 1 Lakh words limit per chat
     const currentWordCount = calculateChatWordCount(messages);
     if (messages.length > 0 && Number.isFinite(currentWordCount) && currentWordCount >= CHAT_WORD_LIMIT) {
@@ -3440,6 +3448,11 @@ export default function ChatPage() {
             size: file.size,
           },
         ]);
+        try {
+          trackFileUploaded(file.type || "unknown", file.size / 1024);
+        } catch {
+          // ignore
+        }
         loadedCount++;
         if (loadedCount >= list.length) {
           setAttachmentUploading(false);

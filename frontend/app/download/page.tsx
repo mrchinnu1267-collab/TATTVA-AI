@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import DownloadTrackButton from "../components/DownloadTrackButton";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
@@ -150,25 +151,27 @@ export default function DownloadPage() {
 
         {/* Action Buttons */}
         <div className="w-full max-w-md flex flex-col sm:flex-row gap-3 mb-10">
-          <a
+          <DownloadTrackButton
             href="/api/download"
+            format="apk"
             className="flex-1 py-3.5 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-semibold text-sm shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.98]"
           >
             <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
               <path d="M12 16l4-4h-3V4h-2v8H8l4 4zm-8 2h16v2H4v-2z" />
             </svg>
             <span>Download APK (12.2 MB)</span>
-          </a>
+          </DownloadTrackButton>
 
-          <a
+          <DownloadTrackButton
             href="/api/download?format=zip"
+            format="zip"
             className="py-3.5 px-5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700 font-medium text-sm flex items-center justify-center gap-2 transition"
           >
             <svg className="w-4 h-4 fill-current opacity-70" viewBox="0 0 24 24">
               <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
             </svg>
             <span>Download ZIP</span>
-          </a>
+          </DownloadTrackButton>
         </div>
 
         {/* Feature Highlights Grid */}

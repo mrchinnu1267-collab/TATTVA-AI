@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import PWAProvider from "./components/PWAProvider";
+import GoogleAnalytics from "./components/GoogleAnalytics";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -104,6 +105,7 @@ export default async function RootLayout({
       </head>
       <body suppressHydrationWarning>
         <PWAProvider>{children}</PWAProvider>
+        <GoogleAnalytics nonce={nonce} />
       </body>
     </html>
   );

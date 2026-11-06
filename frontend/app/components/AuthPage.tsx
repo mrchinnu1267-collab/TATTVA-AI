@@ -29,6 +29,7 @@ import {
   saveActiveSession,
   resetGuestCount,
 } from "../lib/local-auth";
+import { trackSignUp, trackLogin } from "../lib/gtag";
 
 export type AuthMode = "signin" | "signup" | "forgot";
 type ActiveModal = "terms" | "privacy" | "help" | null;
@@ -184,6 +185,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
         }
 
         resetGuestCount();
+        trackSignUp("email");
         setMessage("Account created successfully! Welcome to TATTVA AI ✦");
         setMessageType("success");
 
@@ -210,6 +212,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
       }
 
       resetGuestCount();
+      trackLogin("email");
       setMessage("Logged in successfully! Redirecting to TATTVA...");
       setMessageType("success");
 

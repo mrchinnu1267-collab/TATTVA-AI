@@ -1,3 +1,5 @@
+import { trackFileDownloaded } from "./gtag";
+
 /**
  * Universal Mobile & Web Download Helper
  * Works across:
@@ -11,6 +13,13 @@ export function triggerDownload(
   mimeType = "application/octet-stream"
 ) {
   if (typeof window === "undefined") return;
+
+  try {
+    const ext = filename.split(".").pop() || "bin";
+    trackFileDownloaded(ext);
+  } catch {
+    // ignore
+  }
 
   // 1. Native Android App Bridge Check
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
