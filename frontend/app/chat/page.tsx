@@ -97,6 +97,7 @@ import {
 } from "lucide-react";
 import LiveClockWidget from "../components/LiveClockWidget";
 import VisualImageGallery from "../components/VisualImageGallery";
+import InbuiltImageSearchModal from "../components/InbuiltImageSearchModal";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
 import BrowseConnectors from "../components/connectors/BrowseConnectors";
@@ -894,6 +895,8 @@ export default function ChatPage() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBrowseConnectorsOpen, setIsBrowseConnectorsOpen] = useState(false);
+  const [isInbuiltImageSearchOpen, setIsInbuiltImageSearchOpen] = useState(false);
+  const [inbuiltImageSearchQuery, setInbuiltImageSearchQuery] = useState("");
   const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers" | "backup">("menu");
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [headerTime, setHeaderTime] = useState<string>("");
@@ -3660,6 +3663,20 @@ export default function ChatPage() {
                 <span>{headerTime}</span>
               </button>
             )}
+
+            {/* Inbuilt Web Images Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setInbuiltImageSearchQuery(input.trim());
+                setIsInbuiltImageSearchOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-medium transition cursor-pointer text-neutral-600 dark:text-neutral-300 active:scale-95"
+              title="Search real photographs from the web (Openverse & Wikimedia)"
+            >
+              <Camera className="w-3.5 h-3.5 text-sky-400" />
+              <span>Images 🔍</span>
+            </button>
             {/* BYOK Custom Provider Chip */}
             {customProviderSettings.enabled && (
               <button
@@ -4965,8 +4982,8 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setInput("Show me different types of flowers with real photos");
-                          textareaRef.current?.focus();
+                          setInbuiltImageSearchQuery("Different types of flowers");
+                          setIsInbuiltImageSearchOpen(true);
                         }}
                         className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
                       >
@@ -5628,8 +5645,9 @@ export default function ChatPage() {
 
                 {/* 2. Bottom Row: (+) on Left, Mic & Voice Wave on Right */}
                 <div className="flex items-center justify-between w-full pt-1 px-1">
-                  {/* Left: (+) Attachment & Tools Menu */}
-                  <div className="relative" data-attachment-menu>
+                  {/* Left: (+) Attachment & Web Image Search Quick Actions */}
+                  <div className="flex items-center gap-1">
+                    <div className="relative" data-attachment-menu>
                     <button
                       type="button"
                       onClick={() => {
@@ -5683,26 +5701,53 @@ export default function ChatPage() {
                         </button>
 
                         {/* Web Image Search Engine */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTool(activeTool === "image_search" ? "none" : "image_search");
-                            setIsAttachmentMenuOpen(false);
-                            textareaRef.current?.focus();
-                            showToast(activeTool === "image_search" ? "Image Search deactivated" : "Web Image Search enabled 🔍");
-                          }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
-                        >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-sky-400 shadow-2xs">
-                            <Search className="w-5 h-5 stroke-[2]" />
+                        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-1 space-y-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAttachmentMenuOpen(false);
+                              setInbuiltImageSearchQuery(input.trim());
+                              setIsInbuiltImageSearchOpen(true);
+                            }}
+                            className="flex items-center gap-4 w-full rounded-xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          >
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-sky-400 shadow-2xs">
+                              <Camera className="w-5 h-5 stroke-[2]" />
+                            </div>
+                            <div className="flex-1 min-w-0 flex items-center justify-between">
+                              <div>
+                                <span className="font-semibold text-[15px] tracking-tight block">Web Image Search</span>
+                                <span className="text-[11px] text-neutral-400 block">Search real photos in chat</span>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-mono">
+                                Inbuilt 📷
+                              </span>
+                            </div>
+                          </button>
+
+                          <div className="flex items-center justify-between px-3 py-1 text-[11px] border-t border-sky-500/10">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTool(activeTool === "image_search" ? "none" : "image_search");
+                                setIsAttachmentMenuOpen(false);
+                                textareaRef.current?.focus();
+                                showToast(activeTool === "image_search" ? "Image Search mode OFF" : "Image Search mode ON 🔍");
+                              }}
+                              className="text-neutral-400 hover:text-white transition font-medium"
+                            >
+                              {activeTool === "image_search" ? "Deactivate Mode" : "Prompt Mode"}
+                            </button>
+                            <Link
+                              href="/images"
+                              onClick={() => setIsAttachmentMenuOpen(false)}
+                              className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-medium"
+                            >
+                              <span>Full Engine</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
                           </div>
-                          <div className="flex-1 min-w-0 flex items-center justify-between">
-                            <span className="font-semibold text-[15px] tracking-tight">Web Image Search</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-mono">
-                              Online
-                            </span>
-                          </div>
-                        </button>
+                        </div>
 
                         {/* 3. Files (Image 2) */}
                         <button
@@ -5817,6 +5862,20 @@ export default function ChatPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Quick Inbuilt Web Image Search Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInbuiltImageSearchQuery(input.trim());
+                      setIsInbuiltImageSearchOpen(true);
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 text-neutral-300 hover:text-white hover:bg-white/10"
+                    title="Search real web images (Openverse & Wikimedia)"
+                  >
+                    <Camera className="w-5 h-5 stroke-[1.8] text-sky-400" />
+                  </button>
+                </div>
 
                   {/* Active Connectors Indicator Pill */}
                   {activeConnectorIds.length > 0 && (
@@ -8409,6 +8468,24 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+
+      {/* Inbuilt Web Image Search Engine Modal */}
+      <InbuiltImageSearchModal
+        isOpen={isInbuiltImageSearchOpen}
+        onClose={() => setIsInbuiltImageSearchOpen(false)}
+        initialQuery={inbuiltImageSearchQuery}
+        isDark={isDark}
+        onSelectImage={(img) => {
+          const imagePrompt = `Here is a real photograph of "${img.title}" from ${img.source} (${img.url}). Can you tell me more about it and describe its key visual details?`;
+          setInput((prev) => (prev.trim() ? `${prev}\n\n${imagePrompt}` : imagePrompt));
+          setTimeout(() => textareaRef.current?.focus(), 80);
+          showToast(`Attached "${img.title.slice(0, 30)}..." 📷`);
+        }}
+        onSendQueryToChat={(q) => {
+          setInput(q);
+          setTimeout(() => textareaRef.current?.focus(), 80);
+        }}
+      />
 
     </div>
   );

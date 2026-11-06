@@ -159,8 +159,6 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     }
 
     if (best && (!verify || best.verification.score >= targetScore)) break;
-    // Free tier allows only one image per 45s; retrying would just fail.
-    if (best && best.result.provider === "pollinations") break;
     if (!generated && attempt >= maxAttempts - 1) break;
   }
 

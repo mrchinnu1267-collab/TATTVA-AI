@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const VALID_QUALITIES: ImageQuality[] = ["fast", "balanced", "max"];
-const VALID_PROVIDERS = ["auto", "gemini", "huggingface", "local", "pollinations"];
+const VALID_PROVIDERS = ["auto", "gemini", "huggingface", "local"];
 
 function toNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
@@ -26,15 +26,14 @@ function toNumber(value: unknown): number | undefined {
 }
 
 export async function GET() {
-  const providers = await getProviderStatuses();
+    const providers = await getProviderStatuses();
   return NextResponse.json({
     status: "ok",
     providers,
     defaultProvider:
       providers.find((provider) => provider.available && provider.id === "gemini")?.id ??
-      providers.find((provider) => provider.available && provider.id !== "pollinations")?.id ??
       providers.find((provider) => provider.available)?.id ??
-      "pollinations",
+      "auto",
   });
 }
 
@@ -103,7 +102,7 @@ export async function POST(request: Request) {
 
     const provider =
       typeof body.provider === "string" && VALID_PROVIDERS.includes(body.provider)
-        ? (body.provider as "auto" | "gemini" | "huggingface" | "local" | "pollinations")
+        ? (body.provider as "auto" | "gemini" | "huggingface" | "local")
         : "auto";
 
     const quality =

@@ -100,7 +100,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.trycloudflare.com https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://router.huggingface.co https://api.stability.ai https://api.openai.com https://api.replicate.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.bigdatacloud.net https://*.bigdatacloud.net https://api.pollinations.ai https://*.pollinations.ai https://ipapi.co https://nominatim.openstreetmap.org https://server.arcgisonline.com https://services.arcgisonline.com https://*.google.com https://*.googleapis.com https://*.tile.openstreetmap.org",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.trycloudflare.com https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://router.huggingface.co https://api.stability.ai https://api.openai.com https://api.replicate.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.bigdatacloud.net https://*.bigdatacloud.net https://ipapi.co https://nominatim.openstreetmap.org https://server.arcgisonline.com https://services.arcgisonline.com https://*.google.com https://*.googleapis.com https://*.tile.openstreetmap.org",
     "frame-ancestors 'self'",
     "object-src 'none'",
     "base-uri 'self'",

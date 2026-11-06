@@ -203,7 +203,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
   throw classified;
 }
 
-// ---------------------------------------------------------------------- Local
+// --------------------------------------------------------------- Local
 
 let localHealthCache: { at: number; ok: boolean } = { at: 0, ok: false };
 
@@ -283,78 +283,15 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
   }
 }
 
-// --------------------------------------------------------------- Pollinations
-
-let pollinationsNextSlot = 0;
-
-async function generateWithPollinations(req: ProviderRequest): Promise<ProviderResult> {
-  const wait = pollinationsNextSlot - Date.now();
-  if (wait > 0) {
-    throw new ImageProviderError(
-      `Free image slot is cooling down. Try again in ${Math.ceil(wait / 1000)}s or configure Gemini/Hugging Face credits.`,
-      { retryable: false, cooldownMs: wait }
-    );
-  }
-
-  const dims = fitWithinArea(req.width, req.height, 768 * 768, 8);
-  const isHumanSubject = /\b(woman|women|girl|girls|lady|ladies|female|man|men|boy|boys|male|person|people|model|portrait|human|character)\b/i.test(req.prompt);
-  const safePrompt = isHumanSubject
-    ? `${req.prompt}, fully clothed, modest attire, sfw, non-suggestive`
-    : req.prompt;
-  const prompt = truncate(safePrompt, 1600);
-  const url =
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-    `?width=${dims.width}&height=${dims.height}` +
-    `&seed=${encodeURIComponent(String(req.seed))}` +
-    `&nologo=true&safe=true&enhance=false`;
-
-  const started = Date.now();
-  pollinationsNextSlot = Date.now() + 45_000;
-
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(120_000),
-    });
-
-    if (!res.ok) {
-      const retryAfter = Number(res.headers.get("retry-after") || 0);
-      pollinationsNextSlot = Date.now() + Math.max(45_000, retryAfter * 1000);
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const contentType = res.headers.get("content-type") || "";
-    if (!contentType.startsWith("image/")) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`Unexpected response: ${truncate(body, 200)}`);
-    }
-
-    const buffer = Buffer.from(await res.arrayBuffer());
-    return {
-      image: bufferToDataUri(buffer, contentType.split(";")[0] || "image/jpeg"),
-      provider: "pollinations",
-      model: "pollinations-flux",
-      seed: req.seed,
-      width: dims.width,
-      height: dims.height,
-      latencyMs: Date.now() - started,
-    };
-  } catch (error) {
-    const classified = classifyProviderError("Pollinations", error);
-    if (!classified.cooldownMs) setCooldown("pollinations", 45_000, classified.message);
-    throw classified;
-  }
-}
-
 export function resolveProviderOrder(
   requested: ImageProviderChoice | undefined,
   quality: "fast" | "balanced" | "max"
 ): ImageProviderId[] {
   if (requested && requested !== "auto") return [requested];
-  // Quality-first when max, latency-first when fast. Pollinations is always last.
+  // Quality-first when max, latency-first when fast.
   return quality === "max"
-    ? ["gemini", "huggingface", "local", "pollinations"]
-    : ["gemini", "huggingface", "pollinations", "local"];
+    ? ["gemini", "huggingface", "local"]
+    : ["gemini", "huggingface", "local"];
 }
 
 export async function generateWithProvider(
@@ -368,8 +305,6 @@ export async function generateWithProvider(
       return generateWithHuggingFace(req);
     case "local":
       return generateWithLocal(req);
-    case "pollinations":
-      return generateWithPollinations(req);
     default:
       throw new ImageProviderError(`Unknown provider: ${provider as string}`);
   }
@@ -430,14 +365,6 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       "local SDXL / SD1.5",
       localOnline,
       "Start the Python engine (image-engine/main.py)."
-    ),
-    status(
-      "pollinations",
-      "Pollinations (free)",
-      true,
-      "pollinations-flux",
-      true,
-      "Free fallback: max 768x768, one image every 45s."
     ),
   ];
 }

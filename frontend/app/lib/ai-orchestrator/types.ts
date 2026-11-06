@@ -20,7 +20,7 @@ export type TaskIntent =
   | "agent_task"
   | "file_generation";
 
-export type ModelProvider = "gemini" | "openrouter" | "nvidia" | "huggingface" | "local" | "pollinations";
+export type ModelProvider = "gemini" | "openrouter" | "nvidia" | "huggingface" | "local";
 
 export interface AIModelSpec {
   id: string;

@@ -105,7 +105,6 @@ const PROVIDER_OPTIONS: Array<{ id: string; label: string }> = [
   { id: "gemini", label: "Google Gemini" },
   { id: "huggingface", label: "Hugging Face FLUX" },
   { id: "local", label: "Local CUDA engine" },
-  { id: "pollinations", label: "Pollinations (free)" },
 ];
 
 const QUALITY_OPTIONS: Array<{ id: ImageQuality; label: string; hint: string }> = [
@@ -715,7 +714,7 @@ export default function ImageStudioPage() {
               Providers
             </span>
             <div className="mt-2 space-y-1">
-              {["gemini", "huggingface", "local", "pollinations"].map((id) => {
+              {["gemini", "huggingface", "local"].map((id) => {
                 const badge = providerBadge(id);
                 return (
                   <div key={id} className="flex items-center justify-between text-[10px]">
@@ -971,8 +970,7 @@ export default function ImageStudioPage() {
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--soft)] px-3 py-2.5 text-[10px] leading-relaxed text-neutral-400">
             <strong className="text-neutral-500">Why scores vary:</strong> no diffusion model can
             guarantee pixel-perfect text or counts. TATTVA compiles explicit requirements, checks the
-            result with a vision model, and retries with a corrected prompt. Free Pollinations is
-            limited to one image every 45s at 768×768; Gemini and Hugging Face need quota/credits.
+            result with a vision model, and retries with a corrected prompt. Real photograph search is also available via the Web Image Search Engine.
           </div>
         </section>
       </div>
