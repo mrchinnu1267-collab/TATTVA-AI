@@ -103,9 +103,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request runtime permissions for voice assistant, camera, location weather, and notifications
+        // Request runtime permissions for camera, location weather, and notifications
         val requiredPerms = mutableListOf(
-            Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CAMERA,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
@@ -162,7 +161,7 @@ class MainActivity : ComponentActivity() {
             domStorageEnabled = true
             databaseEnabled = true
             setGeolocationEnabled(true)
-            mediaPlaybackRequiresUserGesture = false // Allows voice assistant replies without extra user tap
+            mediaPlaybackRequiresUserGesture = false
             allowFileAccess = true
             allowContentAccess = true
             setSupportZoom(false)
@@ -189,7 +188,15 @@ class MainActivity : ComponentActivity() {
 
             override fun onPermissionRequest(request: PermissionRequest?) {
                 runOnUiThread {
-                    request?.grant(request.resources)
+                    // Strict zero-microphone policy: reject any audio capture requests
+                    val safeResources = request?.resources?.filter {
+                        it != PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                    }?.toTypedArray()
+                    if (safeResources != null && safeResources.isNotEmpty()) {
+                        request.grant(safeResources)
+                    } else {
+                        request?.deny()
+                    }
                 }
             }
 
@@ -377,8 +384,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadTattvaApp() {
-        val url = getServerUrl()
+        val intentData = intent?.data?.toString()
+        val url = if (!intentData.isNullOrBlank() && (intentData.startsWith("http://") || intentData.startsWith("https://"))) {
+            intentData
+        } else {
+            getServerUrl()
+        }
         webView.loadUrl(url)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val deepLink = intent.data?.toString()
+        if (!deepLink.isNullOrBlank() && (deepLink.startsWith("http://") || deepLink.startsWith("https://"))) {
+            webView.loadUrl(deepLink)
+        }
     }
 
     private fun getServerUrl(): String {

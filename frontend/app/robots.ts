@@ -9,11 +9,9 @@ export default function robots(): MetadataRoute.Robots {
       allow: [
         "/",
         "/chat",
-        "/images",
         "/image-studio",
         "/maps",
         "/media",
-        "/voice",
         "/download",
         "/_next/static/",
         "/_next/image/",

@@ -253,18 +253,8 @@ export default function MediaDocumentPage() {
             </a>
           </div>
 
-          {/* ALL 4 OPTIONS IN SAME PLACE AS IN THE NAVIGATION */}
+          {/* OPTIONS IN NAVIGATION */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* 1. Live Voice Mode */}
-            <a
-              href="/voice"
-              className="flex items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 shadow-xs"
-              title="ChatGPT-Style Live Voice Mode"
-            >
-              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
-              <span>Live Voice Mode</span>
-            </a>
-
             {/* Media / Document Studio (Active) */}
             <div
               className="flex items-center gap-1.5 rounded-xl border border-black bg-black px-3 py-1.5 text-xs font-semibold text-white shadow-xs"
@@ -628,7 +618,7 @@ export default function MediaDocumentPage() {
           <div className="flex items-center gap-4 text-[11px]">
             <a href="/chat" className="hover:text-black transition">Chat</a>
             <span>•</span>
-            <a href="/voice" className="hover:text-black transition">Voice Assistant</a>
+            <a href="/image-studio" className="hover:text-black transition">Image Studio</a>
           </div>
         </div>
       </footer>

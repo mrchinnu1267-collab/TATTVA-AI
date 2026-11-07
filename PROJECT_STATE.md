@@ -44,6 +44,13 @@ TATTVA_AI/
 
 ## 3. Completed Milestones & Verified Features
 
+- [x] **Complete Removal of Web Image Search, Live Voice Assistance & Microphone Systems**:
+  - Permanently deleted the Web Image Search Engine: removed `app/images/`, `app/api/images/`, `app/components/InbuiltImageSearchModal.tsx`, `app/components/VisualImageGallery.tsx`, `app/lib/image-search/`, `app/lib/web-image-search.ts`, and all image search routes/hooks/modals.
+  - Permanently deleted the Live Voice Assistance & Microphone systems: deleted `app/voice/`, `app/api/voice-chat/`, `app/api/tts/`, `app/lib/sara-voice.ts`, `tests/sara-voice.test.ts`, and all speech recognition/synthesis listeners.
+  - Rebuilt Chat Interface: the input contains only text input, attachment button (`+` for photo/document uploads), camera button (`📷` for device photo capture), and a clean neutral Send/Stop button (`ArrowUp` / `Square`).
+  - Purged microphone permissions from Android (`AndroidManifest.xml` and `MainActivity.kt`), iOS (`Info.plist`), and Desktop (`desktop-app/main.js`).
+  - Preserved protected systems: text-based AI chat, Gemini multimodal integration, normal image uploads, OCR, document generation, satellite maps, Supabase authentication, and Claude MCP connectors.
+  - Verified with 16/16 unit tests passing (`npm test`), full Turbopack production compilation with 0 errors (`npm run build`), and clean native Android APK build (`tattva-ai.apk`).
 - [x] **Technical SEO & Structured Data Complete**:
   - Unique titles and meta descriptions across all 8 canonical routes.
   - Valid Schema.org JSON-LD (`WebSite`, `Organization`, `SoftwareApplication`, `BreadcrumbList`).
@@ -64,14 +71,19 @@ TATTVA_AI/
   - Configured local stdio MCP server in `~/.gemini/config/mcp_config.json`, `.cursor/mcp.json`, and `.vscode/mcp.json`.
 - [x] **Smart Agent Skills System**:
   - 12 modular skills installed in `.agent/skills/` with automated discovery and token optimization rules.
+- [x] **Complete Removal of Live Voice and Voice Input Across Entire Application**:
+  - **Live Voice (`/voice`) Removal:** Replaced `/voice` page with an instant client-side redirect to `/chat`. Removed all navigation links pointing to `/voice` from `app/chat/page.tsx` (attachment menu item and input bar action), `app/download/page.tsx`, `app/maps/page.tsx`, `app/media/page.tsx`, and `app/sitemap.xml/route.ts`.
+  - **Voice Input (Microphone & STT) Removal:** Completely purged speech-to-text input, microphone buttons (`Mic`, `MicOff`), language switcher pills, voice recognition handlers (`startVoiceRecognition`, `stopVoiceRecognition`), and `isListening` states across `app/chat/page.tsx` and `app/images/page.tsx`.
+  - **Sara Auto-Narration & Voice Status Cleaned:** Removed Sara voice status banners, auto-narration settings, and background listening loops from `app/chat/page.tsx`. Clean, manual "Read Aloud" on individual messages remains strictly for on-demand text playback.
+  - **Android Native Clean:** Purged `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, microphone hardware feature, and `RecognitionService` queries from `android-app/app/src/main/AndroidManifest.xml`. Removed speech recognition logic from `MainActivity.kt`. Rebuilt fresh APK (`12.2 MB`) in `public/tattva-ai.apk`.
 
 ---
 
 ## 4. Current Status
 
-- **Build Integrity:** `npm run build` succeeds cleanly with Turbopack (47 routes compiled).
-- **Test Integrity:** `npm test` passes 16/16 tests (SSRF, permissions, AES-256-GCM, connector chat lifecycle).
-- **Branch:** `main` (clean working directory).
+- **Build Integrity:** `npm run build` succeeds cleanly with Turbopack (47 routes compiled with 0 errors); Gradle `assembleDebug` builds cleanly (`BUILD SUCCESSFUL in 47s`).
+- **Test Integrity:** `npm test` passes 16/16 core tests (SSRF, permissions, AES-256-GCM token encryption, Claude connector chat lifecycle).
+- **Branch:** `main`.
 
 ---
 

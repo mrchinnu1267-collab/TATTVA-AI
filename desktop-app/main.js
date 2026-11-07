@@ -48,9 +48,9 @@ async function createWindow() {
     autoHideMenuBar: false,
   });
 
-  // Automatically grant microphone permissions for Sare Voice Assistant
+  // Zero-microphone policy: reject any microphone or audioCapture permissions
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'mediaKeySystem', 'notifications', 'audioCapture'];
+    const allowedPermissions = ['notifications'];
     if (allowedPermissions.includes(permission)) {
       return callback(true);
     }
@@ -109,7 +109,7 @@ function createApplicationMenu() {
           }
         },
         {
-          label: 'Sare Live Voice Assistant',
+          label: 'Sara Live Voice Assistant',
           accelerator: 'CmdOrCtrl+Shift+V',
           click: () => {
             if (mainWindow) mainWindow.webContents.send('navigate-to', '/voice');

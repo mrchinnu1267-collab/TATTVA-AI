@@ -46,7 +46,7 @@ const downloadStructuredData = {
       softwareVersion: "1.2",
       fileSize: "12.2MB",
       description:
-        "Official Android App for TATTVA AI - Real-time Voice Assistant, Hyper-local Weather, and Intelligent Reasoning.",
+        "Official Android App for TATTVA AI - Intelligent Reasoning, Hyper-local Weather, and Autonomous Multi-Modal Chat.",
       offers: {
         "@type": "Offer",
         price: "0",
@@ -146,7 +146,7 @@ export default function DownloadPage() {
           TATTVA AI for Android
         </h1>
         <p className="text-sm sm:text-base text-slate-400 max-w-xl mx-auto mb-8 leading-relaxed">
-          The next-generation autonomous AI companion with Sare Live Voice Assistant, real-time hyper-local weather, and system response notifications.
+          The next-generation autonomous AI companion with intelligent multimodal reasoning, real-time hyper-local weather, and system response notifications.
         </p>
 
         {/* Action Buttons */}
@@ -178,10 +178,10 @@ export default function DownloadPage() {
         <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 text-left mb-12">
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
             <div className="text-cyan-400 font-semibold text-xs mb-1 flex items-center gap-1.5">
-              <span>🎙️</span> Sare Voice Assistant
+              <span>⚡</span> Autonomous AI Chat
             </div>
             <p className="text-[12px] text-slate-400 leading-normal">
-              Continuous natural conversation with echo immunity and zero reverb repeats.
+              Ultra-fast conversational reasoning powered by Google Gemini and deep research models.
             </p>
           </div>
 
@@ -199,7 +199,7 @@ export default function DownloadPage() {
               <span>🔔</span> System Notifications
             </div>
             <p className="text-[12px] text-slate-400 leading-normal">
-              Instant notification shades for every AI answer and voice completion.
+              Instant notification shades for every AI answer and completion.
             </p>
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function DownloadPage() {
         <div className="flex items-center gap-4 text-xs font-medium">
           <Link href="/" className="hover:text-cyan-400 transition">Web Chat</Link>
           <Link href="/maps" className="hover:text-cyan-400 transition">Satellite Maps</Link>
-          <Link href="/voice" className="hover:text-cyan-400 transition">Voice Assistant</Link>
+          <Link href="/image-studio" className="hover:text-cyan-400 transition">Image Studio</Link>
         </div>
       </footer>
     </div>

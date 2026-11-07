@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -22,8 +22,6 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>TATTVA AI requires microphone access for natural conversational speech with Sare Live Voice Assistant.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>TATTVA AI requires camera access to attach photos directly for visual intelligence analysis.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

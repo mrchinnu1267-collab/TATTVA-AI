@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.example.tattvaai",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:CD:0F:1A:5F:E0:41:A4:7E:8E:22:91:6A:9A:8C:1A:30:72:0D:23:44:03:97:8C:87:DB:4F:92:44:85"
+      ]
+    }
+  }
+]
+

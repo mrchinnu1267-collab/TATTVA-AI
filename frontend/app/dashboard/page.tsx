@@ -219,25 +219,6 @@ export default function Dashboard() {
           </a>
 
           <a
-            href="/images"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "8px 16px",
-              borderRadius: "10px",
-              border: "1px solid #0000001a",
-              background: "rgba(255, 255, 255, 0.8)",
-              color: "#0284c7",
-              fontSize: "13px",
-              fontWeight: "600",
-              textDecoration: "none",
-            }}
-          >
-            <span>🔍</span> Web Image Search
-          </a>
-
-          <a
             href="/image-studio"
             style={{
               display: "inline-flex",

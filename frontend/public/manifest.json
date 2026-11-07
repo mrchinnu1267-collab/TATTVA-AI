@@ -2,7 +2,7 @@
   "name": "TATTVA AI - Advanced Multi-Model AI Assistant",
   "short_name": "TATTVA AI",
   "id": "/?source=pwa",
-  "description": "Next-generation multi-model AI assistant with real-time voice, document generation, image synthesis, and personalized intelligence.",
+  "description": "Next-generation multi-model AI assistant with deep reasoning, document generation, image synthesis, and personalized intelligence.",
   "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
@@ -44,9 +44,9 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Live Voice Assistant",
-      "url": "/voice",
-      "description": "Talk to Sare Voice Assistant in real-time",
+      "name": "Image Studio",
+      "url": "/image-studio",
+      "description": "Generate and synthesize AI imagery",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

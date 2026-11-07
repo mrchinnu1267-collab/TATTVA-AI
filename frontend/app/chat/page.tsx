@@ -7,8 +7,6 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "../lib/supabase";
 import {
-  Mic,
-  MicOff,
   Volume2,
   VolumeX,
   Send,
@@ -96,8 +94,6 @@ import {
   Clock,
 } from "lucide-react";
 import LiveClockWidget from "../components/LiveClockWidget";
-import VisualImageGallery from "../components/VisualImageGallery";
-import InbuiltImageSearchModal from "../components/InbuiltImageSearchModal";
 import { trackLogout, trackChatMessageSent, trackFileUploaded } from "../lib/gtag";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
@@ -172,15 +168,6 @@ type ChatMessage = {
   }>;
   reasoningPlan?: any;
   agentState?: any;
-  webImages?: Array<{
-    url: string;
-    thumbnail?: string;
-    title: string;
-    source: string;
-    sourceUrl?: string;
-    width?: number;
-    height?: number;
-  }>;
   clockData?: any;
 };
 
@@ -816,12 +803,6 @@ export default function ChatPage() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Voice Assistant: "Sare" states
-  const [sareEnabled, setSareEnabled] = useState(false);
-  const [sareStatus, setSareStatus] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
-  const [isListening, setIsListening] = useState(false);
-  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>("");
@@ -853,9 +834,6 @@ export default function ChatPage() {
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const recognitionRef = useRef<unknown>(null);
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const voiceBufferRef = useRef<string>("");
   const initialLoadDone = useRef(false);
 
   // Live Clock header ticker
@@ -876,28 +854,20 @@ export default function ChatPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Voice State Guards & Location
-  const isAssistantSpeakingRef = useRef<boolean>(false);
-  const isVoiceTurnProcessingRef = useRef<boolean>(false);
-  const lastVoicePromptRef = useRef<string>("");
-  const lastVoiceTimeRef = useRef<number>(0);
   const userLocationRef = useRef<{ latitude?: number; longitude?: number; city?: string } | null>(null);
   const [userLocationName, setUserLocationName] = useState<string | null>(null);
 
   // Advanced AI Chat Composer State
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
-  const [activeTool, setActiveTool] = useState<"none" | "web" | "image_search" | "research" | "file" | "code">("none");
+  const [activeTool, setActiveTool] = useState<"none" | "web" | "research" | "file" | "code">("none");
   const [attachmentUploading, setAttachmentUploading] = useState(false);
-  const [interimSpeech, setInterimSpeech] = useState("");
 
   // User Profile & Logout System (ChatGPT-Style)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBrowseConnectorsOpen, setIsBrowseConnectorsOpen] = useState(false);
-  const [isInbuiltImageSearchOpen, setIsInbuiltImageSearchOpen] = useState(false);
-  const [inbuiltImageSearchQuery, setInbuiltImageSearchQuery] = useState("");
   const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers" | "backup">("menu");
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [headerTime, setHeaderTime] = useState<string>("");
@@ -1950,10 +1920,6 @@ export default function ChatPage() {
 
   // Create a brand new chat session (Clean reset without polluting history)
   function createNewChat() {
-    if (speakingMessageId) {
-      window.speechSynthesis.cancel();
-      setSpeakingMessageId(null);
-    }
     setCurrentSessionId("");
     setMessages([]);
     messagesCountRef.current = 0;
@@ -1976,10 +1942,6 @@ export default function ChatPage() {
 
   // Switch to another conversation
   function selectSession(session: ChatSession) {
-    if (speakingMessageId) {
-      window.speechSynthesis.cancel();
-      setSpeakingMessageId(null);
-    }
     setCurrentSessionId(session.id);
     setMessages(session.messages || []);
     messagesCountRef.current = (session.messages || []).length;
@@ -2729,300 +2691,6 @@ export default function ChatPage() {
     return { lang: "en-IN", name: "English" };
   }
 
-  // Select a natural, fluent female voice strictly excluding male voices across all OS and browsers
-  function selectFemaleVoice(langCode: string): SpeechSynthesisVoice | null {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return null;
-
-    // Names and tokens to strictly reject to prevent any robotic male voice
-    const maleKeywords = [
-      "david", "george", "mark", "richard", "james", "john", "ravi", "madhav",
-      "male", "guy", "man", "sean", "stefan", "paul", "microsoft david", "microsoft mark",
-      "microsoft george", "microsoft ravi", "microsoft stefan", "microsoft james",
-      "microsoft richard", "heera - male"
-    ];
-
-    // Priority fluent female voice models (Edge Natural, Chrome, Siri, WebSpeech)
-    const femaleKeywords = [
-      "jenny", "aria", "zira", "neerja", "swara", "heera", "chitra", "shruti",
-      "priya", "samantha", "victoria", "karen", "eva", "moira", "fiona", "tessa",
-      "veena", "pallavi", "geeta", "vani", "ananya", "female", "woman",
-      "google uk english female", "google us english", "natural"
-    ];
-
-    const isMale = (name: string) => {
-      const lower = name.toLowerCase();
-      return maleKeywords.some((kw) => lower.includes(kw));
-    };
-
-    const isFemale = (name: string) => {
-      const lower = name.toLowerCase();
-      return femaleKeywords.some((kw) => lower.includes(kw));
-    };
-
-    // Filter out male voices completely
-    const nonMaleVoices = voices.filter((v) => !isMale(v.name));
-
-    const prefix = langCode.slice(0, 2).toLowerCase();
-    const langNonMale = nonMaleVoices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
-
-    // 1. Language-matching verified female voice
-    const exactFemale = langNonMale.find((v) => isFemale(v.name));
-    if (exactFemale) return exactFemale;
-
-    // 2. Any language-matching non-male voice
-    if (langNonMale.length > 0) return langNonMale[0];
-
-    // 3. Indian / English verified female voice
-    const verifiedFemale = nonMaleVoices.find((v) => isFemale(v.name));
-    if (verifiedFemale) return verifiedFemale;
-
-    // 4. Any remaining non-male voice
-    if (nonMaleVoices.length > 0) return nonMaleVoices[0];
-
-    // 5. Ultimate fallback if system only has 1 voice
-    return voices[0] || null;
-  }
-
-  // Voice Assistant: Text-to-Speech synthesis with FEMALE VOICE and TELUGU / REGIONAL FLUENCY
-  const speakText = useCallback((text: string, msgId: string, onEnd?: () => void) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("Text-to-speech is not supported on this browser.");
-      return;
-    }
-
-    if (speakingMessageId === msgId) {
-      window.speechSynthesis.cancel();
-      setSpeakingMessageId(null);
-      setSareStatus("idle");
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    // Clean narration: strip code blocks, markdown links, asterisks, bullet points
-    const cleanSpokenText = text
-      .replace(/```[\s\S]*?```/g, "Code block provided in chat.")
-      .replace(/`([^`]+)`/g, "$1")
-      .replace(/#{1,6}\s+/g, "")
-      .replace(/[-*]\s+/g, "")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .trim();
-
-    if (!cleanSpokenText) return;
-
-    const utterance = new SpeechSynthesisUtterance(cleanSpokenText);
-    const { lang: detectedLang } = detectLanguage(cleanSpokenText);
-    utterance.lang = detectedLang;
-
-    // Explicit female voice selection
-    const femaleVoice = selectFemaleVoice(detectedLang);
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
-    }
-
-    utterance.pitch = 1.15; // Natural pleasant female voice pitch
-    utterance.rate = 1.0;
-
-    utterance.onstart = () => {
-      isAssistantSpeakingRef.current = true;
-      setSpeakingMessageId(msgId);
-      setSareStatus("speaking");
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-      voiceBufferRef.current = "";
-    };
-
-    utterance.onend = () => {
-      setSpeakingMessageId(null);
-      setSareStatus("idle");
-      // 450ms safety cooldown after speech ends so microphone does not capture speaker echo
-      setTimeout(() => {
-        isAssistantSpeakingRef.current = false;
-        isVoiceTurnProcessingRef.current = false;
-        voiceBufferRef.current = "";
-        if (onEnd) onEnd();
-      }, 450);
-    };
-
-    utterance.onerror = () => {
-      setSpeakingMessageId(null);
-      setSareStatus("idle");
-      isAssistantSpeakingRef.current = false;
-      isVoiceTurnProcessingRef.current = false;
-      voiceBufferRef.current = "";
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }, [speakingMessageId]);
-
-  // Voice Recognition with Echo Immunity and Deduplication for Sare
-  const startVoiceRecognition = useCallback(() => {
-    if (typeof window === "undefined") return;
-
-    const SpeechRecognition =
-      (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("Voice recognition is not supported in this browser. Please use Chrome or Edge.");
-      return;
-    }
-
-    if (isListening && recognitionRef.current) {
-      try {
-        (recognitionRef.current as { stop: () => void }).stop();
-      } catch {
-        // ignore
-      }
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-      setIsListening(false);
-      setSareStatus("idle");
-      return;
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const recognition = new (SpeechRecognition as any)();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = navigator.language || "en-US";
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recognition.onresult = (event: any) => {
-        // Discard microphone audio while assistant is speaking or processing (eliminates echo loop)
-        if (isAssistantSpeakingRef.current || isVoiceTurnProcessingRef.current) {
-          return;
-        }
-
-        let interimText = "";
-        let finalChunk = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalChunk += event.results[i][0].transcript;
-          } else {
-            interimText += event.results[i][0].transcript;
-          }
-        }
-
-        setInterimSpeech(interimText.trim());
-
-        const clean = finalChunk.trim();
-        if (clean) {
-          voiceBufferRef.current = voiceBufferRef.current
-            ? `${voiceBufferRef.current} ${clean}`
-            : clean;
-
-          const accumulated = voiceBufferRef.current.trim();
-          setInput(accumulated);
-          setInterimSpeech("");
-
-          if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 220)}px`;
-          }
-
-          // In Sare Voice Conversation, if user stops speaking after silence, auto-submit
-          if (sareEnabled) {
-            if (silenceTimerRef.current) {
-              clearTimeout(silenceTimerRef.current);
-            }
-            silenceTimerRef.current = setTimeout(() => {
-              const textToSend = voiceBufferRef.current.trim();
-              if (!textToSend) return;
-
-              // Prevent duplicate / identical inputs within 4 seconds
-              const now = Date.now();
-              const isDuplicate =
-                textToSend.toLowerCase() === lastVoicePromptRef.current.toLowerCase() &&
-                now - lastVoiceTimeRef.current < 4000;
-
-              if (isDuplicate || isVoiceTurnProcessingRef.current || isAssistantSpeakingRef.current) {
-                return;
-              }
-
-              lastVoicePromptRef.current = textToSend;
-              lastVoiceTimeRef.current = now;
-              isVoiceTurnProcessingRef.current = true;
-              stopVoiceRecognition();
-              setSareStatus("thinking");
-              voiceBufferRef.current = "";
-              sendMessage(textToSend);
-            }, 1600); // 1.6 seconds of natural silence
-          }
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsListening(false);
-        setInterimSpeech("");
-        setSareStatus("idle");
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        setInterimSpeech("");
-        if (sareStatus === "listening") {
-          setSareStatus("idle");
-        }
-      };
-
-      recognition.start();
-      recognitionRef.current = recognition;
-      setIsListening(true);
-      setSareStatus("listening");
-    } catch {
-      setIsListening(false);
-      setSareStatus("idle");
-    }
-  }, [isListening, sareEnabled, sareStatus]);
-
-  function stopVoiceRecognition() {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (recognitionRef.current) {
-      try {
-        (recognitionRef.current as { stop: () => void }).stop();
-      } catch {
-        // ignore
-      }
-    }
-    setIsListening(false);
-    setSareStatus("idle");
-  }
-
-  // Toggle Sare Voice Assistant
-  function toggleSareVoiceMode() {
-    if (sareEnabled) {
-      setSareEnabled(false);
-      stopVoiceRecognition();
-      voiceBufferRef.current = "";
-      if (speakingMessageId) {
-        window.speechSynthesis.cancel();
-        setSpeakingMessageId(null);
-      }
-      setSareStatus("idle");
-      showToast("Sare Voice Assistant paused");
-    } else {
-      setSareEnabled(true);
-      voiceBufferRef.current = "";
-      showToast("Sare Voice Assistant activated ✦ Female voice & 2s auto-response ready!");
-      startVoiceRecognition();
-    }
-  }
-
   // Trigger system notification on Android or Browser for AI responses (ONLY when user is outside of the app)
   function notifyResponse(text: string) {
     if (typeof window === "undefined" || !text) return;
@@ -3041,6 +2709,7 @@ export default function ChatPage() {
 
   // Send message handler (supports text, code, document generation, and reasoning)
   async function sendMessage(explicitPrompt?: string) {
+    // Clear any pending silence timer and cancel voice listening to prevent duplicate triggers
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
     if (!rawPrompt && attachments.length === 0) return;
 
@@ -3062,8 +2731,6 @@ export default function ChatPage() {
     let promptToSend = rawPrompt;
     if (activeTool === "web") {
       promptToSend = `[Mode: Web Search & Fact Retrieval]: ${rawPrompt}`;
-    } else if (activeTool === "image_search") {
-      promptToSend = `[Mode: Inbuilt Web Image Search & Photography Gallery]: ${rawPrompt}`;
     } else if (activeTool === "research") {
       promptToSend = `[Mode: Deep Research & Comprehensive Analysis]: ${rawPrompt}`;
     } else if (activeTool === "file") {
@@ -3120,7 +2787,6 @@ export default function ChatPage() {
           connectorIds: activeConnectorIds.length > 0 ? activeConnectorIds : undefined,
           mode: activeTool === "code" ? "chat" : undefined,
           activeTool,
-          imageSearch: activeTool === "image_search",
           thinking: isThinkingEnabled,
           isTemporary: isTemporaryChat,
           userEmail: isUserAuthenticated ? userEmail : undefined,
@@ -3155,7 +2821,6 @@ export default function ChatPage() {
         toolCalls: data.toolCalls,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
-        webImages: data.webImages,
         clockData: data.clockData,
       };
 
@@ -3174,15 +2839,6 @@ export default function ChatPage() {
         showToast("Word limit of 100,000 reached. Next message will continue in new chat ✦");
       }
 
-      // Voice Assistant Sare: speak aloud automatically if enabled
-      if (sareEnabled) {
-        speakText(assistantMsg.content, assistantMsgId, () => {
-          // Once Sare finishes speaking, resume listening for next user voice command
-          if (sareEnabled) {
-            startVoiceRecognition();
-          }
-        });
-      }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
         return;
@@ -3192,7 +2848,6 @@ export default function ChatPage() {
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
-      isVoiceTurnProcessingRef.current = false;
     }
   }
 
@@ -3286,7 +2941,6 @@ export default function ChatPage() {
         toolsExecuted: data.toolsExecuted,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
-        webImages: data.webImages,
         clockData: data.clockData,
       };
 
@@ -3297,11 +2951,6 @@ export default function ChatPage() {
       notifyResponse(assistantMsg.content);
       loadUserMemoryData(userEmail);
 
-      if (sareEnabled) {
-        speakText(assistantMsg.content, assistantMsgId, () => {
-          if (sareEnabled) startVoiceRecognition();
-        });
-      }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Failed to update response.");
@@ -3309,7 +2958,6 @@ export default function ChatPage() {
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
-      isVoiceTurnProcessingRef.current = false;
     }
   }
 
@@ -3384,7 +3032,6 @@ export default function ChatPage() {
         toolsExecuted: data.toolsExecuted,
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
-        webImages: data.webImages,
         clockData: data.clockData,
       };
 
@@ -3395,11 +3042,6 @@ export default function ChatPage() {
       notifyResponse(newAssistantMsg.content);
       loadUserMemoryData(userEmail);
 
-      if (sareEnabled) {
-        speakText(newAssistantMsg.content, newAssistantMsgId, () => {
-          if (sareEnabled) startVoiceRecognition();
-        });
-      }
       showToast("Response regenerated ✦");
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
@@ -3408,7 +3050,6 @@ export default function ChatPage() {
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
-      isVoiceTurnProcessingRef.current = false;
     }
   }
 
@@ -3676,20 +3317,6 @@ export default function ChatPage() {
                 <span>{headerTime}</span>
               </button>
             )}
-
-            {/* Inbuilt Web Images Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setInbuiltImageSearchQuery(input.trim());
-                setIsInbuiltImageSearchOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-medium transition cursor-pointer text-neutral-600 dark:text-neutral-300 active:scale-95"
-              title="Search real photographs from the web (Openverse & Wikimedia)"
-            >
-              <Camera className="w-3.5 h-3.5 text-sky-400" />
-              <span>Images 🔍</span>
-            </button>
             {/* BYOK Custom Provider Chip */}
             {customProviderSettings.enabled && (
               <button
@@ -4884,39 +4511,6 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Sare Voice Status Banner (Frozen) */}
-          {sareEnabled && (
-            <div
-              className={`flex-shrink-0 z-20 flex items-center justify-between px-6 py-2.5 text-xs font-semibold backdrop-blur-md transition-colors ${sareStatus === "listening"
-                  ? "bg-black text-white animate-pulse"
-                  : sareStatus === "speaking"
-                    ? "bg-neutral-800 text-white"
-                    : isDark
-                      ? "bg-neutral-900/90 text-neutral-300"
-                      : "bg-neutral-100/90 text-black"
-                }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>
-                  {sareStatus === "listening"
-                    ? "Sare is listening to your voice... Speak anytime"
-                    : sareStatus === "speaking"
-                      ? "Sare is speaking..."
-                      : sareStatus === "thinking"
-                        ? "Sare is processing your voice..."
-                        : "Sare Voice Assistant active"}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={toggleSareVoiceMode}
-                className="text-[11px] underline opacity-80 hover:opacity-100"
-              >
-                Turn off
-              </button>
-            </div>
-          )}
 
           {/* Messages Scroll Viewport (Independently scrollable) */}
           <div
@@ -4991,17 +4585,6 @@ export default function ChatPage() {
                       >
                         <Clock className="w-5 h-5 text-sky-400 group-hover:text-white shrink-0 stroke-[1.6]" />
                         <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Check live clock &amp; time</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInbuiltImageSearchQuery("Different types of flowers");
-                          setIsInbuiltImageSearchOpen(true);
-                        }}
-                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                      >
-                        <Camera className="w-5 h-5 text-emerald-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search web images &amp; photos</span>
                       </button>
                     </div>
                   </div>
@@ -5182,15 +4765,6 @@ export default function ChatPage() {
                             {/* In-built Live Clock Card */}
                             {msg.clockData && (
                               <LiveClockWidget clockData={msg.clockData} isDark={isDark} />
-                            )}
-
-                            {/* Inbuilt Web Image Search Visual Gallery matching Screenshot */}
-                            {msg.webImages && msg.webImages.length > 0 && (
-                              <VisualImageGallery
-                                images={msg.webImages}
-                                onSelectImage={(url: string) => setLightboxImage(url)}
-                                isDark={isDark}
-                              />
                             )}
 
                             {/* Grounded Web Research Citations */}
@@ -5378,22 +4952,7 @@ export default function ChatPage() {
                                   </button>
                                 </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => speakText(msg.content, msg.id)}
-                                  className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${speakingMessageId === msg.id
-                                      ? "bg-black text-white font-bold"
-                                      : "text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                    }`}
-                                  title="Listen to this response"
-                                >
-                                  {speakingMessageId === msg.id ? (
-                                    <VolumeX className="w-3.5 h-3.5" />
-                                  ) : (
-                                    <Volume2 className="w-3.5 h-3.5" />
-                                  )}
-                                  <span>{speakingMessageId === msg.id ? "Stop" : "Speak"}</span>
-                                </button>
+
 
                                 <button
                                   type="button"
@@ -5491,8 +5050,8 @@ export default function ChatPage() {
               )}
 
 
-              {/* Status / Interim Voice Banner */}
-              {(statusMessage || interimSpeech || isListening) && (
+              {/* Status Banner */}
+              {statusMessage && (
                 <div
                   className={`mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-2xs ${isDark
                       ? "bg-neutral-800/90 border-neutral-700 text-neutral-300"
@@ -5500,31 +5059,9 @@ export default function ChatPage() {
                     }`}
                 >
                   <div className="flex items-center gap-2 truncate">
-                    {isListening ? (
-                      <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5 text-neutral-500 animate-spin" />
-                    )}
-                    <span className="truncate">
-                      {interimSpeech
-                        ? `Listening: "${interimSpeech}"`
-                        : isListening
-                          ? "Listening for voice input... Speak naturally"
-                          : statusMessage}
-                    </span>
+                    <Sparkles className="w-3.5 h-3.5 text-neutral-500 animate-spin" />
+                    <span className="truncate">{statusMessage}</span>
                   </div>
-                  {isListening && (
-                    <button
-                      type="button"
-                      onClick={stopVoiceRecognition}
-                      className="text-[11px] font-semibold text-red-500 dark:text-red-400 hover:underline"
-                    >
-                      Done
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -5538,13 +5075,11 @@ export default function ChatPage() {
                       }`}
                   >
                     {activeTool === "web" && <Globe className="w-3.5 h-3.5 text-blue-500" />}
-                    {activeTool === "image_search" && <Search className="w-3.5 h-3.5 text-sky-400" />}
                     {activeTool === "research" && <Compass className="w-3.5 h-3.5 text-purple-500" />}
                     {activeTool === "file" && <FileText className="w-3.5 h-3.5 text-emerald-500" />}
                     {activeTool === "code" && <Code2 className="w-3.5 h-3.5 text-cyan-500" />}
                     <span className="font-semibold">
                       {activeTool === "web" && "Web Search Active"}
-                      {activeTool === "image_search" && "Web Image Search Active"}
                       {activeTool === "research" && "Deep Research Active"}
                       {activeTool === "file" && "File Analysis Active"}
                       {activeTool === "code" && "Code Assistance Active"}
@@ -5651,12 +5186,12 @@ export default function ChatPage() {
                     }
                   }}
                   rows={1}
-                  placeholder={isListening ? "Listening to voice input..." : "Ask TATTVA AI"}
+                  placeholder="Ask TATTVA AI"
                   className={`w-full resize-none bg-transparent px-2 pt-1 pb-1 text-base sm:text-base outline-none max-h-36 min-h-[38px] leading-relaxed ${isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
                     }`}
                 />
 
-                {/* 2. Bottom Row: (+) on Left, Mic & Voice Wave on Right */}
+                {/* 2. Bottom Row: (+) on Left, Send on Right */}
                 <div className="flex items-center justify-between w-full pt-1 px-1">
                   {/* Left: (+) Attachment & Web Image Search Quick Actions */}
                   <div className="flex items-center gap-1">
@@ -5713,54 +5248,7 @@ export default function ChatPage() {
                           <span className="font-semibold text-[15px] tracking-tight">Photos</span>
                         </button>
 
-                        {/* Web Image Search Engine */}
-                        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-1 space-y-0.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAttachmentMenuOpen(false);
-                              setInbuiltImageSearchQuery(input.trim());
-                              setIsInbuiltImageSearchOpen(true);
-                            }}
-                            className="flex items-center gap-4 w-full rounded-xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
-                          >
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-sky-400 shadow-2xs">
-                              <Camera className="w-5 h-5 stroke-[2]" />
-                            </div>
-                            <div className="flex-1 min-w-0 flex items-center justify-between">
-                              <div>
-                                <span className="font-semibold text-[15px] tracking-tight block">Web Image Search</span>
-                                <span className="text-[11px] text-neutral-400 block">Search real photos in chat</span>
-                              </div>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-mono">
-                                Inbuilt 📷
-                              </span>
-                            </div>
-                          </button>
 
-                          <div className="flex items-center justify-between px-3 py-1 text-[11px] border-t border-sky-500/10">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveTool(activeTool === "image_search" ? "none" : "image_search");
-                                setIsAttachmentMenuOpen(false);
-                                textareaRef.current?.focus();
-                                showToast(activeTool === "image_search" ? "Image Search mode OFF" : "Image Search mode ON 🔍");
-                              }}
-                              className="text-neutral-400 hover:text-white transition font-medium"
-                            >
-                              {activeTool === "image_search" ? "Deactivate Mode" : "Prompt Mode"}
-                            </button>
-                            <Link
-                              href="/images"
-                              onClick={() => setIsAttachmentMenuOpen(false)}
-                              className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-medium"
-                            >
-                              <span>Full Engine</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </Link>
-                          </div>
-                        </div>
 
                         {/* 3. Files (Image 2) */}
                         <button
@@ -5835,129 +5323,46 @@ export default function ChatPage() {
                           </div>
                           <span className="font-semibold text-[15px] tracking-tight">Satellite Maps</span>
                         </Link>
+                      </div>
+                    )}
 
-                        {/* 7. Live Voice */}
-                        <Link
-                          href="/voice"
-                          onClick={() => {
-                            setIsAttachmentMenuOpen(false);
-                          }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                    </div>
+
+                    {/* Device Camera Photo Capture */}
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 text-neutral-300 hover:text-white hover:bg-white/10"
+                      title="Take a photo or upload picture"
+                    >
+                      <Camera className="w-5 h-5 stroke-[1.8] text-sky-400" />
+                    </button>
+                  </div>
+
+                  {/* Right: Send / Stop Button (only visible when generating or message/attachment present) */}
+                  {(loading || input.trim() || attachments.length > 0) && (
+                    <div className="flex items-center gap-2 shrink-0 animate-in fade-in zoom-in-95 duration-150">
+                      {loading ? (
+                        <button
+                          type="button"
+                          onClick={stopGeneration}
+                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-sm hover:opacity-90 active:scale-95 transition cursor-pointer shrink-0"
+                          title="Stop generation"
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
-                            <Radio className="w-5 h-5 stroke-[2] animate-pulse" />
-                          </div>
-                          <span className="font-semibold text-[15px] tracking-tight">Live Voice</span>
-                        </Link>
-                      </div>
-                    )}
-
-                    {/* Popover for ConnectorPicker */}
-                    {isConnectorPickerOpen && (
-                      <div
-                        className={`absolute bottom-full left-0 mb-3 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${isDark ? "border-neutral-700 bg-neutral-900/95 text-neutral-200" : "border-black/10 bg-white/95 text-neutral-800"
-                          }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ConnectorPicker
-                          isDark={isDark}
-                          activeConnectorIds={activeConnectorIds}
-                          onToggleConnector={(id) => {
-                            setActiveConnectorIds((prev) =>
-                              prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-                            );
-                          }}
-                          onOpenSettings={() => {
-                            setIsConnectorPickerOpen(false);
-                            setIsBrowseConnectorsOpen(true);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Inbuilt Web Image Search Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInbuiltImageSearchQuery(input.trim());
-                      setIsInbuiltImageSearchOpen(true);
-                    }}
-                    className="flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 text-neutral-300 hover:text-white hover:bg-white/10"
-                    title="Search real web images (Openverse & Wikimedia)"
-                  >
-                    <Camera className="w-5 h-5 stroke-[1.8] text-sky-400" />
-                  </button>
-                </div>
-
-                  {/* Active Connectors Indicator Pill */}
-                  {activeConnectorIds.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setIsConnectorPickerOpen(!isConnectorPickerOpen)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-[11px] font-bold transition cursor-pointer select-none"
-                      title="Manage active Claude connectors"
-                    >
-                      <Plug className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
-                      <span>{activeConnectorIds.length} Connector{activeConnectorIds.length > 1 ? "s" : ""}</span>
-                    </button>
+                          <Square className="w-3.5 h-3.5 fill-current" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => sendMessage()}
+                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-sm hover:opacity-90 active:scale-95 transition cursor-pointer shrink-0"
+                          title="Send message"
+                        >
+                          <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+                        </button>
+                      )}
+                    </div>
                   )}
-
-                  {/* Right: Mic & Voice/Send Button */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* 🎤 Speech-to-Text Microphone Button */}
-                    <button
-                      type="button"
-                      onClick={startVoiceRecognition}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${isListening
-                          ? "bg-red-500 text-white animate-pulse shadow-md ring-2 ring-red-400/50"
-                          : isDark
-                            ? "text-neutral-300 hover:text-white hover:bg-white/10"
-                            : "text-neutral-600 hover:text-black hover:bg-neutral-200"
-                        }`}
-                      title={isListening ? "Stop listening" : "Speech-to-text input"}
-                    >
-                      {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 stroke-[1.8]" />}
-                    </button>
-
-                    {/* Terracotta Orange Circular Voice Wave / Send Action */}
-                    {loading ? (
-                      <button
-                        type="button"
-                        onClick={stopGeneration}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
-                        title="Stop generation"
-                      >
-                        <Square className="w-4 h-4 fill-current" />
-                      </button>
-                    ) : input.trim() || attachments.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => sendMessage()}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
-                        title="Send message"
-                      >
-                        <ArrowUp className="w-5 h-5 stroke-[2.5]" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          router.push("/voice");
-                        }}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#D95B26] hover:bg-[#E26630] text-white shadow-md active:scale-95 transition cursor-pointer shrink-0"
-                        title="Start Live Voice conversation"
-                      >
-                        {/* 4-bar Audio Waveform Icon matching ChatGPT Mobile */}
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                          <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" />
-                          <rect x="8.5" y="4" width="2.5" height="16" rx="1.25" />
-                          <rect x="13.5" y="6" width="2.5" height="12" rx="1.25" />
-                          <rect x="18.5" y="9" width="2.5" height="6" rx="1.25" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
               {/* Small Friendly Disclaimer: hidden on mobile to prevent Android navigation bar clash, visible on desktop */}
@@ -6854,7 +6259,7 @@ export default function ChatPage() {
                       </div>
                       <div>
                         <p className="font-bold text-sm">General Preferences</p>
-                        <p className="text-[11px] text-neutral-400">Color theme, Sare auto-voice, data settings</p>
+                        <p className="text-[11px] text-neutral-400">Color theme, Sara auto-voice, data settings</p>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-neutral-400" />
@@ -7512,23 +6917,6 @@ export default function ChatPage() {
                     </button>
                   </div>
 
-                  {/* Sare Voice */}
-                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
-                    <div>
-                      <p className="font-semibold text-neutral-900 dark:text-white">Sare Voice Auto-Narration</p>
-                      <p className="text-[11px] text-neutral-400">Speak AI responses aloud automatically</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={toggleSareVoiceMode}
-                      className={`rounded-xl px-3 py-1.5 font-semibold transition cursor-pointer ${sareEnabled
-                          ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
-                          : "border border-black/10 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400"
-                        }`}
-                    >
-                      {sareEnabled ? "Enabled (ON)" : "Disabled (OFF)"}
-                    </button>
-                  </div>
 
                   {/* Archived Conversations */}
                   <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
@@ -8481,24 +7869,6 @@ export default function ChatPage() {
           </div>
         </div>
       )}
-
-      {/* Inbuilt Web Image Search Engine Modal */}
-      <InbuiltImageSearchModal
-        isOpen={isInbuiltImageSearchOpen}
-        onClose={() => setIsInbuiltImageSearchOpen(false)}
-        initialQuery={inbuiltImageSearchQuery}
-        isDark={isDark}
-        onSelectImage={(img) => {
-          const imagePrompt = `Here is a real photograph of "${img.title}" from ${img.source} (${img.url}). Can you tell me more about it and describe its key visual details?`;
-          setInput((prev) => (prev.trim() ? `${prev}\n\n${imagePrompt}` : imagePrompt));
-          setTimeout(() => textareaRef.current?.focus(), 80);
-          showToast(`Attached "${img.title.slice(0, 30)}..." 📷`);
-        }}
-        onSendQueryToChat={(q) => {
-          setInput(q);
-          setTimeout(() => textareaRef.current?.focus(), 80);
-        }}
-      />
 
     </div>
   );

@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
 
   description:
-    "Discover TATTVA AI, your intelligent AI platform for reasoning, real-time live voice conversations, interactive satellite maps, and real web image search.",
+    "Discover TATTVA AI, your intelligent AI platform for reasoning, deep research, and interactive satellite maps.",
 
   alternates: {
     canonical: "https://tattva-ai-phi.vercel.app/",

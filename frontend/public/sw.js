@@ -1,5 +1,5 @@
 // TATTVA AI - Production Service Worker (PWA)
-const CACHE_NAME = 'tattva-ai-v1';
+const CACHE_NAME = 'tattva-ai-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never cache API calls, live voice, or auth requests (Security & Accuracy)
+  // Never cache API calls or auth requests (Security & Accuracy)
   if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
   }

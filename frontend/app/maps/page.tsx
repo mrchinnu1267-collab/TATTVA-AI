@@ -1047,7 +1047,7 @@ export default function MapsPage() {
         </ul>
         <nav aria-label="Explore other TATTVA AI features">
           <Link href="/">TATTVA AI Web Chat</Link>
-          <Link href="/voice">TATTVA AI Voice Assistant</Link>
+          <Link href="/image-studio">TATTVA AI Image Studio</Link>
           <Link href="/download">Download TATTVA AI App</Link>
         </nav>
       </section>

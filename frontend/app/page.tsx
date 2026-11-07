@@ -18,14 +18,14 @@ const ChatPage = dynamic(() => import("./chat/page"), {
 export const metadata: Metadata = {
   title: "TATTVA AI – Your Intelligent AI Assistant",
   description:
-    "Discover TATTVA AI, your intelligent AI platform for reasoning, real-time live voice conversations, interactive satellite maps, and real web image search.",
+    "Discover TATTVA AI, your intelligent AI platform for reasoning, deep research, and interactive satellite maps.",
   alternates: {
     canonical: "https://tattva-ai-phi.vercel.app/",
   },
   openGraph: {
     title: "TATTVA AI – Your Intelligent AI Assistant",
     description:
-      "Discover TATTVA AI, your intelligent AI platform for reasoning, real-time live voice conversations, interactive satellite maps, and real web image search.",
+      "Discover TATTVA AI, your intelligent AI platform for reasoning, deep research, and interactive satellite maps.",
     url: "https://tattva-ai-phi.vercel.app/",
     siteName: "TATTVA AI",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "TATTVA AI – Your Intelligent AI Assistant",
     description:
-      "Discover TATTVA AI, your intelligent AI platform for reasoning, real-time live voice conversations, interactive satellite maps, and real web image search.",
+      "Discover TATTVA AI, your intelligent AI platform for reasoning, deep research, and interactive satellite maps.",
     images: ["/logo.png"],
   },
 };
@@ -75,7 +75,7 @@ const structuredData = {
       url: "https://tattva-ai-phi.vercel.app/",
       name: "TATTVA AI – Your Intelligent AI Assistant",
       description:
-        "Discover TATTVA AI, your intelligent AI platform for reasoning, real-time live voice conversations, interactive satellite maps, and real web image search.",
+        "Discover TATTVA AI, your intelligent AI platform for reasoning, deep research, and interactive satellite maps.",
       datePublished: "2026-10-25T00:00:00+00:00",
       dateModified: "2026-11-07T00:00:00+00:00",
       isPartOf: {
@@ -113,11 +113,10 @@ export default function Home() {
 
       {/* Semantic Crawlable Content for Search Engines & Accessibility */}
       <section className="sr-only" aria-label="TATTVA AI Platform Overview">
-        <h1>TATTVA AI – Your Intelligent AI Assistant, Web Search &amp; Creative Studio</h1>
+        <h1>TATTVA AI – Your Intelligent AI Assistant &amp; Creative Studio</h1>
         <p>
           TATTVA AI is an intelligent, privacy-first artificial intelligence workspace engineered to
-          deliver deep cognitive reasoning, real-time multilingual voice conversations, interactive
-          satellite mapping, real web photograph search, and multi-format document generation.
+          deliver deep cognitive reasoning, interactive satellite mapping, and multi-format document generation.
         </p>
 
         <h2>Core Platform Capabilities</h2>
@@ -131,30 +130,12 @@ export default function Home() {
         </article>
 
         <article>
-          <h3>Web Image Search Engine</h3>
-          <p>
-            Explore real photographs from across the web without artificial substitutions, aggregating
-            millions of high-resolution visual assets from Wikimedia Commons and Openverse with verified licensing.
-          </p>
-          <Link href="/images">Open Web Image Search Engine</Link>
-        </article>
-
-        <article>
           <h3>Interactive Satellite Maps &amp; Explorer</h3>
           <p>
             Navigate global high-resolution satellite imagery, discover nearby places, cafes, parks, and
             hotels with live GPS coordinates, ratings, and instant routes.
           </p>
           <Link href="/maps">Explore Satellite Maps</Link>
-        </article>
-
-        <article>
-          <h3>Live Voice Assistant</h3>
-          <p>
-            Speak naturally with ultra-low latency bidirectional audio conversations in multiple languages
-            with hands-free voice interactions.
-          </p>
-          <Link href="/voice">Start Live Voice Conversation</Link>
         </article>
 
         <article>

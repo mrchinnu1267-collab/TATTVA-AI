@@ -8,12 +8,6 @@ import {
 import { getWeatherReport, isWeatherQuery } from "../../lib/weather-service";
 import { getClockReport, isClockQuery, ClockReport } from "../../lib/clock-service";
 import {
-  searchWebImages,
-  isImageSearchQuery,
-  extractImageSearchKeywords,
-  WebImageResult,
-} from "../../lib/web-image-search";
-import {
   executeCustomProvider,
   scrubCredentials,
   CustomProviderId,
@@ -113,27 +107,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. INBUILT GOOGLE / WEB IMAGE SEARCH ENGINE
-    let retrievedWebImages: WebImageResult[] = [];
-    if (latestUserMsg && (body.imageSearch || body.activeTool === "image_search" || isImageSearchQuery(latestUserMsg.content))) {
-      try {
-        const keywords = extractImageSearchKeywords(latestUserMsg.content);
-        retrievedWebImages = await searchWebImages(keywords || latestUserMsg.content, 6);
-        if (retrievedWebImages.length > 0) {
-          const imgList = retrievedWebImages
-            .map((img, i) => `[Image ${i + 1}]: "${img.title}" (${img.source})`)
-            .join(", ");
-          body.messages.splice(body.messages.length - 1, 0, {
-            role: "user",
-            content: `[Inbuilt Web Image Search Results]: Real photographs have been fetched from the web for "${keywords}": ${imgList}. Provide an engaging response describing these items, their characteristics, and mention that real photographs are presented in the visual gallery below.`,
-          });
-        }
-      } catch (imgErr) {
-        console.warn("[TATTVA Chat] Inbuilt web image search error:", imgErr);
-      }
-    }
-
-    // 3. REAL-TIME LOCATION & WEATHER GROUNDING
+    // 2. REAL-TIME LOCATION & WEATHER GROUNDING
     if (latestUserMsg && isWeatherQuery(latestUserMsg.content)) {
       try {
         const weather = await getWeatherReport({
@@ -168,7 +142,6 @@ export async function POST(request: Request) {
               modelUsed: "TATTVA-Live-Weather-Engine",
               provider: "local",
               latencyMs: 150,
-              ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
             });
           }
 
@@ -201,7 +174,6 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         ...customResult,
-        ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
         ...(clockData ? { clockData } : {}),
       });
     }
@@ -224,7 +196,6 @@ export async function POST(request: Request) {
         toolsExecuted: connectorResult.toolCalls.map((tc) => `${tc.serverName || tc.connectorName} (${tc.toolName})`),
         usage: connectorResult.usage,
         stopReason: connectorResult.stopReason,
-        ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
         ...(clockData ? { clockData } : {}),
       });
     }
@@ -238,13 +209,12 @@ export async function POST(request: Request) {
         sessionId: body.sessionId,
         conversationHistory: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
       },
-      mode: retrievedWebImages.length > 0 ? "chat" : body.mode,
+      mode: body.mode,
       preferredModel: body.preferredModel || body.model,
     });
 
     return NextResponse.json({
       ...orchestratorResult,
-      ...(retrievedWebImages.length > 0 ? { webImages: retrievedWebImages } : {}),
       ...(clockData ? { clockData } : {}),
     });
   } catch (error) {

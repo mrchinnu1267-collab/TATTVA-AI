@@ -333,7 +333,7 @@ export async function getWeatherReport(options: WeatherRequestOptions): Promise<
       }
     }
 
-    // Natural spoken summary for Voice Assistant (Sare)
+    // Natural spoken summary for Voice Assistant (Sara)
     const spokenSummary = `The current weather in ${city} is ${tempC} degrees Celsius and ${condition.text.toLowerCase()}. Feels like ${feelsLikeC} degrees with ${curr.relative_humidity_2m}% humidity and wind speed of ${curr.wind_speed_10m} kilometers per hour. Today's high is expected to reach ${tempMaxC} degrees with a low of ${tempMinC} degrees.`;
 
     // Detailed markdown summary for Chat
