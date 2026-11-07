@@ -56,17 +56,9 @@ const structuredData = {
       url: "https://tattva-ai-phi.vercel.app/",
       name: "TATTVA AI",
       description:
-        "An intelligent AI platform for reasoning, real-time voice, satellite maps, and real web image search.",
+        "An intelligent AI platform for reasoning, deep research, code generation, and interactive satellite maps.",
       publisher: {
         "@id": "https://tattva-ai-phi.vercel.app/#organization",
-      },
-      potentialAction: {
-        "@type": "SearchAction",
-        target: {
-          "@type": "EntryPoint",
-          urlTemplate: "https://tattva-ai-phi.vercel.app/images?q={search_term_string}",
-        },
-        "query-input": "required name=search_term_string",
       },
     },
     {

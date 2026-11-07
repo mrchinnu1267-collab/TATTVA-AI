@@ -158,7 +158,7 @@ export async function GET(request: Request) {
           }
         }
       } catch (err) {
-        console.warn("Web image search error:", err);
+        console.warn("Area photo search error:", err);
       }
     }
 

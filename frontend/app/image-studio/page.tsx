@@ -984,7 +984,7 @@ export default function ImageStudioPage() {
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--soft)] px-3 py-2.5 text-[10px] leading-relaxed text-neutral-400">
             <strong className="text-neutral-500">Why scores vary:</strong> no diffusion model can
             guarantee pixel-perfect text or counts. TATTVA compiles explicit requirements, checks the
-            result with a vision model, and retries with a corrected prompt. Real photograph search is also available via the Web Image Search Engine.
+            result with a vision model, and retries with a corrected prompt.
           </div>
         </section>
       </div>
