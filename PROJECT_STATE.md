@@ -48,6 +48,16 @@ TATTVA_AI/
   - Permanently deleted the Web Image Search Engine: removed `app/images/`, `app/api/images/`, `app/components/InbuiltImageSearchModal.tsx`, `app/components/VisualImageGallery.tsx`, `app/lib/image-search/`, `app/lib/web-image-search.ts`, and all image search routes/hooks/modals.
   - Permanently deleted the Live Voice Assistance & Microphone systems: deleted `app/voice/`, `app/api/voice-chat/`, `app/api/tts/`, `app/lib/sara-voice.ts`, `tests/sara-voice.test.ts`, and all speech recognition/synthesis listeners.
   - Rebuilt Chat Interface: the input contains only text input, attachment button (`+` for photo/document uploads), camera button (`📷` for device photo capture), and a clean neutral Send/Stop button (`ArrowUp` / `Square`).
+- [x] **TATTVA AI Pure Binary Document Engine & Universal File Processor**:
+  - Engineered zero-dependency pure TypeScript OpenXML and PDF binary engines (`app/lib/document-engine/`):
+    - `docx.ts`: OpenXML WordprocessingML document builder generating valid ZIP archives with core props, styles, and document relationships.
+    - `xlsx.ts`: OpenXML SpreadsheetML workbook builder generating valid `.xlsx` spreadsheets with multiple sheets and inline strings.
+    - `pptx.ts`: OpenXML PresentationML builder generating valid presentation slides with cover and content slide trees.
+    - `pdf.ts`: Byte-accurate PDF 1.4 binary builder with mathematically exact xref table offsets, eliminating cross-reference corruption.
+    - `csv.ts`: RFC 4180-compliant CSV generator with UTF-8 BOM (`\uFEFF`).
+    - `reader.ts`: Universal document extractor inspecting magic bytes (`PK\x03\x04`, `%PDF-`, `\x89PNG`, `\xFF\xD8\xFF`, `RIFF...WEBP`) and unzipping XML to extract clean text from DOCX, XLSX, and PPTX for Gemini and OpenRouter models.
+  - Resolved MIME type resolution for mobile/Android uploads in `app/lib/security.ts` (`validateAndInspectFile`).
+  - Automated 32 tests (`tests/run-tests.mjs`) passing with 100% success rate. Built and deployed cleanly via Turbopack.
   - Purged microphone permissions from Android (`AndroidManifest.xml` and `MainActivity.kt`), iOS (`Info.plist`), and Desktop (`desktop-app/main.js`).
   - Preserved protected systems: text-based AI chat, Gemini multimodal integration, normal image uploads, OCR, document generation, satellite maps, Supabase authentication, and Claude MCP connectors.
   - Verified with 16/16 unit tests passing (`npm test`), full Turbopack production compilation with 0 errors (`npm run build`), and clean native Android APK build (`tattva-ai.apk`).
