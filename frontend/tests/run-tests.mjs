@@ -10,6 +10,7 @@ const jiti = require("../node_modules/jiti/lib/jiti.cjs")(__filename);
 console.log("\n🚀 Running Claude Connectors (MCP) Test Suite...\n");
 
 try {
+  await jiti("./auth-redirect.test.ts");
   await jiti("./claude-connectors.test.ts");
   await jiti("./connectors-e2e.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");

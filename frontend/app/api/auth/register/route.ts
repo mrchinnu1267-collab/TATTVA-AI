@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getAuthCallbackUrl } from "../../../lib/auth-redirect";
 
 const ACCOUNTS_FILE = path.join(process.cwd(), ".tattva_secure_accounts.json");
 
@@ -84,12 +85,13 @@ export async function POST(request: Request) {
           },
         }
       );
+      const emailRedirectTo = getAuthCallbackUrl("/chat", request);
       await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
           data: { full_name: resolvedName },
-          emailRedirectTo: `${request.headers.get("origin") || "http://localhost:3000"}/auth/callback?next=/chat`,
+          emailRedirectTo,
         },
       }).catch((e) => console.warn("Supabase background signup warning:", e.message));
     } catch (e) {

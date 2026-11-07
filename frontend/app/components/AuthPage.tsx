@@ -22,6 +22,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { createClient } from "../lib/supabase";
+import { getAuthCallbackUrl } from "../lib/auth-redirect";
 import {
   createAccount,
   loginUser,
@@ -122,7 +123,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
     try {
       const supabase = createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        redirectTo: getAuthCallbackUrl("/reset-password"),
       });
       if (error) throw error;
       setMessage("Password reset link has been dispatched to your email. Please check your inbox.");

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "../lib/supabase";
+import { getAuthCallbackUrl } from "../lib/auth-redirect";
 import {
   Volume2,
   VolumeX,
@@ -7033,7 +7034,7 @@ export default function ChatPage() {
                       try {
                         const supabase = createClient();
                         const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-                          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+                          redirectTo: getAuthCallbackUrl("/reset-password"),
                         });
                         if (error) throw error;
                         showToast("Password reset link sent to your email ✉️");
