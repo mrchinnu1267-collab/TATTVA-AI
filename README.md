@@ -12,5 +12,6 @@
 - **Universal File & Handwriting Intelligence**: Automatic vision OCR, handwriting analysis, and step-by-step problem solver for notes, exams, equations, and code.
 - **Satellite Maps & Places**: Real satellite feeds, GPS live location centering, and Google Maps place cards without unwanted controls.
 - **Client Security Vault**: User-managed BYOK encryption at rest for API keys with zero server-side exposure.
+- **Smart Agent Skills System**: Modular suite of 12 Antigravity Agent Skills in `.agent/skills/` optimizing token consumption, automated testing, and development efficiency.
 
-For detailed setup, environment variables, and developer documentation, see [frontend/README.md](frontend/README.md).
+For detailed setup, environment variables, developer documentation, and living project state, see [frontend/README.md](frontend/README.md) and [PROJECT_STATE.md](PROJECT_STATE.md).

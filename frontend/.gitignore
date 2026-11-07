@@ -33,6 +33,9 @@ yarn-error.log*
 Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
+.vscode/
+.cursor/
+.idea/
 
 # Unignore API routes inside app/api/models
 !app/api/models/
@@ -42,3 +45,8 @@ next-env.d.ts
 !public/*.apk
 *.zip
 !public/*.zip
+
+# Graphify Local Output & Cache
+graphify-out/
+.graphify*
+

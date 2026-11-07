@@ -102,3 +102,23 @@ Execute the test suite verifying all 16 assertions across SSRF protection, permi
 npm test
 ```
 
+---
+
+## 🤖 Smart Agent Skills System
+
+TATTVA AI includes a dedicated collection of 12 modular Agent Skills located in `../.agent/skills/` following the Antigravity skill architecture:
+
+1. **`codebase-explorer`**: Targeted architectural mapping and AST querying via Graphify without full-project scans.
+2. **`smart-debugger`**: Systematic root-cause isolation and minimal surgical bugfixes.
+3. **`minimal-code-editor`**: Low-churn, scoped modifications that preserve existing logic and zero dependencies.
+4. **`project-memory`**: Living context preservation via `PROJECT_STATE.md` with zero secret exposure.
+5. **`ui-ux-specialist`**: Accessible, responsive component design adhering to Tailwind CSS v4 and Framer Motion.
+6. **`backend-specialist`**: High-performance Next.js 16 route handlers and Supabase PostgreSQL with RLS.
+7. **`ai-integration`**: Google Gemini API, Claude Connectors, and local image pipeline orchestration with streaming.
+8. **`security-auditor`**: Nonce-based CSP, SSRF guardrails, AES-256-GCM encryption, and zero-trust verification.
+9. **`dependency-manager`**: Package hygiene, bundle optimization, and React 19 / Turbopack compatibility.
+10. **`testing-specialist`**: Targeted automated test execution and regression prevention.
+11. **`context-manager`**: Session compaction and multi-turn handoffs to eliminate token bloat.
+12. **`documentation-generator`**: Concise, accurate API and architectural documentation.
+
+

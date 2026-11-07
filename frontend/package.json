@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node tests/run-tests.mjs"
+    "test": "node tests/run-tests.mjs",
+    "graphify": "py -m graphify update . --no-cluster",
+    "graphify:mcp": "py -m graphify.serve graphify-out/graph.json --transport stdio"
   },
   "dependencies": {
     "@google/genai": "^2.31.0",
@@ -27,6 +29,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@mohammednagy/graphify-ts": "^0.23.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

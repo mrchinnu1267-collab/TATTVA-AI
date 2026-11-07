@@ -41,6 +41,13 @@
 .DS_Store
 Thumbs.db
 *.log
+.vscode/
+.cursor/
+.idea/
+
+# Graphify Local Output & Cache
+**/graphify-out/
+**/.graphify*
 
 # Android APK binaries
 *.apk
