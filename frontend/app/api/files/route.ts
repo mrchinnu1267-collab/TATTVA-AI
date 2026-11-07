@@ -80,6 +80,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const effectiveMime = inspection.detectedMime || mimeType;
+
     // SHA-256 Integrity Hash
     const sha256Hash = crypto.createHash("sha256").update(buffer).digest("hex");
     const fileId = crypto.randomUUID();
@@ -97,7 +99,7 @@ export async function POST(request: Request) {
         const { error: uploadErr } = await supabase.storage
           .from("tattva-secure-vault")
           .upload(storagePath, buffer, {
-            contentType: mimeType,
+            contentType: effectiveMime,
             upsert: false,
           });
 
@@ -138,7 +140,7 @@ export async function POST(request: Request) {
       file: {
         id: fileId,
         filename: originalName,
-        mimeType,
+        mimeType: effectiveMime,
         sizeBytes: buffer.length,
         sha256Hash,
         storagePath,

@@ -6,6 +6,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { AIModelSpec, ModelProvider, TaskIntent } from "./types";
+import { inspectAndReadDocument } from "../document-engine";
 
 export interface ModelCallOptions {
   messages: Array<{
@@ -230,20 +231,30 @@ export class ModelRouter {
         for (const att of msg.attachments) {
           if (att.data && att.data.includes(";base64,")) {
             const [hdr, b64] = att.data.split(";base64,");
-            const mimeType = (hdr.replace("data:", "") || "image/png").toLowerCase();
+            const claimedMime = (hdr.replace("data:", "") || "application/octet-stream").toLowerCase();
+            try {
+              const buf = Buffer.from(b64, "base64");
+              const doc = await inspectAndReadDocument(buf, att.name || "document", claimedMime);
 
-            // Native multimodal vision/doc inlineData for images and PDFs
-            if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
-              parts.push({ inlineData: { mimeType, data: b64 } });
-            } else {
-              // For text files, CSV, spreadsheets, code, JSON, markdown, decode base64 into structured text
-              try {
-                const decodedText = Buffer.from(b64, "base64").toString("utf-8");
+              // Native multimodal vision/doc inlineData for images and PDFs
+              if (claimedMime.startsWith("image/") || doc.detectedMime.startsWith("image/")) {
+                parts.push({ inlineData: { mimeType: doc.detectedMime || claimedMime, data: b64 } });
+              } else if (claimedMime === "application/pdf" || doc.detectedMime === "application/pdf") {
+                parts.push({ inlineData: { mimeType: "application/pdf", data: b64 } });
+                if (doc.extractedText && doc.extractedText.trim().length > 0) {
+                  parts.push({
+                    text: `\n\n[EXTRACTED TEXT FROM PDF: ${att.name || "document"}]:\n${doc.extractedText}\n`,
+                  });
+                }
+              } else {
+                // For DOCX, XLSX, PPTX, CSV, spreadsheets, code, JSON, markdown: inject clean structured extracted text
                 parts.push({
-                  text: `\n\n[ATTACHED FILE: ${att.name || "document"} (${mimeType})]:\n\`\`\`\n${decodedText}\n\`\`\`\n`,
+                  text: `\n\n[ATTACHED FILE: ${att.name || "document"} (${doc.detectedMime || claimedMime})]:\n\`\`\`\n${doc.extractedText || "No readable text content."}\n\`\`\`\n`,
                 });
-              } catch {
-                parts.push({ inlineData: { mimeType, data: b64 } });
+              }
+            } catch {
+              if (claimedMime.startsWith("image/") || claimedMime === "application/pdf") {
+                parts.push({ inlineData: { mimeType: claimedMime, data: b64 } });
               }
             }
           }
@@ -277,45 +288,50 @@ export class ModelRouter {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY");
 
-    const openRouterMessages: any[] = options.messages.map((m) => {
-      let contentStr = m.content;
-      const imageUrls: string[] = [];
+    const openRouterMessages: any[] = await Promise.all(
+      options.messages.map(async (m) => {
+        let contentStr = m.content;
+        const imageUrls: string[] = [];
 
-      if (m.attachments && m.attachments.length > 0) {
-        for (const att of m.attachments) {
-          if (att.data && att.data.includes(";base64,")) {
-            const [hdr, b64] = att.data.split(";base64,");
-            const mimeType = (hdr.replace("data:", "") || "image/png").toLowerCase();
-
-            if (mimeType.startsWith("image/")) {
-              imageUrls.push(att.data);
-            } else {
+        if (m.attachments && m.attachments.length > 0) {
+          for (const att of m.attachments) {
+            if (att.data && att.data.includes(";base64,")) {
+              const [hdr, b64] = att.data.split(";base64,");
+              const claimedMime = (hdr.replace("data:", "") || "application/octet-stream").toLowerCase();
               try {
-                const textContent = Buffer.from(b64, "base64").toString("utf-8");
-                contentStr += `\n\n[FILE: ${att.name || "document"}]:\n\`\`\`\n${textContent}\n\`\`\`\n`;
+                const buf = Buffer.from(b64, "base64");
+                const doc = await inspectAndReadDocument(buf, att.name || "document", claimedMime);
+
+                if (claimedMime.startsWith("image/") || doc.detectedMime.startsWith("image/")) {
+                  imageUrls.push(att.data);
+                } else {
+                  contentStr += `\n\n[FILE: ${att.name || "document"} (${doc.detectedMime || claimedMime})]:\n\`\`\`\n${doc.extractedText || "No readable content."}\n\`\`\`\n`;
+                }
               } catch {
-                // ignore
+                if (claimedMime.startsWith("image/")) {
+                  imageUrls.push(att.data);
+                }
               }
             }
           }
         }
-      }
 
-      if (imageUrls.length > 0) {
+        if (imageUrls.length > 0) {
+          return {
+            role: m.role,
+            content: [
+              { type: "text", text: contentStr },
+              ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+            ],
+          };
+        }
+
         return {
           role: m.role,
-          content: [
-            { type: "text", text: contentStr },
-            ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
-          ],
+          content: contentStr,
         };
-      }
-
-      return {
-        role: m.role,
-        content: contentStr,
-      };
-    });
+      })
+    );
 
     if (options.systemInstruction) {
       openRouterMessages.unshift({ role: "system", content: options.systemInstruction });

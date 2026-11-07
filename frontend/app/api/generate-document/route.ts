@@ -1,13 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
+import { buildDocument, SupportedDocumentFormat } from "../../lib/document-engine";
 
 export const runtime = "nodejs";
 
-const LOCAL_ENGINE_URL = "http://127.0.0.1:8000";
+const LOCAL_ENGINE_URL = process.env.LOCAL_DOCUMENT_ENGINE_URL || "http://127.0.0.1:8000";
 
 interface DocumentGeneratePayload {
   prompt: string;
-  format: "pdf" | "docx" | "pptx" | "xlsx" | "csv" | "txt" | "md";
+  format: "pdf" | "docx" | "pptx" | "xlsx" | "csv" | "txt" | "md" | "json";
   title?: string;
   subtitle?: string;
 }
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const rawPrompt = body.prompt.trim();
-    const format = (body.format || "pdf").toLowerCase();
+    const format = (body.format || "pdf").toLowerCase() as SupportedDocumentFormat;
     const apiKey = process.env.GEMINI_API_KEY;
 
     let structuredData: any = {
@@ -49,7 +50,7 @@ REQUIREMENTS FOR FORMAT "${format.toUpperCase()}":
 - If "pptx":
   Return a presentation title, subtitle, and 4-8 slide objects. Each slide must have a "title" and 3-5 concise, impactful "bullets".
 - If "xlsx":
-  Return 1-3 sheet objects. Each sheet must have "title", a 2D array of "rows" with header and structured rows (financials, analytics, metrics, inventory), and "formulas" array with objects like {"cell": "E5", "formula": "=SUM(B5:D5)"}.
+  Return 1-3 sheet objects. Each sheet must have "title", a 2D array of "rows" with header and structured rows (financials, analytics, metrics, inventory).
 - If "csv":
   Return a 2D array "data" where row 0 is column headers, followed by 5-15 rows of realistic tabular data.
 - If "txt" or "md":
@@ -61,7 +62,7 @@ Return a valid JSON object with this structure:
   "subtitle": string,
   "sections": [{"heading": string, "content": string, "table": [[]]}],
   "slides": [{"title": string, "bullets": [string]}],
-  "sheets": [{"title": string, "rows": [[]], "formulas": [{"cell": string, "formula": string}]}],
+  "sheets": [{"title": string, "rows": [[]]}],
   "data": [[]],
   "content": string,
   "summary": string
@@ -92,7 +93,7 @@ Return a valid JSON object with this structure:
       }
     }
 
-    // 2. Dispatch to Python Document Engine
+    // 2. Check if external specialized python document engine is running
     try {
       const pyRes = await fetch(`${LOCAL_ENGINE_URL}/generate-document`, {
         method: "POST",
@@ -107,7 +108,7 @@ Return a valid JSON object with this structure:
           data: structuredData.data,
           content: structuredData.content,
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(3000),
       });
 
       if (pyRes.ok) {
@@ -125,23 +126,33 @@ Return a valid JSON object with this structure:
           });
         }
       }
-    } catch (pyErr) {
-      console.warn("Local python engine unreachable, using fallback:", pyErr);
+    } catch {
+      // Local engine not running - proceed with built-in master document engine
     }
 
-    // Fallback if python engine is temporarily offline: generate text/markdown binary
-    const fallbackContent = structuredData.content || `# ${structuredData.title}\n\n${rawPrompt}`;
-    const b64 = Buffer.from(fallbackContent, "utf-8").toString("base64");
-    const mime = format === "md" ? "text/markdown" : "text/plain";
-    const filename = `tattva_${format}_${Date.now()}.${format === "md" ? "md" : "txt"}`;
+    // 3. Built-In Master Document Engine (100% compliant OpenXML / PDF 1.4 binary)
+    const result = buildDocument({
+      format,
+      title: structuredData.title,
+      subtitle: structuredData.subtitle,
+      sections: structuredData.sections,
+      slides: structuredData.slides,
+      sheets: structuredData.sheets,
+      data: structuredData.data,
+      content: structuredData.content || rawPrompt,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || "Failed to generate document binary.");
+    }
 
     return NextResponse.json({
       success: true,
-      filename,
-      format,
-      mime_type: mime,
-      size_bytes: fallbackContent.length,
-      data_uri: `data:${mime};base64,${b64}`,
+      filename: result.filename,
+      format: result.format,
+      mime_type: result.mimeType,
+      size_bytes: result.sizeBytes,
+      data_uri: result.dataUri,
       structured_data: structuredData,
       title: structuredData.title,
     });

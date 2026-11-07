@@ -13,6 +13,7 @@ try {
   await jiti("./auth-redirect.test.ts");
   await jiti("./claude-connectors.test.ts");
   await jiti("./connectors-e2e.test.ts");
+  await jiti("./document-engine.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
 } catch (err) {
   console.error("\n❌ Test execution failed:", err);

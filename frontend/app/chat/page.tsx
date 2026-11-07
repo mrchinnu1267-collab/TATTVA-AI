@@ -228,9 +228,20 @@ function calculateChatWordCount(msgs: ChatMessage[]): number {
 async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFilename?: string) {
   const normalized = rawTag.toLowerCase().trim();
 
-  // If the user requests a document format, route to backend Document Engine for genuine compiled binary (ReportLab, python-docx, python-pptx, openpyxl, pandas)
+  // If content is already a valid data URI or blob URL, trigger download directly
+  if (content.startsWith("data:") || content.startsWith("blob:")) {
+    const deducedMime = content.startsWith("data:")
+      ? content.slice(5, content.indexOf(";")) || "application/octet-stream"
+      : "application/octet-stream";
+    const ext = explicitFilename ? explicitFilename.split(".").pop() || "bin" : normalized || "bin";
+    const finalFilename = explicitFilename || `tattva-${normalized || "file"}-${Date.now()}.${ext}`;
+    triggerDownload(content, finalFilename, deducedMime);
+    return;
+  }
+
+  // If the user requests a binary document format, compile via backend Document Engine
   const isBinaryDoc = ["pdf", "docx", "doc", "dox", "pptx", "ppt", "xlsx", "xls", "csv"].some((fmt) => normalized.includes(fmt));
-  if (isBinaryDoc && !content.startsWith("data:") && !content.startsWith("%PDF")) {
+  if (isBinaryDoc) {
     try {
       const targetFormat = normalized.includes("pdf")
         ? "pdf"
@@ -246,7 +257,7 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: content.slice(0, 2000),
+          prompt: content,
           format: targetFormat,
           title: explicitFilename ? explicitFilename.replace(/\.[^/.]+$/, "") : undefined,
         }),
@@ -261,7 +272,7 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
         }
       }
     } catch (e) {
-      console.warn("Real document compilation fallback triggered:", e);
+      console.warn("Backend document engine error:", e);
     }
   }
 
@@ -276,51 +287,19 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
     if (content.startsWith("%PDF")) {
       blobData = content;
     } else {
-      // Build a standard valid PDF 1.4 document
-      const escaped = content
-        .replace(/\\/g, "\\\\")
-        .replace(/\(/g, "\\(")
-        .replace(/\)/g, "\\)")
-        .replace(/\r/g, "");
-      const lines = escaped.split("\n");
-      let streamText = "BT /F1 12 Tf 50 780 Td 15 TL\n";
-      for (const line of lines.slice(0, 50)) {
-        streamText += `(${line.slice(0, 85)}) '\n`;
-      }
-      streamText += "ET";
-      const pdfString = `%PDF-1.4\n1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj\n3 0 obj <</Type /Page /Parent 2 0 R /Resources <</Font <</F1 4 0 R>>>> /MediaBox [0 0 595 842] /Contents 5 0 R>> endobj\n4 0 obj <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>> endobj\n5 0 obj <</Length ${streamText.length}>> stream\n${streamText}\nendstream endobj\nxref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000117 00000 n \n0000000227 00000 n \n0000000305 00000 n \ntrailer <</Size 6 /Root 1 0 R>>\nstartxref\n${400 + streamText.length}\n%%EOF`;
-      blobData = pdfString;
+      console.error("PDF generation requires compiled binary format");
+      return;
     }
   }
   // 2. Excel Spreadsheets (.xlsx, .xls)
   else if (normalized.includes("xlsx") || normalized.includes("xls") || normalized.includes("excel") || normalized.includes("spreadsheet")) {
-    ext = normalized.includes("xls") && !normalized.includes("xlsx") ? "xls" : "xlsx";
-    mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    if (!content.trim().startsWith("<?xml")) {
-      const rows = content.trim().split("\n");
-      let xmlRows = "";
-      for (const row of rows) {
-        const cells = row.split(/,|\t|\|/).map((c) => c.trim().replace(/^\||\|$/g, "")).filter(Boolean);
-        if (cells.length) {
-          xmlRows += "   <Row>\n";
-          for (const cell of cells) {
-            xmlRows += `    <Cell><Data ss:Type="String">${cell.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>\n`;
-          }
-          xmlRows += "   </Row>\n";
-        }
-      }
-      blobData = `<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n xmlns:o="urn:schemas-microsoft-com:office:office"\n xmlns:x="urn:schemas-microsoft-com:office:excel"\n xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n <Worksheet ss:Name="TATTVA_Sheet">\n  <Table>\n${xmlRows}  </Table>\n </Worksheet>\n</Workbook>`;
-    }
+    console.error("Spreadsheet generation requires compiled OpenXML format");
+    return;
   }
   // 3. Word Documents (.docx, .doc, .dox)
   else if (normalized.includes("docx") || normalized.includes("doc") || normalized.includes("dox")) {
-    ext = normalized.includes("dox") ? "docx" : normalized.includes("doc") && !normalized.includes("docx") ? "doc" : "docx";
-    mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    const paragraphs = content
-      .split("\n\n")
-      .map((p) => `<p style="margin-bottom:12pt;font-family:Calibri,sans-serif;font-size:11pt;line-height:1.5;">${p.replace(/\n/g, "<br/>")}</p>`)
-      .join("");
-    blobData = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>\n<head><meta charset='utf-8'><title>TATTVA Document</title></head>\n<body style="padding:40pt;font-family:Calibri,sans-serif;">${paragraphs}</body>\n</html>`;
+    console.error("Word document generation requires compiled OpenXML format");
+    return;
   }
   // 4. Rich Text Format (.rtf)
   else if (normalized.includes("rtf")) {
@@ -329,15 +308,10 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
     const rtfEscaped = content.replace(/\\/g, "\\\\").replace(/\{/g, "\\{").replace(/\}/g, "\\}").replace(/\n/g, "\\par\n");
     blobData = `{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0\\fnil\\fcharset0 Calibri;}}\\viewkind4\\uc1\\pard\\lang1033\\f0\\fs22 ${rtfEscaped}}`;
   }
-  // 5. PowerPoint Presentations (.pptx, .ppt, .odp, .key)
+  // 5. PowerPoint Presentations (.pptx, .ppt)
   else if (normalized.includes("pptx") || normalized.includes("ppt") || normalized.includes("odp") || normalized.includes("key")) {
-    ext = normalized.includes("ppt") && !normalized.includes("pptx") ? "ppt" : normalized.includes("odp") ? "odp" : normalized.includes("key") ? "key" : "pptx";
-    mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-    const slides = content.split(/---|\n#{1,2}\s+/).filter(Boolean);
-    const htmlSlides = slides
-      .map((s, idx) => `<div style="page-break-after:always;padding:30pt;border:1px solid #ccc;margin-bottom:20pt;height:500pt;background:#fff;font-family:Arial,sans-serif;"><h2>Slide ${idx + 1}</h2><p>${s.replace(/\n/g, "<br/>")}</p></div>`)
-      .join("");
-    blobData = `<html><head><meta charset='utf-8'><title>TATTVA Presentation</title></head><body>${htmlSlides}</body></html>`;
+    console.error("Presentation generation requires compiled OpenXML format");
+    return;
   }
   // 6. Apple Pages & Apple Numbers
   else if (normalized.includes("pages")) {

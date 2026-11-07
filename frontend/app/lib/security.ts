@@ -256,11 +256,48 @@ export const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
+  "image/gif",
+  "image/svg+xml",
   "text/plain",
   "text/csv",
   "text/markdown",
   "application/json",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/webm",
+  "video/mp4",
+  "video/webm",
+  "application/octet-stream", // Generic binary stream (validated via extension and magic bytes)
 ]);
+
+export const EXTENSION_MIME_MAP: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  doc: "application/msword",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ppt: "application/vnd.ms-powerpoint",
+  csv: "text/csv",
+  txt: "text/plain",
+  md: "text/markdown",
+  json: "application/json",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  svg: "image/svg+xml",
+  py: "text/plain",
+  js: "text/plain",
+  ts: "text/plain",
+  tsx: "text/plain",
+  jsx: "text/plain",
+  html: "text/html",
+  css: "text/css",
+  sql: "text/plain",
+};
 
 export type FileInspectionResult = {
   isValid: boolean;
@@ -288,11 +325,22 @@ export function validateAndInspectFile(
     return { isValid: false, error: "Empty file cannot be processed." };
   }
 
-  // 2. MIME allowlist check
-  if (!ALLOWED_MIME_TYPES.has(claimedMime.toLowerCase())) {
+  // 2. Resolve True MIME Type (resolves generic application/octet-stream from Android/mobile browsers)
+  const ext = (filename.split(".").pop() || "").toLowerCase();
+  let resolvedMime = claimedMime ? claimedMime.toLowerCase() : "";
+  if (!resolvedMime || resolvedMime === "application/octet-stream" || resolvedMime === "binary/octet-stream") {
+    if (ext && EXTENSION_MIME_MAP[ext]) {
+      resolvedMime = EXTENSION_MIME_MAP[ext];
+    } else {
+      resolvedMime = "application/octet-stream";
+    }
+  }
+
+  // MIME allowlist check
+  if (!ALLOWED_MIME_TYPES.has(resolvedMime) && !resolvedMime.startsWith("text/")) {
     return {
       isValid: false,
-      error: `File type '${claimedMime}' is not permitted. Only documents, spreadsheets, presentations, and images are supported.`,
+      error: `File type '${resolvedMime || ext}' is not permitted. Only documents, spreadsheets, presentations, code, and media are supported.`,
     };
   }
 
@@ -313,25 +361,38 @@ export function validateAndInspectFile(
   }
 
   // 4. Magic Byte Verification for common types
-  if (claimedMime === "application/pdf") {
-    // PDF Magic Bytes: %PDF- (0x25 0x50 0x44 0x46 0x2D)
+  if (resolvedMime === "application/pdf" || ext === "pdf") {
     const header = buffer.slice(0, 5).toString("ascii");
     if (!header.startsWith("%PDF")) {
       return { isValid: false, error: "Corrupted or spoofed PDF header." };
     }
-  } else if (claimedMime === "image/png") {
-    // PNG Magic: 0x89 0x50 0x4E 0x47
-    if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4e || buffer[3] !== 0x47) {
+    resolvedMime = "application/pdf";
+  } else if (resolvedMime === "image/png" || ext === "png") {
+    if (buffer.length < 4 || buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4e || buffer[3] !== 0x47) {
       return { isValid: false, error: "Corrupted or spoofed PNG image header." };
     }
-  } else if (claimedMime === "image/jpeg") {
-    // JPEG Magic: 0xFF 0xD8 0xFF
-    if (buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+    resolvedMime = "image/png";
+  } else if (resolvedMime === "image/jpeg" || ext === "jpg" || ext === "jpeg") {
+    if (buffer.length < 3 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
       return { isValid: false, error: "Corrupted or spoofed JPEG image header." };
+    }
+    resolvedMime = "image/jpeg";
+  } else if (
+    resolvedMime.includes("wordprocessingml") ||
+    resolvedMime.includes("spreadsheetml") ||
+    resolvedMime.includes("presentationml") ||
+    ["docx", "xlsx", "pptx"].includes(ext)
+  ) {
+    // OpenXML must be a valid ZIP archive (PK\x03\x04)
+    if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b || buffer[2] !== 0x03 || buffer[3] !== 0x04) {
+      return {
+        isValid: false,
+        error: `Corrupted or invalid ${ext.toUpperCase()} archive. File is not a valid OpenXML container.`,
+      };
     }
   }
 
-  return { isValid: true, detectedMime: claimedMime };
+  return { isValid: true, detectedMime: resolvedMime };
 }
 
 // =============================================================================
