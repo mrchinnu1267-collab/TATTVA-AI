@@ -6,6 +6,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { TaskIntent, IntentClassificationResult } from "./types";
+import { detectDocumentGenerationIntent } from "../document-engine/intent";
 
 const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
   {
@@ -123,6 +124,13 @@ export async function classifyIntent(
       primaryIntent = "document_analysis";
       complexityScore = 5;
     }
+  }
+
+  // Direct Multilingual Document / PPT / File generation detection
+  const docIntent = detectDocumentGenerationIntent(cleanPrompt);
+  if (docIntent.isDocumentRequest) {
+    primaryIntent = "file_generation";
+    complexityScore = 5;
   }
 
   // Scan patterns

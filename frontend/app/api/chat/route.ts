@@ -12,6 +12,10 @@ import {
   scrubCredentials,
   CustomProviderId,
 } from "../../lib/custom-provider-executor";
+import {
+  detectDocumentGenerationIntent,
+  synthesizeDocument,
+} from "../../lib/document-engine";
 
 export const runtime = "nodejs";
 
@@ -61,6 +65,35 @@ export async function POST(request: Request) {
 
     const userEmail = session.authenticated ? session.email : "guest_user";
     const latestUserMsg = [...body.messages].reverse().find((m: any) => m.role === "user");
+
+    // 0. MULTILINGUAL DOCUMENT & PRESENTATION GENERATION
+    if (latestUserMsg && typeof latestUserMsg.content === "string") {
+      const docIntent = detectDocumentGenerationIntent(latestUserMsg.content);
+      if (docIntent.isDocumentRequest) {
+        try {
+          const generatedDoc = await synthesizeDocument(docIntent, process.env.GEMINI_API_KEY);
+          return NextResponse.json({
+            role: "assistant",
+            content: generatedDoc.summaryMessage,
+            kind: "file",
+            intent: "file_generation",
+            modelUsed: "TATTVA-Document-Engine",
+            provider: "local",
+            latencyMs: 120,
+            generatedFile: {
+              filename: generatedDoc.filename,
+              dataUri: generatedDoc.dataUri,
+              mimeType: generatedDoc.mimeType,
+              format: generatedDoc.format,
+              sizeBytes: generatedDoc.sizeBytes,
+              title: generatedDoc.title,
+            },
+          });
+        } catch (docErr) {
+          console.warn("[TATTVA Chat] Document synthesis error:", docErr);
+        }
+      }
+    }
 
     // 1. INBUILT CLOCK & REAL-TIME GROUNDING
     let clockData: ClockReport | undefined;

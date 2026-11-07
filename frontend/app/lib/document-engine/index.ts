@@ -4,9 +4,20 @@ import { createPptx, PresentationPayload } from "./pptx";
 import { createPdf, PdfPayload } from "./pdf";
 import { createCsv } from "./csv";
 import { inspectAndReadDocument, ExtractedDocumentContent } from "./reader";
+import { detectDocumentGenerationIntent, DocumentGenerationIntent } from "./intent";
+import { synthesizeDocument, GeneratedFilePayload } from "./synthesizer";
 
-export { createDocx, createXlsx, createPptx, createPdf, createCsv, inspectAndReadDocument };
-export type { ExtractedDocumentContent };
+export {
+  createDocx,
+  createXlsx,
+  createPptx,
+  createPdf,
+  createCsv,
+  inspectAndReadDocument,
+  detectDocumentGenerationIntent,
+  synthesizeDocument,
+};
+export type { ExtractedDocumentContent, DocumentGenerationIntent, GeneratedFilePayload };
 
 export type SupportedDocumentFormat =
   | "pdf"

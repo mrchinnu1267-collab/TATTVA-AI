@@ -29,6 +29,10 @@ import {
   isNsfwContent,
 } from "../security";
 import { generateImage } from "../image-engine";
+import {
+  detectDocumentGenerationIntent,
+  synthesizeDocument,
+} from "../document-engine";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -185,6 +189,34 @@ export class MasterAIOrchestrator {
       }
     }
 
+    // 3.5. PIPELINE ROUTING: PURE BINARY DOCUMENT & PRESENTATION SYNTHESIS
+    if (effectiveIntent === "file_generation") {
+      try {
+        const docIntent = detectDocumentGenerationIntent(cleanUserPrompt);
+        const generatedDoc = await synthesizeDocument(docIntent, apiKey);
+
+        return {
+          role: "assistant",
+          content: generatedDoc.summaryMessage,
+          kind: "file",
+          intent: "file_generation",
+          modelUsed: "TATTVA-Document-Engine",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+          generatedFile: {
+            filename: generatedDoc.filename,
+            dataUri: generatedDoc.dataUri,
+            mimeType: generatedDoc.mimeType,
+            format: generatedDoc.format,
+            sizeBytes: generatedDoc.sizeBytes,
+            title: generatedDoc.title,
+          },
+        };
+      } catch (docErr) {
+        console.error("[TATTVA Document Engine] Synthesis failed:", docErr);
+      }
+    }
+
     // 4. CONTEXT UNDERSTANDING & MEMORY RETRIEVAL
     const userEmail = context.userEmail || "guest_user";
     const [personalizationSettings, relevantMemories, similarExperiences, ragResults] = await Promise.all([
@@ -330,6 +362,12 @@ SATELLITE MAPS, PLACES, HOTELS & PUBLIC INTELLIGENCE PROTOCOL:
   3. Provide a direct link to view the exact location in TATTVA Satellite Map:
      [🛰️ Open Satellite View](/maps?q=EncodedPlaceName)
 
+
+CRITICAL DOCUMENT & PRESENTATION PROTOCOL:
+- When a user asks for a presentation, PPT, slides, Word document, Excel sheet, or PDF:
+  1. NEVER output Python code (such as python-pptx, openpyxl, reportlab) and tell the user to run scripts.
+  2. Understand the user's mind and what they want directly and concisely without unwanted boilerplate or overwhelming fluff.
+  3. Respond directly in the user's requested language (Telugu, Hindi, English, etc.).
 
 ${webContextSnippet ? `RESEARCH EVIDENCE TO GROUND RESPONSE:\n${webContextSnippet}` : ""}
 ${ragResults.combinedContext ? `RETRIEVED KNOWLEDGE CONTEXT:\n${ragResults.combinedContext}` : ""}

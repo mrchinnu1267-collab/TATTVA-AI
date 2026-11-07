@@ -162,7 +162,7 @@ export interface RAGSearchResult {
 export interface OrchestratorResponse {
   role: "assistant";
   content: string;
-  kind: "text" | "image";
+  kind: "text" | "image" | "file";
   intent: TaskIntent;
   modelUsed: string;
   provider: ModelProvider;
@@ -174,6 +174,14 @@ export interface OrchestratorResponse {
   recalledMemories?: Array<{ id: string; content: string; category: string }>;
   image?: string;
   imageMetadata?: Record<string, any>;
+  generatedFile?: {
+    filename: string;
+    dataUri: string;
+    mimeType: string;
+    format: string;
+    sizeBytes: number;
+    title?: string;
+  };
   fallbackOccurred?: boolean;
   warnings?: string[];
 }

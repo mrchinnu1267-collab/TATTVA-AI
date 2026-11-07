@@ -60,6 +60,9 @@ import {
   Globe,
   FileText,
   FileSpreadsheet,
+  Presentation,
+  Bell,
+  BellRing,
   Code2,
   Compass,
   UploadCloud,
@@ -151,8 +154,16 @@ type ChatMessage = {
   role: Role;
   content: string;
   image?: string;
-  kind?: "text" | "image";
+  kind?: "text" | "image" | "file";
   imageMetadata?: ImageMetadata;
+  generatedFile?: {
+    filename: string;
+    dataUri: string;
+    mimeType: string;
+    format: string;
+    sizeBytes: number;
+    title?: string;
+  };
   attachments?: ChatAttachment[];
   timestamp?: number;
   recalledMemories?: Array<{ id?: string; content: string; category?: string; importance?: number }>;
@@ -843,7 +854,110 @@ export default function ChatPage() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBrowseConnectorsOpen, setIsBrowseConnectorsOpen] = useState(false);
-  const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers" | "backup">("menu");
+  const [settingsActiveTab, setSettingsActiveTab] = useState<"menu" | "display" | "general" | "providers" | "backup" | "notifications">("menu");
+  interface AppNotificationSettings {
+    desktopNotifications: boolean;
+    soundAlerts: boolean;
+    documentReadyAlerts: boolean;
+  }
+
+  const [notificationSettings, setNotificationSettings] = useState<AppNotificationSettings>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("tattva_notification_settings");
+        if (saved) return JSON.parse(saved);
+      } catch { }
+    }
+    return {
+      desktopNotifications: false,
+      soundAlerts: true,
+      documentReadyAlerts: true,
+    };
+  });
+
+  function updateNotificationSettings(partial: Partial<AppNotificationSettings>) {
+    setNotificationSettings((prev) => {
+      const next = { ...prev, ...partial };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("tattva_notification_settings", JSON.stringify(next));
+        } catch { }
+      }
+      return next;
+    });
+  }
+
+  function playNotificationChime() {
+    if (typeof window === "undefined" || !notificationSettings.soundAlerts) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch { }
+  }
+
+  async function toggleDesktopNotifications() {
+    if (typeof window === "undefined") return;
+    if (!notificationSettings.desktopNotifications) {
+      if ("Notification" in window) {
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          updateNotificationSettings({ desktopNotifications: true });
+          showToast("Desktop notifications enabled ✦");
+          new Notification("TATTVA AI", {
+            body: "Notifications are now active! You will be alerted when files or answers are ready.",
+            icon: "/icon.png",
+          });
+        } else {
+          showToast("Notification permission was denied in your browser settings");
+          updateNotificationSettings({ desktopNotifications: false });
+        }
+      } else {
+        showToast("Notifications are not supported in this browser");
+      }
+    } else {
+      updateNotificationSettings({ desktopNotifications: false });
+      showToast("Desktop notifications turned off");
+    }
+  }
+
+  function sendTestNotification() {
+    if (typeof window === "undefined") return;
+    playNotificationChime();
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("TATTVA AI • Test Alert ✦", {
+        body: "Your notifications and sound alerts are working smoothly!",
+        icon: "/icon.png",
+      });
+      showToast("Test notification sent ✦");
+    } else if ("Notification" in window) {
+      Notification.requestPermission().then((perm) => {
+        if (perm === "granted") {
+          updateNotificationSettings({ desktopNotifications: true });
+          new Notification("TATTVA AI • Test Alert ✦", {
+            body: "Notifications are now active!",
+            icon: "/icon.png",
+          });
+          showToast("Permission granted & test sent ✦");
+        } else {
+          showToast("Please allow notifications in your browser address bar.");
+        }
+      });
+    } else {
+      showToast("Sound chime played (browser notifications unavailable)");
+    }
+  }
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [headerTime, setHeaderTime] = useState<string>("");
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
@@ -2666,18 +2780,24 @@ export default function ChatPage() {
     return { lang: "en-IN", name: "English" };
   }
 
-  // Trigger system notification on Android or Browser for AI responses (ONLY when user is outside of the app)
-  function notifyResponse(text: string) {
+  // Trigger system notification on Android or Browser for AI responses
+  function notifyResponse(text: string, isDocument = false) {
     if (typeof window === "undefined" || !text) return;
-    // Suppress notifications when user is actively inside the app
-    if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus()) {
+    if (notificationSettings.soundAlerts) {
+      playNotificationChime();
+    }
+    // If user is actively inside the app and it's not a document ready alert, skip popup
+    if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus() && !isDocument) {
       return;
     }
     try {
       if ((window as any).AndroidBridge?.postResponseNotification) {
         (window as any).AndroidBridge.postResponseNotification("TATTVA AI", text);
-      } else if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("TATTVA AI", { body: text });
+      } else if (notificationSettings.desktopNotifications && "Notification" in window && Notification.permission === "granted") {
+        new Notification("TATTVA AI", {
+          body: text.length > 120 ? `${text.slice(0, 117)}...` : text,
+          icon: "/icon.png",
+        });
       }
     } catch { }
   }
@@ -2789,6 +2909,7 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
+        generatedFile: data.generatedFile,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -2803,7 +2924,7 @@ export default function ChatPage() {
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant, activeSessionId);
-      notifyResponse(assistantMsg.content);
+      notifyResponse(assistantMsg.content, Boolean(data?.generatedFile));
 
       // Refresh memory profile after response in case new memories were extracted
       loadUserMemoryData(userEmail);
@@ -2910,6 +3031,7 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
+        generatedFile: data.generatedFile,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -2923,7 +3045,7 @@ export default function ChatPage() {
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant);
-      notifyResponse(assistantMsg.content);
+      notifyResponse(assistantMsg.content, Boolean(data?.generatedFile));
       loadUserMemoryData(userEmail);
 
     } catch (err: unknown) {
@@ -3001,6 +3123,7 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
+        generatedFile: data.generatedFile,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -3014,7 +3137,7 @@ export default function ChatPage() {
       setMessages(updated);
       messagesCountRef.current = updated.length;
       saveCurrentSession(updated);
-      notifyResponse(newAssistantMsg.content);
+      notifyResponse(newAssistantMsg.content, Boolean(data?.generatedFile));
       loadUserMemoryData(userEmail);
 
       showToast("Response regenerated ✦");
@@ -4715,6 +4838,70 @@ export default function ChatPage() {
                             {/* Markdown / Text content rendered directly on conversation surface */}
                             <MarkdownView content={msg.content} isDark={isDark} />
 
+                            {/* In-built Generated Document / Presentation Card */}
+                            {msg.generatedFile && (
+                              <div
+                                className={`mt-3.5 p-4 rounded-2xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all ${
+                                  isDark
+                                    ? "border-neutral-800 bg-neutral-900/90 text-neutral-100"
+                                    : "border-black/10 bg-white text-neutral-900"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3.5 min-w-0">
+                                  <div
+                                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${
+                                      msg.generatedFile.format === "pptx"
+                                        ? "bg-amber-500/15 text-amber-500 border-amber-500/30"
+                                        : msg.generatedFile.format === "docx"
+                                        ? "bg-blue-500/15 text-blue-500 border-blue-500/30"
+                                        : msg.generatedFile.format === "xlsx"
+                                        ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                                        : msg.generatedFile.format === "pdf"
+                                        ? "bg-rose-500/15 text-rose-500 border-rose-500/30"
+                                        : "bg-cyan-500/15 text-cyan-500 border-cyan-500/30"
+                                    }`}
+                                  >
+                                    {msg.generatedFile.format === "pptx" ? (
+                                      <Presentation className="w-6 h-6 stroke-[2]" />
+                                    ) : msg.generatedFile.format === "xlsx" ? (
+                                      <FileSpreadsheet className="w-6 h-6 stroke-[2]" />
+                                    ) : (
+                                      <FileText className="w-6 h-6 stroke-[2]" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-bold text-sm truncate tracking-tight">
+                                        {msg.generatedFile.title || msg.generatedFile.filename}
+                                      </p>
+                                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 font-bold">
+                                        {msg.generatedFile.format}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                      {msg.generatedFile.filename} • {msg.generatedFile.sizeBytes ? `${(msg.generatedFile.sizeBytes / 1024).toFixed(1)} KB • ` : ""}Ready to open &amp; edit
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    triggerDownload(
+                                      msg.generatedFile!.dataUri,
+                                      msg.generatedFile!.filename,
+                                      msg.generatedFile!.mimeType
+                                    );
+                                    showToast(`Downloaded ${msg.generatedFile!.filename} ✦`);
+                                  }}
+                                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
+                                >
+                                  <Download className="w-4 h-4 stroke-[2]" />
+                                  <span>Download {msg.generatedFile.format.toUpperCase()}</span>
+                                </button>
+                              </div>
+                            )}
+
                             {/* In-built Live Clock Card */}
                             {msg.clockData && (
                               <LiveClockWidget clockData={msg.clockData} isDark={isDark} />
@@ -6093,7 +6280,9 @@ export default function ChatPage() {
                           ? "General Preferences"
                           : settingsActiveTab === "backup"
                             ? "Chat Backup & Cloud Sync"
-                            : "Settings"}
+                            : settingsActiveTab === "notifications"
+                              ? "Notifications & Alerts"
+                              : "Settings"}
                   </h3>
                   <p className="text-[11px] text-neutral-400">
                     {settingsActiveTab === "display"
@@ -6104,7 +6293,9 @@ export default function ChatPage() {
                           ? "Manage themes, voice narration & chat data"
                           : settingsActiveTab === "backup"
                             ? "Automatic restore on relogin, export JSON & cloud sync"
-                            : "Manage display, AI providers, connectors & preferences"}
+                            : settingsActiveTab === "notifications"
+                              ? "Desktop push alerts, response chimes & document notifications"
+                              : "Manage display, AI providers, connectors & preferences"}
                   </p>
                 </div>
               </div>
@@ -6241,6 +6432,35 @@ export default function ChatPage() {
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-sky-400" />
+                  </div>
+
+                  {/* 6. Notifications & Alerts */}
+                  <div
+                    onClick={() => setSettingsActiveTab("notifications")}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${isDark
+                        ? "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 text-white"
+                        : "border-amber-500/20 bg-amber-50 hover:bg-amber-100/80 text-neutral-900"
+                      }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        <Bell className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm">Notifications &amp; Alerts</p>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            notificationSettings.desktopNotifications || notificationSettings.soundAlerts
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-neutral-500/20 text-neutral-400"
+                          }`}>
+                            {notificationSettings.desktopNotifications ? "Push Active" : notificationSettings.soundAlerts ? "Sound On" : "Muted"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-400">Desktop push alerts, sound chimes &amp; document completion</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-amber-400" />
                   </div>
                 </div>
               ) : settingsActiveTab === "display" ? (
@@ -6849,6 +7069,113 @@ export default function ChatPage() {
                         />
                       </label>
                     </div>
+                  </div>
+                </div>
+              ) : settingsActiveTab === "notifications" ? (
+                /* Notifications & Alerts Tab */
+                <div className="space-y-4">
+                  {/* Status Banner */}
+                  <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-amber-500" />
+                        <p className="font-bold text-sm text-neutral-900 dark:text-white">Notification System</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted"
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-amber-500/20 text-amber-400"
+                      }`}>
+                        {typeof window !== "undefined" && "Notification" in window ? `Status: ${Notification.permission}` : "Not Supported"}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                      Receive alerts when your requested presentations, documents, spreadsheets, and complex AI answers finish generating.
+                    </p>
+                  </div>
+
+                  {/* Toggle 1: Desktop / Browser Push Notifications */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div className="pr-3">
+                      <p className="font-semibold text-neutral-900 dark:text-white">Browser Push Notifications</p>
+                      <p className="text-[11px] text-neutral-400">Alerts when you are in another tab or minimized</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleDesktopNotifications}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        notificationSettings.desktopNotifications ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          notificationSettings.desktopNotifications ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Toggle 2: Sound Chimes */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div className="pr-3">
+                      <p className="font-semibold text-neutral-900 dark:text-white">Audio Chimes</p>
+                      <p className="text-[11px] text-neutral-400">Play a subtle harmonic chime when responses complete</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !notificationSettings.soundAlerts;
+                        updateNotificationSettings({ soundAlerts: next });
+                        if (next) playNotificationChime();
+                        showToast(next ? "Sound chimes turned on" : "Sound chimes muted");
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        notificationSettings.soundAlerts ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          notificationSettings.soundAlerts ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Toggle 3: Document & Presentation Ready Alerts */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
+                    <div className="pr-3">
+                      <p className="font-semibold text-neutral-900 dark:text-white">File &amp; Document Alerts</p>
+                      <p className="text-[11px] text-neutral-400">Immediate toast and notification when a PPT, Word or Excel file finishes</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !notificationSettings.documentReadyAlerts;
+                        updateNotificationSettings({ documentReadyAlerts: next });
+                        showToast(next ? "Document alerts enabled" : "Document alerts muted");
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        notificationSettings.documentReadyAlerts ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          notificationSettings.documentReadyAlerts ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Send Test Notification Button */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={sendTestNotification}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold bg-[#D95B26] hover:bg-[#E26630] text-white transition cursor-pointer shadow-sm active:scale-98"
+                    >
+                      <BellRing className="w-4 h-4" />
+                      <span>Send Test Notification &amp; Chime</span>
+                    </button>
                   </div>
                 </div>
               ) : (
