@@ -48,7 +48,13 @@ TATTVA_AI/
   - Permanently deleted the Web Image Search Engine: removed `app/images/`, `app/api/images/`, `app/components/InbuiltImageSearchModal.tsx`, `app/components/VisualImageGallery.tsx`, `app/lib/image-search/`, `app/lib/web-image-search.ts`, and all image search routes/hooks/modals.
   - Permanently deleted the Live Voice Assistance & Microphone systems: deleted `app/voice/`, `app/api/voice-chat/`, `app/api/tts/`, `app/lib/sara-voice.ts`, `tests/sara-voice.test.ts`, and all speech recognition/synthesis listeners.
   - Rebuilt Chat Interface: the input contains only text input, attachment button (`+` for photo/document uploads), camera button (`📷` for device photo capture), and a clean neutral Send/Stop button (`ArrowUp` / `Square`).
-- [x] **TATTVA AI Pure Binary Document Engine & Universal File Processor**:
+- [x] **Multilingual Direct File & Presentation Synthesis with Notification Controls**:
+  - Implemented `detectDocumentGenerationIntent` in `app/lib/document-engine/intent.ts`: understands natural language requests in English, Telugu, Hindi, and transliterations (e.g. "create a ppt on solar energy", "solar energy gurinchi ppt chey", "photosynthesis par ppt banao") and extracts clean topic subjects.
+  - Implemented `synthesizeDocument` in `app/lib/document-engine/synthesizer.ts`: delivers concise, punchy slide structures and documents directly without raw Python code or unnecessary boilerplate.
+  - Connected direct document generation pipeline in `app/api/chat/route.ts` and `app/lib/ai-orchestrator/index.ts`.
+  - Upgraded Chat UI with prominent downloadable Presentation/Document cards with one-click download buttons.
+  - Added dedicated **Notifications & Alerts** tab to Application Settings: controls browser push notifications (`Notification.requestPermission()`), harmonic audio completion chimes via Web Audio API, document ready alerts, and interactive test notification dispatch.
+  - All 44 automated tests passing (`tests/run-tests.mjs`). Deployed to Vercel production.
   - Engineered zero-dependency pure TypeScript OpenXML and PDF binary engines (`app/lib/document-engine/`):
     - `docx.ts`: OpenXML WordprocessingML document builder generating valid ZIP archives with core props, styles, and document relationships.
     - `xlsx.ts`: OpenXML SpreadsheetML workbook builder generating valid `.xlsx` spreadsheets with multiple sheets and inline strings.
