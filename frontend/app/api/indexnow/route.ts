@@ -8,7 +8,11 @@ export async function GET() {
   const keyLocation = `https://${host}/${key}.txt`;
   const urlList = [
     `https://${host}/`,
+    `https://${host}/chat`,
+    `https://${host}/images`,
+    `https://${host}/image-studio`,
     `https://${host}/maps`,
+    `https://${host}/media`,
     `https://${host}/voice`,
     `https://${host}/download`,
   ];

@@ -70,6 +70,19 @@ const structuredData = {
       },
     },
     {
+      "@type": "WebPage",
+      "@id": "https://tattva-ai-phi.vercel.app/#webpage",
+      url: "https://tattva-ai-phi.vercel.app/",
+      name: "TATTVA AI – Your Intelligent AI Assistant",
+      description:
+        "Discover TATTVA AI, your intelligent AI platform for reasoning, real-time live voice conversations, interactive satellite maps, and real web image search.",
+      datePublished: "2026-10-25T00:00:00+00:00",
+      dateModified: "2026-11-07T00:00:00+00:00",
+      isPartOf: {
+        "@id": "https://tattva-ai-phi.vercel.app/#website",
+      },
+    },
+    {
       "@type": "Organization",
       "@id": "https://tattva-ai-phi.vercel.app/#organization",
       name: "TATTVA AI",

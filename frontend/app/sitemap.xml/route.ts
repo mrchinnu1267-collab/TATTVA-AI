@@ -5,26 +5,24 @@ const BASE_URL = "https://tattva-ai-phi.vercel.app";
 // - /dashboard, /login, /signup, /register, /reset-password (private & authentication routes)
 // - /api/* (backend endpoints)
 const PUBLIC_ROUTES = [
-  { path: "", changefreq: "weekly", priority: "1.0" },
-  { path: "/chat", changefreq: "daily", priority: "0.9" },
-  { path: "/images", changefreq: "daily", priority: "0.9" },
-  { path: "/image-studio", changefreq: "weekly", priority: "0.8" },
-  { path: "/maps", changefreq: "weekly", priority: "0.8" },
-  { path: "/media", changefreq: "weekly", priority: "0.8" },
-  { path: "/voice", changefreq: "weekly", priority: "0.8" },
-  { path: "/download", changefreq: "monthly", priority: "0.8" },
+  { path: "", changefreq: "weekly", priority: "1.0", lastmod: "2026-11-07" },
+  { path: "/chat", changefreq: "daily", priority: "0.9", lastmod: "2026-11-07" },
+  { path: "/images", changefreq: "daily", priority: "0.9", lastmod: "2026-11-07" },
+  { path: "/image-studio", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
+  { path: "/maps", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
+  { path: "/media", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
+  { path: "/voice", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
+  { path: "/download", changefreq: "monthly", priority: "0.8", lastmod: "2026-11-07" },
 ];
 
 export const dynamic = "force-static";
 export const revalidate = 86400; // 24 hours
 
 export async function GET() {
-  const lastmod = new Date().toISOString();
-
   const urlEntries = PUBLIC_ROUTES.map(
     (route) => `  <url>
     <loc>${BASE_URL}${route.path}</loc>
-    <lastmod>${lastmod}</lastmod>
+    <lastmod>${route.lastmod}</lastmod>
     <changefreq>${route.changefreq}</changefreq>
     <priority>${route.priority}</priority>
   </url>`
