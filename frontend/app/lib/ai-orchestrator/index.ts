@@ -29,10 +29,6 @@ import {
   isNsfwContent,
 } from "../security";
 import { generateImage } from "../image-engine";
-import {
-  detectDocumentGenerationIntent,
-  synthesizeDocument,
-} from "../document-engine";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -186,34 +182,6 @@ export class MasterAIOrchestrator {
           latencyMs: Date.now() - startTime,
           warnings: [message],
         };
-      }
-    }
-
-    // 3.5. PIPELINE ROUTING: PURE BINARY DOCUMENT & PRESENTATION SYNTHESIS
-    if (effectiveIntent === "file_generation") {
-      try {
-        const docIntent = detectDocumentGenerationIntent(cleanUserPrompt);
-        const generatedDoc = await synthesizeDocument(docIntent, apiKey);
-
-        return {
-          role: "assistant",
-          content: generatedDoc.summaryMessage,
-          kind: "file",
-          intent: "file_generation",
-          modelUsed: "TATTVA-Document-Engine",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-          generatedFile: {
-            filename: generatedDoc.filename,
-            dataUri: generatedDoc.dataUri,
-            mimeType: generatedDoc.mimeType,
-            format: generatedDoc.format,
-            sizeBytes: generatedDoc.sizeBytes,
-            title: generatedDoc.title,
-          },
-        };
-      } catch (docErr) {
-        console.error("[TATTVA Document Engine] Synthesis failed:", docErr);
       }
     }
 

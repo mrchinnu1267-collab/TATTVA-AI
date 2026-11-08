@@ -6,7 +6,6 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { TaskIntent, IntentClassificationResult } from "./types";
-import { detectDocumentGenerationIntent } from "../document-engine/intent";
 
 const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
   {
@@ -92,12 +91,6 @@ const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
       /\b(summarize|give me a summary|tldr|bullet points of|condense)\b/i,
     ],
   },
-  {
-    intent: "file_generation",
-    patterns: [
-      /\b(generate|create|build|export)\b.*(\.pdf|\.docx|\.xlsx|\.csv|\.pptx|\.txt|spreadsheet|presentation|resume|invoice|budget)/i,
-    ],
-  },
 ];
 
 export async function classifyIntent(
@@ -124,13 +117,6 @@ export async function classifyIntent(
       primaryIntent = "document_analysis";
       complexityScore = 5;
     }
-  }
-
-  // Direct Multilingual Document / PPT / File generation detection
-  const docIntent = detectDocumentGenerationIntent(cleanPrompt);
-  if (docIntent.isDocumentRequest) {
-    primaryIntent = "file_generation";
-    complexityScore = 5;
   }
 
   // Scan patterns
@@ -163,8 +149,6 @@ export async function classifyIntent(
   } else if (primaryIntent === "document_analysis") {
     complexityScore = 8;
     suggestedTools.push("document_processor", "data_calculator");
-  } else if (primaryIntent === "file_generation") {
-    complexityScore = 5;
   }
 
   // If a file or image is attached and the user asks to explain/solve or prompt is short, classify as document_analysis
@@ -188,7 +172,7 @@ export async function classifyIntent(
     try {
       const ai = new GoogleGenAI({ apiKey });
       const promptClassification = `Classify this user request into ONE primary intent:
-[general_chat, reasoning, coding, mathematics, web_research, document_analysis, image_generation, image_editing, data_analysis, translation, summarization, agent_task, file_generation]
+[general_chat, reasoning, coding, mathematics, web_research, document_analysis, image_generation, image_editing, data_analysis, translation, summarization, agent_task]
 
 User Prompt: "${cleanPrompt.slice(0, 500)}"
 Has Attached Image: ${hasAttachedImage}

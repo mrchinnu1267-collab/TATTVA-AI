@@ -60,7 +60,6 @@ import {
   Globe,
   FileText,
   FileSpreadsheet,
-  Presentation,
   Bell,
   BellRing,
   Code2,
@@ -154,16 +153,8 @@ type ChatMessage = {
   role: Role;
   content: string;
   image?: string;
-  kind?: "text" | "image" | "file";
+  kind?: "text" | "image";
   imageMetadata?: ImageMetadata;
-  generatedFile?: {
-    filename: string;
-    dataUri: string;
-    mimeType: string;
-    format: string;
-    sizeBytes: number;
-    title?: string;
-  };
   attachments?: ChatAttachment[];
   timestamp?: number;
   recalledMemories?: Array<{ id?: string; content: string; category?: string; importance?: number }>;
@@ -233,8 +224,7 @@ function calculateChatWordCount(msgs: ChatMessage[]): number {
 }
 
 /**
- * Universal File Download Helper: creates and downloads any file type instantly
- * Supports: .txt, .pdf, .xlsx, .xls, .docx, .doc, .dox, .pptx, .ppt, .pages, .xps, .numbers, .ods, .odp, .key, .rtf, .jpg, .png, etc.
+ * Code and Text Snippet Download Helper: downloads code blocks as text/script files
  */
 async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFilename?: string) {
   const normalized = rawTag.toLowerCase().trim();
@@ -250,119 +240,14 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
     return;
   }
 
-  // If the user requests a binary document format, compile via backend Document Engine
-  const isBinaryDoc = ["pdf", "docx", "doc", "dox", "pptx", "ppt", "xlsx", "xls", "csv"].some((fmt) => normalized.includes(fmt));
-  if (isBinaryDoc) {
-    try {
-      const targetFormat = normalized.includes("pdf")
-        ? "pdf"
-        : normalized.includes("docx") || normalized.includes("doc") || normalized.includes("dox")
-          ? "docx"
-          : normalized.includes("pptx") || normalized.includes("ppt")
-            ? "pptx"
-            : normalized.includes("xlsx") || normalized.includes("xls")
-              ? "xlsx"
-              : "csv";
-
-      const res = await fetch("/api/generate-document", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: content,
-          format: targetFormat,
-          title: explicitFilename ? explicitFilename.replace(/\.[^/.]+$/, "") : undefined,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.success && data.data_uri) {
-          const finalFilename = data.filename || explicitFilename || `tattva_${targetFormat}_${Date.now()}.${targetFormat}`;
-          const realMime = data.mime_type || (
-            targetFormat === "pptx" ? "application/vnd.openxmlformats-officedocument.presentationml.presentation" :
-            targetFormat === "docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" :
-            targetFormat === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" :
-            targetFormat === "pdf" ? "application/pdf" :
-            targetFormat === "csv" ? "text/csv" : "application/octet-stream"
-          );
-          triggerDownload(data.data_uri, finalFilename, realMime);
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn("Backend document engine error:", e);
-    }
-  }
-
   let ext = "txt";
   let mimeType = "text/plain";
   let blobData: BlobPart = content;
 
-  // 1. PDF Documents (.pdf)
-  if (normalized.includes("pdf")) {
-    ext = "pdf";
-    mimeType = "application/pdf";
-    if (content.startsWith("%PDF")) {
-      blobData = content;
-    } else {
-      console.error("PDF generation requires compiled binary format");
-      return;
-    }
-  }
-  // 2. Excel Spreadsheets (.xlsx, .xls)
-  else if (normalized.includes("xlsx") || normalized.includes("xls") || normalized.includes("excel") || normalized.includes("spreadsheet")) {
-    console.error("Spreadsheet generation requires compiled OpenXML format");
-    return;
-  }
-  // 3. Word Documents (.docx, .doc, .dox)
-  else if (normalized.includes("docx") || normalized.includes("doc") || normalized.includes("dox")) {
-    console.error("Word document generation requires compiled OpenXML format");
-    return;
-  }
-  // 4. Rich Text Format (.rtf)
-  else if (normalized.includes("rtf")) {
-    ext = "rtf";
-    mimeType = "application/rtf";
-    const rtfEscaped = content.replace(/\\/g, "\\\\").replace(/\{/g, "\\{").replace(/\}/g, "\\}").replace(/\n/g, "\\par\n");
-    blobData = `{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0\\fnil\\fcharset0 Calibri;}}\\viewkind4\\uc1\\pard\\lang1033\\f0\\fs22 ${rtfEscaped}}`;
-  }
-  // 5. PowerPoint Presentations (.pptx, .ppt)
-  else if (normalized.includes("pptx") || normalized.includes("ppt") || normalized.includes("odp") || normalized.includes("key")) {
-    console.error("Presentation generation requires compiled OpenXML format");
-    return;
-  }
-  // 6. Apple Pages & Apple Numbers
-  else if (normalized.includes("pages")) {
-    ext = "pages";
-    mimeType = "application/x-iwork-pages-sffpages";
-    blobData = content;
-  } else if (normalized.includes("numbers") || normalized.includes("ods")) {
-    ext = normalized.includes("ods") ? "ods" : "numbers";
-    mimeType = "application/vnd.oasis.opendocument.spreadsheet";
-    blobData = content;
-  }
-  // 7. XML Paper Specification (.xps)
-  else if (normalized.includes("xps")) {
-    ext = "xps";
-    mimeType = "application/vnd.ms-xpsdocument";
-    blobData = content;
-  }
-  // 8. Image files (.jpg, .jpeg, .png)
-  else if (normalized.includes("jpg") || normalized.includes("jpeg")) {
-    ext = "jpg";
-    mimeType = "image/jpeg";
-    blobData = content;
-  } else if (normalized.includes("png")) {
-    ext = "png";
-    mimeType = "image/png";
-    blobData = content;
-  }
-  // 9. Structured Data & Code files
-  else if (normalized.includes("csv")) {
-    ext = "csv";
-    mimeType = "text/csv;charset=utf-8;";
-    blobData = "\uFEFF" + content;
-  } else if (normalized.includes("python") || normalized === "py") {
+  if (normalized.includes("python") || normalized === "py") {
+    ext = "py";
+    mimeType = "text/x-python";
+  } else if (normalized.includes("javascript") || normalized === "js") {
     ext = "py";
     mimeType = "text/x-python";
   } else if (normalized.includes("javascript") || normalized === "js") {
@@ -629,109 +514,6 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
       {parts.map((part, idx) => {
         if (part.type === "code" && part.code) {
           const isCopied = copiedIndex === idx;
-          const lowerLang = (part.lang || "").toLowerCase().trim();
-          const lowerFilename = (part.filename || "").toLowerCase().trim();
-
-          // Document / Downloadable file detection:
-          const isDocumentFile =
-            lowerLang === "file" ||
-            lowerLang === "pdf" ||
-            lowerLang === "docx" ||
-            lowerLang === "doc" ||
-            lowerLang === "xlsx" ||
-            lowerLang === "xls" ||
-            lowerLang === "csv" ||
-            lowerLang === "pptx" ||
-            lowerLang === "ppt" ||
-            lowerLang === "odt" ||
-            lowerLang === "rtf" ||
-            lowerLang === "epub" ||
-            lowerLang === "zip" ||
-            lowerFilename.endsWith(".pdf") ||
-            lowerFilename.endsWith(".docx") ||
-            lowerFilename.endsWith(".doc") ||
-            lowerFilename.endsWith(".xlsx") ||
-            lowerFilename.endsWith(".xls") ||
-            lowerFilename.endsWith(".csv") ||
-            lowerFilename.endsWith(".pptx") ||
-            lowerFilename.endsWith(".ppt") ||
-            lowerFilename.endsWith(".odt") ||
-            lowerFilename.endsWith(".rtf") ||
-            lowerFilename.endsWith(".epub") ||
-            lowerFilename.endsWith(".zip") ||
-            part.code.trim().startsWith("%PDF") ||
-            part.code.trim().startsWith("PK\x03\x04");
-
-          if (isDocumentFile) {
-            let fileName = part.filename;
-            if (!fileName) {
-              if (lowerLang === "pdf" || part.code.trim().startsWith("%PDF")) fileName = "document.pdf";
-              else if (lowerLang === "docx" || lowerLang === "doc") fileName = "document.docx";
-              else if (lowerLang === "xlsx" || lowerLang === "xls") fileName = "spreadsheet.xlsx";
-              else if (lowerLang === "csv") fileName = "data.csv";
-              else if (lowerLang === "pptx" || lowerLang === "ppt") fileName = "presentation.pptx";
-              else fileName = `document.${lowerLang || "txt"}`;
-            }
-
-            const isPdf = fileName.endsWith(".pdf") || lowerLang === "pdf";
-            const isSheet = fileName.endsWith(".xlsx") || fileName.endsWith(".xls") || fileName.endsWith(".csv") || lowerLang === "xlsx" || lowerLang === "csv";
-            const isWord = fileName.endsWith(".docx") || fileName.endsWith(".doc") || lowerLang === "docx";
-            const isPpt = fileName.endsWith(".pptx") || fileName.endsWith(".ppt") || lowerLang === "pptx";
-
-            const fileBadgeColor = isPdf
-              ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
-              : isSheet
-                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                : isWord
-                  ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
-                  : isPpt
-                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                    : "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
-
-            const fileIcon = isPdf ? (
-              <FileText className="w-5 h-5 text-rose-400" />
-            ) : isSheet ? (
-              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            ) : isWord ? (
-              <FileText className="w-5 h-5 text-blue-400" />
-            ) : (
-              <FileCode className="w-5 h-5 text-cyan-400" />
-            );
-
-            return (
-              <div
-                key={idx}
-                className={`my-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl border shadow-sm transition-all ${isDark
-                    ? "border-neutral-800 bg-neutral-900/90 text-neutral-100 hover:border-neutral-700"
-                    : "border-black/10 bg-neutral-50 text-neutral-900 hover:border-black/20"
-                  }`}
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${fileBadgeColor}`}>
-                    {fileIcon}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm truncate font-mono tracking-tight">
-                      {fileName}
-                    </p>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Generated document • Ready to download
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => downloadGeneratedFile(part.code!, part.lang, fileName)}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
-                >
-                  <Download className="w-4 h-4 stroke-[2]" />
-                  <span>Download {fileName}</span>
-                </button>
-              </div>
-            );
-          }
-
           const displayLang = part.filename || part.lang || "file";
           return (
             <div
@@ -871,7 +653,6 @@ export default function ChatPage() {
   interface AppNotificationSettings {
     desktopNotifications: boolean;
     soundAlerts: boolean;
-    documentReadyAlerts: boolean;
   }
 
   const [notificationSettings, setNotificationSettings] = useState<AppNotificationSettings>(() => {
@@ -884,7 +665,6 @@ export default function ChatPage() {
     return {
       desktopNotifications: false,
       soundAlerts: true,
-      documentReadyAlerts: true,
     };
   });
 
@@ -2794,13 +2574,13 @@ export default function ChatPage() {
   }
 
   // Trigger system notification on Android or Browser for AI responses
-  function notifyResponse(text: string, isDocument = false) {
+  function notifyResponse(text: string) {
     if (typeof window === "undefined" || !text) return;
     if (notificationSettings.soundAlerts) {
       playNotificationChime();
     }
-    // If user is actively inside the app and it's not a document ready alert, skip popup
-    if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus() && !isDocument) {
+    // If user is actively inside the app, skip popup
+    if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus()) {
       return;
     }
     try {
@@ -2921,7 +2701,6 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
-        generatedFile: data.generatedFile,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -2936,7 +2715,7 @@ export default function ChatPage() {
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant, activeSessionId);
-      notifyResponse(assistantMsg.content, Boolean(data?.generatedFile));
+      notifyResponse(assistantMsg.content);
 
       // Refresh memory profile after response in case new memories were extracted
       loadUserMemoryData(userEmail);
@@ -3043,7 +2822,6 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
-        generatedFile: data.generatedFile,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -3057,7 +2835,7 @@ export default function ChatPage() {
       setMessages(updatedWithAssistant);
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant);
-      notifyResponse(assistantMsg.content, Boolean(data?.generatedFile));
+      notifyResponse(assistantMsg.content);
       loadUserMemoryData(userEmail);
 
     } catch (err: unknown) {
@@ -3135,7 +2913,6 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
-        generatedFile: data.generatedFile,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -3149,7 +2926,7 @@ export default function ChatPage() {
       setMessages(updated);
       messagesCountRef.current = updated.length;
       saveCurrentSession(updated);
-      notifyResponse(newAssistantMsg.content, Boolean(data?.generatedFile));
+      notifyResponse(newAssistantMsg.content);
       loadUserMemoryData(userEmail);
 
       showToast("Response regenerated ✦");
@@ -4849,70 +4626,6 @@ export default function ChatPage() {
 
                             {/* Markdown / Text content rendered directly on conversation surface */}
                             <MarkdownView content={msg.content} isDark={isDark} />
-
-                            {/* In-built Generated Document / Presentation Card */}
-                            {msg.generatedFile && (
-                              <div
-                                className={`mt-3.5 p-4 rounded-2xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all ${
-                                  isDark
-                                    ? "border-neutral-800 bg-neutral-900/90 text-neutral-100"
-                                    : "border-black/10 bg-white text-neutral-900"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3.5 min-w-0">
-                                  <div
-                                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${
-                                      msg.generatedFile.format === "pptx"
-                                        ? "bg-amber-500/15 text-amber-500 border-amber-500/30"
-                                        : msg.generatedFile.format === "docx"
-                                        ? "bg-blue-500/15 text-blue-500 border-blue-500/30"
-                                        : msg.generatedFile.format === "xlsx"
-                                        ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
-                                        : msg.generatedFile.format === "pdf"
-                                        ? "bg-rose-500/15 text-rose-500 border-rose-500/30"
-                                        : "bg-cyan-500/15 text-cyan-500 border-cyan-500/30"
-                                    }`}
-                                  >
-                                    {msg.generatedFile.format === "pptx" ? (
-                                      <Presentation className="w-6 h-6 stroke-[2]" />
-                                    ) : msg.generatedFile.format === "xlsx" ? (
-                                      <FileSpreadsheet className="w-6 h-6 stroke-[2]" />
-                                    ) : (
-                                      <FileText className="w-6 h-6 stroke-[2]" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-bold text-sm truncate tracking-tight">
-                                        {msg.generatedFile.title || msg.generatedFile.filename}
-                                      </p>
-                                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 font-bold">
-                                        {msg.generatedFile.format}
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                      {msg.generatedFile.filename} • {msg.generatedFile.sizeBytes ? `${(msg.generatedFile.sizeBytes / 1024).toFixed(1)} KB • ` : ""}Ready to open &amp; edit
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    triggerDownload(
-                                      msg.generatedFile!.dataUri,
-                                      msg.generatedFile!.filename,
-                                      msg.generatedFile!.mimeType
-                                    );
-                                    showToast(`Downloaded ${msg.generatedFile!.filename} ✦`);
-                                  }}
-                                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
-                                >
-                                  <Download className="w-4 h-4 stroke-[2]" />
-                                  <span>Download {msg.generatedFile.format.toUpperCase()}</span>
-                                </button>
-                              </div>
-                            )}
 
                             {/* In-built Live Clock Card */}
                             {msg.clockData && (
@@ -7148,31 +6861,6 @@ export default function ChatPage() {
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                           notificationSettings.soundAlerts ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Toggle 3: Document & Presentation Ready Alerts */}
-                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
-                    <div className="pr-3">
-                      <p className="font-semibold text-neutral-900 dark:text-white">File &amp; Document Alerts</p>
-                      <p className="text-[11px] text-neutral-400">Immediate toast and notification when a PPT, Word or Excel file finishes</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = !notificationSettings.documentReadyAlerts;
-                        updateNotificationSettings({ documentReadyAlerts: next });
-                        showToast(next ? "Document alerts enabled" : "Document alerts muted");
-                      }}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                        notificationSettings.documentReadyAlerts ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                          notificationSettings.documentReadyAlerts ? "translate-x-5" : "translate-x-0"
                         }`}
                       />
                     </button>

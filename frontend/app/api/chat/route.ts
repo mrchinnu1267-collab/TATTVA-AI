@@ -12,10 +12,6 @@ import {
   scrubCredentials,
   CustomProviderId,
 } from "../../lib/custom-provider-executor";
-import {
-  detectDocumentGenerationIntent,
-  synthesizeDocument,
-} from "../../lib/document-engine";
 
 export const runtime = "nodejs";
 
@@ -65,54 +61,6 @@ export async function POST(request: Request) {
 
     const userEmail = session.authenticated ? session.email : "guest_user";
     const latestUserMsg = [...body.messages].reverse().find((m: any) => m.role === "user");
-
-    // 0. MULTILINGUAL DOCUMENT & PRESENTATION GENERATION
-    if (latestUserMsg && typeof latestUserMsg.content === "string") {
-      const docIntent = detectDocumentGenerationIntent(latestUserMsg.content);
-      if (docIntent.isDocumentRequest) {
-        try {
-          let attachmentBuffer: Buffer | undefined;
-          let attachmentFilename: string | undefined;
-
-          if (latestUserMsg.attachments && Array.isArray(latestUserMsg.attachments) && latestUserMsg.attachments.length > 0) {
-            const firstAttach = latestUserMsg.attachments[0];
-            if (firstAttach && firstAttach.data) {
-              const base64Data = firstAttach.data.replace(/^data:[^;]+;base64,/, "");
-              attachmentBuffer = Buffer.from(base64Data, "base64");
-              attachmentFilename = firstAttach.name;
-            }
-          }
-
-          const generatedDoc = await synthesizeDocument(docIntent, {
-            apiKey: process.env.GEMINI_API_KEY,
-            attachmentBuffer,
-            attachmentFilename,
-          });
-
-          return NextResponse.json({
-            role: "assistant",
-            content: generatedDoc.summaryMessage,
-            kind: "file",
-            intent: "file_generation",
-            modelUsed: "TATTVA-Document-Engine",
-            provider: "local",
-            latencyMs: 120,
-            generatedFile: {
-              filename: generatedDoc.filename,
-              dataUri: generatedDoc.dataUri,
-              mimeType: generatedDoc.mimeType,
-              format: generatedDoc.format,
-              sizeBytes: generatedDoc.sizeBytes,
-              title: generatedDoc.title,
-              verifiedOfficeCompatible: generatedDoc.verifiedOfficeCompatible,
-              pageOrSlideCount: generatedDoc.pageOrSlideCount,
-            },
-          });
-        } catch (docErr) {
-          console.warn("[TATTVA Chat] Document synthesis error:", docErr);
-        }
-      }
-    }
 
     // 1. INBUILT CLOCK & REAL-TIME GROUNDING
     let clockData: ClockReport | undefined;

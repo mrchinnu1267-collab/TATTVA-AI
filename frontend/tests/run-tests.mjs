@@ -7,19 +7,15 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const jiti = require("../node_modules/jiti/lib/jiti.cjs")(__filename);
 
-console.log("\n🚀 Running Claude Connectors (MCP) Test Suite...\n");
+console.log("\n🚀 Running TATTVA AI Test Suite...\n");
 
 try {
   await jiti("./auth-redirect.test.ts");
   await jiti("./claude-connectors.test.ts");
   await jiti("./connectors-e2e.test.ts");
-  await jiti("./document-engine.test.ts");
-  await jiti("./file-generation.test.ts");
-  await jiti("./office-compatibility.test.ts");
-  await jiti("./mushroom.test.ts");
+  await jiti("./document-reader.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
 } catch (err) {
   console.error("\n❌ Test execution failed:", err);
   process.exit(1);
 }
-

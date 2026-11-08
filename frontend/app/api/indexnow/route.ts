@@ -11,7 +11,6 @@ export async function GET() {
     `https://${host}/chat`,
     `https://${host}/image-studio`,
     `https://${host}/maps`,
-    `https://${host}/media`,
     `https://${host}/download`,
   ];
 
