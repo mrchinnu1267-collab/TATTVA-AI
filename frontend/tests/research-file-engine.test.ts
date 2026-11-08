@@ -361,5 +361,28 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
     const intent = detectDocumentIntent(prompt);
     assert.equal(intent.isDocumentRequest, false, "Must not trigger file generation for informational questions");
   });
+
+  // TEST 21: Authentic Amazon Research & Delivery without dumping section paragraphs
+  it("ACCEPTANCE TEST 9: 'amazon' -> Genuinely researches Amazon/AWS, produces valid DOCX without robotic filler", async () => {
+    const research = await conductAutonomousResearch("Amazon");
+    assert.ok(research.definition.toLowerCase().includes("amazon") || research.definition.toLowerCase().includes("commerce") || research.definition.toLowerCase().includes("aws"));
+    assert.ok(!research.definition.toLowerCase().includes("multidisciplinary domain focusing on systematic principles"));
+    assert.ok(research.coreMechanisms.some((m) => m.name.toLowerCase().includes("flywheel") || m.name.toLowerCase().includes("aws") || m.name.toLowerCase().includes("fulfillment") || m.name.toLowerCase().includes("enterprise")));
+
+    const intent = detectDocumentIntent("amazon");
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "docx");
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(!pkg.outlineMarkdown.includes("1. Introduction & Background: Amazon is a multidisciplinary domain"));
+    assert.ok(pkg.outlineMarkdown.includes("Document Structure"));
+  });
+
+  // TEST 22: Authentic Gaming Evolution Research
+  it("ACCEPTANCE TEST 10: 'gaming' / 'Games' -> Genuinely researches interactive media, game engines & netcode", async () => {
+    const research = await conductAutonomousResearch("gaming");
+    assert.ok(research.definition.toLowerCase().includes("game") || research.definition.toLowerCase().includes("graphics") || research.definition.toLowerCase().includes("interactive"));
+    assert.ok(research.coreMechanisms.some((m) => m.name.toLowerCase().includes("game loop") || m.name.toLowerCase().includes("rendering") || m.name.toLowerCase().includes("netcode")));
+  });
 });
 

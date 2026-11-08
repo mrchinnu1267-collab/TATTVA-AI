@@ -58,6 +58,7 @@ export interface DocumentIntentResult {
   };
   formattingRequirements: string[];
   predictedNextNeeds: string[];
+  preview?: boolean;
   detectedLanguage: string;
   originalQuery: string;
   isConfirmedPreference: boolean;

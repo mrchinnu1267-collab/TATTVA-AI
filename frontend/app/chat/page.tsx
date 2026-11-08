@@ -235,6 +235,71 @@ function formatChatDate(timestamp?: number) {
   });
 }
 
+function getClientMime(fmt: string): string {
+  switch (fmt.toLowerCase()) {
+    case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case "pdf": return "application/pdf";
+    case "csv": return "text/csv;charset=utf-8";
+    case "json": return "application/json";
+    case "xml": return "application/xml";
+    case "py": return "text/x-python";
+    case "js": return "application/javascript";
+    case "ts": return "text/typescript";
+    case "html": return "text/html";
+    case "sql": return "application/sql";
+    default: return "application/octet-stream";
+  }
+}
+
+function resolveDocumentAttachment(msg: ChatMessage) {
+  if (msg.generatedDocument) return msg.generatedDocument;
+  if (!msg.content || typeof msg.content !== "string") return null;
+
+  // Pattern A: "I have researched, organized, and prepared your complete ... document formatted as .EXT"
+  const summaryMatch = msg.content.match(/prepared your complete\s+(?:[\*_]*)([^*_\n]+)(?:[\*_]*)\s+(?:file|document|presentation|spreadsheet|dataset)\s+formatted as\s+(?:[\*_]*)\.([A-Za-z0-9]+)/i);
+  if (summaryMatch) {
+    const rawTopic = summaryMatch[1].trim();
+    const rawExt = summaryMatch[2].trim().toLowerCase();
+    const cleanTopic = rawTopic.replace(/document|file|presentation|report/gi, "").trim() || rawTopic;
+    const filename = `${cleanTopic.replace(/[^a-zA-Z0-9_-]/g, "_")}_document.${rawExt}`;
+    const archetype = ["pptx", "ppt"].includes(rawExt) ? "presentation" : ["xlsx", "xls", "csv"].includes(rawExt) ? "spreadsheet" : "report";
+    return {
+      fileId: `hist_${filename}`,
+      filename,
+      format: rawExt,
+      mimeType: getClientMime(rawExt),
+      sizeBytes: 8192,
+      downloadUrl: `/api/download-document?fileId=${encodeURIComponent(filename)}`,
+      title: cleanTopic,
+      archetype,
+    };
+  }
+
+  // Pattern B: "[Download ... (.ext)](file:...)"
+  const fileLinkMatch = msg.content.match(/\[Download\s+([^\]]+?)\s*(?:\((\.[a-z0-9]+)\))?\]\((?:file:)?([^\)]+)\)/i);
+  if (fileLinkMatch) {
+    const rawTitle = fileLinkMatch[1].trim();
+    const target = fileLinkMatch[3].trim();
+    const ext = (target.split(".").pop() || fileLinkMatch[2] || "docx").replace(".", "").toLowerCase();
+    const filename = target.includes(".") ? target : `${rawTitle.replace(/\s+/g, "_")}.${ext}`;
+    const archetype = ["pptx", "ppt"].includes(ext) ? "presentation" : ["xlsx", "xls", "csv"].includes(ext) ? "spreadsheet" : "report";
+    return {
+      fileId: `hist_${filename}`,
+      filename,
+      format: ext,
+      mimeType: getClientMime(ext),
+      sizeBytes: 10240,
+      downloadUrl: `/api/download-document?fileId=${encodeURIComponent(filename)}`,
+      title: rawTitle,
+      archetype,
+    };
+  }
+
+  return null;
+}
+
 function calculateChatWordCount(msgs: ChatMessage[]): number {
   return msgs.reduce((total, m) => {
     const text = m.content.trim();
@@ -308,6 +373,12 @@ function FormattedTextBlock({ text, isDark }: { text: string; isDark: boolean })
   while (i < rawLines.length) {
     const line = rawLines[i];
     const trimmed = line.trim();
+
+    // Suppress dead file: links or raw download link lines
+    if (trimmed.includes("(file:") || /\[Download\s+[^\]]+\]\((?:file:)?[^)]+\)/i.test(trimmed)) {
+      i++;
+      continue;
+    }
 
     // Check for markdown table: line starts and ends with |
     if (trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.includes("|")) {
@@ -2671,6 +2742,8 @@ export default function ChatPage() {
         clockData: data.clockData,
         humanContext: data.humanContext,
         debugInfo: data.debugInfo,
+        generatedDocument: data.generatedDocument,
+        progressStages: data.progressStages,
       };
 
       const updatedWithAssistant = [...updatedWithUser, assistantMsg];
@@ -2795,6 +2868,8 @@ export default function ChatPage() {
         clockData: data.clockData,
         humanContext: data.humanContext,
         debugInfo: data.debugInfo,
+        generatedDocument: data.generatedDocument,
+        progressStages: data.progressStages,
       };
 
       const updatedWithAssistant = [...truncated, assistantMsg];
@@ -2888,6 +2963,8 @@ export default function ChatPage() {
         clockData: data.clockData,
         humanContext: data.humanContext,
         debugInfo: data.debugInfo,
+        generatedDocument: data.generatedDocument,
+        progressStages: data.progressStages,
       };
 
       const updated = [...truncated, newAssistantMsg];
@@ -4615,80 +4692,117 @@ export default function ChatPage() {
                             )}
 
                             {/* Verified Generated Document Delivery Card */}
-                            {msg.generatedDocument && (
-                              <div className={`my-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl border shadow-sm transition-all ${
-                                isDark
-                                  ? "border-neutral-800 bg-neutral-900/90 text-neutral-100 hover:border-neutral-700"
-                                  : "border-black/10 bg-neutral-50 text-neutral-900 hover:border-black/20"
-                              }`}>
-                                <div className="flex items-center gap-3.5 min-w-0">
-                                  {(() => {
-                                    const fmt = (msg.generatedDocument.format || "").toLowerCase();
-                                    const isCode = ["py", "ts", "js", "java", "c", "cpp", "sql", "html", "css"].includes(fmt);
-                                    const isData = ["json", "xml"].includes(fmt);
-                                    const isSheet = ["xlsx", "xls", "csv"].includes(fmt);
-                                    const isPpt = ["pptx", "ppt"].includes(fmt);
-                                    const isPdf = fmt === "pdf";
+                            {(() => {
+                              const docItem = msg.generatedDocument || resolveDocumentAttachment(msg);
+                              if (!docItem) return null;
 
-                                    const badgeClass = isPpt
-                                      ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                                      : isSheet
-                                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                                      : isPdf
-                                      ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
-                                      : isCode
-                                      ? "bg-violet-500/15 text-violet-400 border-violet-500/30"
-                                      : isData
-                                      ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
-                                      : "bg-blue-500/15 text-blue-400 border-blue-500/30";
+                              const fmt = (docItem.format || "").toLowerCase();
+                              const isCode = ["py", "ts", "js", "java", "c", "cpp", "sql", "html", "css"].includes(fmt);
+                              const isData = ["json", "xml"].includes(fmt);
+                              const isSheet = ["xlsx", "xls", "csv"].includes(fmt);
+                              const isPpt = ["pptx", "ppt"].includes(fmt);
+                              const isPdf = fmt === "pdf";
 
-                                    return (
-                                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${badgeClass}`}>
-                                        {isCode ? (
-                                          <Code2 className="w-5 h-5" />
-                                        ) : isData ? (
-                                          <FileCode className="w-5 h-5" />
-                                        ) : isSheet ? (
-                                          <FileSpreadsheet className="w-5 h-5" />
-                                        ) : (
-                                          <FileText className="w-5 h-5" />
-                                        )}
-                                      </div>
-                                    );
-                                  })()}
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-semibold text-sm truncate font-mono tracking-tight">
-                                      {msg.generatedDocument.filename}
-                                    </p>
-                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                                      Verified file • {Math.round((msg.generatedDocument.sizeBytes || 1024) / 1024) || 1} KB • .{msg.generatedDocument.format.toUpperCase()}
-                                    </p>
+                              const badgeClass = isPpt
+                                ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                                : isSheet
+                                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                                : isPdf
+                                ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+                                : isCode
+                                ? "bg-violet-500/15 text-violet-400 border-violet-500/30"
+                                : isData
+                                ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
+                                : "bg-blue-500/15 text-blue-400 border-blue-500/30";
+
+                              return (
+                                <div className={`my-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl border shadow-sm transition-all ${
+                                  isDark
+                                    ? "border-neutral-800 bg-neutral-900/90 text-neutral-100 hover:border-neutral-700"
+                                    : "border-black/10 bg-neutral-50 text-neutral-900 hover:border-black/20"
+                                }`}>
+                                  <div className="flex items-center gap-3.5 min-w-0">
+                                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${badgeClass}`}>
+                                      {isCode ? (
+                                        <Code2 className="w-5 h-5" />
+                                      ) : isData ? (
+                                        <FileCode className="w-5 h-5" />
+                                      ) : isSheet ? (
+                                        <FileSpreadsheet className="w-5 h-5" />
+                                      ) : (
+                                        <FileText className="w-5 h-5" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-sm truncate font-mono tracking-tight">
+                                        {docItem.filename}
+                                      </p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                        Verified file • {Math.round((docItem.sizeBytes || 1024) / 1024) || 1} KB • .{docItem.format.toUpperCase()}
+                                      </p>
+                                    </div>
                                   </div>
-                                </div>
 
-                                <a
-                                  href={msg.generatedDocument.downloadUrl || msg.generatedDocument.dataUri}
-                                  download={msg.generatedDocument.filename}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => {
-                                    const dlTarget = msg.generatedDocument?.downloadUrl || msg.generatedDocument?.dataUri;
-                                    if (dlTarget && (msg.generatedDocument?.dataUri || msg.generatedDocument?.downloadUrl?.startsWith("/"))) {
+                                  <a
+                                    href={docItem.downloadUrl || docItem.dataUri || "#"}
+                                    download={docItem.filename}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={async (e) => {
                                       e.preventDefault();
-                                      triggerDownload(
-                                        dlTarget,
-                                        msg.generatedDocument.filename,
-                                        msg.generatedDocument.mimeType
-                                      );
-                                    }
-                                  }}
-                                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
-                                >
-                                  <Download className="w-4 h-4 stroke-[2]" />
-                                  <span>Download {msg.generatedDocument.filename}</span>
-                                </a>
-                              </div>
-                            )}
+                                      if (docItem.dataUri) {
+                                        triggerDownload(
+                                          docItem.dataUri,
+                                          docItem.filename,
+                                          docItem.mimeType
+                                        );
+                                        return;
+                                      }
+
+                                      if (docItem.downloadUrl && docItem.downloadUrl.startsWith("/")) {
+                                        try {
+                                          const checkRes = await fetch(docItem.downloadUrl);
+                                          if (checkRes.ok) {
+                                            const blob = await checkRes.blob();
+                                            const blobUrl = URL.createObjectURL(blob);
+                                            triggerDownload(blobUrl, docItem.filename, docItem.mimeType);
+                                            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                                            return;
+                                          }
+                                        } catch {}
+                                      }
+
+                                      // On-demand generator for historical sessions without stored binary
+                                      showToast(`Preparing ${docItem.filename}... ⏳`);
+                                      try {
+                                        const genRes = await fetch("/api/generate-document", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({
+                                            prompt: docItem.title || docItem.filename,
+                                            format: docItem.format,
+                                            archetype: docItem.archetype,
+                                          }),
+                                        });
+                                        if (genRes.ok) {
+                                          const genData = await genRes.json();
+                                          if (genData.document?.dataUri) {
+                                            triggerDownload(genData.document.dataUri, genData.document.filename, genData.document.mimeType);
+                                            showToast(`Downloaded ${genData.document.filename} ✦`);
+                                            return;
+                                          }
+                                        }
+                                      } catch {}
+                                      showToast("Unable to download document.");
+                                    }}
+                                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
+                                  >
+                                    <Download className="w-4 h-4 stroke-[2]" />
+                                    <span>Download {docItem.filename}</span>
+                                  </a>
+                                </div>
+                              );
+                            })()}
 
                             {/* Markdown / Text content rendered directly on conversation surface */}
                             <MarkdownView content={msg.content} isDark={isDark} />

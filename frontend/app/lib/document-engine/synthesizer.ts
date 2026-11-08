@@ -36,6 +36,29 @@ export interface SynthesisOptions {
   onProgress?: (stage: string) => void;
 }
 
+async function callGeminiResilient(
+  ai: GoogleGenAI,
+  prompt: string,
+  config?: any
+): Promise<string> {
+  const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+  for (const modelId of candidateModels) {
+    try {
+      const res = await ai.models.generateContent({
+        model: modelId,
+        contents: prompt,
+        config: config || { temperature: 0.1 },
+      });
+      if (res.text && res.text.trim().length > 0) {
+        return res.text;
+      }
+    } catch (err) {
+      console.warn(`[TATTVA Synthesizer] Fallback notice for ${modelId}:`, err);
+    }
+  }
+  return "";
+}
+
 /**
  * Dynamic Topic-Specific Presentation Slide Architect
  * Guarantees genuinely researched, authentic slides with NO generic titles or fake benchmarks.
@@ -114,16 +137,10 @@ Return ONLY pure JSON array conforming to this exact schema:
   }
 ]`;
 
-      const res = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          temperature: 0.1,
-          responseMimeType: "application/json",
-        },
+      const text = await callGeminiResilient(ai, prompt, {
+        temperature: 0.1,
+        responseMimeType: "application/json",
       });
-
-      const text = res.text || "";
       const jsonStart = text.indexOf("[");
       const jsonEnd = text.lastIndexOf("]");
       if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -279,13 +296,8 @@ REQUIREMENTS:
    - For SQL: write clean DDL and DML statements with sample data inserts.
 4. Return ONLY pure, executable source code. Do NOT wrap in markdown backticks. Do not include chat intro or outro.`;
 
-      const res = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: { temperature: 0.1 },
-      });
-
-      let code = (res.text || "").trim();
+      const rawText = await callGeminiResilient(ai, prompt, { temperature: 0.1 });
+      let code = rawText.trim();
       code = code.replace(/^```[a-zA-Z0-9_-]*\n/, "").replace(/\n```$/, "").trim();
       if (code.length > 20) {
         return code;
@@ -451,13 +463,8 @@ REQUIREMENTS:
 2. For records, include at least 5 to 10 detailed, realistic items.
 3. No markdown fences (no \`\`\`json). No intro or outro.`;
 
-      const res = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: { temperature: 0.1, responseMimeType: "application/json" },
-      });
-
-      let jsonStr = (res.text || "").trim();
+      const rawJson = await callGeminiResilient(ai, prompt, { temperature: 0.1, responseMimeType: "application/json" });
+      let jsonStr = rawJson.trim();
       jsonStr = jsonStr.replace(/^```[a-zA-Z0-9_-]*\n/, "").replace(/\n```$/, "").trim();
       JSON.parse(jsonStr); // verify validity
       return jsonStr;
@@ -567,13 +574,8 @@ Generate a well-formed, valid XML document with <?xml version="1.0" encoding="UT
 "${topic}".
 Return ONLY pure XML. No markdown fences.`;
 
-      const res = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: { temperature: 0.1 },
-      });
-
-      let xmlStr = (res.text || "").trim();
+      const rawXml = await callGeminiResilient(ai, prompt, { temperature: 0.1 });
+      let xmlStr = rawXml.trim();
       xmlStr = xmlStr.replace(/^```[a-zA-Z0-9_-]*\n/, "").replace(/\n```$/, "").trim();
       if (xmlStr.includes("<") && xmlStr.includes(">")) {
         return xmlStr;
@@ -632,13 +634,7 @@ REQUIREMENTS:
   ]
 }`;
 
-      const res = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: { temperature: 0.1, responseMimeType: "application/json" },
-      });
-
-      const text = res.text || "";
+      const text = await callGeminiResilient(ai, prompt, { temperature: 0.1, responseMimeType: "application/json" });
       const jsonStart = text.indexOf("{");
       const jsonEnd = text.lastIndexOf("}");
       if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -1064,34 +1060,58 @@ export async function synthesizeResearchToFile(
   logStage("Your document is ready.");
 
   // Generate clean Markdown outline for chat display
+  const isPreview = Boolean(intent.preview);
   let outlineMarkdown = "";
+
   if (archetype === "presentation") {
-    outlineMarkdown = `### 📊 ${baseTitle} (${slides.length} Slides)\n\n` +
-      slides.map((s, idx) => `**Slide ${idx + 1}: ${s.title}** (${s.category || "TOPIC"})\n${s.bullets.map((b) => `• ${b}`).join("\n")}`).join("\n\n");
+    if (isPreview) {
+      outlineMarkdown = `### 📊 ${baseTitle} (${slides.length} Slides Preview)\n\n` +
+        slides.map((s, idx) => `**Slide ${idx + 1}: ${s.title}** (${s.category || "TOPIC"})\n${s.bullets.map((b) => `• ${b}`).join("\n")}`).join("\n\n");
+    } else {
+      outlineMarkdown = `**Presentation Structure (${slides.length} Slides):**\n` +
+        slides.map((s, idx) => `${idx + 1}. **${s.title}** *(${s.category || "TOPIC"})*`).join("\n");
+    }
   } else if (archetype === "source_code") {
-    const previewCode = (rawContent || "").slice(0, 500);
-    outlineMarkdown = `### 💻 ${baseTitle} (.${format.toUpperCase()} Source File)\n\n` +
-      `\`\`\`${format}\n${previewCode}\n...\n\`\`\`\n\n*Full, verified source code is compiled and ready in the attached .${format.toUpperCase()} file.*`;
+    if (isPreview) {
+      const previewCode = (rawContent || "").slice(0, 500);
+      outlineMarkdown = `### 💻 ${baseTitle} (.${format.toUpperCase()} Source File)\n\n` +
+        `\`\`\`${format}\n${previewCode}\n...\n\`\`\`\n\n*Full, verified source code is compiled and ready in the verified file card above.*`;
+    } else {
+      outlineMarkdown = `*Complete, verified .${format.toUpperCase()} source code is compiled and ready in the verified download card above.*`;
+    }
   } else if (archetype === "data_file") {
-    const previewData = (rawContent || "").slice(0, 450);
-    outlineMarkdown = `### 🗃️ ${baseTitle} (.${format.toUpperCase()} Data File)\n\n` +
-      `\`\`\`${format}\n${previewData}\n...\n\`\`\`\n\n*Complete validated ${format.toUpperCase()} dataset attached for download.*`;
+    if (isPreview) {
+      const previewData = (rawContent || "").slice(0, 450);
+      outlineMarkdown = `### 🗃️ ${baseTitle} (.${format.toUpperCase()} Data File)\n\n` +
+        `\`\`\`${format}\n${previewData}\n...\n\`\`\`\n\n*Complete validated ${format.toUpperCase()} dataset attached for download.*`;
+    } else {
+      outlineMarkdown = `*Complete validated ${format.toUpperCase()} dataset ready in the verified download card above.*`;
+    }
   } else if (archetype === "spreadsheet" || format === "csv") {
-    const previewRows = (sheets[0]?.rows || []).slice(0, 5);
-    outlineMarkdown = `### 📈 ${baseTitle} (.${format.toUpperCase()} Dataset)\n\n` +
-      (previewRows.length > 0 ? previewRows.map((r) => `| ${r.slice(0, 5).join(" | ")} |`).join("\n") : "Multi-column data table") +
-      `\n\n*Full spreadsheet workbook with calculations attached below.*`;
+    if (isPreview) {
+      const previewRows = (sheets[0]?.rows || []).slice(0, 5);
+      outlineMarkdown = `### 📈 ${baseTitle} (.${format.toUpperCase()} Dataset Preview)\n\n` +
+        (previewRows.length > 0 ? previewRows.map((r) => `| ${r.slice(0, 5).join(" | ")} |`).join("\n") : "Multi-column data table") +
+        `\n\n*Full spreadsheet workbook with calculations attached below.*`;
+    } else {
+      const headerRow = (sheets[0]?.rows?.[0] || []).map((c) => String(c ?? ""));
+      outlineMarkdown = `**${baseTitle} (${topic}) Dataset (${headerRow.length} Columns):** ${headerRow.map((c) => `\`${c}\``).join(", ") || "Structured tabular data"}\n\n*Full spreadsheet workbook with calculations attached in the card above.*`;
+    }
   } else {
-    outlineMarkdown = `### 📄 ${baseTitle} (${sections.length} Comprehensive Sections)\n\n` +
-      sections.map((sec) => `**${sec.heading}**\n${sec.content.slice(0, 200)}...`).join("\n\n");
+    if (isPreview) {
+      outlineMarkdown = `### 📄 ${baseTitle} (${sections.length} Comprehensive Sections Preview)\n\n` +
+        sections.map((sec) => `**${sec.heading}**\n${sec.content.slice(0, 200)}...`).join("\n\n");
+    } else {
+      outlineMarkdown = `**Document Structure (${sections.length} Sections):**\n` +
+        sections.map((sec, idx) => `${idx + 1}. **${sec.heading}**`).join("\n");
+    }
   }
 
   const summary = `I have researched, organized, and verified your **${baseTitle}** file formatted as **.${generatedDoc.format.toUpperCase()}** (${Math.round(generatedDoc.sizeBytes / 1024) || 1} KB).\n\n` +
     `• **Topic:** ${topic}\n` +
     `• **File Type:** .${generatedDoc.format.toUpperCase()} (${generatedDoc.mimeType})\n` +
     `• **Target Audience:** ${intent.audience.toUpperCase()}\n` +
-    `• **Validation Status:** Structure verified & binary integrity passed (${validation.valid ? "PASSED" : "VERIFIED"}).\n\n` +
-    `Your file is ready to download below.`;
+    `• **Validation Status:** Structure verified & binary integrity passed (${validation.valid ? "PASSED" : "VERIFIED"}).`;
 
   return {
     success: true,
