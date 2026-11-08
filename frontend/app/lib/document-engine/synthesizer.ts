@@ -37,6 +37,219 @@ export interface SynthesisOptions {
 }
 
 /**
+ * Dynamic Topic-Specific Presentation Slide Architect
+ * Guarantees genuinely researched, authentic slides with NO generic titles or fake benchmarks.
+ */
+async function buildPresentationSlides(
+  topic: string,
+  research: ResearchDossier,
+  targetSlideCount?: number,
+  apiKey?: string
+): Promise<Array<{ title: string; category?: string; bullets: string[]; takeaway?: string }>> {
+  const count = targetSlideCount && targetSlideCount >= 6 && targetSlideCount <= 20
+    ? targetSlideCount
+    : Math.max(8, Math.min(14, 4 + research.coreMechanisms.length + research.architectureOrComponents.length));
+
+  const resolvedApiKey = apiKey || process.env.GEMINI_API_KEY;
+  if (resolvedApiKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: resolvedApiKey });
+      const prompt = `You are TATTVA AI's Master Technical Presentation Architect.
+Generate an authentic, highly detailed, professional presentation slide deck on the topic:
+TOPIC: "${topic}"
+
+Use the following verified research dossier as your authoritative source material:
+${JSON.stringify({
+  definition: research.definition,
+  backgroundAndMotivation: research.backgroundAndMotivation,
+  subtopics: research.subtopics,
+  coreMechanisms: research.coreMechanisms,
+  architectureOrComponents: research.architectureOrComponents,
+  trainingAndInferenceOrProcess: research.trainingAndInferenceOrProcess,
+  applications: research.applications,
+  advantages: research.advantages,
+  limitationsAndChallenges: research.limitationsAndChallenges,
+  citations: research.citations,
+}, null, 2)}
+
+STRICT RULES:
+1. Generate exactly ${count} slides.
+2. Every slide title MUST name a specific concept, component, mechanism, or analytical angle of "${topic}".
+   Examples for "Transformer Architecture":
+   - "Historical Motivation: Limitations of Recurrent Models (RNNs/LSTMs)"
+   - "Encoder & Decoder Stack Overview"
+   - "Scaled Dot-Product Self-Attention: Mathematical Formulation"
+   - "Query, Key, and Value (Q, K, V) Vector Projections"
+   - "Multi-Head Attention: Parallel Representation Subspaces"
+   - "Positional Encoding: Injecting Sequential Order"
+   - "Position-Wise Feed-Forward Networks (FFN)"
+   - "Residual Connections & Layer Normalization (Add & Norm)"
+   - "Autoregressive Masked Attention in the Decoder"
+   - "Training Dynamics: Teacher Forcing, Loss & Inference"
+   - "Real-World Deployments: Large Language Models & Vision Transformers"
+   - "Technical Trade-offs & Quadratic Attention Complexity O(N^2)"
+   - "Foundational References: Vaswani et al. (2017)"
+3. NEVER use generic placeholder titles such as:
+   - "Executive Overview"
+   - "The Core Problem & Context"
+   - "Major Conceptual Pillars"
+   - "Practical Examples & Workflows"
+   - "High-Impact Industry Applications"
+   - "Key Advantages & Proven Benefits"
+   - "Operational Challenges & Trade-offs"
+   - "Cutting-Edge 2026 Developments"
+   - "Conclusion & Strategic Summary"
+4. NEVER invent fake benchmarks, made-up percentages, or fictional metrics (e.g., no "3.4x operational efficiency", no "99.9% uptime").
+5. Each slide must contain 3 to 4 informative, technical bullet points using the actual mechanisms, formulas, and verified applications.
+6. Provide an uppercase category (e.g., "FOUNDATIONS", "MOTIVATION", "CORE MECHANISM", "MATHEMATICS", "ARCHITECTURE", "TRAINING & INFERENCE", "APPLICATIONS", "SYSTEM ANALYSIS", "LITERATURE").
+7. Provide a 1-sentence analytical takeaway for each slide.
+
+Return ONLY pure JSON array conforming to this exact schema:
+[
+  {
+    "title": "Topic-Specific Title",
+    "category": "UPPERCASE_CATEGORY",
+    "bullets": ["Technical bullet 1", "Technical bullet 2", "Technical bullet 3"],
+    "takeaway": "One-sentence takeaway"
+  }
+]`;
+
+      const res = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          temperature: 0.1,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const text = res.text || "";
+      const jsonStart = text.indexOf("[");
+      const jsonEnd = text.lastIndexOf("]");
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        const parsedSlides = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+        if (Array.isArray(parsedSlides) && parsedSlides.length >= 6) {
+          return parsedSlides.map((s: any) => ({
+            title: String(s.title || `${topic} Key Concept`),
+            category: String(s.category || "TOPIC ANALYSIS").toUpperCase(),
+            bullets: Array.isArray(s.bullets) && s.bullets.length > 0
+              ? s.bullets.map((b: any) => String(b))
+              : [String(s.content || research.definition)],
+            takeaway: s.takeaway ? String(s.takeaway) : undefined,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("[Synthesizer] Live slide generation fallback:", e);
+    }
+  }
+
+  // Fallback: Dynamic deterministic generation directly from research fields
+  const fallbackSlides: Array<{ title: string; category?: string; bullets: string[]; takeaway?: string }> = [];
+
+  // Slide 1: Foundations & Definition
+  fallbackSlides.push({
+    title: `${topic}: Foundations & Formal Definition`,
+    category: "FOUNDATIONS",
+    bullets: [
+      research.definition,
+      `Core Scope & Subtopics: ${research.subtopics.slice(0, 3).join(", ")}.`,
+      "Theoretical framework and foundational scientific principles.",
+    ],
+    takeaway: `Establishes the formal definition and scope of ${topic}.`,
+  });
+
+  // Slide 2: Background & Precursor Limitations
+  fallbackSlides.push({
+    title: `${topic}: Precursors & Motivation`,
+    category: "MOTIVATION",
+    bullets: [
+      research.backgroundAndMotivation,
+      `Key architectural drivers that mandated the development of ${topic}.`,
+      "Overcoming predecessor bottlenecks and throughput limitations.",
+    ],
+    takeaway: `Identifies the fundamental challenges that motivated ${topic}.`,
+  });
+
+  // Dedicated Slide for each Core Mechanism
+  for (const m of research.coreMechanisms) {
+    const bullets: string[] = [m.details];
+    if (m.formulaOrStructure) {
+      bullets.push(`Structural / Algorithmic Model: ${m.formulaOrStructure}`);
+    }
+    if (m.exampleOrApplication) {
+      bullets.push(`Concrete Application: ${m.exampleOrApplication}`);
+    }
+    fallbackSlides.push({
+      title: m.name,
+      category: "CORE MECHANISM",
+      bullets,
+      takeaway: `Operational mechanics of ${m.name}.`,
+    });
+  }
+
+  // Dedicated Slides for Architecture / Components
+  for (const c of research.architectureOrComponents) {
+    fallbackSlides.push({
+      title: `Architecture: ${c.component}`,
+      category: "ARCHITECTURE",
+      bullets: [
+        `System Role: ${c.role}`,
+        `Functional Mechanism: ${c.mechanism}`,
+        `Integrates directly into the overall operational topology of ${topic}.`,
+      ],
+      takeaway: `Deconstructs ${c.component} and its operational responsibilities.`,
+    });
+  }
+
+  // Slide for Execution / Training Process
+  if (research.trainingAndInferenceOrProcess.stages.length > 0 || research.trainingAndInferenceOrProcess.details) {
+    fallbackSlides.push({
+      title: `${topic}: Execution & Operational Dynamics`,
+      category: "OPERATIONAL DYNAMICS",
+      bullets: [
+        research.trainingAndInferenceOrProcess.details,
+        ...research.trainingAndInferenceOrProcess.stages.map((st, i) => `Phase 0${i + 1}: ${st}`),
+      ],
+      takeaway: `Defines the complete end-to-end execution lifecycle of ${topic}.`,
+    });
+  }
+
+  // Slide for Real-World Applications
+  if (research.applications.length > 0) {
+    fallbackSlides.push({
+      title: `${topic}: Real-World Applications & Industry Deployments`,
+      category: "APPLICATIONS",
+      bullets: research.applications.map((app, i) => `Deployment Domain 0${i + 1}: ${app}`),
+      takeaway: `Demonstrates verified production adoption and industry utility of ${topic}.`,
+    });
+  }
+
+  // Slide for Technical Trade-offs & Limitations
+  fallbackSlides.push({
+    title: `${topic}: Technical Trade-offs & Engineering Limitations`,
+    category: "TRADE-OFF ANALYSIS",
+    bullets: [
+      ...research.advantages.slice(0, 2).map((adv) => `[Advantage] ${adv}`),
+      ...research.limitationsAndChallenges.slice(0, 2).map((lim) => `[Limitation] ${lim}`),
+    ],
+    takeaway: `Provides a balanced, objective engineering assessment of ${topic}.`,
+  });
+
+  // Slide for Citations & Literature
+  if (research.citations.length > 0) {
+    fallbackSlides.push({
+      title: "Authoritative References & Seminal Publications",
+      category: "REFERENCES",
+      bullets: research.citations.slice(0, 4).map((c) => `${c.sourceName}: ${c.referenceText}`),
+      takeaway: "Academic and international standard references supporting this presentation.",
+    });
+  }
+
+  return fallbackSlides;
+}
+
+/**
  * Executes the complete Research-to-File Generation Pipeline
  */
 export async function synthesizeResearchToFile(
@@ -108,78 +321,14 @@ export async function synthesizeResearchToFile(
 
   if (archetype === "presentation") {
     // -------------------------------------------------------------
-    // PRESENTATION ARCHETYPE: 8 to 15 Slide Progression
+    // PRESENTATION ARCHETYPE: Dynamic, Genuinely Researched Slide Progression
     // -------------------------------------------------------------
-    slides.push(
-      {
-        title: "Executive Overview",
-        category: "FOUNDATIONS",
-        bullets: [
-          research.definition,
-          `Key Subtopic Focus: ${research.subtopics.slice(0, 3).join(", ")}.`,
-          "Strategic significance and modern technological imperative.",
-        ],
-        takeaway: "Establishes domain relevance and baseline definition.",
-      },
-      {
-        title: "The Core Problem & Context",
-        category: "BACKGROUND",
-        bullets: [
-          "Historical limitations of legacy architectures and manual interventions.",
-          "Critical bottlenecks: scalability constraints, high latencies, and operational overhead.",
-          "The urgent necessity for automated, verified, and distributed frameworks.",
-        ],
-        takeaway: "Isolates the root problems motivating this transformation.",
-      },
-      {
-        title: "Major Conceptual Pillars",
-        category: "ARCHITECTURE",
-        bullets: research.coreConcepts.slice(0, 4).map((c) => `${c.title}: ${c.explanation}`),
-        takeaway: "Deconstructs the foundational mechanics.",
-      },
-      {
-        title: "Practical Examples & Workflows",
-        category: "METHODOLOGY",
-        bullets: research.coreConcepts
-          .filter((c) => c.example)
-          .slice(0, 3)
-          .map((c) => `${c.title} in Action: ${c.example}`),
-        takeaway: "Grounds theory in tangible real-world execution.",
-      },
-      {
-        title: "High-Impact Industry Applications",
-        category: "APPLICATIONS",
-        bullets: research.applications.slice(0, 4).map((app, i) => `Domain 0${i + 1}: ${app}`),
-        takeaway: "Demonstrates cross-industry adoption and proven utility.",
-      },
-      {
-        title: "Key Advantages & Proven Benefits",
-        category: "VALUE PROPOSITION",
-        bullets: research.advantages.slice(0, 4).map((adv) => `• ${adv}`),
-        takeaway: "Delivers measurable efficiency and velocity gains.",
-      },
-      {
-        title: "Operational Challenges & Trade-offs",
-        category: "RISK ANALYSIS",
-        bullets: research.limitationsAndChallenges.slice(0, 3).map((lim) => `Caution: ${lim}`),
-        takeaway: "Provides balanced, transparent risk mitigations.",
-      },
-      {
-        title: "Cutting-Edge 2026 Developments",
-        category: "INNOVATION",
-        bullets: research.recentDevelopments.slice(0, 3).map((dev) => `Next-Gen: ${dev}`),
-        takeaway: "Anticipates future trajectories and innovations.",
-      },
-      {
-        title: "Conclusion & Strategic Summary",
-        category: "EXECUTIVE SUMMARY",
-        bullets: [
-          `Successful implementation of ${topic} yields deterministic operational excellence.`,
-          "Adoption requires continuous verification, robust telemetry, and zero-trust hygiene.",
-          "Immediate next phase: Pilot deployment with measurable KPI benchmarks.",
-        ],
-        takeaway: "Clear actionable closing consensus.",
-      }
+    logStage("Architecting topic-specific presentation slides...");
+    slides = await buildPresentationSlides(
+      topic,
+      research,
+      intent.length.slideCount,
+      options?.apiKey
     );
   } else if (archetype === "assignment") {
     // -------------------------------------------------------------
@@ -187,51 +336,50 @@ export async function synthesizeResearchToFile(
     // -------------------------------------------------------------
     sections = [
       {
-        heading: "1. Introduction & Contextual Background",
-        content: `${research.definition}\n\nIn contemporary computing and engineering paradigms, ${topic} has emerged as a cornerstone of rigorous research and practical deployment. This assignment investigates the foundational theory, systematic mechanics, and operational significance of this subject.`,
-        callout: "Academic Objective: Master fundamental mechanics and demonstrate practical mastery through case analysis.",
+        heading: `1. Introduction & Theoretical Motivation of ${topic}`,
+        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
+        callout: `Academic Objective: Master the foundational principles, architectural mechanics, and empirical implementations of ${topic}.`,
       },
       {
-        heading: "2. Key Learning Objectives",
-        content: "Upon completion of this analytical study, students and researchers will be equipped to:",
-        bullets: [
-          `Articulate the core principles, terminology, and structural paradigms of ${topic}.`,
-          "Evaluate performance trade-offs, scalability constraints, and empirical benchmarks.",
-          "Implement verified system architectures conforming to international engineering standards.",
-          "Analyze modern security, ethical, and fault-tolerance implications.",
-        ],
+        heading: `2. Core Architectural Mechanisms & Principles`,
+        content: `A rigorous exploration of the functional mechanics defining ${topic}:`,
+        bullets: research.coreMechanisms.map(
+          (m) => `**${m.name}**: ${m.details}${m.formulaOrStructure ? ` *(Model: ${m.formulaOrStructure})*` : ""}`
+        ),
       },
       {
-        heading: "3. Theoretical Foundations & Main Concepts",
-        content: "A rigorous exploration of the underlying structural concepts:",
-        bullets: research.coreConcepts.map((c) => `**${c.title}**: ${c.explanation}`),
+        heading: `3. Structural Decomposition & Subsystems`,
+        content: `Deconstructing the principal architectural subsystems of ${topic}:`,
+        bullets: research.architectureOrComponents.length > 0
+          ? research.architectureOrComponents.map((c) => `**${c.component}** (${c.role}): ${c.mechanism}`)
+          : research.subtopics.map((st) => `**${st}**: Essential conceptual pillar of ${topic}.`),
       },
       {
-        heading: "4. Detailed Analytical Explanation & Case Scenarios",
-        content: `To understand the operational dynamics of ${topic}, we examine empirical scenarios and algorithmic workflows. When systems scale to enterprise workloads, deterministic execution and state conservation become paramount.`,
-        bullets: research.coreConcepts
-          .filter((c) => c.example)
-          .map((c) => `**Empirical Case Study (${c.title})**: ${c.example}`),
+        heading: `4. Operational Dynamics & Implementation Workflows`,
+        content: research.trainingAndInferenceOrProcess.details || `The operational execution of ${topic} follows a deterministic sequence of stages:`,
+        bullets: research.trainingAndInferenceOrProcess.stages.length > 0
+          ? research.trainingAndInferenceOrProcess.stages.map((st, i) => `**Stage ${i + 1}**: ${st}`)
+          : research.coreMechanisms.filter((m) => m.exampleOrApplication).map((m) => `**${m.name}**: ${m.exampleOrApplication}`),
         table: research.comparativeMetrics
           ? research.comparativeMetrics.rows.map((r) => [String(r[0]), String(r[1]), String(r[2]), String(r[3])])
           : undefined,
       },
       {
-        heading: "5. Real-World Applications",
-        content: "The theoretical concepts translate directly into mission-critical applications across industry sectors:",
+        heading: `5. Real-World Applications & Industry Case Studies`,
+        content: `The theoretical constructs of ${topic} translate directly into mission-critical deployments:`,
         bullets: research.applications,
       },
       {
-        heading: "6. Comparative Analysis: Advantages vs. Limitations",
-        content: "A balanced technical assessment must consider both the significant advantages and the inherent engineering challenges:",
+        heading: `6. Comparative Analysis: Advantages vs. Engineering Limitations`,
+        content: `An objective evaluation must consider both the significant advantages and the inherent engineering constraints:`,
         bullets: [
-          ...research.advantages.slice(0, 3).map((a) => `[ADVANTAGE] ${a}`),
-          ...research.limitationsAndChallenges.slice(0, 3).map((l) => `[LIMITATION] ${l}`),
+          ...research.advantages.map((a) => `[ADVANTAGE] ${a}`),
+          ...research.limitationsAndChallenges.map((l) => `[LIMITATION] ${l}`),
         ],
       },
       {
-        heading: "7. Conclusion & Research Synthesis",
-        content: `In conclusion, ${topic} constitutes an indispensable domain within modern computational science. By mastering these foundational mechanisms and adhering to verified standards, practitioners can design resilient, high-throughput systems ready for future scale.`,
+        heading: `7. Conclusion & Research Synthesis`,
+        content: `In conclusion, ${topic} constitutes an indispensable subject within modern computational and scientific paradigms. By mastering these foundational mechanisms and adhering to verified technical standards, researchers and practitioners can build resilient, high-throughput systems ready for future scale.`,
       },
     ];
   } else if (archetype === "study_notes") {
@@ -240,35 +388,39 @@ export async function synthesizeResearchToFile(
     // -------------------------------------------------------------
     sections = [
       {
-        heading: "1. Quick Concept Overview",
+        heading: `1. Quick Concept Overview: ${topic}`,
         content: research.definition,
         callout: "Key Takeaway: Focus on foundational mechanics, edge-case behavior, and core architectural trade-offs.",
       },
       {
-        heading: "2. High-Yield Terms & Definitions",
-        content: "Essential vocabulary for exams, technical interviews, and quick reference:",
-        bullets: research.subtopics.map((st, i) => `**Concept 0${i + 1} (${st})**: Core theoretical element underpinning ${topic}.`),
+        heading: "2. High-Yield Terms & Core Principles",
+        content: "Essential vocabulary for technical interviews, exams, and rapid reference:",
+        bullets: research.coreMechanisms.map(
+          (m) => `**${m.name}**: ${m.details}${m.formulaOrStructure ? ` *(Structure: ${m.formulaOrStructure})*` : ""}`
+        ),
       },
       {
-        heading: "3. Core Concept Deep Dive",
-        content: "Detailed breakdown of the most frequently tested concepts:",
-        bullets: research.coreConcepts.map((c) => `• **${c.title}**: ${c.explanation} *(Example: ${c.example || "Standard enterprise benchmark"}*)`),
+        heading: "3. Architecture & Subsystem Breakdown",
+        content: "Structural breakdown of key system components:",
+        bullets: research.architectureOrComponents.length > 0
+          ? research.architectureOrComponents.map((c) => `• **${c.component}**: ${c.role} — ${c.mechanism}`)
+          : research.subtopics.map((st) => `• **${st}**: Core theoretical element underpinning ${topic}.`),
         table: research.comparativeMetrics
           ? research.comparativeMetrics.rows.map((r) => [String(r[0]), String(r[1]), String(r[2]), String(r[3])])
           : undefined,
       },
       {
-        heading: "4. Practical Scenarios & Worked Examples",
-        content: "Walkthrough of common exam problems and real-world architectures:",
-        bullets: research.applications.map((app) => `Scenario: ${app}`),
+        heading: "4. Practical Scenarios & Real-World Use Cases",
+        content: "Walkthrough of standard applications and architecture implementations:",
+        bullets: research.applications.map((app) => `• Scenario: ${app}`),
       },
       {
-        heading: "5. Quick Review Self-Quiz",
+        heading: "5. High-Yield Self-Review Questions",
         content: "Test your understanding with these foundational revision questions:",
         bullets: [
-          `Q1: What are the primary structural trade-offs when scaling ${topic}?`,
-          `Q2: How do modern 2026 frameworks achieve 10x latency reduction compared to traditional approaches?`,
-          `Q3: List two mission-critical applications where ${topic} provides deterministic accuracy.`,
+          `Q1: What are the primary structural mechanisms that define ${topic}?`,
+          `Q2: What predecessor limitations or bottlenecks did ${topic} solve?`,
+          `Q3: Identify two mission-critical real-world applications of ${topic} and explain their implementation trade-offs.`,
         ],
       },
     ];
@@ -278,29 +430,22 @@ export async function synthesizeResearchToFile(
     // -------------------------------------------------------------
     sheets = [
       {
-        title: "Executive KPI Dashboard",
+        title: "Comparative Analysis",
         rows: [
-          ["TATTVA AI INTELLIGENCE SUITE - DATA ANALYSIS DASHBOARD"],
-          [`Topic: ${topic}`, "", "", "", `Generated: ${new Date().toLocaleDateString()}`],
+          [`TATTVA AI INTELLIGENCE SUITE - ${topic.toUpperCase()} DATA MATRIX`],
+          [`Subject: ${topic}`, "", "", `Generated: ${new Date().toLocaleDateString()}`],
           [""],
-          ["Category", "Baseline Metric", "Optimized Metric", "Variance (%)", "Operational Impact"],
-          ["System Throughput (req/s)", 1250, 4800, 284, "3.8x Velocity Increase"],
-          ["Average Response Latency (ms)", 185, 18, -90, "10x Latency Reduction"],
-          ["Error Rate (%)", 2.4, 0.02, -99, "Zero Defect Target"],
-          ["Infrastructure Cost ($/mo)", 12500, 4200, -66, "$8,300 Monthly Savings"],
-          ["Resource Efficiency Score", 74, 98, 32, "Tier 1 High-Efficiency"],
-          ["TOTALS / SUMMARY", "=AVERAGE(B5:B9)", "=AVERAGE(C5:C9)", "=AVERAGE(D5:D9)", "Optimized Enterprise Profile"],
-        ],
-      },
-      {
-        title: "Comparative Telemetry",
-        rows: [
-          ["Dimension", "Traditional Legacy Framework", "TATTVA Modern Architecture", "Verified Benefit"],
-          ...(research.comparativeMetrics ? research.comparativeMetrics.rows : [
-            ["Execution Mode", "Synchronous Batch", "Parallel Reactive", "Zero Blocking"],
-            ["Data Integrity", "Checksum Post-hoc", "Cryptographic SHA-256", "Tamper Evident"],
-            ["Availability", "99.5%", "99.99%", "High Availability"],
-          ]),
+          research.comparativeMetrics
+            ? research.comparativeMetrics.headers
+            : ["Dimension / Subsystem", "Technical Description", "Mechanism / Formula", "Practical Context"],
+          ...(research.comparativeMetrics
+            ? research.comparativeMetrics.rows
+            : research.coreMechanisms.map((m) => [
+                m.name,
+                m.details,
+                m.formulaOrStructure || "Standard Formulation",
+                m.exampleOrApplication || "General Application",
+              ])),
         ],
       },
     ];
@@ -315,29 +460,34 @@ export async function synthesizeResearchToFile(
         callout: "Research Objective: Establish an authoritative reference document grounded in verifiable evidence and empirical data.",
       },
       {
-        heading: "1. Introduction & Background",
-        content: `${research.definition}\n\nOver the past decade, rapid advancements in distributed computing and artificial intelligence have accelerated the prominence of this domain. Organizations seeking high operational velocity must navigate both foundational mechanics and emerging 2026 technological developments.`,
+        heading: `1. Introduction & Background: Evolution of ${topic}`,
+        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
       },
       {
         heading: "2. Methodology & Information Gathering",
         content: `This report synthesizes evidence gathered across peer-reviewed publications, international technical standards, and empirical benchmark datasets. Information has been rigorously cross-referenced to eliminate duplicate, obsolete, or contradictory claims.`,
         bullets: [
           "Multi-source corroboration across official documentation and educational publications.",
-          "Deterministic verification of statistical claims and architectural trade-offs.",
+          "Deterministic verification of technical claims and architectural trade-offs.",
           "Preservation of academic citations conforming to international bibliographic standards.",
         ],
       },
       {
-        heading: "3. Core Architecture & Conceptual Pillars",
+        heading: `3. Core Architecture & Conceptual Pillars: ${research.subtopics.slice(0, 2).join(" & ") || topic}`,
         content: `The theoretical framework of ${topic} relies on several core architectural pillars:`,
-        bullets: research.coreConcepts.map((c) => `**${c.title}**: ${c.explanation}`),
+        bullets: research.coreMechanisms.map(
+          (m) => `**${m.name}**: ${m.details}${m.formulaOrStructure ? ` (${m.formulaOrStructure})` : ""}`
+        ),
       },
       {
-        heading: "4. Empirical Findings & Comparative Metrics",
-        content: `Our research identifies decisive performance divergences between legacy implementations and modern verified frameworks:`,
+        heading: "4. Empirical Findings & Comparative Breakdown",
+        content: `Our research identifies decisive architectural characteristics defining ${topic}:`,
         table: research.comparativeMetrics
           ? research.comparativeMetrics.rows.map((r) => [String(r[0]), String(r[1]), String(r[2]), String(r[3])])
           : undefined,
+        bullets: research.architectureOrComponents.map(
+          (c) => `**${c.component}**: Role: ${c.role}. Mechanism: ${c.mechanism}`
+        ),
       },
       {
         heading: "5. Real-World Applications & Industry Impact",
@@ -353,13 +503,8 @@ export async function synthesizeResearchToFile(
         ],
       },
       {
-        heading: "7. Recent Developments & 2026 Trajectories",
-        content: "The forefront of this domain is advancing rapidly with emerging paradigms:",
-        bullets: research.recentDevelopments,
-      },
-      {
-        heading: "8. Conclusion",
-        content: `In summary, ${topic} represents a high-impact domain essential for next-generation system engineering. By adopting verified structural standards and automated pre-flight quality checks, institutions can achieve superior reliability, scalability, and performance.`,
+        heading: "7. Conclusion",
+        content: `In summary, ${topic} represents a high-impact domain essential for next-generation system engineering. By adopting verified structural standards and automated quality checks, practitioners can achieve superior reliability, scalability, and performance.`,
       },
     ];
   }
@@ -441,3 +586,4 @@ export async function synthesizeResearchToFile(
     progressStages,
   };
 }
+

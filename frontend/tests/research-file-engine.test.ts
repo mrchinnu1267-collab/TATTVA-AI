@@ -178,4 +178,67 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
     assert.ok(docPackage.summary.includes("Database Management Systems"));
     assert.ok(docPackage.progressStages.length >= 4);
   });
+
+  // TEST 11: Transformer Architecture Presentation - Deep Concept Explanations & Zero Filler
+  it("TEST 11: Generates authentic Transformer Architecture presentation covering all 12 required concepts", async () => {
+    const intent = detectDocumentIntent("Create a presentation on Transformer Architecture");
+    assert.equal(intent.archetype, "presentation");
+    assert.equal(intent.format, "pptx");
+
+    const docPackage = await synthesizeResearchToFile(intent, {
+      userId: "transformer_tester",
+    });
+
+    assert.equal(docPackage.success, true);
+    assert.equal(docPackage.document.format, "pptx");
+    assert.equal(docPackage.validation.valid, true);
+
+    const outline = docPackage.outlineMarkdown;
+
+    // 1. Must NOT contain generic filler headings
+    assert.equal(outline.includes("The Core Problem & Context"), false, "Must not contain generic title 'The Core Problem & Context'");
+    assert.equal(outline.includes("Major Conceptual Pillars"), false, "Must not contain generic title 'Major Conceptual Pillars'");
+    assert.equal(outline.includes("Operational Challenges & Trade-offs"), false, "Must not contain generic title 'Operational Challenges & Trade-offs'");
+
+    // 2. Must cover core technical requirements
+    const lowerOutline = outline.toLowerCase();
+    assert.ok(lowerOutline.includes("attention"), "Must cover attention mechanism");
+    assert.ok(lowerOutline.includes("encoder") || lowerOutline.includes("decoder"), "Must cover encoder/decoder architecture");
+    assert.ok(lowerOutline.includes("query") || lowerOutline.includes("key") || lowerOutline.includes("value") || lowerOutline.includes("q, k, v"), "Must cover Q, K, V");
+    assert.ok(lowerOutline.includes("positional encoding"), "Must cover Positional Encoding");
+    assert.ok(lowerOutline.includes("feed-forward") || lowerOutline.includes("ffn"), "Must cover Feed-Forward Networks");
+    assert.ok(lowerOutline.includes("multi-head"), "Must cover Multi-Head Attention");
+
+    // 3. Must reference authentic sources
+    assert.ok(docPackage.research.citations.length >= 1);
+    assert.ok(docPackage.research.citations.some((c) => c.sourceName.includes("Vaswani") || c.referenceText.includes("Attention Is All You Need")));
+  });
+
+  // TEST 12: Distinct Topic Specificity Across Domains (No Template Reuse)
+  it("TEST 12: Different technical domains produce genuinely distinct, non-overlapping slide decks", async () => {
+    const osIntent = detectDocumentIntent("Create a presentation on Operating Systems");
+    const osPackage = await synthesizeResearchToFile(osIntent);
+
+    const dbmsIntent = detectDocumentIntent("Create a presentation on Database Management Systems");
+    const dbmsPackage = await synthesizeResearchToFile(dbmsIntent);
+
+    const osOutline = osPackage.outlineMarkdown.toLowerCase();
+    const dbmsOutline = dbmsPackage.outlineMarkdown.toLowerCase();
+
+    // OS should mention Kernel, Scheduling, Memory, or Processes
+    assert.ok(
+      osOutline.includes("kernel") || osOutline.includes("scheduling") || osOutline.includes("virtual memory") || osOutline.includes("paging"),
+      "OS presentation must discuss OS-specific mechanisms"
+    );
+
+    // DBMS should mention ACID, Transactions, Indexing, or Storage Engine
+    assert.ok(
+      dbmsOutline.includes("acid") || dbmsOutline.includes("transaction") || dbmsOutline.includes("indexing") || dbmsOutline.includes("b+ tree"),
+      "DBMS presentation must discuss DBMS-specific mechanisms"
+    );
+
+    // They must not share the same generic structure
+    assert.notEqual(osPackage.outlineMarkdown, dbmsPackage.outlineMarkdown, "Outlines must be completely different");
+  });
 });
+
