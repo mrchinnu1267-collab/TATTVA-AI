@@ -384,5 +384,92 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
     assert.ok(research.definition.toLowerCase().includes("game") || research.definition.toLowerCase().includes("graphics") || research.definition.toLowerCase().includes("interactive"));
     assert.ok(research.coreMechanisms.some((m) => m.name.toLowerCase().includes("game loop") || m.name.toLowerCase().includes("rendering") || m.name.toLowerCase().includes("netcode")));
   });
+
+  // TEST 23: Human-Centred Conversational Intelligence vs Unnecessary File Generation
+  it("ACCEPTANCE TEST 11: Normal questions & inquiries must NOT trigger file generation", () => {
+    const questions = [
+      "What is India?",
+      "Tell me about Amazon.",
+      "Explain Transformer Architecture.",
+      "How does Artificial Intelligence work?",
+      "What are the advantages of DBMS?",
+      "What are its applications?",
+      "Why is the sky blue?",
+      "Can you explain neural networks?",
+      "Research quantum computing",
+    ];
+
+    for (const q of questions) {
+      const intent = detectDocumentIntent(q, { inChatConversation: true });
+      assert.equal(
+        intent.isDocumentRequest,
+        false,
+        `Expected "${q}" to be answered in chat without generating a file, but isDocumentRequest was true`
+      );
+    }
+  });
+
+  // TEST 24: Single topics in chat must NOT generate files
+  it("ACCEPTANCE TEST 12: Single topic keywords in chat ('amazon', 'Games') must NOT trigger file generation", () => {
+    const chatTopics = ["amazon", "Games", "India", "Artificial Intelligence", "DBMS"];
+    for (const t of chatTopics) {
+      const intent = detectDocumentIntent(t, { inChatConversation: true });
+      assert.equal(
+        intent.isDocumentRequest,
+        false,
+        `Expected topic "${t}" in chat to be answered conversationally, but isDocumentRequest was true`
+      );
+    }
+  });
+
+  // TEST 25: Explicit file requests MUST trigger genuine file generation
+  it("ACCEPTANCE TEST 13: Explicit file requests trigger actual file generation with correct formats", () => {
+    const fileRequests: Array<{ prompt: string; expectedFormat: string }> = [
+      { prompt: "Create a PDF about India.", expectedFormat: "pdf" },
+      { prompt: "Make a PPT about Artificial Intelligence.", expectedFormat: "pptx" },
+      { prompt: "Prepare an assignment in DOCX format.", expectedFormat: "docx" },
+      { prompt: "Generate an Excel sheet.", expectedFormat: "xlsx" },
+      { prompt: "Give me a downloadable Python file.", expectedFormat: "py" },
+      { prompt: "Write a Python script and save it as a file.", expectedFormat: "py" },
+    ];
+
+    for (const req of fileRequests) {
+      const intent = detectDocumentIntent(req.prompt, { inChatConversation: true });
+      assert.equal(
+        intent.isDocumentRequest,
+        true,
+        `Expected "${req.prompt}" to trigger file generation, but isDocumentRequest was false`
+      );
+      assert.equal(
+        intent.format,
+        req.expectedFormat,
+        `Expected format "${req.expectedFormat}" for "${req.prompt}", but got "${intent.format}"`
+      );
+    }
+  });
+
+  // TEST 26: Multi-turn Follow-up Context Resolution
+  it("ACCEPTANCE TEST 14: Follow-up 'Now create a PPT about it.' resolves topic from preceding conversation", () => {
+    const conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [
+      { role: "user", content: "Explain Transformer Architecture." },
+      { role: "assistant", content: "Transformer Architecture is a deep learning model based on self-attention mechanisms..." },
+      { role: "user", content: "What are its applications?" },
+      { role: "assistant", content: "Key applications include large language models, machine translation, and computer vision." },
+    ];
+
+    const followUpPrompt = "Now create a PPT about it.";
+    const intent = detectDocumentIntent(followUpPrompt, {
+      history: conversationHistory,
+      inChatConversation: true,
+    });
+
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pptx");
+    assert.equal(intent.archetype, "presentation");
+    assert.ok(
+      intent.topic.toLowerCase().includes("transformer") || intent.topic.toLowerCase().includes("architecture"),
+      `Expected resolved topic to reference Transformer Architecture, but got: "${intent.topic}"`
+    );
+  });
 });
 

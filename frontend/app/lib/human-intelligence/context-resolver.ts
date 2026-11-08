@@ -11,6 +11,8 @@ import {
 const PRONOUN_REFERENCE_PATTERNS = [
   /^(fix|debug|solve|change|update|improve|explain|check|modify|run)\s+(this|that|it)\b/i,
   /\b(this|that|it|the same|same problem|previous one|last one)\b/i,
+  /\b(about it|of this|on it|about this|for it|its|about that|of it)\b/i,
+  /\b(create|make|generate|build|prepare)\s+(a\s+)?(ppt|presentation|pdf|document|docx|file|sheet)\s+(about|on|for|of)\s+(it|this|that)\b/i,
   /^(why did it fail|why isn't it working|still not working|still broken|same issue|failed again)\b/i,
   /^(continue|proceed|keep going|what next|next step|more|part 2)\b/i,
   /^(make it better|make it shorter|make it simpler|elaborate|add examples|give examples)\b/i,
@@ -144,7 +146,15 @@ export class ContextResolver {
       // Check topic keywords
       if (!referencedSubject && msg.role === "user" && msg.content !== cleanPrompt) {
         const firstLine = msg.content.split("\n")[0].trim();
-        if (firstLine.length > 5 && firstLine.length < 120) {
+        const cleanSubj = firstLine
+          .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
+          .replace(/\b(what (is|are)|tell me about|explain|describe|how does|how do|research|advantages of|applications of|can you explain)\b/gi, "")
+          .replace(/[?!,;:"']/g, " ")
+          .replace(/\.(?!\w)/g, "")
+          .trim();
+        if (cleanSubj.length > 2 && cleanSubj.length < 120 && !/^(it|this|that|same)$/i.test(cleanSubj)) {
+          referencedSubject = cleanSubj;
+        } else if (firstLine.length > 3 && firstLine.length < 120) {
           referencedSubject = firstLine;
         }
       }
@@ -160,17 +170,20 @@ export class ContextResolver {
         resolvedQuery = `${cleanPrompt} (Reference: Regarding previous discussion on "${referencedSubject}")`;
       }
     } else if (/^(fix\s+(this|it|that)|why did it fail)/i.test(cleanPrompt)) {
-      if (referencedError) {
-        resolvedQuery = `${cleanPrompt} (Reference: Resolve error "${referencedError}")`;
-      } else if (referencedCodeSnippet) {
-        resolvedQuery = `${cleanPrompt} (Reference: In the previously shared code snippet)`;
-      } else if (referencedSubject) {
-        resolvedQuery = `${cleanPrompt} (Reference: For "${referencedSubject}")`;
-      }
+      const details = [
+        referencedSubject ? `Regarding "${referencedSubject}"` : "",
+        referencedError ? `Resolve error "${referencedError}"` : "",
+        referencedCodeSnippet ? "In the previously shared code snippet" : "",
+      ].filter(Boolean).join("; ");
+      resolvedQuery = `${cleanPrompt} (Reference: ${details || "In the previously shared context"})`;
     } else if (/^(continue|proceed|keep going|next step)/i.test(cleanPrompt)) {
       if (referencedSubject) {
         resolvedQuery = `${cleanPrompt} (Reference: Continuing implementation/discussion of "${referencedSubject}")`;
       }
+    } else if (referencedSubject && /\b(about|on|for|of)\s+(it|this|that)\b/i.test(cleanPrompt)) {
+      resolvedQuery = cleanPrompt.replace(/\b(about|on|for|of)\s+(it|this|that)\b/gi, `$1 ${referencedSubject}`);
+    } else if (referencedSubject && /\bits\b/i.test(cleanPrompt)) {
+      resolvedQuery = cleanPrompt.replace(/\bits\b/gi, `${referencedSubject}'s`);
     }
 
     return {

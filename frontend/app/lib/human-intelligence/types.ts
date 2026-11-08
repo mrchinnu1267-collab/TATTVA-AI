@@ -58,6 +58,7 @@ export interface HumanContextAnalysis {
   referenceResolution: ContextualReferenceResolution;
   communicationPreference: CommunicationPreference;
   activeProjectTopic?: string;
+  technologies?: string[];
   suggestedProactiveStep?: string;
 }
 

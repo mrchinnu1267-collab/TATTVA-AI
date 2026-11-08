@@ -68,6 +68,8 @@ export interface IntentContextOptions {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   preferences?: Record<string, any>;
   hasAttachments?: boolean;
+  inChatConversation?: boolean;
+  forceDocument?: boolean;
 }
 
 /**
@@ -85,45 +87,72 @@ export function detectDocumentIntent(
   const hasHindi = /[\u0900-\u097F]/.test(clean);
   const detectedLanguage = hasTelugu ? "te" : hasHindi ? "hi" : "en";
 
-  // 2. Action keywords and indicators
-  const hasActionVerb =
-    /\b(create|generate|make|build|prepare|design|draft|write|export|produce|give me|i need|can you (make|create|generate)|develop)\b/i.test(lower) ||
+  // 2. Comprehensive check for questions, explanations, inquiries, and research queries
+  // (e.g., "What is India?", "Tell me about Amazon.", "Explain Transformer Architecture.",
+  // "How does Artificial Intelligence work?", "What are the advantages of DBMS?", "What are its applications?", "Research quantum computing")
+  const isQuestionOrInquiry =
+    /\b(what (is|are|was|were|can|do|does|would|will)|who (is|are|was|were)|how (is|are|was|were|do|does|to|can|will)|why (is|are|was|were|do|does|did|can)|where (is|are|was|were)|when (is|are|was|were)|which (is|are|was|were))\b/i.test(lower) ||
+    /\b(tell me (about|on|more)|give me (the )?(information|details|info) (about|on)|explain|describe|discuss|clarify|elaborate|walk me through|guide me through|teach me)\b/i.test(lower) ||
+    /\b(advantages of|disadvantages of|benefits of|features of|applications of|use cases of|pros and cons of|difference between|compare|differentiate|overview of|summary of)\b/i.test(lower) ||
+    /\b(can you (explain|tell me|describe|walk me through|clarify)|could you (explain|tell me|describe)|help me understand)\b/i.test(lower) ||
+    /\b(research|deep research|investigate|search for|look up|find information about)\b/i.test(lower) ||
+    (clean.endsWith("?") && !/\b(create|generate|make|build|prepare|export|download)\b/i.test(lower));
+
+  // 3. Action keywords for explicit file creation
+  const hasFileActionVerb =
+    /\b(create|generate|make|build|prepare|design|draft|write|export|produce|give me|download|save|send me|deliver)\b/i.test(lower) ||
     /\b(chey|cheyyi|cheyandi|cheyali|tayaru|kavali|ivvu)\b/i.test(lower) ||
     /చేయి|చేయ్|చెయ్యి|చేయండి|తయారు|కావాలి|ఇవ్వు/i.test(clean) ||
     /\b(banao|banaiye|banado|chahiye|dijiye|karo|bana)\b/i.test(lower) ||
     /बनाओ|बनाइए|बना दो|चाहिए|दीजिए|तैयार करो|बना/i.test(clean);
 
-  // 3. Explicit Document & File Terms
-  const isPptTerm =
-    /\b(ppt|pptx|powerpoint|presentation|slides?|slide deck|pitch deck|deck|keynote|seminar slides)\b/i.test(lower) ||
-    /పిపిటి|ప్రెజెంటేషన్|స్లైడ్స్/i.test(clean) ||
-    /पीपीटी|प्रेजेंटेशन|स्लाइड्स/i.test(clean);
+  // 4. Explicit File Format Recognition
+  const isPptExplicit =
+    (hasFileActionVerb && /\b(ppt|pptx|powerpoint|presentation|slide deck|slides?|pitch deck|deck|keynote)\b/i.test(lower)) ||
+    /\b(as a (ppt|pptx|powerpoint|presentation|slide deck)|in (ppt|pptx|powerpoint) format)\b/i.test(lower) ||
+    /\b\d+\s*[- ]*(slide|slides|sld)\b/i.test(lower) ||
+    /పిపిటి|ప్రెజెంటేషన్/i.test(clean) ||
+    /पीपीटी|प्रेजेंटेशन/i.test(clean);
 
-  const isExcelTerm =
-    /\b(excel|xlsx|xls|spreadsheet|workbook|sheet|worksheet|data table|financial report|budget sheet|budget|p&l|balance sheet|tracker|inventory|marks analysis|marks sheet|ledger)\b/i.test(lower) ||
+  const isExcelExplicit =
+    (hasFileActionVerb && /\b(excel|xlsx|xls|spreadsheet|workbook|sheet|worksheet|csv|marks sheet|ledger|financial report|budget sheet)\b/i.test(lower)) ||
+    /\b(as (an? )?(excel|xlsx|spreadsheet|workbook|csv)|in (excel|xlsx|csv) format)\b/i.test(lower) ||
+    /\b(excel sheet|spreadsheet)\s+(for|about|on|of)\b/i.test(lower) ||
     /ఎక్సెల్|స్ప్రెడ్‌షీట్/i.test(clean) ||
     /एक्सेल|स्प्रेडशीट/i.test(clean);
 
-  const isDocxTerm =
-    /\b(word doc|word document|docx|doc|assignment|project report|essay|thesis|dissertation|research paper|case study|whitepaper|handbook|manual)\b/i.test(lower) ||
-    /వర్డ్|అసైన్‌మెంట్/i.test(clean) ||
-    /वर्ड|असाइनमेंट/i.test(clean);
+  const isPdfExplicit =
+    (hasFileActionVerb && /\b(pdf|pdf document|pdf report|pdf file)\b/i.test(lower)) ||
+    /\b(as a pdf|in pdf format|as pdf)\b/i.test(lower) ||
+    /\bpdf\s+(on|about|for|regarding)\b/i.test(lower);
 
-  const isPdfTerm = /\b(pdf|pdf document|pdf report|pdf file|generate a pdf|as a pdf)\b/i.test(lower);
-  const isCsvTerm = /\b(csv|csv file|comma separated)\b/i.test(lower);
-  const isJsonTerm = /\b(json|json file|json data|\.json)\b/i.test(lower);
-  const isXmlTerm = /\b(xml|xml file|xml document|\.xml)\b/i.test(lower);
-  const isMarkdownTerm = /\b(markdown|markdown file|\.md|md file)\b/i.test(lower);
-  const isTxtTerm = /\b(text file|txt file|\.txt|plain text file)\b/i.test(lower);
+  const isDocxExplicit =
+    (hasFileActionVerb && /\b(word doc|word document|docx|doc file|\.docx)\b/i.test(lower)) ||
+    /\b(in docx format|as a docx|as a word doc|as docx)\b/i.test(lower) ||
+    (hasFileActionVerb && /\b(assignment|project report|research paper)\b/i.test(lower) && /\b(in docx|docx|format|file|as a document|download)\b/i.test(lower)) ||
+    /\b(prepare|create|make|generate)\s+an?\s+assignment\b/i.test(lower);
 
-  const isCodeTerm =
-    /\b(python (file|script|program)|java (file|program)|typescript (file|code)|javascript (file|code)|cpp (file|code)|c\+\+ (file|code)|c (file|program)|sql (file|script)|html (file|page)|css (file|stylesheet)|\.py|\.ts|\.js|\.java|\.cpp|\.c\b|\.sql|\.html|\.css)\b/i.test(lower) ||
-    (/\b(python|java|javascript|typescript|c\+\+|cpp|html|css|sql|script|program|code)\b/i.test(lower) && /\b(file|as a file|give me the file|save as|save it as|download|code file)\b/i.test(lower));
+  const isDataFileExplicit =
+    (hasFileActionVerb && /\b(json file|xml file|text file|txt file|markdown file|\.json|\.xml|\.txt|\.md)\b/i.test(lower)) ||
+    /\b(as a (json|xml|text|txt|markdown) file|in (json|xml|txt) format)\b/i.test(lower);
 
-  const hasExplicitFileRequest =
-    /\b(as a file|give me the file|save as a file|save it as a file|downloadable file|create a .* file|generate a .* file|write a .* file|make a .* file|in a file|download the file)\b/i.test(lower);
+  const isCodeFileExplicit =
+    (hasFileActionVerb && /\b(downloadable (python|java|c|cpp|js|ts|sql|code) file|(python|java|c|cpp|js|ts|sql) file|script file)\b/i.test(lower)) ||
+    /\b(save as a file|save it as a file|save to file|as a code file|as a \.py file|as a \.js file|give me a downloadable .* file)\b/i.test(lower);
 
-  // 4. Slide Count Extraction
+  const hasGenericFileDirective =
+    /\b(as a file|save as a file|save it as a file|give me the file|downloadable file|create a .* file|generate a .* file|write a .* file|make a .* file|in a file|download the file)\b/i.test(lower);
+
+  const isExplicitFileRequest =
+    isPptExplicit ||
+    isExcelExplicit ||
+    isPdfExplicit ||
+    isDocxExplicit ||
+    isDataFileExplicit ||
+    isCodeFileExplicit ||
+    hasGenericFileDirective;
+
+  // 5. Slide Count Extraction
   let requestedSlideCount: number | undefined = undefined;
   const slideCountMatch = lower.match(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/i);
   if (slideCountMatch && slideCountMatch[1]) {
@@ -133,7 +162,7 @@ export function detectDocumentIntent(
     }
   }
 
-  // 5. Analyze Previous Conversation Context
+  // 6. Analyze Previous Conversation Context
   let contextFavorsPpt = false;
   let contextFavorsAcademic = false;
   let contextFavorsSpreadsheet = false;
@@ -151,47 +180,32 @@ export function detectDocumentIntent(
     }
   }
 
-  // 6. Check if query is an information / question query vs a file generation task
-  const isAnyFileTerm =
-    isPptTerm ||
-    isExcelTerm ||
-    isDocxTerm ||
-    isPdfTerm ||
-    isCsvTerm ||
-    isJsonTerm ||
-    isXmlTerm ||
-    isMarkdownTerm ||
-    isTxtTerm ||
-    isCodeTerm ||
-    hasExplicitFileRequest;
-
-  // Pure informational questions: "Give me the information about Operating Systems", "What is", "Tell me about"
-  const isPureInfoQuery =
-    /\b(give me (the )?information (about|on)|tell me (about|on)|what is|who is|explain|describe|how does .* work|how do i)\b/i.test(lower) &&
-    !isAnyFileTerm;
-
   const words = clean.split(/\s+/).filter(Boolean);
-  const isShortTopic = words.length >= 1 && words.length <= 6 && !hasActionVerb && !isAnyFileTerm;
+  const isShortTopic = words.length >= 1 && words.length <= 6 && !hasFileActionVerb && !isExplicitFileRequest;
 
-  // Determine isDocumentRequest and Confidence
+  // 7. Determine isDocumentRequest and Confidence
   let isDocumentRequest = false;
   let confidence = 0.5;
 
-  if (isPureInfoQuery) {
-    // Explicitly a chat question, NOT a document generation task!
-    isDocumentRequest = false;
-    confidence = 0.95;
-  } else if (hasActionVerb && isAnyFileTerm) {
+  if (options?.forceDocument) {
+    // Explicitly requested document generation
+    isDocumentRequest = true;
+    confidence = 1.0;
+  } else if (isExplicitFileRequest) {
+    // Explicit user request for a downloadable file (PDF, PPT, DOCX, Excel, code file, etc.)
     isDocumentRequest = true;
     confidence = 0.98;
-  } else if (isAnyFileTerm) {
-    isDocumentRequest = true;
+  } else if (isQuestionOrInquiry) {
+    // Informational questions, explanations, or research queries are strictly answered in chat!
+    isDocumentRequest = false;
     confidence = 0.95;
-  } else if (isShortTopic && (contextFavorsPpt || contextFavorsAcademic || contextFavorsSpreadsheet)) {
-    isDocumentRequest = true;
-    confidence = 0.85;
-  } else if (isShortTopic && words.length >= 1) {
-    // Pure topic entered (e.g. "Artificial Intelligence")
+  } else if (options?.inChatConversation) {
+    // Inside a chat conversation, casual single topics (e.g. "amazon", "Games", "India")
+    // must be treated conversationally in chat, NOT as file generation requests!
+    isDocumentRequest = false;
+    confidence = 0.90;
+  } else if (isShortTopic && words.length >= 1 && !options?.inChatConversation) {
+    // Fallback for standalone document engine direct invocations without chat context
     isDocumentRequest = true;
     confidence = 0.75;
   }
@@ -206,46 +220,43 @@ export function detectDocumentIntent(
     confidence = 0.2;
   }
 
-  // 7. Resolve Archetype & Format
+  // 8. Resolve Archetype & Format
   let archetype: DocumentArchetype = "research_report";
   let format: DocumentFormat = "docx";
 
-  if (isPptTerm || requestedSlideCount || contextFavorsPpt) {
+  if (isPptExplicit || requestedSlideCount || (isShortTopic && contextFavorsPpt && !options?.inChatConversation)) {
     archetype = "presentation";
     format = "pptx";
-  } else if (isExcelTerm) {
+  } else if (isExcelExplicit || (isShortTopic && contextFavorsSpreadsheet && !options?.inChatConversation)) {
     archetype = "spreadsheet";
-    format = "xlsx";
-  } else if (isCsvTerm) {
-    archetype = "spreadsheet";
-    format = "csv";
-  } else if (isJsonTerm) {
+    format = lower.includes("csv") ? "csv" : "xlsx";
+  } else if (isPdfExplicit) {
+    archetype = /\b(assignment|homework)\b/i.test(lower) ? "assignment" : "research_report";
+    format = "pdf";
+  } else if (isDocxExplicit) {
+    archetype = /\b(assignment|homework)\b/i.test(lower) ? "assignment" : "research_report";
+    format = "docx";
+  } else if (isDataFileExplicit) {
     archetype = "data_file";
-    format = "json";
-  } else if (isXmlTerm) {
-    archetype = "data_file";
-    format = "xml";
-  } else if (isMarkdownTerm) {
-    archetype = "general_document";
-    format = "md";
-  } else if (isTxtTerm) {
-    archetype = "general_document";
-    format = "txt";
-  } else if (isCodeTerm || lower.includes("program") || lower.includes("script") || lower.includes("code")) {
+    format = lower.includes("xml") ? "xml" : "json";
+  } else if (isCodeFileExplicit || lower.includes("program") || lower.includes("script") || lower.includes("code")) {
     archetype = "source_code";
     if (lower.includes(".py") || lower.includes("python")) format = "py";
     else if (lower.includes(".ts") || lower.includes("typescript")) format = "ts";
-    else if (lower.includes(".java") || lower.includes("java ")) format = "java";
+    else if (lower.includes(".java") || lower.includes("java")) format = "java";
     else if (lower.includes(".cpp") || lower.includes("c++") || lower.includes("cpp")) format = "cpp";
     else if (lower.includes(".c\b") || lower.includes(" c ") || lower.includes("c program")) format = "c";
     else if (lower.includes(".sql") || lower.includes("sql")) format = "sql";
     else if (lower.includes(".html") || lower.includes("html")) format = "html";
     else if (lower.includes(".css") || lower.includes("css")) format = "css";
     else format = "js";
-  } else if (isPdfTerm) {
-    archetype = /\b(assignment|homework)\b/i.test(lower) ? "assignment" : "research_report";
-    format = "pdf";
-  } else if (/\b(assignment|homework|coursework)\b/i.test(lower) || contextFavorsAcademic) {
+  } else if (lower.includes(".txt") || lower.includes("text file")) {
+    archetype = "general_document";
+    format = "txt";
+  } else if (lower.includes(".md") || lower.includes("markdown")) {
+    archetype = "general_document";
+    format = "md";
+  } else if (/\b(assignment|homework|coursework)\b/i.test(lower) || (contextFavorsAcademic && !options?.inChatConversation)) {
     archetype = "assignment";
     format = "docx";
   } else if (/\b(notes|study notes|revision|cheat sheet)\b/i.test(lower)) {
@@ -256,7 +267,7 @@ export function detectDocumentIntent(
     format = "docx";
   }
 
-  // 8. Resolve Audience
+  // 9. Resolve Audience
   let audience: DocumentAudience = "general";
   if (archetype === "assignment" || archetype === "study_notes" || /\b(student|exam|university|college|academic)\b/i.test(lower)) {
     audience = "academic";
@@ -268,14 +279,14 @@ export function detectDocumentIntent(
     audience = "business";
   }
 
-  // 9. Clean Topic Extraction
+  // 10. Clean Topic Extraction
   let topic = clean;
   topic = topic
     .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
     .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
     .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
-    .replace(/\b(please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
+    .replace(/\b(now|then|also|so|please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce)\b/gi, "")
     .replace(/\b(a|an|the)\s+(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/gi, "")
     .replace(/\b(a|an|the)\s+(word doc|word document|docx|doc|document|assignment|project report|research paper|notes)\b/gi, "")
@@ -291,14 +302,43 @@ export function detectDocumentIntent(
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
-  if (!topic || topic.length < 2) {
+  // If topic is empty, a pronoun ("it", "this", "that", "same"), or too short:
+  // inspect history for the substantive topic!
+  const isPronounTopic =
+    !topic ||
+    /^(it|this|that|above|same|the same|them|its|now|so|topic)$/i.test(topic) ||
+    /^(now\s+)?(it|this|that)$/i.test(topic) ||
+    /\b(about|on|for|of)\s+(it|this|that)\b/i.test(clean) ||
+    topic.length < 2;
+
+  if (isPronounTopic && options?.history && options.history.length > 0) {
+    for (let i = options.history.length - 1; i >= 0; i--) {
+      const msg = options.history[i];
+      if (msg.role === "user") {
+        const cleanedPrev = msg.content
+          .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
+          .replace(/\b(what (is|are|was|were)|tell me about|explain|describe|how does|how do|research|advantages of|applications of|benefits of|features of|use cases of|pros and cons of|can you explain|create|generate|make|prepare)\b/gi, "")
+          .replace(/\b(a|an|the|about|on|for|its|it|this|that|now|more|so|also|please)\b/gi, " ")
+          .replace(/[?!.,;:"']/g, " ")
+          .trim();
+        // Skip sub-aspect words or pronouns, looking for substantive subject
+        const isSubAspectOrPronoun = /^(it|this|that|same|now|applications?|use\s*cases?|advantages?|disadvantages?|benefits?|features?|details?|examples?|more|help|overview|summary)$/i.test(cleanedPrev);
+        if (cleanedPrev.length >= 3 && !isSubAspectOrPronoun) {
+          topic = cleanedPrev;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!topic || topic.length < 2 || /^(it|this|that|now\s+it)$/i.test(topic)) {
     topic = clean
       .replace(/\[\s*Mode:[^\]]+\]:?/gi, "")
-      .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment)\b/gi, "")
+      .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment|now|about|it|this|that)\b/gi, "")
       .trim();
   }
 
-  if (!topic) {
+  if (!topic || topic.length < 2 || /^(it|this|that)$/i.test(topic)) {
     topic = archetype === "presentation" ? "Artificial Intelligence & Future Innovations" : "Comprehensive Technical Analysis";
   }
 

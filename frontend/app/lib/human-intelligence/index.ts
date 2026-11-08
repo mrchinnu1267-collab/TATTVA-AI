@@ -66,6 +66,7 @@ export class HumanIntelligenceEngine {
       referenceResolution,
       communicationPreference,
       activeProjectTopic: projectContext.activeTask,
+      technologies: projectContext.technologies,
     };
   }
 
@@ -76,6 +77,7 @@ export class HumanIntelligenceEngine {
     const guidance = AdaptiveCommunicationEngine.buildHumanGuidancePrompt(analysis);
     const projectSnippet = AdaptiveMemoryManager.formatProjectContextForPrompt({
       activeTask: analysis.activeProjectTopic,
+      technologies: analysis.technologies,
     });
 
     return `${guidance}\n${projectSnippet}`.trim();

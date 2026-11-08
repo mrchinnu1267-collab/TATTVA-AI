@@ -214,12 +214,13 @@ export class MasterAIOrchestrator {
     }
 
     // 3.5 PIPELINE ROUTING: RESEARCH-TO-FILE GENERATION ENGINE
-    const docIntent = detectDocumentIntent(cleanUserPrompt, {
+    const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
       history: messages.map((m) => ({ role: m.role, content: m.content })),
       hasAttachments: hasAttachedFile,
+      inChatConversation: true,
     });
 
-    if (effectiveIntent === "document_generation" || docIntent.isDocumentRequest) {
+    if (docIntent.isDocumentRequest) {
       if (docIntent.needsClarification) {
         return {
           role: "assistant",

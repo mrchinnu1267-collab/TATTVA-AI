@@ -46,7 +46,8 @@ export class AdaptiveMemoryManager {
 
     // Check project names or active features
     let activeTask: string | undefined;
-    const taskMatch = prompt.match(/(?:working on|building|creating|developing|implementing)\s+([^.,\n]+)/i);
+    const taskMatch = prompt.match(/(?:working on|building|creating|developing|implementing)\s+([^.,\n]+)/i) ||
+      combined.match(/(?:working on|building|creating|developing|implementing)\s+([^.,\n]+)/i);
     if (taskMatch) {
       activeTask = taskMatch[1].trim();
     }
