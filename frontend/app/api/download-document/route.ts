@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const fileId = searchParams.get("fileId");
     const filename = searchParams.get("name") || "document.bin";
+    const isInline = searchParams.get("inline") === "true";
 
     if (fileId) {
       // Look for the file in the local vault directory
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
                 status: 200,
                 headers: {
                   "Content-Type": mimeType,
-                  "Content-Disposition": `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
+                  "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
                   "Content-Length": buffer.length.toString(),
                   "Cache-Control": "private, max-age=3600",
                 },
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing file data." }, { status: 400 });
     }
 
-    const { dataUri, filename = "document.bin", mimeType = "application/octet-stream" } = body;
+    const { dataUri, filename = "document.bin", mimeType = "application/octet-stream", inline = false } = body;
     const commaIndex = dataUri.indexOf(",");
     const base64Data = commaIndex > 0 ? dataUri.slice(commaIndex + 1) : dataUri;
     const buffer = Buffer.from(base64Data, "base64");
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
       status: 200,
       headers: {
         "Content-Type": mimeType,
-        "Content-Disposition": `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
         "Content-Length": buffer.length.toString(),
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
