@@ -6,7 +6,7 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
-import { DocumentGenerationIntent } from "./intent";
+import { DocumentGenerationIntent, stripTechnicalModePrefixes } from "./intent";
 import { buildDocument, BuildDocumentOptions } from "./index";
 import { inspectAndReadDocument } from "./reader";
 import { conductDomainResearch } from "./researcher";
@@ -67,18 +67,16 @@ export async function synthesizeDocument(
   const generationId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   // Clean topic from technical flags, modes, or leading/trailing underscores
-  const cleanTitle = (topic || "Document")
-    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
-    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
+  const cleanTitle = stripTechnicalModePrefixes(topic || "Document")
     .replace(/[_\s]+/g, " ")
     .trim();
 
-  const safeTitle = (cleanTitle.length >= 2 ? cleanTitle : topic).slice(0, 80);
-  const rawBasename = safeTitle
+  const safeTitle = (cleanTitle.length >= 2 ? cleanTitle : "Tattva Document").slice(0, 80);
+  const rawBasename = stripTechnicalModePrefixes(safeTitle)
     .toLowerCase()
     .replace(/^[^a-z0-9]+/, "")
     .replace(/[^a-z0-9]+/g, "_")
-    .replace(/_+$/, "")
+    .replace(/^_+|_+$/g, "")
     .slice(0, 40);
   const fileBasename = rawBasename || "tattva_document";
   const filename = `${fileBasename}.${format}`;

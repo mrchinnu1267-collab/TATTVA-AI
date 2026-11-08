@@ -53,6 +53,19 @@ export interface DocumentGenerationIntent {
  * - "Generate a Java program as a .java file" -> JAVA, code
  * - "Create a project report using my uploaded PDF" -> DOCX/PDF, useUploadedAttachment: true
  */
+export function stripTechnicalModePrefixes(str: string): string {
+  if (!str) return "";
+  let result = str;
+  // 1. Strip bracketed mode headers: [Mode: ...], [mode: ...], etc.
+  result = result.replace(/\[\s*mode\s*:[^\]]*\]:?/gi, " ");
+  result = result.replace(/\[\s*[^\]]*(?:web search|fact retrieval|deep research|document analysis|code architecture)[^\]]*\]:?/gi, " ");
+  // 2. Strip repeated technical keywords and underscores
+  result = result.replace(/[-_]*(?:mode|web_search|fact_retrieval|deep_research|document_analysis|code_architecture|web search|fact retrieval)[-_]*/gi, " ");
+  // 3. Strip leading/trailing underscores, hyphens, colons, spaces
+  result = result.replace(/^[-_:\s]+/, "").replace(/[-_:\s]+$/, "");
+  return result.trim();
+}
+
 export function detectDocumentGenerationIntent(query: string, hasAttachments = false): DocumentGenerationIntent {
   if (!query || typeof query !== "string") {
     return {
@@ -67,10 +80,7 @@ export function detectDocumentGenerationIntent(query: string, hasAttachments = f
   }
 
   // Strip any leading mode flags (e.g. "[Mode: Web Search & Fact Retrieval]: ...")
-  const clean = query
-    .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
-    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
-    .trim();
+  const clean = stripTechnicalModePrefixes(query);
   const lower = clean.toLowerCase();
 
   // 1. Language Detection
@@ -246,10 +256,8 @@ export function detectDocumentGenerationIntent(query: string, hasAttachments = f
   }
 
   // 13. Cleanly Extract the Topic / Mind of the User
-  let topic = clean;
+  let topic = stripTechnicalModePrefixes(clean);
   topic = topic
-    .replace(/\[\s*Mode:\s*[^\]]+\]:?/gi, "")
-    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
     .replace(/\b(using\s+(my|the)?\s*(uploaded\s+)?(pdf|document|file))\b/gi, "")
     .replace(/\b(please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
@@ -267,10 +275,10 @@ export function detectDocumentGenerationIntent(query: string, hasAttachments = f
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
+  topic = stripTechnicalModePrefixes(topic);
+
   if (!topic || topic.length < 2) {
-    topic = clean
-      .replace(/\[\s*Mode:\s*[^\]]+\]:?/gi, "")
-      .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
+    topic = stripTechnicalModePrefixes(clean)
       .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment|chey|banao)\b/gi, "")
       .trim();
   }

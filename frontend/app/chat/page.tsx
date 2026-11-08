@@ -610,6 +610,12 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
       lang = rawTag.split(".").pop() || "txt";
     }
 
+    if (filename) {
+      filename = filename
+        .replace(/[-_]*(?:mode|web_search|fact_retrieval|deep_research|document_analysis|code_architecture)[-_]*/gi, "")
+        .replace(/^[-_]+/, "");
+    }
+
     const cleanCode = (match[2] || "").trimEnd();
     parts.push({ type: "code", lang: lang || "file", filename, code: cleanCode });
     lastIndex = match.index + match[0].length;

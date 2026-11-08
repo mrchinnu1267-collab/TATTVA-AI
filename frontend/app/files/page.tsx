@@ -1,7 +1,5 @@
-"use client";
-
-import MediaDocumentPage from "../media/page";
+import { redirect } from "next/navigation";
 
 export default function FilesAliasPage() {
-  return <MediaDocumentPage />;
+  redirect("/chat");
 }

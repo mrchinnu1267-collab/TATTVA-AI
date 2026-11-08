@@ -9,7 +9,6 @@ const PUBLIC_ROUTES = [
   { path: "/chat", changefreq: "daily", priority: "0.9", lastmod: "2026-11-07" },
   { path: "/image-studio", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
   { path: "/maps", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
-  { path: "/media", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
   { path: "/download", changefreq: "monthly", priority: "0.8", lastmod: "2026-11-07" },
 ];
 

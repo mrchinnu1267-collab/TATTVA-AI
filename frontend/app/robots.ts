@@ -11,7 +11,6 @@ export default function robots(): MetadataRoute.Robots {
         "/chat",
         "/image-studio",
         "/maps",
-        "/media",
         "/download",
         "/_next/static/",
         "/_next/image/",

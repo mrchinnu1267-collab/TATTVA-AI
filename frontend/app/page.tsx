@@ -131,15 +131,6 @@ export default function Home() {
         </article>
 
         <article>
-          <h3>AI Media &amp; Document Generation</h3>
-          <p>
-            Create formatted PDF reports, Word documents, PowerPoint presentations, and Excel spreadsheets
-            directly with AI assistance.
-          </p>
-          <Link href="/media">Open AI Document Studio</Link>
-        </article>
-
-        <article>
           <h3>Download TATTVA AI Mobile App</h3>
           <p>
             Install the official Android application package (APK) for on-the-go smart document creation, mapping,

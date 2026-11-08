@@ -6,8 +6,26 @@
 
 import { spawnSync } from "child_process";
 import path from "path";
+import fs from "fs";
 
-const PYTHON_ENGINE_SCRIPT = path.resolve(__dirname, "python_office_engine.py");
+export function getPythonEngineScript(): string {
+  const candidates = [
+    path.resolve(process.cwd(), "app/lib/document-engine/python_office_engine.py"),
+    path.resolve(process.cwd(), "frontend/app/lib/document-engine/python_office_engine.py"),
+    path.resolve(__dirname, "python_office_engine.py"),
+    path.resolve(__dirname, "../lib/document-engine/python_office_engine.py"),
+    path.resolve(__dirname, "../../lib/document-engine/python_office_engine.py"),
+    path.resolve(__dirname, "../../../app/lib/document-engine/python_office_engine.py"),
+  ];
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(/*turbopackIgnore: true*/ c)) return c;
+    } catch {
+      // ignore
+    }
+  }
+  return candidates[0];
+}
 
 // Detect python command ("py" on Windows, or "python" / "python3")
 let cachedPythonCmd: string | null = null;
@@ -54,8 +72,9 @@ export function executePythonOffice(action: string, payload: any): PythonOfficeR
   }
 
   try {
+    const pythonScript = getPythonEngineScript();
     const inputJson = JSON.stringify({ action, payload });
-    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [PYTHON_ENGINE_SCRIPT], {
+    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [pythonScript], {
       input: inputJson,
       encoding: "utf8",
       maxBuffer: 50 * 1024 * 1024, // 50MB
@@ -96,11 +115,12 @@ export function validatePptxWithPython(buffer: Buffer): { valid: boolean; slideC
   if (!pyCmd) return { valid: true }; // Skip if Python not installed
 
   try {
+    const pythonScript = getPythonEngineScript();
     const inputJson = JSON.stringify({
       action: "validate_pptx",
       payload: { base64: buffer.toString("base64") },
     });
-    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [PYTHON_ENGINE_SCRIPT], {
+    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [pythonScript], {
       input: inputJson,
       encoding: "utf8",
       timeout: 10000,
@@ -124,11 +144,12 @@ export function validateDocxWithPython(buffer: Buffer): { valid: boolean; paragr
   if (!pyCmd) return { valid: true }; // Skip if Python not installed
 
   try {
+    const pythonScript = getPythonEngineScript();
     const inputJson = JSON.stringify({
       action: "validate_docx",
       payload: { base64: buffer.toString("base64") },
     });
-    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [PYTHON_ENGINE_SCRIPT], {
+    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [pythonScript], {
       input: inputJson,
       encoding: "utf8",
       timeout: 10000,
