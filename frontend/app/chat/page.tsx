@@ -229,78 +229,6 @@ function calculateChatWordCount(msgs: ChatMessage[]): number {
   }, 0);
 }
 
-/**
- * Code and Text Snippet Download Helper: downloads code blocks as text/script files
- */
-async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFilename?: string) {
-  const normalized = rawTag.toLowerCase().trim();
-
-  // If content is already a valid data URI or blob URL, trigger download directly
-  if (content.startsWith("data:") || content.startsWith("blob:")) {
-    const deducedMime = content.startsWith("data:")
-      ? content.slice(5, content.indexOf(";")) || "application/octet-stream"
-      : "application/octet-stream";
-    const ext = explicitFilename ? explicitFilename.split(".").pop() || "bin" : normalized || "bin";
-    const finalFilename = explicitFilename || `tattva-${normalized || "file"}-${Date.now()}.${ext}`;
-    triggerDownload(content, finalFilename, deducedMime);
-    return;
-  }
-
-  let ext = "txt";
-  let mimeType = "text/plain";
-  let blobData: BlobPart = content;
-
-  if (normalized.includes("python") || normalized === "py") {
-    ext = "py";
-    mimeType = "text/x-python";
-  } else if (normalized.includes("javascript") || normalized === "js") {
-    ext = "py";
-    mimeType = "text/x-python";
-  } else if (normalized.includes("javascript") || normalized === "js") {
-    ext = "js";
-    mimeType = "text/javascript";
-  } else if (normalized.includes("typescript") || normalized === "ts") {
-    ext = "ts";
-    mimeType = "text/typescript";
-  } else if (normalized.includes("tsx") || normalized.includes("jsx")) {
-    ext = "tsx";
-    mimeType = "text/typescript";
-  } else if (normalized.includes("html")) {
-    ext = "html";
-    mimeType = "text/html";
-  } else if (normalized.includes("css")) {
-    ext = "css";
-    mimeType = "text/css";
-  } else if (normalized.includes("json")) {
-    ext = "json";
-    mimeType = "application/json";
-  } else if (normalized.includes("sql")) {
-    ext = "sql";
-    mimeType = "application/sql";
-  } else if (normalized.includes("svg")) {
-    ext = "svg";
-    mimeType = "image/svg+xml";
-  } else if (normalized.includes("markdown") || normalized === "md") {
-    ext = "md";
-    mimeType = "text/markdown";
-  } else if (normalized.includes("sh") || normalized.includes("bash")) {
-    ext = "sh";
-    mimeType = "application/x-sh";
-  } else if (normalized.includes("yaml") || normalized.includes("yml")) {
-    ext = "yaml";
-    mimeType = "text/yaml";
-  } else {
-    ext = "txt";
-    mimeType = "text/plain";
-  }
-
-  const finalName = explicitFilename ? explicitFilename : `tattva-${normalized || "file"}-${Date.now()}.${ext}`;
-  const blob = new Blob([blobData], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  triggerDownload(url, finalName, mimeType);
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
 function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
   if (!text) return [""];
   const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
@@ -331,8 +259,8 @@ function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
       const linkMatch = token.match(/\[([^\]]+)\]\(([^)]+)\)/);
       if (linkMatch) {
         const url = linkMatch[2];
-        if (url.startsWith("file:")) {
-          nodes.push(<span key={m.index} className="font-semibold">{linkMatch[1]}</span>);
+        if (url.startsWith("file:") || /\.(?:pptx|docx|xlsx|pdf|csv)$/i.test(url)) {
+          // Do not render fake download links or pseudo-files
         } else {
           nodes.push(
             <a
@@ -6874,7 +6802,7 @@ export default function ChatPage() {
                       </span>
                     </div>
                     <p className="text-[12px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
-                      Receive alerts when your requested presentations, documents, spreadsheets, and complex AI answers finish generating.
+                      Receive alerts when complex AI research, mathematical reasoning, and responses finish.
                     </p>
                   </div>
 

@@ -84,3 +84,4 @@ export class AdaptiveMemoryManager {
     return sections.length > 0 ? `\nPROJECT & TECHNICAL CONTEXT:\n${sections.join("\n")}\n` : "";
   }
 }
+

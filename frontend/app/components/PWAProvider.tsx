@@ -19,6 +19,7 @@ export default function PWAProvider({ children }: { children: React.ReactNode })
       navigator.serviceWorker
         .register("/sw.js")
         .then((reg) => {
+          reg.update().catch(() => {});
           console.log("[TATTVA PWA] Service Worker registered with scope:", reg.scope);
         })
         .catch((err) => {

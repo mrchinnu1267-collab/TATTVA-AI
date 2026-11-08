@@ -171,4 +171,32 @@ The correct configuration requires setting DB_HOST to localhost.`;
 
     assert.equal(analysis.goal, "clarification_needed");
   });
+
+  // TEST 8: Strict No-File-Creation Sanitization
+  it("TEST 8: Strict No-File-Creation: Leaked pseudo-file blocks, promises, and download links are completely sanitized", () => {
+    const pseudoFileOutput = `✨ I have prepared your complete presentation on The Evolution of Gaming!
+
+You can easily download the structured presentation file using the link below:
+
+📥 [Download Gaming Evolution Presentation (.pptx)](file:gaming_evolution_presentation.pptx) 🚀
+
+\`\`\`pptx:gaming_evolution_presentation.pptx
+### Slide 1: The Evolution of Gaming
+- From Arcade to Cloud
+- Key milestones in gaming history
+\`\`\``;
+
+    const sanitized = BackgroundExecutor.sanitizeChatResponse(pseudoFileOutput);
+
+    // Verifies download links and pseudo-file blocks are cleanly removed
+    assert.equal(sanitized.cleanContent.includes("download the structured presentation file"), false);
+    assert.equal(sanitized.cleanContent.includes("[Download Gaming Evolution Presentation"), false);
+    assert.equal(sanitized.cleanContent.includes("(file:gaming_evolution_presentation.pptx)"), false);
+    assert.equal(sanitized.cleanContent.includes("```pptx:"), false);
+
+    // Verifies presentation content is preserved directly in markdown
+    assert.equal(sanitized.cleanContent.includes("### Slide 1: The Evolution of Gaming"), true);
+    assert.equal(sanitized.cleanContent.includes("From Arcade to Cloud"), true);
+  });
 });
+

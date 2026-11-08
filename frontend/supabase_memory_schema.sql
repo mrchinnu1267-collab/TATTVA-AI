@@ -85,3 +85,29 @@ CREATE POLICY "Users can manage own feedback" ON public.user_feedback
 ALTER TABLE IF EXISTS public.conversations ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
 ALTER TABLE IF EXISTS public.conversations ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_conversations_pinned ON public.conversations(is_pinned, pinned_at DESC);
+
+-- 7. Conversation Context Summaries Table (Phase 2 & Phase 7)
+CREATE TABLE IF NOT EXISTS public.conversation_summaries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id TEXT NOT NULL,
+    workspace_id UUID,
+    user_id TEXT NOT NULL,
+    summary_text TEXT NOT NULL,
+    key_topics JSONB DEFAULT '[]'::jsonb,
+    active_decisions JSONB DEFAULT '[]'::jsonb,
+    resolved_errors JSONB DEFAULT '[]'::jsonb,
+    turns_summarized INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    UNIQUE(user_id, conversation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_conv_summaries_user_conv ON public.conversation_summaries(user_id, conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conv_summaries_ws ON public.conversation_summaries(workspace_id);
+
+ALTER TABLE public.conversation_summaries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own conversation summaries" ON public.conversation_summaries
+    FOR ALL
+    USING (auth.jwt() ->> 'email' = user_id OR user_id = 'guest_user')
+    WITH CHECK (auth.jwt() ->> 'email' = user_id OR user_id = 'guest_user');

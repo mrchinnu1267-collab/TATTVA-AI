@@ -10,11 +10,16 @@ export type MemoryCategory =
   | "technical_level" // Technical knowledge: e.g. "Senior Python & TypeScript software engineer"
   | "language"        // Language preference: e.g. "Prefers native Telugu for casual discussion, English for code"
   | "formatting"      // Formatting preference: e.g. "Prefers Markdown tables for comparisons"
-  | "instruction";    // Explicit directives: e.g. "Always use Tailwind CSS v4 syntax"
+  | "instruction"     // Explicit directives: e.g. "Always use Tailwind CSS v4 syntax"
+  | "architecture"    // Project architecture details
+  | "solved_issue"    // Previously solved technical issues
+  | "task";           // Active ongoing tasks
 
 export type MemoryItem = {
   id: string;
+  userId?: string;
   userEmail: string;
+  workspaceId?: string;
   content: string;
   category: MemoryCategory;
   importance: number; // 1 to 10
@@ -24,6 +29,8 @@ export type MemoryItem = {
   createdAt: number;
   updatedAt: number;
   source: "explicit" | "extracted";
+  isConfirmed?: boolean; // Confirmed fact vs inferred assumption
+  confidence?: number;   // 0.0 to 1.0 confidence score
 };
 
 export type TechnicalDepth = "beginner" | "intermediate" | "advanced" | "expert";

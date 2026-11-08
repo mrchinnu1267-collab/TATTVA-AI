@@ -80,6 +80,22 @@ export class BackgroundExecutor {
       .replace(/\[TOOL_OUTPUT_RAW:[^\]]+\]/gi, "")
       .trim();
 
+    // 5. Unwrap pseudo-file blocks into clean markdown content
+    text = text.replace(/```(?:file:[^\n]*|pptx:[^\n]*|docx:[^\n]*|xlsx:[^\n]*|pdf:[^\n]*|[^\n]*\.(?:pptx|docx|xlsx|pdf))\n([\s\S]*?)```/gi, (_match, inner) => {
+      sanitizedLogs.push("Unwrapped pseudo-file code block into clean markdown");
+      return inner.trim();
+    });
+
+    // 6. Strip pseudo download links and fake download notices
+    text = text
+      .replace(/(?:📥\s*)?\[(?:Download|Click here to download)[^\]]*\]\((?:file:[^)]*|[^)]*\.(?:pptx|docx|xlsx|pdf|csv))\)\s*🚀?/gi, "")
+      .replace(/📥\s*\[[^\]]+\]\([^)]+\)\s*🚀?/gi, "")
+      .replace(/You can (?:easily\s+)?download (?:the\s+)?[^\n]*(?:presentation|document|file|spreadsheet)[^\n]*below:?/gi, "")
+      .replace(/Once you share a few details, I will (?:instantly\s+)?(?:structure and\s+)?generate the complete presentation for you!?[^\n]*/gi, "Once you share a few details, I will structure and present the complete presentation outline and slides right here for you.")
+      .replace(/✨\s*I have prepared your complete presentation on ([^\n!]+)!/gi, "Here is your complete presentation on **$1**:")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
     return {
       cleanContent: text || "I am ready to help you with the next step.",
       sanitizedLogs,
@@ -123,3 +139,4 @@ export class BackgroundExecutor {
     };
   }
 }
+

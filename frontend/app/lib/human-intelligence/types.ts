@@ -71,3 +71,4 @@ export interface DeveloperDebugInfo {
   technicalError?: string;
   sanitizedTokensCount?: number;
 }
+

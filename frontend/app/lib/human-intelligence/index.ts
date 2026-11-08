@@ -125,3 +125,4 @@ export class HumanIntelligenceEngine {
 }
 
 export const humanIntelligence = HumanIntelligenceEngine.getInstance();
+

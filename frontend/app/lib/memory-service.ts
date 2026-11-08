@@ -99,10 +99,16 @@ function normalizeUser(email?: string | null): string {
 // 1. MEMORY STORAGE & CRUD OPERATIONS
 // =============================================================================
 
-export async function getUserMemories(userEmail?: string | null): Promise<MemoryItem[]> {
+export async function getUserMemories(
+  userEmail?: string | null,
+  workspaceId?: string
+): Promise<MemoryItem[]> {
   const user = normalizeUser(userEmail);
   const cached = memoryStore.get(user);
   if (cached && cached.length > 0) {
+    if (workspaceId) {
+      return cached.filter((m) => !m.workspaceId || m.workspaceId === workspaceId);
+    }
     return cached;
   }
 
@@ -110,16 +116,22 @@ export async function getUserMemories(userEmail?: string | null): Promise<Memory
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("user_memories")
         .select("*")
-        .eq("user_email", user)
-        .order("importance", { ascending: false });
+        .eq("user_email", user);
+
+      if (workspaceId) {
+        query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+      }
+
+      const { data, error } = await query.order("importance", { ascending: false });
 
       if (!error && Array.isArray(data)) {
         const mapped: MemoryItem[] = data.map((row: any) => ({
           id: row.id,
           userEmail: row.user_email,
+          workspaceId: row.workspace_id,
           content: row.content,
           category: row.category as MemoryCategory,
           importance: row.importance || 5,
@@ -127,6 +139,8 @@ export async function getUserMemories(userEmail?: string | null): Promise<Memory
           createdAt: new Date(row.created_at).getTime(),
           updatedAt: new Date(row.updated_at || row.created_at).getTime(),
           source: row.source || "extracted",
+          isConfirmed: row.source === "explicit" || row.is_confirmed === true,
+          confidence: row.confidence || 1.0,
         }));
         memoryStore.set(user, mapped);
         return mapped;
@@ -136,7 +150,11 @@ export async function getUserMemories(userEmail?: string | null): Promise<Memory
     }
   }
 
-  return memoryStore.get(user) || [];
+  const all = memoryStore.get(user) || [];
+  if (workspaceId) {
+    return all.filter((m) => !m.workspaceId || m.workspaceId === workspaceId);
+  }
+  return all;
 }
 
 export async function saveMemory(
@@ -144,12 +162,15 @@ export async function saveMemory(
   content: string,
   category: MemoryCategory = "preference",
   importance: number = 7,
-  source: "explicit" | "extracted" = "explicit"
+  source: "explicit" | "extracted" = "explicit",
+  workspaceId?: string,
+  isConfirmed: boolean = true,
+  confidence: number = 1.0
 ): Promise<MemoryItem> {
   const user = normalizeUser(userEmail);
   const cleanContent = content.trim();
 
-  const existing = await getUserMemories(user);
+  const existing = await getUserMemories(user, workspaceId);
 
   // Generate vector embedding
   const embedding = await generateTextEmbedding(cleanContent);
@@ -178,6 +199,9 @@ export async function saveMemory(
     matchedExisting.importance = Math.max(matchedExisting.importance, importance);
     matchedExisting.updatedAt = Date.now();
     matchedExisting.active = true;
+    matchedExisting.isConfirmed = isConfirmed || matchedExisting.isConfirmed;
+    matchedExisting.confidence = Math.max(matchedExisting.confidence || 1.0, confidence);
+    if (workspaceId) matchedExisting.workspaceId = workspaceId;
     if (embedding) matchedExisting.embedding = embedding;
 
     // Try Supabase update
@@ -189,6 +213,7 @@ export async function saveMemory(
           .update({
             content: cleanContent,
             importance: matchedExisting.importance,
+            workspace_id: matchedExisting.workspaceId || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", matchedExisting.id);
@@ -206,6 +231,7 @@ export async function saveMemory(
   const newMemory: MemoryItem = {
     id: crypto.randomUUID(),
     userEmail: user,
+    workspaceId,
     content: cleanContent,
     category,
     importance: Math.max(1, Math.min(10, importance)),
@@ -214,6 +240,8 @@ export async function saveMemory(
     createdAt: Date.now(),
     updatedAt: Date.now(),
     source,
+    isConfirmed,
+    confidence,
   };
 
   existing.unshift(newMemory);
@@ -228,6 +256,7 @@ export async function saveMemory(
         {
           id: newMemory.id,
           user_email: user,
+          workspace_id: workspaceId || null,
           content: newMemory.content,
           category: newMemory.category,
           importance: newMemory.importance,
@@ -243,6 +272,46 @@ export async function saveMemory(
   }
 
   return newMemory;
+}
+
+export async function correctMemory(
+  userEmail: string | undefined | null,
+  memoryId: string,
+  correctedContent: string,
+  workspaceId?: string
+): Promise<MemoryItem | null> {
+  const user = normalizeUser(userEmail);
+  const list = await getUserMemories(user, workspaceId);
+  const item = list.find((m) => m.id === memoryId);
+  if (!item) return null;
+
+  item.content = correctedContent.trim();
+  item.source = "explicit";
+  item.isConfirmed = true;
+  item.confidence = 1.0;
+  item.updatedAt = Date.now();
+  item.embedding = (await generateTextEmbedding(item.content)) || item.embedding;
+
+  memoryStore.set(user, list);
+  persistMemories();
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase
+        .from("user_memories")
+        .update({
+          content: item.content,
+          source: "explicit",
+          updated_at: new Date(item.updatedAt).toISOString(),
+        })
+        .eq("id", memoryId);
+    } catch {
+      // ignore
+    }
+  }
+
+  return item;
 }
 
 export async function updateMemory(
@@ -331,11 +400,12 @@ export async function clearAllMemories(userEmail: string | undefined | null): Pr
 export async function retrieveRelevantMemories(
   userEmail: string | undefined | null,
   query: string,
-  topK: number = 5
+  topK: number = 5,
+  workspaceId?: string
 ): Promise<MemoryItem[]> {
   const user = normalizeUser(userEmail);
-  const allMemories = await getUserMemories(user);
-  const activeMemories = allMemories.filter((m) => m.active);
+  const allMemories = await getUserMemories(user, workspaceId);
+  const activeMemories = allMemories.filter((m) => m.active && (!workspaceId || !m.workspaceId || m.workspaceId === workspaceId));
 
   if (activeMemories.length === 0) return [];
 
@@ -555,7 +625,10 @@ export function buildPersonalizationSystemPrompt(
 
   const memoryLines = memories
     .filter((m) => m.active)
-    .map((m) => `- [${m.category.toUpperCase()}] ${m.content} (importance: ${m.importance}/10)`)
+    .map((m) => {
+      const statusBadge = m.isConfirmed ? "[CONFIRMED]" : "[INFERRED - VERIFY]";
+      return `- ${statusBadge} [${m.category.toUpperCase()}] ${m.content} (importance: ${m.importance}/10)`;
+    })
     .join("\n");
 
   const depthDirective = {
