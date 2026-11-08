@@ -104,10 +104,30 @@ function getMimeType(ext: string): string {
       return "text/csv;charset=utf-8";
     case "json":
       return "application/json;charset=utf-8";
+    case "xml":
+      return "application/xml;charset=utf-8";
     case "md":
       return "text/markdown;charset=utf-8";
     case "txt":
       return "text/plain;charset=utf-8";
+    case "py":
+      return "text/x-python;charset=utf-8";
+    case "java":
+      return "text/x-java-source;charset=utf-8";
+    case "c":
+      return "text/x-c;charset=utf-8";
+    case "cpp":
+      return "text/x-c++;charset=utf-8";
+    case "js":
+      return "text/javascript;charset=utf-8";
+    case "ts":
+      return "text/typescript;charset=utf-8";
+    case "html":
+      return "text/html;charset=utf-8";
+    case "css":
+      return "text/css;charset=utf-8";
+    case "sql":
+      return "application/sql;charset=utf-8";
     default:
       return "application/octet-stream";
   }

@@ -95,7 +95,9 @@ export type SupportedDocumentFormat =
   | "ts"
   | "js"
   | "java"
+  | "c"
   | "cpp"
+  | "css"
   | "sql";
 
 export interface BuildDocumentOptions {
@@ -157,6 +159,7 @@ const MIME_TYPES: Record<string, string> = {
   py: "text/x-python;charset=utf-8",
   c: "text/x-c;charset=utf-8",
   cpp: "text/x-c++;charset=utf-8",
+  css: "text/css;charset=utf-8",
   js: "text/javascript;charset=utf-8",
   ts: "text/typescript;charset=utf-8",
   sql: "application/sql;charset=utf-8",
@@ -263,11 +266,38 @@ export function buildDocument(options: BuildDocumentOptions): GeneratedDocumentR
         finalFormat = "json";
         mimeType = MIME_TYPES.json;
         buffer = Buffer.from(
-          typeof options.content === "string"
+          typeof options.content === "string" && options.content.trim().startsWith("{") || typeof options.content === "string" && options.content.trim().startsWith("[")
             ? options.content
             : JSON.stringify(options.data || options.sections || { title }, null, 2),
           "utf8"
         );
+        break;
+      }
+
+      case "xml": {
+        finalFormat = "xml";
+        mimeType = MIME_TYPES.xml;
+        const xmlContent = typeof options.content === "string" && options.content.includes("<")
+          ? options.content
+          : `<?xml version="1.0" encoding="UTF-8"?>\n<document>\n  <title>${title}</title>\n</document>`;
+        buffer = Buffer.from(xmlContent, "utf8");
+        break;
+      }
+
+      case "html": {
+        finalFormat = "html";
+        mimeType = MIME_TYPES.html;
+        const htmlContent = typeof options.content === "string" && options.content.includes("<html")
+          ? options.content
+          : `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>${title}</title>\n</head>\n<body>\n  <h1>${title}</h1>\n  <p>${options.subtitle || ""}</p>\n</body>\n</html>`;
+        buffer = Buffer.from(htmlContent, "utf8");
+        break;
+      }
+
+      case "css": {
+        finalFormat = "css";
+        mimeType = MIME_TYPES.css;
+        buffer = Buffer.from(options.content || `/* ${title} */\n:root {\n  --primary: #D95B26;\n}\n`, "utf8");
         break;
       }
 
@@ -282,6 +312,7 @@ export function buildDocument(options: BuildDocumentOptions): GeneratedDocumentR
       case "ts":
       case "js":
       case "java":
+      case "c":
       case "cpp":
       case "sql": {
         finalFormat = normFormat;

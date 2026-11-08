@@ -4622,23 +4622,46 @@ export default function ChatPage() {
                                   : "border-black/10 bg-neutral-50 text-neutral-900 hover:border-black/20"
                               }`}>
                                 <div className="flex items-center gap-3.5 min-w-0">
-                                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
-                                    msg.generatedDocument.format === "pptx"
+                                  {(() => {
+                                    const fmt = (msg.generatedDocument.format || "").toLowerCase();
+                                    const isCode = ["py", "ts", "js", "java", "c", "cpp", "sql", "html", "css"].includes(fmt);
+                                    const isData = ["json", "xml"].includes(fmt);
+                                    const isSheet = ["xlsx", "xls", "csv"].includes(fmt);
+                                    const isPpt = ["pptx", "ppt"].includes(fmt);
+                                    const isPdf = fmt === "pdf";
+
+                                    const badgeClass = isPpt
                                       ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                                      : msg.generatedDocument.format === "xlsx" || msg.generatedDocument.format === "csv"
+                                      : isSheet
                                       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                                      : msg.generatedDocument.format === "pdf"
+                                      : isPdf
                                       ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
-                                      : "bg-blue-500/15 text-blue-400 border-blue-500/30"
-                                  }`}>
-                                    <FileText className="w-5 h-5" />
-                                  </div>
+                                      : isCode
+                                      ? "bg-violet-500/15 text-violet-400 border-violet-500/30"
+                                      : isData
+                                      ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
+                                      : "bg-blue-500/15 text-blue-400 border-blue-500/30";
+
+                                    return (
+                                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${badgeClass}`}>
+                                        {isCode ? (
+                                          <Code2 className="w-5 h-5" />
+                                        ) : isData ? (
+                                          <FileCode className="w-5 h-5" />
+                                        ) : isSheet ? (
+                                          <FileSpreadsheet className="w-5 h-5" />
+                                        ) : (
+                                          <FileText className="w-5 h-5" />
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="min-w-0 flex-1">
                                     <p className="font-semibold text-sm truncate font-mono tracking-tight">
                                       {msg.generatedDocument.filename}
                                     </p>
                                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                                      Validated document • {Math.round((msg.generatedDocument.sizeBytes || 1024) / 1024)} KB • .{msg.generatedDocument.format.toUpperCase()}
+                                      Verified file • {Math.round((msg.generatedDocument.sizeBytes || 1024) / 1024) || 1} KB • .{msg.generatedDocument.format.toUpperCase()}
                                     </p>
                                   </div>
                                 </div>
@@ -4648,6 +4671,17 @@ export default function ChatPage() {
                                   download={msg.generatedDocument.filename}
                                   target="_blank"
                                   rel="noopener noreferrer"
+                                  onClick={(e) => {
+                                    const dlTarget = msg.generatedDocument?.downloadUrl || msg.generatedDocument?.dataUri;
+                                    if (dlTarget && (msg.generatedDocument?.dataUri || msg.generatedDocument?.downloadUrl?.startsWith("/"))) {
+                                      e.preventDefault();
+                                      triggerDownload(
+                                        dlTarget,
+                                        msg.generatedDocument.filename,
+                                        msg.generatedDocument.mimeType
+                                      );
+                                    }
+                                  }}
                                   className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 shrink-0"
                                 >
                                   <Download className="w-4 h-4 stroke-[2]" />

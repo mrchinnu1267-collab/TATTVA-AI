@@ -25,7 +25,9 @@ export type DocumentFormat =
   | "ts"
   | "js"
   | "java"
+  | "c"
   | "cpp"
+  | "css"
   | "sql";
 
 export type DocumentArchetype =
@@ -35,6 +37,7 @@ export type DocumentArchetype =
   | "study_notes"
   | "spreadsheet"
   | "source_code"
+  | "data_file"
   | "general_document";
 
 export type DocumentAudience = "academic" | "business" | "technical" | "financial" | "general";
@@ -89,14 +92,14 @@ export function detectDocumentIntent(
     /\b(banao|banaiye|banado|chahiye|dijiye|karo|bana)\b/i.test(lower) ||
     /बनाओ|बनाइए|बना दो|चाहिए|दीजिए|तैयार करो|बना/i.test(clean);
 
-  // 3. Explicit Document Terms
+  // 3. Explicit Document & File Terms
   const isPptTerm =
-    /\b(ppt|pptx|powerpoint|presentation|slides|slide deck|pitch deck|deck|keynote|seminar slides)\b/i.test(lower) ||
+    /\b(ppt|pptx|powerpoint|presentation|slides?|slide deck|pitch deck|deck|keynote|seminar slides)\b/i.test(lower) ||
     /పిపిటి|ప్రెజెంటేషన్|స్లైడ్స్/i.test(clean) ||
     /पीपीटी|प्रेजेंटेशन|स्लाइड्स/i.test(clean);
 
   const isExcelTerm =
-    /\b(excel|xlsx|xls|spreadsheet|sheet|worksheet|data table|financial report|budget|p&l|balance sheet|tracker|inventory|marks analysis|ledger)\b/i.test(lower) ||
+    /\b(excel|xlsx|xls|spreadsheet|workbook|sheet|worksheet|data table|financial report|budget sheet|budget|p&l|balance sheet|tracker|inventory|marks analysis|marks sheet|ledger)\b/i.test(lower) ||
     /ఎక్సెల్|స్ప్రెడ్‌షీట్/i.test(clean) ||
     /एक्सेल|स्प्रेडशीट/i.test(clean);
 
@@ -105,9 +108,19 @@ export function detectDocumentIntent(
     /వర్డ్|అసైన్‌మెంట్/i.test(clean) ||
     /वर्ड|असाइनमेंट/i.test(clean);
 
-  const isPdfTerm = /\b(pdf|pdf document|pdf report|handout|brochure)\b/i.test(lower);
+  const isPdfTerm = /\b(pdf|pdf document|pdf report|pdf file|generate a pdf|as a pdf)\b/i.test(lower);
   const isCsvTerm = /\b(csv|csv file|comma separated)\b/i.test(lower);
-  const isCodeTerm = /\b(\.py|\.ts|\.js|\.java|\.cpp|\.sql|python script|java program|typescript file|sql script)\b/i.test(lower);
+  const isJsonTerm = /\b(json|json file|json data|\.json)\b/i.test(lower);
+  const isXmlTerm = /\b(xml|xml file|xml document|\.xml)\b/i.test(lower);
+  const isMarkdownTerm = /\b(markdown|markdown file|\.md|md file)\b/i.test(lower);
+  const isTxtTerm = /\b(text file|txt file|\.txt|plain text file)\b/i.test(lower);
+
+  const isCodeTerm =
+    /\b(python (file|script|program)|java (file|program)|typescript (file|code)|javascript (file|code)|cpp (file|code)|c\+\+ (file|code)|c (file|program)|sql (file|script)|html (file|page)|css (file|stylesheet)|\.py|\.ts|\.js|\.java|\.cpp|\.c\b|\.sql|\.html|\.css)\b/i.test(lower) ||
+    (/\b(python|java|javascript|typescript|c\+\+|cpp|html|css|sql|script|program|code)\b/i.test(lower) && /\b(file|as a file|give me the file|save as|save it as|download|code file)\b/i.test(lower));
+
+  const hasExplicitFileRequest =
+    /\b(as a file|give me the file|save as a file|save it as a file|downloadable file|create a .* file|generate a .* file|write a .* file|make a .* file|in a file|download the file)\b/i.test(lower);
 
   // 4. Slide Count Extraction
   let requestedSlideCount: number | undefined = undefined;
@@ -137,23 +150,42 @@ export function detectDocumentIntent(
     }
   }
 
-  // 6. Check if query is just a topic name (e.g. "Artificial Intelligence", "Quantum Computing", "DBMS")
+  // 6. Check if query is an information / question query vs a file generation task
+  const isAnyFileTerm =
+    isPptTerm ||
+    isExcelTerm ||
+    isDocxTerm ||
+    isPdfTerm ||
+    isCsvTerm ||
+    isJsonTerm ||
+    isXmlTerm ||
+    isMarkdownTerm ||
+    isTxtTerm ||
+    isCodeTerm ||
+    hasExplicitFileRequest;
+
+  // Pure informational questions: "Give me the information about Operating Systems", "What is", "Tell me about"
+  const isPureInfoQuery =
+    /\b(give me (the )?information (about|on)|tell me (about|on)|what is|who is|explain|describe|how does .* work|how do i)\b/i.test(lower) &&
+    !isAnyFileTerm;
+
   const words = clean.split(/\s+/).filter(Boolean);
-  const isShortTopic = words.length >= 1 && words.length <= 6 && !hasActionVerb && !isPptTerm && !isExcelTerm && !isDocxTerm;
+  const isShortTopic = words.length >= 1 && words.length <= 6 && !hasActionVerb && !isAnyFileTerm;
 
   // Determine isDocumentRequest and Confidence
   let isDocumentRequest = false;
   let confidence = 0.5;
 
-  if (hasActionVerb && (isPptTerm || isExcelTerm || isDocxTerm || isPdfTerm || isCsvTerm || isCodeTerm)) {
+  if (isPureInfoQuery) {
+    // Explicitly a chat question, NOT a document generation task!
+    isDocumentRequest = false;
+    confidence = 0.95;
+  } else if (hasActionVerb && isAnyFileTerm) {
+    isDocumentRequest = true;
+    confidence = 0.98;
+  } else if (isAnyFileTerm) {
     isDocumentRequest = true;
     confidence = 0.95;
-  } else if (isPptTerm || isExcelTerm || isDocxTerm || isPdfTerm || isCsvTerm) {
-    isDocumentRequest = true;
-    confidence = 0.9;
-  } else if (hasActionVerb && words.length >= 2) {
-    isDocumentRequest = true;
-    confidence = 0.8;
   } else if (isShortTopic && (contextFavorsPpt || contextFavorsAcademic || contextFavorsSpreadsheet)) {
     isDocumentRequest = true;
     confidence = 0.85;
@@ -180,28 +212,44 @@ export function detectDocumentIntent(
   if (isPptTerm || requestedSlideCount || contextFavorsPpt) {
     archetype = "presentation";
     format = "pptx";
-  } else if (isExcelTerm || contextFavorsSpreadsheet) {
+  } else if (isExcelTerm) {
     archetype = "spreadsheet";
-    format = isCsvTerm ? "csv" : "xlsx";
-  } else if (isCodeTerm) {
-    archetype = "source_code";
-    if (lower.includes(".py") || lower.includes("python")) format = "py";
-    else if (lower.includes(".ts") || lower.includes("typescript")) format = "ts";
-    else if (lower.includes(".java")) format = "java";
-    else if (lower.includes(".sql")) format = "sql";
-    else format = "js";
-  } else if (/\b(assignment|homework|coursework)\b/i.test(lower) || contextFavorsAcademic) {
-    archetype = "assignment";
-    format = isPdfTerm ? "pdf" : "docx";
-  } else if (/\b(notes|study notes|revision|cheat sheet)\b/i.test(lower)) {
-    archetype = "study_notes";
-    format = isPdfTerm ? "pdf" : "docx";
-  } else if (isPdfTerm) {
-    archetype = "research_report";
-    format = "pdf";
+    format = "xlsx";
   } else if (isCsvTerm) {
     archetype = "spreadsheet";
     format = "csv";
+  } else if (isJsonTerm) {
+    archetype = "data_file";
+    format = "json";
+  } else if (isXmlTerm) {
+    archetype = "data_file";
+    format = "xml";
+  } else if (isMarkdownTerm) {
+    archetype = "general_document";
+    format = "md";
+  } else if (isTxtTerm) {
+    archetype = "general_document";
+    format = "txt";
+  } else if (isCodeTerm || lower.includes("program") || lower.includes("script") || lower.includes("code")) {
+    archetype = "source_code";
+    if (lower.includes(".py") || lower.includes("python")) format = "py";
+    else if (lower.includes(".ts") || lower.includes("typescript")) format = "ts";
+    else if (lower.includes(".java") || lower.includes("java ")) format = "java";
+    else if (lower.includes(".cpp") || lower.includes("c++") || lower.includes("cpp")) format = "cpp";
+    else if (lower.includes(".c\b") || lower.includes(" c ") || lower.includes("c program")) format = "c";
+    else if (lower.includes(".sql") || lower.includes("sql")) format = "sql";
+    else if (lower.includes(".html") || lower.includes("html")) format = "html";
+    else if (lower.includes(".css") || lower.includes("css")) format = "css";
+    else format = "js";
+  } else if (isPdfTerm) {
+    archetype = /\b(assignment|homework)\b/i.test(lower) ? "assignment" : "research_report";
+    format = "pdf";
+  } else if (/\b(assignment|homework|coursework)\b/i.test(lower) || contextFavorsAcademic) {
+    archetype = "assignment";
+    format = "docx";
+  } else if (/\b(notes|study notes|revision|cheat sheet)\b/i.test(lower)) {
+    archetype = "study_notes";
+    format = "docx";
   } else {
     archetype = "research_report";
     format = "docx";
@@ -225,12 +273,16 @@ export function detectDocumentIntent(
     .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
     .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
+    .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
     .replace(/\b(please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce)\b/gi, "")
     .replace(/\b(a|an|the)\s+(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/gi, "")
     .replace(/\b(a|an|the)\s+(word doc|word document|docx|doc|document|assignment|project report|research paper|notes)\b/gi, "")
-    .replace(/\b(a|an|the)\s+(excel sheet|excel|xlsx|spreadsheet|sheet|budget|csv file|pdf report|pdf)\b/gi, "")
-    .replace(/\b(ppt|pptx|powerpoint|presentation|slides|word|docx|excel|xlsx|spreadsheet|assignment)\b/gi, "")
+    .replace(/\b(a|an|the)\s+(excel sheet|excel workbook|excel|xlsx|spreadsheet|sheet|budget|csv file|csv|pdf report|pdf document|pdf)\b/gi, "")
+    .replace(/\b(a|an|the)\s+(json file|json data|json|xml file|xml document|xml|text file|txt file|txt|markdown file|md file|markdown)\b/gi, "")
+    .replace(/\b(a|an|the)\s+(python program|python script|python file|python|java program|java file|java|cpp program|cpp file|cpp|c program|c file|sql script|sql file|sql)\b/gi, "")
+    .replace(/\b(ppt|pptx|powerpoint|presentation|slides|word|docx|excel|xlsx|spreadsheet|workbook|assignment|pdf|csv|json|xml|markdown)\b/gi, "")
+    .replace(/\b(containing|sample|workbook for|sheet for|data for)\b/gi, "")
     .replace(/\b(chey|cheyyi|cheyandi|cheyali|tayaru chey|kavali|ivvu|banao|banaiye|karo)\b/gi, "")
     .replace(/చేయి|చేయ్|చెయ్యి|చేయండి|తయారు చేయి|కావాలి|ఇవ్వు|పిపిటి|ప్రెజెంటేషన్/g, "")
     .replace(/बनाओ|बनाइए|बना दो|चाहिए|दीजिए|तैयार करो|पीपीटी|प्रेजेंटेशन/g, "")

@@ -107,15 +107,42 @@ export function validateDocumentBuffer(
     case "csv":
     case "txt":
     case "md":
-    case "json": {
+    case "json":
+    case "xml":
+    case "html":
+    case "css":
+    case "py":
+    case "ts":
+    case "js":
+    case "java":
+    case "c":
+    case "cpp":
+    case "sql": {
       report.checks.magicBytesValid = true;
+      const textContent = buffer.toString("utf8");
+
       if (normFormat === "json") {
         try {
-          JSON.parse(buffer.toString("utf8"));
+          JSON.parse(textContent);
         } catch (jsonErr: any) {
           report.valid = false;
           report.checks.magicBytesValid = false;
           report.error = `Invalid JSON syntax: ${jsonErr.message}`;
+          return report;
+        }
+      } else if (normFormat === "xml") {
+        if (!textContent.includes("<") || !textContent.includes(">")) {
+          report.valid = false;
+          report.checks.magicBytesValid = false;
+          report.error = "Invalid XML: Missing XML tags or declaration";
+          return report;
+        }
+      } else if (normFormat === "csv") {
+        const lines = textContent.trim().split("\n");
+        if (lines.length < 1) {
+          report.valid = false;
+          report.checks.magicBytesValid = false;
+          report.error = "Invalid CSV: Empty dataset";
           return report;
         }
       }

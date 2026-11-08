@@ -240,5 +240,126 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
     // They must not share the same generic structure
     assert.notEqual(osPackage.outlineMarkdown, dbmsPackage.outlineMarkdown, "Outlines must be completely different");
   });
+
+  // TEST 13: Final Acceptance Test 1 - Assignment about Transformer Architecture (.docx)
+  it("ACCEPTANCE TEST 1: 'Create an assignment about Transformer Architecture' -> Generates valid DOCX", async () => {
+    const prompt = "Create an assignment about Transformer Architecture.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "docx");
+    assert.equal(intent.archetype, "assignment");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "docx");
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(pkg.document.sizeBytes > 1000);
+  });
+
+  // TEST 14: Final Acceptance Test 2 - 10-Slide PPT about DBMS (.pptx)
+  it("ACCEPTANCE TEST 2: 'Create a 10-slide PPT about DBMS.' -> Generates valid 10-slide PPTX", async () => {
+    const prompt = "Create a 10-slide PPT about DBMS.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pptx");
+    assert.equal(intent.archetype, "presentation");
+    assert.equal(intent.length.slideCount, 10);
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "pptx");
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(pkg.document.sizeBytes > 1000);
+  });
+
+  // TEST 15: Final Acceptance Test 3 - Excel workbook for student marks (.xlsx)
+  it("ACCEPTANCE TEST 3: 'Create an Excel workbook for student marks.' -> Generates valid XLSX workbook", async () => {
+    const prompt = "Create an Excel workbook for student marks.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "xlsx");
+    assert.equal(intent.archetype, "spreadsheet");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "xlsx");
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(pkg.document.sizeBytes > 1000);
+    assert.ok(pkg.outlineMarkdown.toLowerCase().includes("student") || pkg.outlineMarkdown.toLowerCase().includes("marks"));
+  });
+
+  // TEST 16: Final Acceptance Test 4 - PDF about Artificial Intelligence (.pdf)
+  it("ACCEPTANCE TEST 4: 'Generate a PDF about Artificial Intelligence.' -> Generates valid PDF", async () => {
+    const prompt = "Generate a PDF about Artificial Intelligence.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pdf");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "pdf");
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(pkg.document.sizeBytes > 300);
+  });
+
+  // TEST 17: Final Acceptance Test 5 - JSON file containing sample student records (.json)
+  it("ACCEPTANCE TEST 5: 'Create a JSON file containing sample student records.' -> Generates valid parseable JSON", async () => {
+    const prompt = "Create a JSON file containing sample student records.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "json");
+    assert.equal(intent.archetype, "data_file");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "json");
+    assert.equal(pkg.validation.valid, true);
+
+    const jsonText = pkg.document.buffer.toString("utf8");
+    const parsed = JSON.parse(jsonText);
+    assert.ok(typeof parsed === "object");
+  });
+
+  // TEST 18: Final Acceptance Test 6 - Python binary-search program file (.py)
+  it("ACCEPTANCE TEST 6: 'Write a Python binary-search program and save it as a file.' -> Generates valid PY script", async () => {
+    const prompt = "Write a Python binary-search program and save it as a file.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "py");
+    assert.equal(intent.archetype, "source_code");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "py");
+    assert.equal(pkg.validation.valid, true);
+
+    const pyCode = pkg.document.buffer.toString("utf8");
+    assert.ok(pyCode.includes("def binary_search"));
+    assert.ok(pyCode.includes("target"));
+  });
+
+  // TEST 19: Final Acceptance Test 7 - CSV containing employee records (.csv)
+  it("ACCEPTANCE TEST 7: 'Create a CSV containing employee records.' -> Generates valid structured CSV", async () => {
+    const prompt = "Create a CSV containing employee records.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "csv");
+    assert.equal(intent.archetype, "spreadsheet");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "csv");
+    assert.equal(pkg.validation.valid, true);
+
+    const csvText = pkg.document.buffer.toString("utf8");
+    assert.ok(csvText.includes("Employee") || csvText.includes("EMP") || csvText.includes(","));
+  });
+
+  // TEST 20: Information Query vs File Generation Disambiguation
+  it("ACCEPTANCE TEST 8: 'Give me the information about Operating Systems.' -> Answer in chat, NOT a file", () => {
+    const prompt = "Give me the information about Operating Systems.";
+    const intent = detectDocumentIntent(prompt);
+    assert.equal(intent.isDocumentRequest, false, "Must not trigger file generation for informational questions");
+  });
 });
 

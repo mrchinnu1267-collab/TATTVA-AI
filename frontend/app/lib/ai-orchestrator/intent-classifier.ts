@@ -71,10 +71,12 @@ const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
   {
     intent: "document_generation",
     patterns: [
-      /\b(create|generate|make|prepare|draft|design|export|write)\b.*(ppt|pptx|powerpoint|presentation|slides|deck|word doc|docx|document|assignment|report|excel|xlsx|spreadsheet|pdf|csv)/i,
+      /\b(create|generate|make|prepare|draft|design|export|write)\b.*(ppt|pptx|powerpoint|presentation|slides|deck|word doc|docx|document|assignment|report|excel|xlsx|spreadsheet|workbook|pdf|csv|json|xml|markdown|file|code file)/i,
       /\b(ppt|pptx|powerpoint|presentation|slide deck|slides? on|slides? about)\b/i,
-      /\b(excel sheet|xlsx|spreadsheet|financial report|budget sheet|data table csv)\b/i,
+      /\b(excel sheet|xlsx|spreadsheet|workbook for|financial report|budget sheet|data table csv|csv)\b/i,
       /\b(word document|docx|academic assignment|project report|research paper)\b/i,
+      /\b(json file|xml file|text file|txt file|markdown file|\.md file)\b/i,
+      /\b(as a file|save as a file|save it as a file|give me the file|downloadable file|create a .* file|write a .* file)\b/i,
       /పిపిటి|ప్రెజెంటేషన్|స్లైడ్స్|ఎక్సెల్|వర్డ్ డాక్యుమెంట్|అసైన్‌మెంట్/i,
       /पीपीटी|प्रेजेंटेशन|स्लाइड्स|एक्सेल|वर्ड डॉक्यूमेंट|असाइनमेंट/i,
     ],
