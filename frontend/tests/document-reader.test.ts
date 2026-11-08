@@ -43,3 +43,4 @@ describe("Document Reader & Universal File Processing Suite", () => {
     assert.equal(result.isBinaryMultimodal, true);
   });
 });
+

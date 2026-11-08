@@ -108,7 +108,7 @@ export default function Home() {
         <h1>TATTVA AI – Your Intelligent AI Assistant &amp; Creative Studio</h1>
         <p>
           TATTVA AI is an intelligent, privacy-first artificial intelligence workspace engineered to
-          deliver deep cognitive reasoning, interactive satellite mapping, and multi-format document generation.
+          deliver deep cognitive reasoning, interactive satellite mapping, and multimodal AI chat.
         </p>
 
         <h2>Core Platform Capabilities</h2>
@@ -133,8 +133,8 @@ export default function Home() {
         <article>
           <h3>Download TATTVA AI Mobile App</h3>
           <p>
-            Install the official Android application package (APK) for on-the-go smart document creation, mapping,
-            and artificial intelligence.
+            Install the official Android application package (APK) for on-the-go satellite mapping,
+            chat assistant, and artificial intelligence.
           </p>
           <Link href="/download">Download TATTVA AI for Android</Link>
         </article>

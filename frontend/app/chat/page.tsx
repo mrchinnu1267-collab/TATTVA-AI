@@ -324,17 +324,22 @@ function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
     } else if (token.startsWith("[")) {
       const linkMatch = token.match(/\[([^\]]+)\]\(([^)]+)\)/);
       if (linkMatch) {
-        nodes.push(
-          <a
-            key={m.index}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:underline inline-flex items-center gap-0.5"
-          >
-            {linkMatch[1]}
-          </a>
-        );
+        const url = linkMatch[2];
+        if (url.startsWith("file:")) {
+          nodes.push(<span key={m.index} className="font-semibold">{linkMatch[1]}</span>);
+        } else {
+          nodes.push(
+            <a
+              key={m.index}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline inline-flex items-center gap-0.5"
+            >
+              {linkMatch[1]}
+            </a>
+          );
+        }
       } else {
         nodes.push(token);
       }
@@ -501,8 +506,16 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
         .replace(/^[-_]+/, "");
     }
 
+    const isPseudoFile =
+      lang === "file" ||
+      (filename && /\.(pptx|docx|xlsx|pdf|doc|ppt|xls|rtf)$/i.test(filename));
+
     const cleanCode = (match[2] || "").trimEnd();
-    parts.push({ type: "code", lang: lang || "file", filename, code: cleanCode });
+    if (isPseudoFile) {
+      parts.push({ type: "text", text: cleanCode });
+    } else {
+      parts.push({ type: "code", lang: lang || "code", filename, code: cleanCode });
+    }
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < content.length) {
@@ -514,7 +527,7 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
       {parts.map((part, idx) => {
         if (part.type === "code" && part.code) {
           const isCopied = copiedIndex === idx;
-          const displayLang = part.filename || part.lang || "file";
+          const displayLang = part.filename || part.lang || "code";
           return (
             <div
               key={idx}
@@ -524,15 +537,6 @@ function MarkdownView({ content, isDark }: { content: string; isDark: boolean })
               <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900/90 px-4 py-2 text-xs text-neutral-400">
                 <span className="font-mono uppercase tracking-wider text-[11px] font-semibold">{displayLang}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => downloadGeneratedFile(part.code!, part.lang, part.filename)}
-                    className="flex items-center gap-1.5 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-white"
-                    title={`Download ${part.filename || `${part.lang} file`}`}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download {part.filename || `${(part.lang || "file").toUpperCase()}`}</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => copyCode(part.code!, idx)}
@@ -4310,7 +4314,7 @@ export default function ChatPage() {
                 {searchQuery.trim().length === 0 ? (
                   <div className="py-8 text-center text-xs text-neutral-400">
                     <Search className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                    <p>Search titles, questions, code snippets, or document creation history.</p>
+                    <p>Search titles, questions, code snippets, or chat history.</p>
                   </div>
                 ) : searchResults.length === 0 && !isSearching ? (
                   <div className="py-8 text-center text-xs text-neutral-400">
@@ -7123,13 +7127,6 @@ export default function ChatPage() {
                     <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 font-mono text-[10px]">Escape</kbd>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <h4 className="font-bold text-neutral-900 dark:text-white">Supported Binary File Generation</h4>
-                <p className="text-[11px] text-neutral-500">
-                  Ask TATTVA AI to generate files in natural language: <strong>PDF (ReportLab)</strong>, <strong>DOCX (Word)</strong>, <strong>PPTX (PowerPoint)</strong>, <strong>XLSX (Excel with formulas)</strong>, and <strong>CSV</strong>.
-                </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
