@@ -172,6 +172,12 @@ type ChatMessage = {
   reasoningPlan?: any;
   agentState?: any;
   clockData?: any;
+  humanContext?: {
+    goal?: string;
+    signal?: string;
+    suggestedNextStep?: string;
+  };
+  debugInfo?: any;
 };
 
 type ChatSession = {
@@ -2661,8 +2667,16 @@ export default function ChatPage() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // Standard Chat & Code & File Maker flow
-    setStatusMessage("TATTVA Intelligence reasoning...");
+    // Progressive Human-Centred Progress Messaging
+    const hasUploads = attachments && attachments.length > 0;
+    setStatusMessage(hasUploads ? "Analyzing your documents..." : "Understanding your request...");
+    const progressTimer1 = setTimeout(() => {
+      setStatusMessage("Preparing your solution...");
+    }, 1800);
+    const progressTimer2 = setTimeout(() => {
+      setStatusMessage("Verifying the results...");
+    }, 4500);
+
     try {
       const apiMessages = updatedWithUser.map((m) => ({
         role: m.role,
@@ -2713,6 +2727,8 @@ export default function ChatPage() {
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
         clockData: data.clockData,
+        humanContext: data.humanContext,
+        debugInfo: data.debugInfo,
       };
 
       const updatedWithAssistant = [...updatedWithUser, assistantMsg];
@@ -2736,6 +2752,8 @@ export default function ChatPage() {
       }
       setError(err instanceof Error ? err.message : "Failed to complete request.");
     } finally {
+      clearTimeout(progressTimer1);
+      clearTimeout(progressTimer2);
       setLoading(false);
       setStatusMessage("");
       abortControllerRef.current = null;
@@ -2833,6 +2851,8 @@ export default function ChatPage() {
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
         clockData: data.clockData,
+        humanContext: data.humanContext,
+        debugInfo: data.debugInfo,
       };
 
       const updatedWithAssistant = [...truncated, assistantMsg];
@@ -2924,6 +2944,8 @@ export default function ChatPage() {
         reasoningPlan: data.reasoningPlan,
         agentState: data.agentState,
         clockData: data.clockData,
+        humanContext: data.humanContext,
+        debugInfo: data.debugInfo,
       };
 
       const updated = [...truncated, newAssistantMsg];
@@ -4614,6 +4636,17 @@ export default function ChatPage() {
                                 ))}
                               </div>
                             )}
+
+                            {/* Proactive Next Step Guidance */}
+                            {msg.humanContext?.suggestedNextStep && (
+                              <div className="mt-3 flex items-start gap-2 p-2.5 rounded-xl bg-neutral-100/70 dark:bg-neutral-900/60 border border-neutral-200/70 dark:border-neutral-800 text-xs text-neutral-600 dark:text-neutral-400">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 mr-1.5">Suggested Next Step:</span>
+                                  <span>{msg.humanContext.suggestedNextStep}</span>
+                                </div>
+                              </div>
+                            )}
                             {!msg.toolCalls && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
                               <div className="mb-2.5 flex flex-wrap gap-1.5">
                                 {msg.toolsExecuted.map((t, tIdx) => (
@@ -4625,6 +4658,17 @@ export default function ChatPage() {
                                     <span>Using {t}</span>
                                   </div>
                                 ))}
+                              </div>
+                            )}
+
+                            {/* Proactive Next Step Guidance */}
+                            {msg.humanContext?.suggestedNextStep && (
+                              <div className="mt-3 flex items-start gap-2 p-2.5 rounded-xl bg-neutral-100/70 dark:bg-neutral-900/60 border border-neutral-200/70 dark:border-neutral-800 text-xs text-neutral-600 dark:text-neutral-400">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 mr-1.5">Suggested Next Step:</span>
+                                  <span>{msg.humanContext.suggestedNextStep}</span>
+                                </div>
                               </div>
                             )}
 
@@ -4656,6 +4700,17 @@ export default function ChatPage() {
                                     <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                                   </a>
                                 ))}
+                              </div>
+                            )}
+
+                            {/* Proactive Next Step Guidance */}
+                            {msg.humanContext?.suggestedNextStep && (
+                              <div className="mt-3 flex items-start gap-2 p-2.5 rounded-xl bg-neutral-100/70 dark:bg-neutral-900/60 border border-neutral-200/70 dark:border-neutral-800 text-xs text-neutral-600 dark:text-neutral-400">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 mr-1.5">Suggested Next Step:</span>
+                                  <span>{msg.humanContext.suggestedNextStep}</span>
+                                </div>
                               </div>
                             )}
 

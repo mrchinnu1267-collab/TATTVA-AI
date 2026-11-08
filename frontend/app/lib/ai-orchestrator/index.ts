@@ -29,6 +29,7 @@ import {
   isNsfwContent,
 } from "../security";
 import { generateImage } from "../image-engine";
+import { humanIntelligence } from "../human-intelligence";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -82,6 +83,32 @@ export class MasterAIOrchestrator {
     // PII Redaction
     const { text: cleanUserPrompt } = redactSensitiveInfo(guardResult.sanitizedPrompt);
 
+    // 1.5. HUMAN-CENTRED CONTEXT & INTENT ANALYSIS
+    const historyForAnalysis = messages.slice(0, -1).map((m) => ({
+      role: m.role,
+      content: m.content,
+      attachments: m.attachments,
+    }));
+    const humanAnalysis = humanIntelligence.analyzeConversation(cleanUserPrompt, historyForAnalysis);
+
+    if (humanAnalysis.goal === "clarification_needed") {
+      return {
+        role: "assistant",
+        content: "What specific topic, problem, or code would you like me to help you with?",
+        kind: "text",
+        intent: "general_chat",
+        modelUsed: "TATTVA-Human-Intelligence",
+        provider: "local",
+        latencyMs: Date.now() - startTime,
+        humanContext: {
+          goal: humanAnalysis.goal,
+          signal: humanAnalysis.primarySignal,
+        },
+      };
+    }
+
+    const queryForClassification = humanAnalysis.referenceResolution.resolvedQuery || cleanUserPrompt;
+
     // Check attached images or files
     const userAttachedImage = latestMessage.attachments?.find(
       (att) => att.data?.startsWith("data:image/") || att.type?.startsWith("image/")
@@ -94,7 +121,7 @@ export class MasterAIOrchestrator {
     // 2. INTENT RECOGNITION & TASK CLASSIFICATION
     const apiKey = process.env.GEMINI_API_KEY;
     const classification = await classifyIntent(
-      cleanUserPrompt,
+      queryForClassification,
       hasImageToEdit,
       hasAttachedFile,
       apiKey
@@ -243,9 +270,15 @@ export class MasterAIOrchestrator {
         keyLearnings: reasoningRes.plan.steps.map((s) => s.title),
       });
 
+      const finalizedReasoning = humanIntelligence.finalizeResponse(
+        guardAIOutput(reasoningRes.finalAnswer),
+        cleanUserPrompt,
+        humanAnalysis
+      );
+
       return {
         role: "assistant",
-        content: guardAIOutput(reasoningRes.finalAnswer),
+        content: finalizedReasoning.finalContent,
         kind: "text",
         intent: effectiveIntent,
         modelUsed: "TATTVA-Reasoning-Core",
@@ -253,6 +286,19 @@ export class MasterAIOrchestrator {
         latencyMs: Date.now() - startTime,
         reasoningPlan: reasoningRes.plan,
         toolsExecuted: reasoningRes.toolsUsed,
+        progressStage: "completed",
+        humanContext: {
+          goal: humanAnalysis.goal,
+          signal: humanAnalysis.primarySignal,
+          suggestedNextStep: finalizedReasoning.proactiveStep?.promptSuggestion,
+        },
+        debugInfo: {
+          stagesExecuted: ["understanding", "analyzing", "preparing", "verifying", "completed"],
+          executionTimeMs: Date.now() - startTime,
+          toolsUsed: reasoningRes.toolsUsed || [],
+          intent: effectiveIntent,
+          complexityScore: classification.complexityScore,
+        },
       };
     }
 
@@ -335,9 +381,15 @@ ${webContextSnippet ? `RESEARCH EVIDENCE TO GROUND RESPONSE:\n${webContextSnippe
 ${ragResults.combinedContext ? `RETRIEVED KNOWLEDGE CONTEXT:\n${ragResults.combinedContext}` : ""}
 ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences.map((e) => e.attemptedSolution.slice(0, 200)).join("\n---\n")}` : ""}`;
 
-    const fullSystemInstruction = personalizationPrompt
-      ? `${identityPrompt}\n\n${personalizationPrompt}`
-      : identityPrompt;
+    const humanGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
+
+    const fullSystemInstruction = [
+      identityPrompt,
+      personalizationPrompt,
+      humanGuidance,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     const modelMessages = messages.slice(-12).map((m) => ({
       role: m.role,
@@ -357,10 +409,15 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
     );
 
     const guardedReply = guardAIOutput(modelResult.text);
+    const finalized = humanIntelligence.finalizeResponse(
+      guardedReply,
+      cleanUserPrompt,
+      humanAnalysis
+    );
 
     return {
       role: "assistant",
-      content: guardedReply,
+      content: finalized.finalContent,
       kind: "text",
       intent: effectiveIntent,
       modelUsed: modelResult.modelUsed,
@@ -374,6 +431,25 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
         category: m.category,
       })),
       warnings: modelResult.warnings,
+      progressStage: "completed",
+      humanContext: {
+        goal: humanAnalysis.goal,
+        signal: humanAnalysis.primarySignal,
+        suggestedNextStep: finalized.proactiveStep?.promptSuggestion,
+      },
+      debugInfo: {
+        stagesExecuted: [
+          "understanding",
+          ...(webCitations ? ["researching" as const] : []),
+          "preparing",
+          "verifying",
+          "completed",
+        ],
+        executionTimeMs: Date.now() - startTime,
+        toolsUsed: webCitations ? ["web_search"] : [],
+        intent: effectiveIntent,
+        complexityScore: classification.complexityScore,
+      },
     };
   }
 }

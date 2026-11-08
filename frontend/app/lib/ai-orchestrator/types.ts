@@ -174,5 +174,12 @@ export interface OrchestratorResponse {
   imageMetadata?: Record<string, any>;
   fallbackOccurred?: boolean;
   warnings?: string[];
+  progressStage?: string;
+  humanContext?: {
+    goal: string;
+    signal: string;
+    suggestedNextStep?: string;
+  };
+  debugInfo?: Record<string, any>;
 }
 

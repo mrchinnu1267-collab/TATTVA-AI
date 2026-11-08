@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { aiOrchestrator } from "../../lib/ai-orchestrator";
+import { humanIntelligence } from "../../lib/human-intelligence";
 import {
   verifyUserSession,
   checkRateLimit,
@@ -221,11 +222,15 @@ export async function POST(request: Request) {
     const rawError = error instanceof Error ? error.message : String(error);
     const safeError = scrubCredentials(rawError, customKeyForScrubbing);
     console.error("[TATTVA Chat] Error:", safeError);
+
+    const safeFormatted = humanIntelligence.formatSafeError(safeError);
+
     return NextResponse.json(
       {
         role: "assistant",
-        content: `Error: ${safeError}`,
+        content: safeFormatted.userMessage,
         error: safeError,
+        debugInfo: safeFormatted.debugInfo,
       },
       { status: 500 }
     );
