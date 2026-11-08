@@ -278,7 +278,14 @@ async function downloadGeneratedFile(content: string, rawTag = "txt", explicitFi
         const data = await res.json();
         if (data?.success && data.data_uri) {
           const finalFilename = data.filename || explicitFilename || `tattva_${targetFormat}_${Date.now()}.${targetFormat}`;
-          triggerDownload(data.data_uri, finalFilename, `application/${targetFormat}`);
+          const realMime = data.mime_type || (
+            targetFormat === "pptx" ? "application/vnd.openxmlformats-officedocument.presentationml.presentation" :
+            targetFormat === "docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" :
+            targetFormat === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" :
+            targetFormat === "pdf" ? "application/pdf" :
+            targetFormat === "csv" ? "text/csv" : "application/octet-stream"
+          );
+          triggerDownload(data.data_uri, finalFilename, realMime);
           return;
         }
       }

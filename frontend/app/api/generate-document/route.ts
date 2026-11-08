@@ -69,7 +69,7 @@ Return a valid JSON object with this structure:
 }`;
 
         const res = await ai.models.generateContent({
-          model: "gemini-3.5-flash-lite",
+          model: "gemini-2.5-flash",
           contents: [{ text: `USER REQUEST:\n"${rawPrompt}"` }],
           config: {
             systemInstruction: systemPrompt,

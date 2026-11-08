@@ -161,6 +161,8 @@ export function detectDocumentGenerationIntent(query: string): DocumentGeneratio
   // 5. Cleanly Extract the Topic / Mind of the User
   let topic = clean;
   topic = topic
+    .replace(/\[\s*Mode:\s*[^\]]+\]:?/gi, "")
+    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce)\b/gi, "")
     .replace(/\b(a|an|the)\s+(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/gi, "")
