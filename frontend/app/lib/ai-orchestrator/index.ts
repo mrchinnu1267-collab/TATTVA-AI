@@ -30,6 +30,7 @@ import {
 } from "../security";
 import { generateImage } from "../image-engine";
 import { humanIntelligence } from "../human-intelligence";
+import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -209,6 +210,71 @@ export class MasterAIOrchestrator {
           latencyMs: Date.now() - startTime,
           warnings: [message],
         };
+      }
+    }
+
+    // 3.5 PIPELINE ROUTING: RESEARCH-TO-FILE GENERATION ENGINE
+    const docIntent = detectDocumentIntent(cleanUserPrompt, {
+      history: messages.map((m) => ({ role: m.role, content: m.content })),
+      hasAttachments: hasAttachedFile,
+    });
+
+    if (effectiveIntent === "document_generation" || docIntent.isDocumentRequest) {
+      if (docIntent.needsClarification) {
+        return {
+          role: "assistant",
+          content: docIntent.clarificationQuestion || "Could you please specify the topic or content you would like me to prepare?",
+          kind: "text",
+          intent: "document_generation",
+          modelUsed: "TATTVA-Intent-Detector",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+        };
+      }
+
+      try {
+        let attachmentBuf: Buffer | undefined;
+        let attachmentName: string | undefined;
+        const fileAtt = latestMessage.attachments?.find((a) => !a.type?.startsWith("image/"));
+        if (fileAtt?.data) {
+          const comma = fileAtt.data.indexOf(",");
+          attachmentBuf = Buffer.from(comma > 0 ? fileAtt.data.slice(comma + 1) : fileAtt.data, "base64");
+          attachmentName = fileAtt.name;
+        }
+
+        const docPkg = await synthesizeResearchToFile(docIntent, {
+          apiKey,
+          userId: context.userId || "user_workspace",
+          attachmentBuffer: attachmentBuf,
+          attachmentFilename: attachmentName,
+        });
+
+        return {
+          role: "assistant",
+          content: `${docPkg.summary}\n\n${docPkg.outlineMarkdown}`,
+          kind: "text",
+          intent: "document_generation",
+          modelUsed: "TATTVA Universal File Engine",
+          provider: "gemini",
+          latencyMs: Date.now() - startTime,
+          generatedDocument: {
+            fileId: docPkg.vault.fileId,
+            filename: docPkg.document.filename,
+            format: docPkg.document.format,
+            mimeType: docPkg.document.mimeType,
+            sizeBytes: docPkg.document.sizeBytes,
+            downloadUrl: docPkg.vault.signedUrl,
+            title: docPkg.intent.topic,
+            archetype: docPkg.intent.archetype,
+            dataUri: docPkg.document.dataUri,
+            summary: docPkg.summary,
+            outlineMarkdown: docPkg.outlineMarkdown,
+          },
+          progressStages: docPkg.progressStages,
+        };
+      } catch (docErr: any) {
+        console.error("[TATTVA Orchestrator] Document generation error:", docErr);
+        // Fall back to general conversation if generation encountered an issue
       }
     }
 

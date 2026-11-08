@@ -35,3 +35,4 @@ export interface ActiveConversationContext {
   activeTechStack?: string[];
   totalTurnsCount: number;
 }
+

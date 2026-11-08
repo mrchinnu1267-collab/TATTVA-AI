@@ -11,6 +11,7 @@ export type TaskIntent =
   | "mathematics"
   | "web_research"
   | "document_analysis"
+  | "document_generation"
   | "image_generation"
   | "image_editing"
   | "data_analysis"
@@ -76,6 +77,7 @@ export interface ExecutionContext {
   userId: string;
   userEmail: string;
   sessionId?: string;
+  workspaceId?: string;
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
   uploadedFiles?: Array<{ name: string; type: string; data?: string; path?: string }>;
 }
@@ -175,6 +177,20 @@ export interface OrchestratorResponse {
   fallbackOccurred?: boolean;
   warnings?: string[];
   progressStage?: string;
+  progressStages?: string[];
+  generatedDocument?: {
+    fileId: string;
+    filename: string;
+    format: string;
+    mimeType: string;
+    sizeBytes: number;
+    downloadUrl: string;
+    title: string;
+    archetype?: string;
+    dataUri?: string;
+    summary?: string;
+    outlineMarkdown?: string;
+  };
   humanContext?: {
     goal: string;
     signal: string;

@@ -69,6 +69,17 @@ const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
     ],
   },
   {
+    intent: "document_generation",
+    patterns: [
+      /\b(create|generate|make|prepare|draft|design|export|write)\b.*(ppt|pptx|powerpoint|presentation|slides|deck|word doc|docx|document|assignment|report|excel|xlsx|spreadsheet|pdf|csv)/i,
+      /\b(ppt|pptx|powerpoint|presentation|slide deck|slides? on|slides? about)\b/i,
+      /\b(excel sheet|xlsx|spreadsheet|financial report|budget sheet|data table csv)\b/i,
+      /\b(word document|docx|academic assignment|project report|research paper)\b/i,
+      /పిపిటి|ప్రెజెంటేషన్|స్లైడ్స్|ఎక్సెల్|వర్డ్ డాక్యుమెంట్|అసైన్‌మెంట్/i,
+      /पीपीटी|प्रेजेंटेशन|स्लाइड्स|एक्सेल|वर्ड डॉक्यूमेंट|असाइनमेंट/i,
+    ],
+  },
+  {
     intent: "document_analysis",
     patterns: [
       /\b(analyze|summarize|extract|read|transcribe|explain|solve|understand)\b.*(handwriting|handwritten|notes?|paper|document|pdf|docx|file|contract|report|spreadsheet|sheet|whiteboard|prescription|diagram|formula|scan)/i,

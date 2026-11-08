@@ -15,6 +15,7 @@ try {
   await jiti("./connectors-e2e.test.ts");
   await jiti("./document-reader.test.ts");
   await jiti("./human-intelligence.test.ts");
+  await jiti("./research-file-engine.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
 } catch (err) {
   console.error("\n❌ Test execution failed:", err);
