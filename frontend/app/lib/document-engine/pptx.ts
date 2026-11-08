@@ -175,7 +175,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
         <p:nvSpPr>
           <p:cNvPr id="3" name="Title"/>
           <p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>
-          <p:nvPr><p:ph type="title"/></p:nvPr>
+          <p:nvPr/>
         </p:nvSpPr>
         <p:spPr>
           <a:xfrm>
@@ -204,7 +204,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
         <p:nvSpPr>
           <p:cNvPr id="4" name="Content"/>
           <p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>
-          <p:nvPr><p:ph idx="1"/></p:nvPr>
+          <p:nvPr/>
         </p:nvSpPr>
         <p:spPr>
           <a:xfrm>
@@ -277,7 +277,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <p:sldIdLst>
     ${sldIdLstXml}
   </p:sldIdLst>
-  <p:sldSz cx="12192000" cy="6858000"/>
+  <p:sldSz cx="12192000" cy="6858000" type="screen16x9"/>
   <p:notesSz cx="6858000" cy="9144000"/>
 </p:presentation>`;
 
@@ -318,9 +318,30 @@ export function createPptx(payload: PresentationPayload): Buffer {
     <p:sldLayoutId id="2147483649" r:id="rIdLayout1"/>
   </p:sldLayoutIdLst>
   <p:txStyles>
-    <p:titleStyle/>
-    <p:bodyStyle/>
-    <p:otherStyle/>
+    <p:titleStyle>
+      <a:lvl1pPr algn="l">
+        <a:defRPr sz="4400" b="1">
+          <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
+          <a:latin typeface="Calibri"/>
+        </a:defRPr>
+      </a:lvl1pPr>
+    </p:titleStyle>
+    <p:bodyStyle>
+      <a:lvl1pPr marL="342900" algn="l">
+        <a:defRPr sz="2000">
+          <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
+          <a:latin typeface="Calibri"/>
+        </a:defRPr>
+      </a:lvl1pPr>
+    </p:bodyStyle>
+    <p:otherStyle>
+      <a:lvl1pPr algn="l">
+        <a:defRPr sz="1400">
+          <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
+          <a:latin typeface="Calibri"/>
+        </a:defRPr>
+      </a:lvl1pPr>
+    </p:otherStyle>
   </p:txStyles>
 </p:sldMaster>`;
 
@@ -336,7 +357,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
              xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
              type="blank" preserve="1">
-  <p:cSld>
+  <p:cSld name="Blank">
     <p:spTree>
       <p:nvGrpSpPr>
         <p:cNvPr id="1" name=""/>
@@ -454,8 +475,32 @@ export function createPptx(payload: PresentationPayload): Buffer {
 </cp:coreProperties>`;
 
   const appXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+            xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <TotalTime>1</TotalTime>
+  <Words>0</Words>
   <Application>Microsoft Office PowerPoint</Application>
+  <PresentationFormat>Widescreen</PresentationFormat>
+  <Paragraphs>0</Paragraphs>
+  <Slides>${totalSlides}</Slides>
+  <Notes>0</Notes>
+  <HiddenSlides>0</HiddenSlides>
+  <MMClips>0</MMClips>
+  <ScaleCrop>false</ScaleCrop>
+  <HeadingPairs>
+    <vt:vector size="4" baseType="variant">
+      <vt:variant><vt:lpstr>Theme</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>1</vt:i4></vt:variant>
+      <vt:variant><vt:lpstr>Slide Titles</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>${totalSlides}</vt:i4></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size="${totalSlides + 1}" baseType="lpstr">
+      <vt:lpstr>Office Theme</vt:lpstr>
+      ${slides.map((s) => `<vt:lpstr>${escapeXml(s.title)}</vt:lpstr>`).join("\n      ")}
+    </vt:vector>
+  </TitlesOfParts>
   <Company>${organization}</Company>
 </Properties>`;
 

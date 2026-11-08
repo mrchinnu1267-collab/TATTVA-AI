@@ -71,7 +71,24 @@ export async function POST(request: Request) {
       const docIntent = detectDocumentGenerationIntent(latestUserMsg.content);
       if (docIntent.isDocumentRequest) {
         try {
-          const generatedDoc = await synthesizeDocument(docIntent, process.env.GEMINI_API_KEY);
+          let attachmentBuffer: Buffer | undefined;
+          let attachmentFilename: string | undefined;
+
+          if (latestUserMsg.attachments && Array.isArray(latestUserMsg.attachments) && latestUserMsg.attachments.length > 0) {
+            const firstAttach = latestUserMsg.attachments[0];
+            if (firstAttach && firstAttach.data) {
+              const base64Data = firstAttach.data.replace(/^data:[^;]+;base64,/, "");
+              attachmentBuffer = Buffer.from(base64Data, "base64");
+              attachmentFilename = firstAttach.name;
+            }
+          }
+
+          const generatedDoc = await synthesizeDocument(docIntent, {
+            apiKey: process.env.GEMINI_API_KEY,
+            attachmentBuffer,
+            attachmentFilename,
+          });
+
           return NextResponse.json({
             role: "assistant",
             content: generatedDoc.summaryMessage,
@@ -87,6 +104,8 @@ export async function POST(request: Request) {
               format: generatedDoc.format,
               sizeBytes: generatedDoc.sizeBytes,
               title: generatedDoc.title,
+              verifiedOfficeCompatible: generatedDoc.verifiedOfficeCompatible,
+              pageOrSlideCount: generatedDoc.pageOrSlideCount,
             },
           });
         } catch (docErr) {
