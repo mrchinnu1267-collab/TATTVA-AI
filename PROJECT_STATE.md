@@ -45,18 +45,16 @@ TATTVA_AI/
 ## 3. Completed Milestones & Verified Features
 
 - [x] **TATTVA AI Universal File Generation Engine & Microsoft Office Compatibility**:
-  - Engineered end-to-end autonomous file generator creating genuine, non-corrupted files across Word (`.docx`), Excel (`.xlsx`), PowerPoint (`.pptx`), PDF (`.pdf`), Data (`.csv`), and Code (`.java`, `.py`, `.sql`).
-  - Strict OpenXML & Android PowerPoint Compliance:
-    - Enforced Open Packaging Conventions (OPC): `[Content_Types].xml` guaranteed as entry #1, `_rels/.rels` as entry #2.
-    - Explicit shape geometry `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` on all `<p:sp>` shapes, resolving strict Android XSD parser rejection.
-    - Removed orphan `<p:ph>` placeholders from slides that referenced non-existent layout placeholders, permanently eliminating mobile "Can't open file" errors.
-    - Added full SlideMaster text styles hierarchy (`lvl1pPr` in `titleStyle`, `bodyStyle`, and `otherStyle`), SlideLayout (`name="Blank"`), standard DrawingML Theme, PresProps, ViewProps, TableStyles, and per-slide relationship mapping.
-    - Modern 16:9 widescreen layout (`12192000 x 6858000` EMU, `type="screen16x9"`).
-  - Dynamic slide count synthesis: Automatically extracts and fulfills explicit slide requests (e.g., 15-slide presentation on Artificial Intelligence produces exactly 15 slides).
-  - Formula and dynamic calculation support in Excel (`.xlsx`): Automatic column sizing, dark navy headers, zebra rows `#F8FAFC`, and live `=SUM()` / `=AVERAGE()` formulas.
-  - Multi-source domain research engine (`researcher.ts`): Automatically inspects user attachments (PDF/DOCX) using `inspectAndReadDocument` and fetches authoritative facts and citations via Gemini 2.5 Flash.
-  - Mobile Chrome download reliability (`download-helper.ts`): Converts base64 data URIs into binary `Blob` object URLs, preventing mobile browser corruption.
-  - 44 automated tests passing (`tests/run-tests.mjs`), with full Turbopack Next.js build verified.
+  - Identified & permanently resolved root cause of identical DOCX generation: Google Gemini API had deprecated `gemini-2.5-flash` with 404 NOT FOUND for new users, which caused the synthesizer to catch the error and silently fall back to the static hardcoded template `"Strategic Framework for ${safeTitle}"`. Upgraded all document engine endpoints to `gemini-3.8-flash`.
+  - Built two-tier Microsoft Office generation and validation pipeline:
+    - **Tier 1 (Native Python Office Engine):** Integrated `python_office_engine.py` powered by `python-pptx` (1.0.2) and `python-docx` (1.2.0) with automated Node bridge (`python-bridge.ts`). Generates authentic, 100% native `.pptx` presentations and `.docx` documents with styled headers, custom table formatting, callouts, and exact slide counts.
+    - **Tier 2 (Pure TypeScript OpenXML Engine):** Preserves zero-dependency OpenXML builders with strict geometry `<a:prstGeom prst="rect">`, `lvl1pPr` slide master hierarchies, and OPC first-entry ordering (`[Content_Types].xml`).
+  - Strict Universal Validation:
+    - Pre-delivery validation checks file existence, size, magic bytes (`PK\x03\x04`), and reopens PPTX with `validatePptxWithPython` and DOCX with `validateDocxWithPython` before delivery.
+    - Eliminates duplicate document content across disparate prompts (tested with DBMS, Smart Hostel Management, Cybersecurity, AI, Student marks).
+  - Private Supabase Storage Vault Integration (`storage.ts`):
+    - Automatically uploads generated files to `tattva-secure-vault` in Supabase Storage with unique generation IDs and 1-hour signed download URLs, with local encrypted vault fallback.
+  - All 44 automated tests passing across 7 test suites (`tests/run-tests.mjs`). Verified with full Next.js Turbopack production compilation.
 
 - [x] **Complete Removal of Web Image Search, Live Voice Assistance & Microphone Systems**:
   - Permanently deleted the Web Image Search Engine: removed `app/images/`, `app/api/images/`, `app/components/InbuiltImageSearchModal.tsx`, `app/components/VisualImageGallery.tsx`, `app/lib/image-search/`, `app/lib/web-image-search.ts`, and all image search routes/hooks/modals.

@@ -6,6 +6,8 @@ import { createCsv } from "./csv";
 import { inspectAndReadDocument, ExtractedDocumentContent } from "./reader";
 import { detectDocumentGenerationIntent, DocumentGenerationIntent, DocumentFormat } from "./intent";
 import { synthesizeDocument, GeneratedFilePayload } from "./synthesizer";
+import { executePythonOffice, validatePptxWithPython, validateDocxWithPython } from "./python-bridge";
+import { saveGeneratedDocumentToVault, StoredDocumentResult } from "./storage";
 
 export {
   createDocx,
@@ -16,8 +18,12 @@ export {
   inspectAndReadDocument,
   detectDocumentGenerationIntent,
   synthesizeDocument,
+  executePythonOffice,
+  validatePptxWithPython,
+  validateDocxWithPython,
+  saveGeneratedDocumentToVault,
 };
-export type { ExtractedDocumentContent, DocumentGenerationIntent, GeneratedFilePayload, DocumentFormat };
+export type { ExtractedDocumentContent, DocumentGenerationIntent, GeneratedFilePayload, DocumentFormat, StoredDocumentResult };
 
 export type SupportedDocumentFormat =
   | "pdf"
@@ -128,13 +134,23 @@ export function buildDocument(options: BuildDocumentOptions): GeneratedDocumentR
       case "doc":
         finalFormat = "docx";
         mimeType = MIME_TYPES.docx;
-        buffer = createDocx({
+        const pyDocx = executePythonOffice("generate_docx", {
           title,
           subtitle: options.subtitle,
           sections: options.sections,
           references: options.references,
-          rawText: options.content,
         });
+        if (pyDocx && pyDocx.success && pyDocx.buffer) {
+          buffer = pyDocx.buffer;
+        } else {
+          buffer = createDocx({
+            title,
+            subtitle: options.subtitle,
+            sections: options.sections,
+            references: options.references,
+            rawText: options.content,
+          });
+        }
         break;
 
       case "rtf":
@@ -166,12 +182,21 @@ export function buildDocument(options: BuildDocumentOptions): GeneratedDocumentR
       case "ppt":
         finalFormat = "pptx";
         mimeType = MIME_TYPES.pptx;
-        buffer = createPptx({
+        const pyPptx = executePythonOffice("generate_pptx", {
           title,
           subtitle: options.subtitle,
           slides: options.slides,
-          rawText: options.content,
         });
+        if (pyPptx && pyPptx.success && pyPptx.buffer) {
+          buffer = pyPptx.buffer;
+        } else {
+          buffer = createPptx({
+            title,
+            subtitle: options.subtitle,
+            slides: options.slides,
+            rawText: options.content,
+          });
+        }
         break;
 
       case "pdf":

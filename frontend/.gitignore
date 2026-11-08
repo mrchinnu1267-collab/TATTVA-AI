@@ -17,6 +17,7 @@ dist/
 *.cert
 
 # Local Secure Vault & Memory Stores
+.tattva-vault/
 .tattva_secure_vault/
 .tattva_memory_data/
 .tattva_secure_accounts.json

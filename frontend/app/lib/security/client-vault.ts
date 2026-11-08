@@ -39,7 +39,7 @@ export const DEFAULT_PROVIDER_SETTINGS: CustomProviderSettings = {
     },
     gemini: {
       apiKey: "",
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       baseUrl: "https://generativelanguage.googleapis.com",
       nickname: "Google Gemini",
     },
