@@ -73,7 +73,7 @@ export function buildZip(entries: ZipEntry[]): Buffer {
     ch.writeUInt16LE(0, 32); // File comment length
     ch.writeUInt16LE(0, 34); // Disk number start
     ch.writeUInt16LE(0, 36); // Internal file attributes
-    ch.writeUInt32LE(0, 38); // External file attributes
+    ch.writeUInt32LE(0x20, 38); // External file attributes (0x20 = DOS Archive flag for normal file)
     ch.writeUInt32LE(offset, 42); // Relative offset of local header
 
     centralParts.push(ch, filenameBuf);

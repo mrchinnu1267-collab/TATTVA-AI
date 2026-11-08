@@ -29,8 +29,12 @@ function escapeXml(unsafe: string): string {
 /**
  * Builds a 100% genuine Microsoft PowerPoint (.pptx) OpenXML presentation
  * Uses the modern 16:9 widescreen standard (12192000 x 6858000 EMU).
- * Includes SlideMaster, SlideLayout, Theme, ColorMaps, and Per-Slide Relationships
- * guaranteeing 100% flawless opening in Microsoft PowerPoint on Android, iOS, Windows, Mac, and Office 365.
+ * 
+ * Strict OpenXML Compliance for Microsoft PowerPoint (Android, iOS, Windows, Mac, Office 365):
+ * 1. [Content_Types].xml is the FIRST entry in the package.
+ * 2. All shapes contain explicit <a:prstGeom prst="rect"><a:avLst/></a:prstGeom> geometry.
+ * 3. Includes SlideMaster, SlideLayout, Theme, PresProps, ViewProps, TableStyles.
+ * 4. Generates per-slide relationship files referencing slideLayout1.xml.
  */
 export function createPptx(payload: PresentationPayload): Buffer {
   const presentationTitle = escapeXml(payload.title || "TATTVA AI Presentation");
@@ -79,10 +83,10 @@ export function createPptx(payload: PresentationPayload): Buffer {
   }
 
   const totalSlides = slides.length;
-  const entries: ZipEntry[] = [];
   let sldIdLstXml = "";
   let presSlideRelsXml = "";
   let contentTypesOverrideXml = "";
+  const slideEntries: ZipEntry[] = [];
 
   slides.forEach((slide, idx) => {
     const slideNum = idx + 1;
@@ -116,6 +120,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
     });
 
     // 16:9 dimensions: Width = 12192000 EMU (13.33 inches), Height = 6858000 EMU (7.5 inches)
+    // Every shape explicitly contains <a:prstGeom prst="rect"><a:avLst/></a:prstGeom> to satisfy strict schema validation
     const slideXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -148,6 +153,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
             <a:off x="${isTitleSlide ? "1200000" : "900000"}" y="${isTitleSlide ? "1800000" : "500000"}"/>
             <a:ext cx="${isTitleSlide ? "9792000" : "10392000"}" cy="320000"/>
           </a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
         </p:spPr>
         <p:txBody>
           <a:bodyPr/>
@@ -176,6 +182,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
             <a:off x="${isTitleSlide ? "1200000" : "900000"}" y="${isTitleSlide ? "2200000" : "850000"}"/>
             <a:ext cx="${isTitleSlide ? "9792000" : "10392000"}" cy="${isTitleSlide ? "1800000" : "800000"}"/>
           </a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
         </p:spPr>
         <p:txBody>
           <a:bodyPr/>
@@ -197,13 +204,14 @@ export function createPptx(payload: PresentationPayload): Buffer {
         <p:nvSpPr>
           <p:cNvPr id="4" name="Content"/>
           <p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>
-          <p:nvPr><p:ph type="body" idx="1"/></p:nvPr>
+          <p:nvPr><p:ph idx="1"/></p:nvPr>
         </p:nvSpPr>
         <p:spPr>
           <a:xfrm>
             <a:off x="${isTitleSlide ? "1200000" : "900000"}" y="${isTitleSlide ? "4200000" : "1850000"}"/>
             <a:ext cx="${isTitleSlide ? "9792000" : "10392000"}" cy="${isTitleSlide ? "1800000" : "4400000"}"/>
           </a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
         </p:spPr>
         <p:txBody>
           <a:bodyPr/>
@@ -224,6 +232,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
             <a:off x="900000" y="6350000"/>
             <a:ext cx="10392000" cy="300000"/>
           </a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
         </p:spPr>
         <p:txBody>
           <a:bodyPr/>
@@ -251,7 +260,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
 </Relationships>`;
 
-    entries.push(
+    slideEntries.push(
       { name: `ppt/slides/slide${slideNum}.xml`, data: slideXml },
       { name: `ppt/slides/_rels/slide${slideNum}.xml.rels`, data: slideRelsXml }
     );
@@ -272,10 +281,13 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <p:notesSz cx="6858000" cy="9144000"/>
 </p:presentation>`;
 
-  // Master Relationships
+  // Master Presentation Relationships (slideMaster, theme, presProps, viewProps, tableStyles, slides)
   const presRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdMaster1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+  <Relationship Id="rIdPresProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/>
+  <Relationship Id="rIdViewProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps" Target="viewProps.xml"/>
+  <Relationship Id="rIdTableStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>
   ${presSlideRelsXml}
 </Relationships>`;
 
@@ -351,7 +363,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
 </Relationships>`;
 
-  // Standard Theme XML
+  // Standard DrawingML Theme XML
   const themeXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme">
   <a:themeElements>
@@ -406,6 +418,27 @@ export function createPptx(payload: PresentationPayload): Buffer {
   </a:themeElements>
 </a:theme>`;
 
+  // Presentation Properties XML
+  const presPropsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentationPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                  xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`;
+
+  // View Properties XML
+  const viewPropsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:viewPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+          xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:normalViewPr>
+    <p:restoredLeft sz="15620"/>
+    <p:restoredTop sz="94660"/>
+  </p:normalViewPr>
+</p:viewPr>`;
+
+  // Table Styles XML
+  const tableStylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>`;
+
   const nowIso = new Date().toISOString();
   const coreXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
@@ -426,6 +459,7 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <Company>${organization}</Company>
 </Properties>`;
 
+  // [Content_Types].xml overrides
   const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -434,6 +468,9 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
   <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
   <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/ppt/presProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"/>
+  <Override PartName="/ppt/viewProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"/>
+  <Override PartName="/ppt/tableStyles.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
   ${contentTypesOverrideXml}
@@ -446,7 +483,9 @@ export function createPptx(payload: PresentationPayload): Buffer {
   <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
 </Relationships>`;
 
-  entries.push(
+  // CRITICAL OPC REQUIREMENT:
+  // [Content_Types].xml MUST be entry #1, _rels/.rels MUST be entry #2 in the ZIP archive
+  const entries: ZipEntry[] = [
     { name: "[Content_Types].xml", data: contentTypesXml },
     { name: "_rels/.rels", data: relsXml },
     { name: "docProps/core.xml", data: coreXml },
@@ -457,8 +496,12 @@ export function createPptx(payload: PresentationPayload): Buffer {
     { name: "ppt/slideMasters/_rels/slideMaster1.xml.rels", data: slideMasterRelsXml },
     { name: "ppt/slideLayouts/slideLayout1.xml", data: slideLayoutXml },
     { name: "ppt/slideLayouts/_rels/slideLayout1.xml.rels", data: slideLayoutRelsXml },
-    { name: "ppt/theme/theme1.xml", data: themeXml }
-  );
+    { name: "ppt/theme/theme1.xml", data: themeXml },
+    { name: "ppt/presProps.xml", data: presPropsXml },
+    { name: "ppt/viewProps.xml", data: viewPropsXml },
+    { name: "ppt/tableStyles.xml", data: tableStylesXml },
+    ...slideEntries,
+  ];
 
   return buildZip(entries);
 }

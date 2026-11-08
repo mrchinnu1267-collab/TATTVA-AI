@@ -74,7 +74,7 @@ export function createXlsx(payload: SpreadsheetPayload): Buffer {
     sheets = [{ title: "Sheet1", rows: [["No Data Available"]] }];
   }
 
-  const entries: ZipEntry[] = [];
+  const sheetEntries: ZipEntry[] = [];
   let workbookSheetsXml = "";
   let workbookRelsXml = "";
   let contentTypesOverrideXml = "";
@@ -180,7 +180,7 @@ export function createXlsx(payload: SpreadsheetPayload): Buffer {
   ${autoFilterXml}
 </worksheet>`;
 
-    entries.push({
+    sheetEntries.push({
       name: `xl/worksheets/sheet${sheetId}.xml`,
       data: worksheetXml,
     });
@@ -309,15 +309,17 @@ export function createXlsx(payload: SpreadsheetPayload): Buffer {
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
 
-  entries.push(
+  // OPC REQUIREMENT: [Content_Types].xml MUST be entry #1, _rels/.rels MUST be entry #2
+  const entries: ZipEntry[] = [
     { name: "[Content_Types].xml", data: contentTypesXml },
     { name: "_rels/.rels", data: relsXml },
     { name: "docProps/core.xml", data: coreXml },
     { name: "docProps/app.xml", data: appXml },
     { name: "xl/_rels/workbook.xml.rels", data: xlRelsXml },
     { name: "xl/workbook.xml", data: workbookXml },
-    { name: "xl/styles.xml", data: stylesXml }
-  );
+    { name: "xl/styles.xml", data: stylesXml },
+    ...sheetEntries,
+  ];
 
   return buildZip(entries);
 }

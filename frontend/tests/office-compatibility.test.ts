@@ -1,6 +1,7 @@
 import { detectDocumentGenerationIntent } from "../app/lib/document-engine/intent";
 import { synthesizeDocument } from "../app/lib/document-engine/synthesizer";
 import { inspectAndReadDocument } from "../app/lib/document-engine/reader";
+import { readZip } from "../app/lib/document-engine/zip";
 
 async function runOfficeTests() {
   console.log("=== TATTVA AI - Genuine Microsoft Office Compatibility Tests ===");
@@ -70,7 +71,42 @@ async function runOfficeTests() {
       throw new Error(`Failed: Inspection reported invalid structure for ${generated.filename}: ${inspection.error}`);
     }
 
-    console.log(`  -> Verified ${generated.filename} (${generated.sizeBytes} bytes) | Magic bytes: PK\\x03\\x04 | Compatible: TRUE`);
+    // OPC Spec Check: Verify [Content_Types].xml is the FIRST entry and _rels/.rels is the second entry
+    const zipMap = readZip(buffer);
+    const zipKeys = Array.from(zipMap.keys());
+    if (zipKeys[0] !== "[Content_Types].xml") {
+      throw new Error(`Failed OPC packaging: [Content_Types].xml must be entry #1, but found: ${zipKeys[0]}`);
+    }
+    if (zipKeys[1] !== "_rels/.rels") {
+      throw new Error(`Failed OPC packaging: _rels/.rels must be entry #2, but found: ${zipKeys[1]}`);
+    }
+
+    if (intent.format === "pptx") {
+      const slide1 = zipMap.get("ppt/slides/slide1.xml")?.toString("utf8") || "";
+      if (!slide1.includes("<a:prstGeom prst=\"rect\">")) {
+        throw new Error(`Failed OpenXML: ppt/slides/slide1.xml is missing explicit <a:prstGeom prst="rect"> shape geometry!`);
+      }
+      if (!zipMap.has("ppt/slideMasters/slideMaster1.xml")) {
+        throw new Error(`Failed OpenXML: Missing ppt/slideMasters/slideMaster1.xml`);
+      }
+      if (!zipMap.has("ppt/slideLayouts/slideLayout1.xml")) {
+        throw new Error(`Failed OpenXML: Missing ppt/slideLayouts/slideLayout1.xml`);
+      }
+      if (!zipMap.has("ppt/theme/theme1.xml")) {
+        throw new Error(`Failed OpenXML: Missing ppt/theme/theme1.xml`);
+      }
+      if (!zipMap.has("ppt/presProps.xml")) {
+        throw new Error(`Failed OpenXML: Missing ppt/presProps.xml`);
+      }
+      if (!zipMap.has("ppt/viewProps.xml")) {
+        throw new Error(`Failed OpenXML: Missing ppt/viewProps.xml`);
+      }
+      if (!zipMap.has("ppt/tableStyles.xml")) {
+        throw new Error(`Failed OpenXML: Missing ppt/tableStyles.xml`);
+      }
+    }
+
+    console.log(`  -> Verified ${generated.filename} (${generated.sizeBytes} bytes) | Magic bytes: PK\\x03\\x04 | OPC First Entry: [Content_Types].xml | Compatible: TRUE`);
   }
 
   console.log("\nALL MICROSOFT OFFICE COMPATIBILITY TESTS PASSED SUCCESSFULLY! ✅\n");
