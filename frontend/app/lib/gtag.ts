@@ -125,19 +125,6 @@ export function trackImageGeneration(
 }
 
 /**
- * Track Voice Assistant usage (without voice audio or transcripts).
- */
-export function trackVoiceAssistantUsed(
-  action: "started" | "connected" | "completed" = "started",
-  mode?: string
-) {
-  event("voice_assistant_used", {
-    voice_action: action,
-    voice_mode: mode || "realtime",
-  });
-}
-
-/**
  * Track file uploads (without private file data or filenames).
  */
 export function trackFileUploaded(fileType?: string, fileSizeKB?: number) {

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://tattva-ai-phi.vercel.app"),
   title: "Download TATTVA AI for Android | TATTVA AI",
   description:
-    "Download the official TATTVA AI Android app APK. Access real-time voice conversations, satellite maps, local weather, and fast AI reasoning on mobile.",
+    "Download the official TATTVA AI Android app APK. Access smart document creation, satellite maps, local weather, and fast AI reasoning on mobile.",
   alternates: {
     canonical: "https://tattva-ai-phi.vercel.app/download",
   },
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Download TATTVA AI for Android | TATTVA AI",
     description:
-      "Download the official TATTVA AI Android app APK. Access real-time voice conversations, satellite maps, local weather, and fast AI reasoning on mobile.",
+      "Download the official TATTVA AI Android app APK. Access smart document creation, satellite maps, local weather, and fast AI reasoning on mobile.",
     url: "https://tattva-ai-phi.vercel.app/download",
     siteName: "TATTVA AI",
     type: "website",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Download TATTVA AI for Android | TATTVA AI",
     description:
-      "Download the official TATTVA AI Android app APK. Access real-time voice conversations, satellite maps, local weather, and fast AI reasoning on mobile.",
+      "Download the official TATTVA AI Android app APK. Access smart document creation, satellite maps, local weather, and fast AI reasoning on mobile.",
     images: ["/logo.png"],
   },
 };

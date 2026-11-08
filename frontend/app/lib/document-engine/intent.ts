@@ -1,27 +1,38 @@
 /**
- * TATTVA AI - Multilingual File & Presentation Intent Recognizer
- * Understands user intent in English, Telugu, Hindi, Tamil, and other languages
+ * TATTVA AI - Intelligent Multilingual File & Document Intent Recognizer
+ * Automatically selects genuine Microsoft Office (.docx, .xlsx, .pptx) and standard formats
+ * Supports English, Telugu, Hindi, Tamil, and transliterated queries
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
+export type DocumentFormat = "docx" | "xlsx" | "pptx" | "pdf" | "csv" | "txt" | "html" | "json" | "rtf" | "doc" | "xls" | "ppt" | "xml";
+
 export interface DocumentGenerationIntent {
   isDocumentRequest: boolean;
-  format: "pptx" | "docx" | "xlsx" | "pdf" | "csv" | "txt" | "json";
+  format: DocumentFormat;
   topic: string;
+  category: "presentation" | "document" | "spreadsheet" | "data";
   detectedLanguage: string;
   originalQuery: string;
 }
 
 /**
- * Detects if a user is asking to create, generate, or make a presentation or file.
- * Handles English, Telugu, Hindi, and transliterated queries.
+ * Intelligent file-type classifier:
+ * - "Create an assignment about DBMS" -> DOCX
+ * - "Prepare a project report" -> DOCX
+ * - "Create a question bank" -> DOCX
+ * - "Create a resume" -> DOCX
+ * - "Create a presentation about AI" -> PPTX
+ * - "Prepare student marks analysis" -> XLSX
+ * - "Create a financial report / budget" -> XLSX
  */
 export function detectDocumentGenerationIntent(query: string): DocumentGenerationIntent {
   if (!query || typeof query !== "string") {
     return {
       isDocumentRequest: false,
-      format: "pptx",
+      format: "docx",
       topic: "",
+      category: "document",
       detectedLanguage: "en",
       originalQuery: "",
     };
@@ -35,83 +46,128 @@ export function detectDocumentGenerationIntent(query: string): DocumentGeneratio
   const hasHindi = /[\u0900-\u097F]/.test(clean);
   const detectedLanguage = hasTelugu ? "te" : hasHindi ? "hi" : "en";
 
-  // 2. Format Keywords
-  const isPpt =
-    /\b(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/i.test(lower) ||
-    /పిపిటి|ప్రెజెంటేషన్|స్లైడ్స్/i.test(clean) ||
-    /पीपीटी|प्रेजेंटेशन|स्लाइड्स/i.test(clean);
-
-  const isWord =
-    /\b(word|docx|doc|document|essay|article|writeup)\b/i.test(lower) ||
-    /వర్డ్|డాక్యుమెంట్/i.test(clean) ||
-    /वर्ड|डॉक्यूमेंट/i.test(clean);
-
-  const isExcel =
-    /\b(excel|xlsx|xls|spreadsheet|sheet|budget|tracker|ledger)\b/i.test(lower) ||
-    /ఎక్సెల్|స్ప్రెడ్‌షీట్/i.test(clean) ||
-    /एक्सेल|स्प्रेडशीट/i.test(clean);
-
-  const isPdf =
-    /\b(pdf|whitepaper|formal report)\b/i.test(lower) ||
-    /పిడిఎఫ్/i.test(clean) ||
-    /पीडीएफ/i.test(clean);
-
-  const isCsv =
-    /\b(csv|comma separated|tabular data)\b/i.test(lower) ||
-    /సిఎస్వి/i.test(clean) ||
-    /सीएसवी/i.test(clean);
-
-  // 3. Action Verbs Across Languages
+  // 2. Action Verbs Across Languages
   const hasActionVerb =
     // English
-    /\b(create|generate|make|build|prepare|design|draft|write|export|produce|give me|i need|can you (make|create|generate))\b/i.test(lower) ||
-    // Telugu (Native & Transliterated: chey, cheyyi, cheyandi, tayaru chey, kavali, ivvu)
+    /\b(create|generate|make|build|prepare|design|draft|write|export|produce|give me|i need|can you (make|create|generate)|develop)\b/i.test(lower) ||
+    // Telugu
     /\b(chey|cheyyi|cheyandi|cheyali|tayaru|kavali|ivvu|pettandi)\b/i.test(lower) ||
     /చేయి|చేయ్|చెయ్యి|చేయండి|తయారు|కావాలి|ఇవ్వు/i.test(clean) ||
-    // Hindi (Native & Transliterated: banao, banaiye, banado, chahiye, dijiye, tayar karo)
+    // Hindi
     /\b(banao|banaiye|banado|chahiye|dijiye|karo|bana)\b/i.test(lower) ||
     /बनाओ|बनाइए|बना दो|चाहिए|दीजिए|तैयार करो|बना/i.test(clean);
 
-  // Quick matches: e.g. "create a ppt on solar energy", "ppt on solar energy", "solar energy ppt"
-  const isDirectPptQuery =
-    (isPpt && (hasActionVerb || /\b(on|about|for|gurinchi|meeda|par|pe|ke liye)\b/i.test(lower))) ||
-    /^(create|make|generate)\s+a?\s*ppt\b/i.test(lower);
+  // 3. Format Specific Keywords & Contextual Heuristics
 
-  const isDirectDocQuery =
-    (isWord || isExcel || isPdf || isCsv) && (hasActionVerb || /\b(on|about|for|gurinchi|meeda|par|pe|ke liye)\b/i.test(lower));
+  // Presentation (PPTX / PPT)
+  const isPpt =
+    /\b(ppt|pptx|powerpoint|presentation|slides|slide deck|pitch deck|deck|seminar slides|keynote)\b/i.test(lower) ||
+    /\b(slides? on|slides? about|presentation on|presentation about)\b/i.test(lower) ||
+    /పిపిటి|ప్రెజెంటేషన్|స్లైడ్స్/i.test(clean) ||
+    /पीपीटी|प्रेजेंटेशन|स्लाइड्स/i.test(clean);
 
-  const isDocumentRequest = isDirectPptQuery || isDirectDocQuery;
+  // Spreadsheet (XLSX / XLS / CSV)
+  const isExcel =
+    /\b(excel|xlsx|xls|spreadsheet|sheet|marks analysis|student marks|student score|grade sheet|report card)\b/i.test(lower) ||
+    /\b(financial report|balance sheet|profit and loss|p&l|budget|expense|payroll|cash flow|sales forecast|financial model|ledger|tracker)\b/i.test(lower) ||
+    /ఎక్సెల్|స్ప్రెడ్‌షీట్|బడ్జెట్/i.test(clean) ||
+    /एक्सेल|स्प्रेडशीट|बजट/i.test(clean);
+
+  const isCsv = /\b(csv|comma separated|delimited)\b/i.test(lower);
+
+  // Document (DOCX / DOC / RTF)
+  const isWord =
+    /\b(word|docx|doc|rtf|assignment|project report|report|question bank|question paper|exam paper|resume|cv|curriculum vitae|thesis|dissertation|essay|article|whitepaper|case study|study guide|syllabus)\b/i.test(lower) ||
+    /\b(assignment on|assignment about|report on|report about|notes on|notes about)\b/i.test(lower) ||
+    /వర్డ్|డాక్యుమెంట్|అసైన్‌మెంట్|రిపోర్ట్/i.test(clean) ||
+    /वर्ड|डॉक्यूमेंट|असाइनमेंट|रिपोर्ट/i.test(clean);
+
+  // PDF
+  const isPdf = /\b(pdf|pdf format|portable document)\b/i.test(lower);
+
+  // Other formats
+  const isTxt = /\b(txt|text file|plain text)\b/i.test(lower);
+  const isHtml = /\b(html|html file|webpage)\b/i.test(lower);
+  const isXml = /\b(xml|xml file)\b/i.test(lower);
+  const isJson = /\b(json|json data)\b/i.test(lower);
+
+  // Contextual Trigger
+  const isContextualRequest =
+    isPpt ||
+    isExcel ||
+    isWord ||
+    isPdf ||
+    isCsv ||
+    isTxt ||
+    isHtml ||
+    isXml ||
+    isJson;
+
+  const isDocumentRequest =
+    (isContextualRequest && (hasActionVerb || /\b(on|about|for|gurinchi|meeda|par|pe|ke liye)\b/i.test(lower))) ||
+    /^(create|make|generate|prepare)\s+a?\s*(ppt|document|file|assignment|presentation|spreadsheet|sheet|report)\b/i.test(lower);
 
   if (!isDocumentRequest) {
     return {
       isDocumentRequest: false,
-      format: "pptx",
+      format: "docx",
       topic: "",
+      category: "document",
       detectedLanguage,
       originalQuery: clean,
     };
   }
 
-  // 4. Determine Format
-  let format: "pptx" | "docx" | "xlsx" | "pdf" | "csv" = "pptx";
-  if (isPpt) format = "pptx";
-  else if (isExcel) format = "xlsx";
-  else if (isWord) format = "docx";
-  else if (isPdf) format = "pdf";
-  else if (isCsv) format = "csv";
+  // 4. Resolve exact format & category
+  let format: DocumentFormat = "docx";
+  let category: "presentation" | "document" | "spreadsheet" | "data" = "document";
+
+  if (isPpt) {
+    format = lower.includes(".ppt\b") ? "ppt" : "pptx";
+    category = "presentation";
+  } else if (isExcel) {
+    format = lower.includes(".xls\b") ? "xls" : "xlsx";
+    category = "spreadsheet";
+  } else if (isCsv) {
+    format = "csv";
+    category = "spreadsheet";
+  } else if (isPdf) {
+    format = "pdf";
+    category = "document";
+  } else if (isTxt) {
+    format = "txt";
+    category = "document";
+  } else if (isHtml) {
+    format = "html";
+    category = "document";
+  } else if (isXml) {
+    format = "xml";
+    category = "data";
+  } else if (isJson) {
+    format = "json";
+    category = "data";
+  } else if (lower.includes(".rtf")) {
+    format = "rtf";
+    category = "document";
+  } else if (lower.includes(".doc\b")) {
+    format = "doc";
+    category = "document";
+  } else {
+    // Default document format is genuine DOCX
+    format = "docx";
+    category = "document";
+  }
 
   // 5. Cleanly Extract the Topic / Mind of the User
   let topic = clean;
-  // Remove action phrases and format words in English, Telugu, Hindi
   topic = topic
     .replace(/\b(please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce)\b/gi, "")
     .replace(/\b(a|an|the)\s+(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/gi, "")
-    .replace(/\b(a|an|the)\s+(word doc|word document|docx|doc|document)\b/gi, "")
-    .replace(/\b(a|an|the)\s+(excel sheet|excel|xlsx|spreadsheet|sheet)\b/gi, "")
-    .replace(/\b(a|an|the)\s+(pdf report|pdf document|pdf)\b/gi, "")
-    .replace(/\b(a|an|the)\s+(csv file|csv)\b/gi, "")
-    .replace(/\b(ppt|pptx|powerpoint|presentation|slides|word|docx|excel|xlsx|spreadsheet|pdf|csv)\b/gi, "")
+    .replace(/\b(a|an|the)\s+(word doc|word document|docx|doc|document|assignment|project report|question bank|resume)\b/gi, "")
+    .replace(/\b(a|an|the)\s+(excel sheet|excel|xlsx|spreadsheet|sheet|marks analysis|financial report|budget)\b/gi, "")
+    .replace(/\b(a|an|the)\s+(pdf report|pdf document|pdf|csv file|csv|text file|txt)\b/gi, "")
+    .replace(/\b(ppt|pptx|powerpoint|presentation|slides|word|docx|excel|xlsx|spreadsheet|assignment|marks analysis)\b/gi, "")
     .replace(/\b(chey|cheyyi|cheyandi|cheyali|tayaru chey|kavali|ivvu|pettandi)\b/gi, "")
     .replace(/చేయి|చేయ్|చెయ్యి|చేయండి|తయారు చేయి|కావాలి|ఇవ్వు|పిపిటి|ప్రెజెంటేషన్/g, "")
     .replace(/\b(banao|banaiye|banado|chahiye|dijiye|karo|bana)\b/gi, "")
@@ -120,17 +176,20 @@ export function detectDocumentGenerationIntent(query: string): DocumentGeneratio
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
-  // If topic became empty or too short, fallback to meaningful slice of query
   if (!topic || topic.length < 2) {
     topic = clean
-      .replace(/\b(create|generate|make|ppt|powerpoint|presentation|chey|banao)\b/gi, "")
+      .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment|chey|banao)\b/gi, "")
       .trim();
   }
   if (!topic) {
-    topic = "Overview and Strategic Insights";
+    topic = category === "presentation"
+      ? "Artificial Intelligence & Future Technology"
+      : category === "spreadsheet"
+        ? "Financial Analysis & Performance Metrics"
+        : "Database Management Systems (DBMS)";
   }
 
-  // Capitalize topic words
+  // Capitalize title words
   topic = topic
     .split(/\s+/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -141,8 +200,8 @@ export function detectDocumentGenerationIntent(query: string): DocumentGeneratio
     isDocumentRequest: true,
     format,
     topic,
+    category,
     detectedLanguage,
     originalQuery: clean,
   };
 }
-

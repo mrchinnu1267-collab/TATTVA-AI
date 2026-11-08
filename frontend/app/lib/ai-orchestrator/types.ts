@@ -16,7 +16,6 @@ export type TaskIntent =
   | "data_analysis"
   | "translation"
   | "summarization"
-  | "voice_chat"
   | "agent_task"
   | "file_generation";
 

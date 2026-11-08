@@ -15,6 +15,7 @@ try {
   await jiti("./connectors-e2e.test.ts");
   await jiti("./document-engine.test.ts");
   await jiti("./file-generation.test.ts");
+  await jiti("./office-compatibility.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
 } catch (err) {
   console.error("\n❌ Test execution failed:", err);

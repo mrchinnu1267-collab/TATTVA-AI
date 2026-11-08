@@ -2804,7 +2804,6 @@ export default function ChatPage() {
 
   // Send message handler (supports text, code, document generation, and reasoning)
   async function sendMessage(explicitPrompt?: string) {
-    // Clear any pending silence timer and cancel voice listening to prevent duplicate triggers
     const rawPrompt = (explicitPrompt !== undefined ? explicitPrompt : input).trim();
     if (!rawPrompt && attachments.length === 0) return;
 
@@ -5815,7 +5814,7 @@ export default function ChatPage() {
               </button>
             </div>
 
-            {/* Floating Bottom Source Link for Web Image */}
+            {/* Floating Bottom Source Link for Image */}
             {lightboxImage.startsWith("http") && (
               <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
                 <a
@@ -6290,7 +6289,7 @@ export default function ChatPage() {
                       : settingsActiveTab === "providers"
                         ? "Configure custom API keys and provider endpoints"
                         : settingsActiveTab === "general"
-                          ? "Manage themes, voice narration & chat data"
+                          ? "Manage themes & chat data"
                           : settingsActiveTab === "backup"
                             ? "Automatic restore on relogin, export JSON & cloud sync"
                             : settingsActiveTab === "notifications"
@@ -6403,7 +6402,7 @@ export default function ChatPage() {
                       </div>
                       <div>
                         <p className="font-bold text-sm">General Preferences</p>
-                        <p className="text-[11px] text-neutral-400">Color theme, Sara auto-voice, data settings</p>
+                        <p className="text-[11px] text-neutral-400">Color theme, archive &amp; chat data settings</p>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-neutral-400" />

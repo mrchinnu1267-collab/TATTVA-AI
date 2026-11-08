@@ -44,7 +44,7 @@ export class ModelRouter {
       contextWindow: 1048576,
       maxOutputTokens: 8192,
       latencyTier: "ultra_low",
-      strengths: ["general_chat", "translation", "summarization", "voice_chat"],
+      strengths: ["general_chat", "translation", "summarization", "agent_task"],
       isAvailable: Boolean(process.env.GEMINI_API_KEY),
     },
     {

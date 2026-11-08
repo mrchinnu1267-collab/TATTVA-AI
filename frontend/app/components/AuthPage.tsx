@@ -539,7 +539,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
             {/* Sub-text info */}
             {mode === "signup" && (
               <p className="text-[11px] text-center text-neutral-400">
-                Limitless chats • Real-time voice • Media studio
+                Limitless chats • Smart reasoning • Media studio
               </p>
             )}
 
@@ -661,7 +661,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
                 <>
                   <p className="font-semibold text-neutral-900">1. Acceptance of Terms</p>
                   <p>
-                    By accessing or using TATTVA AI, you agree to adhere to these Terms of Service. TATTVA AI provides advanced conversational assistance, real-time voice interaction, and GPU-accelerated image synthesis.
+                    By accessing or using TATTVA AI, you agree to adhere to these Terms of Service. TATTVA AI provides advanced conversational assistance, document generation, and GPU-accelerated image synthesis.
                   </p>
                   <p className="font-semibold text-neutral-900">2. Usage &amp; Access Tiers</p>
                   <p>

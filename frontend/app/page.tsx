@@ -142,7 +142,7 @@ export default function Home() {
         <article>
           <h3>Download TATTVA AI Mobile App</h3>
           <p>
-            Install the official Android application package (APK) for on-the-go voice assistance, mapping,
+            Install the official Android application package (APK) for on-the-go smart document creation, mapping,
             and artificial intelligence.
           </p>
           <Link href="/download">Download TATTVA AI for Android</Link>
