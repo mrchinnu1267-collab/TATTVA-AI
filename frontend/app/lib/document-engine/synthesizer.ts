@@ -32,8 +32,21 @@ export async function synthesizeDocument(
   apiKey?: string
 ): Promise<GeneratedFilePayload> {
   const { format, topic, category, detectedLanguage, originalQuery } = intent;
-  const safeTitle = topic.slice(0, 70);
-  const fileBasename = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40) || "tattva_document";
+  // Clean topic from technical flags, modes, or leading/trailing underscores
+  const cleanTitle = (topic || "document")
+    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
+    .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
+    .replace(/[_\s]+/g, " ")
+    .trim();
+
+  const safeTitle = (cleanTitle.length >= 2 ? cleanTitle : topic).slice(0, 70);
+  const rawBasename = safeTitle
+    .toLowerCase()
+    .replace(/^[^a-z0-9]+/, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+$/, "")
+    .slice(0, 40);
+  const fileBasename = rawBasename || "tattva_document";
   const filename = `${fileBasename}.${format}`;
 
   let documentOptions: BuildDocumentOptions = {
