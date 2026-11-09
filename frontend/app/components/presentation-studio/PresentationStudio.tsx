@@ -9,6 +9,7 @@ import {
   AnimationType,
   SlideElement,
   ViewMode,
+  SlideLayout,
 } from "./types";
 import { PRESENTATION_THEMES } from "./themes";
 import { RibbonToolbar } from "./RibbonToolbar";
@@ -54,70 +55,26 @@ interface PresentationStudioProps {
 }
 
 export function PresentationStudio({
-  initialTitle = "SMART INSPECT SIH IDEA Professional",
+  initialTitle = "Presentation1 - PowerPoint",
   initialSlides,
-  initialThemeId = "dark_modern",
+  initialThemeId = "professional_white",
   downloadUrl: initialDownloadUrl,
   onClose,
   onOpenWith,
   vaultFileId,
 }: PresentationStudioProps) {
-  // 1. Initial Slide Deck Setup (matching reference presentation)
+  // 1. Initial Slide Deck Setup (matching Reference 2 desktop PowerPoint default)
   const fallbackSlides: StudioSlide[] = [
     {
       id: "slide_1",
       number: 1,
-      title: "SMART-INSPECT",
-      category: "FOUNDATIONS",
-      bullets: [
-        "Real-time monitoring & inspection for field-level welfare operations.",
-        "A trusted digital trail from field evidence to verified executive action.",
-        "Field capture, offline-first execution, and live decision support.",
-      ],
-      takeaway: "A trusted digital trail from field evidence to action.",
-      notes: "Speaker Notes: Welcome the stakeholders and introduce the SMART-INSPECT core mission.",
-      elements: [
-        {
-          id: "el_proc_1",
-          type: "process",
-          x: 65,
-          y: 20,
-          w: 30,
-          h: 60,
-          processSteps: [
-            { step: 1, title: "CAPTURE", desc: "Field Capture", color: "#EA580C" },
-            { step: 2, title: "VERIFY", desc: "Offline-First", color: "#10B981" },
-            { step: 3, title: "SYNC", desc: "Live Decision Support", color: "#00E5FF" },
-            { step: 4, title: "ACT", desc: "Automated Triggers", color: "#FFFFFF" },
-          ],
-        },
-      ],
-    },
-    {
-      id: "slide_2",
-      number: 2,
-      title: "Core Cognitive Architecture",
-      category: "ARCHITECTURE",
-      bullets: [
-        "Foundation models act as unified natural language understanding engines.",
-        "Hierarchical planners decompose complex multi-step inspection workflows.",
-        "Encrypted state stores maintain local integrity and synchronise on reconnect.",
-      ],
-      takeaway: "Decoupled architecture guarantees zero data loss under intermittent networks.",
-      notes: "Speaker Notes: Emphasize the offline-first sync capability and cryptography.",
-    },
-    {
-      id: "slide_3",
-      number: 3,
-      title: "Field Deployment & Verification Results",
-      category: "EVALUATION",
-      bullets: [
-        "Benchmarked 99.4% inspection accuracy across 12,000+ field assessments.",
-        "Sub-second verification feedback latency via client-side neural validation.",
-        "Full OpenXML compliance with automated audit reports generated on-demand.",
-      ],
-      takeaway: "Production-ready scalability with verified domain compliance.",
-      notes: "Speaker Notes: Review benchmarks and summarize strategic next steps.",
+      layout: "title",
+      title: "",
+      subtitle: "",
+      category: "TITLE",
+      bullets: [],
+      notes: "",
+      elements: [],
     },
   ];
 
@@ -126,11 +83,13 @@ export function PresentationStudio({
       ? initialSlides.map((s, idx) => ({
           id: `slide_${idx + 1}_${Date.now()}`,
           number: s.number || idx + 1,
-          title: s.title || `Slide ${idx + 1}`,
-          category: s.category || "ANALYSIS",
-          bullets: s.bullets && s.bullets.length > 0 ? s.bullets : ["Key domain mechanism."],
+          layout: (s as any).layout || (idx === 0 ? "title" : "titleAndContent"),
+          title: s.title || "",
+          subtitle: (s as any).subtitle || "",
+          category: s.category || (idx === 0 ? "TITLE" : "CONTENT"),
+          bullets: s.bullets && s.bullets.length > 0 ? s.bullets : [],
           takeaway: s.takeaway || undefined,
-          notes: s.notes || `Speaker Notes: Discussion points for ${s.title}.`,
+          notes: s.notes || "",
           elements: (s as any).elements || [],
         }))
       : fallbackSlides;
@@ -221,25 +180,28 @@ export function PresentationStudio({
   };
 
   // Slide CRUD actions
-  const handleAddSlide = useCallback((layout?: string) => {
+  const handleAddSlide = useCallback((layout?: SlideLayout) => {
+    const selectedLayout: SlideLayout = layout || "titleAndContent";
     const newSlide: StudioSlide = {
       id: `slide_${Date.now()}`,
       number: slides.length + 1,
-      title: layout === "title" ? title : `Key Analysis Point ${slides.length + 1}`,
-      category: "ANALYSIS",
-      bullets: [
-        "Verified architectural specification and domain principles.",
-        "Systematic operational workflows with high-integrity telemetry.",
+      layout: selectedLayout,
+      title: selectedLayout === "title" ? "" : "",
+      subtitle: "",
+      category: "CONTENT",
+      bullets: selectedLayout === "blank" || selectedLayout === "title" ? [] : [
+        "Key topic overview and structural formulation.",
+        "Operational workflows and best-practice implementation.",
       ],
-      takeaway: "High-value synthesis callout.",
-      notes: "Speaker notes: Outline the critical takeaways.",
+      takeaway: undefined,
+      notes: "",
       elements: [],
     };
     const nextSlides = [...slides, newSlide];
     setSlides(nextSlides);
     setCurrentSlideIndex(nextSlides.length - 1);
     pushHistory(nextSlides);
-  }, [slides, title, pushHistory]);
+  }, [slides, pushHistory]);
 
   const handleDuplicateSlide = useCallback((idx: number) => {
     const target = slides[idx];
@@ -612,6 +574,7 @@ export function PresentationStudio({
           setIsPresenting(true);
         }}
         onAddSlide={handleAddSlide}
+        onChangeLayout={(layout) => handleUpdateCurrentSlide({ layout })}
         onDuplicateSlide={() => handleDuplicateSlide(currentSlideIndex)}
         onDeleteSlide={() => handleDeleteSlide(currentSlideIndex)}
         onUndo={handleUndo}
@@ -689,6 +652,7 @@ export function PresentationStudio({
             onSelectElement={setSelectedElementId}
             onUpdateElement={handleUpdateElement}
             onDeleteElement={handleDeleteElement}
+            onAddElement={handleAddElement}
             showRuler={showRuler}
             showGridlines={showGridlines}
             showGuides={showGuides}

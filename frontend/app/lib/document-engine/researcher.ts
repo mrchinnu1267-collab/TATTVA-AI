@@ -1221,8 +1221,6 @@ Respond strictly with valid JSON conforming to this schema:
       const candidateModels = [
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-3.8-flash",
       ];
       let text = "";
 
@@ -1235,10 +1233,10 @@ Respond strictly with valid JSON conforming to this schema:
               config: {
                 responseMimeType: "application/json",
                 temperature: 0.1,
-                maxOutputTokens: 4000,
+                maxOutputTokens: 3000,
               },
             }),
-            8000,
+            6000,
             null
           );
           if (res && res.text && res.text.includes("{")) {

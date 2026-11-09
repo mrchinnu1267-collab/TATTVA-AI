@@ -291,6 +291,7 @@ export function executeToolOnPresentation(
       const newSlide: StudioSlide = {
         id: `slide_${Date.now()}`,
         number: pos,
+        layout: args.layout || (pos === 1 ? "title" : "titleAndContent"),
         title: args.title || "New Slide",
         category: args.category || "OVERVIEW",
         bullets: Array.isArray(args.bullets) ? args.bullets : ["Domain mechanism detail."],
@@ -619,3 +620,4 @@ export function executeToolOnPresentation(
       return { nextState: next, message: `Operation "${toolName}" executed.` };
   }
 }
+

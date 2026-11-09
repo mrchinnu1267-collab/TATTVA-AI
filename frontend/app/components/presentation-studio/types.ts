@@ -22,6 +22,16 @@ export type AnimationType =
 
 export type ViewMode = "normal" | "slideSorter" | "readingView" | "slideShow";
 
+export type SlideLayout =
+  | "title"
+  | "titleAndContent"
+  | "sectionHeader"
+  | "twoContent"
+  | "comparison"
+  | "titleOnly"
+  | "blank"
+  | "process";
+
 export interface DrawingPath {
   id: string;
   tool: "pen" | "highlighter" | "eraser";
@@ -33,13 +43,15 @@ export interface DrawingPath {
 export interface SlideElement {
   id: string;
   type: "text" | "textbox" | "shape" | "image" | "table" | "chart" | "process" | "diagram";
-  x: number; // percentage (0 - 100) or pixels
+  placeholderType?: "title" | "subtitle" | "body" | "content" | "custom";
+  x: number; // percentage (0 - 100)
   y: number;
   w?: number;
   h?: number;
   width?: number;
   height?: number;
   content?: string;
+  placeholderText?: string;
   fontSize?: number;
   fontFamily?: string;
   bold?: boolean;
@@ -64,6 +76,7 @@ export interface SlideElement {
   tableData?: string[][];
   chartData?: { labels: string[]; values: number[]; title?: string };
   processSteps?: Array<{ step: number; title: string; desc?: string; color?: string }>;
+  imageUrl?: string;
 }
 
 export interface SlideComment {
@@ -78,17 +91,18 @@ export interface SlideComment {
 export interface StudioSlide {
   id: string;
   number: number;
-  title: string;
+  layout: SlideLayout;
+  title?: string;
+  subtitle?: string;
   category?: string;
-  bullets: string[];
+  bullets?: string[];
   takeaway?: string;
   notes?: string;
-  elements?: SlideElement[];
+  elements: SlideElement[];
   drawings?: DrawingPath[];
   transition?: TransitionType;
   transitionDuration?: number; // in seconds
   background?: string;
-  layout?: "title" | "titleAndContent" | "sectionHeader" | "twoContent" | "comparison" | "blank";
   isHidden?: boolean;
   comments?: SlideComment[];
 }
@@ -133,4 +147,5 @@ export interface PresentationState {
   drawingTool: "none" | "pen" | "highlighter" | "eraser";
   drawingColor: string;
   drawingWidth: number;
+  uiTheme?: "dark" | "light";
 }

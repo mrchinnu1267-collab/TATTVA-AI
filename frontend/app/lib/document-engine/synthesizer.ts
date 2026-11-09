@@ -68,8 +68,6 @@ async function callGeminiResilient(
   const candidateModels = [
     "gemini-3.5-flash-lite",
     "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.8-flash",
   ];
   for (const modelId of candidateModels) {
     try {
@@ -79,7 +77,7 @@ async function callGeminiResilient(
           contents: prompt,
           config: config || { temperature: 0.1 },
         }),
-        8000,
+        5000,
         null
       );
       if (res && res.text && res.text.trim().length > 0) {

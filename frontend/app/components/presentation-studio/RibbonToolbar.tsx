@@ -61,9 +61,13 @@ import {
   Printer,
   FilePlus,
   Zap,
+  Scissors,
+  Paintbrush,
+  Sparkle,
+  Grid3X3,
 } from "lucide-react";
 import { PRESENTATION_THEMES } from "./themes";
-import { TransitionType, AnimationType, ViewMode } from "./types";
+import { TransitionType, AnimationType, ViewMode, SlideLayout } from "./types";
 
 interface RibbonToolbarProps {
   activeTab: string;
@@ -72,7 +76,8 @@ interface RibbonToolbarProps {
   onDownload: () => void;
   onOpenWith: () => void;
   onStartSlideShow: (fromBeginning: boolean) => void;
-  onAddSlide: (layout?: string) => void;
+  onAddSlide: (layout?: SlideLayout) => void;
+  onChangeLayout?: (layout: SlideLayout) => void;
   onDuplicateSlide: () => void;
   onDeleteSlide: () => void;
   onUndo: () => void;
@@ -128,6 +133,17 @@ const TABS = [
   "Help",
 ];
 
+const LAYOUTS: { id: SlideLayout; label: string; desc: string }[] = [
+  { id: "title", label: "Title Slide", desc: "Title & subtitle placeholders" },
+  { id: "titleAndContent", label: "Title and Content", desc: "Title with body content" },
+  { id: "twoContent", label: "Two Content", desc: "Side-by-side comparison" },
+  { id: "comparison", label: "Comparison", desc: "Two lists with subtitles" },
+  { id: "sectionHeader", label: "Section Header", desc: "Topic division slide" },
+  { id: "process", label: "Process Flow", desc: "Step-by-step workflow" },
+  { id: "titleOnly", label: "Title Only", desc: "Single header text placeholder" },
+  { id: "blank", label: "Blank", desc: "Empty canvas for objects" },
+];
+
 const TRANSITIONS: { id: TransitionType; label: string }[] = [
   { id: "none", label: "None" },
   { id: "morph", label: "Morph" },
@@ -160,6 +176,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
     onDownload,
     onStartSlideShow,
     onAddSlide,
+    onChangeLayout,
     onDuplicateSlide,
     onDeleteSlide,
     onUndo,
@@ -199,12 +216,14 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
     isAIAssistantOpen,
   } = props;
 
-  const [fontSize, setFontSize] = useState("24");
-  const [fontFamily, setFontFamily] = useState("Segoe UI");
+  const [fontSize, setFontSize] = useState("60");
+  const [fontFamily, setFontFamily] = useState("Calibri");
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [showNewSlideMenu, setShowNewSlideMenu] = useState(false);
 
   return (
-    <div className="bg-[#242424] text-[#E0E0E0] border-b border-[#333333] select-none text-xs flex flex-col shrink-0 shadow-sm">
-      {/* 1. Ribbon Tab Headers */}
+    <div className="bg-[#242424] text-[#E0E0E0] border-b border-[#333333] select-none text-xs flex flex-col shrink-0 shadow-xs">
+      {/* 1. Ribbon Tab Headers (File | Home | Insert | Draw | Design...) */}
       <div className="flex items-center px-2 pt-1 border-b border-[#303030] overflow-x-auto space-x-0.5">
         {TABS.map((tab) => {
           const isActive = activeTab.toLowerCase() === tab.toLowerCase();
@@ -212,9 +231,9 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 font-medium rounded-t-sm transition-colors text-xs whitespace-nowrap ${
+              className={`px-3.5 py-1.5 font-medium rounded-t-sm transition-colors text-xs whitespace-nowrap ${
                 isActive
-                  ? "bg-[#333333] text-white font-semibold border-b-2 border-[#EA580C]"
+                  ? "bg-[#333333] text-white font-semibold border-b-2 border-[#C43E1C]"
                   : "text-[#B3B3B3] hover:text-white hover:bg-[#2A2A2A]"
               }`}
             >
@@ -223,11 +242,11 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           );
         })}
 
-        {/* AI Designer quick pill */}
+        {/* AI Designer quick launcher */}
         <div className="ml-auto pl-2 flex items-center">
           <button
             onClick={onToggleAIAssistant}
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition ${
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-xs transition ${
               isAIAssistantOpen
                 ? "bg-gradient-to-r from-orange-600 to-amber-600 text-white"
                 : "bg-white/10 text-orange-400 hover:bg-white/20"
@@ -240,184 +259,252 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
         </div>
       </div>
 
-      {/* 2. Ribbon Content Band */}
-      <div className="p-2 min-h-[76px] flex items-center overflow-x-auto bg-[#2B2B2B]">
+      {/* 2. Ribbon Content Band with authentic Microsoft PowerPoint groups & separators */}
+      <div className="p-2 min-h-[82px] flex items-center overflow-x-auto bg-[#2B2B2B]">
         {/* ======================= TAB: FILE ======================= */}
         {activeTab.toLowerCase() === "file" && (
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 border-r border-[#3D3D3D] pr-4">
+          <div className="flex items-center space-x-3 divide-x divide-[#3D3D3D]">
+            <div className="flex items-center space-x-2 pr-3">
               <button
                 onClick={() => onAddSlide("title")}
                 className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
               >
                 <FilePlus className="w-5 h-5 text-orange-400 mb-1" />
-                <span>New</span>
+                <span className="text-[10px]">New</span>
               </button>
               <button
                 onClick={onSave}
                 className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
               >
                 <Save className="w-5 h-5 text-emerald-400 mb-1" />
-                <span>Save</span>
+                <span className="text-[10px]">Save</span>
               </button>
               <button
                 onClick={onDownload}
                 className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
               >
                 <Download className="w-5 h-5 text-blue-400 mb-1" />
-                <span>Export PPTX</span>
+                <span className="text-[10px]">Export PPTX</span>
               </button>
               <button
                 onClick={() => window.print()}
                 className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
               >
                 <Printer className="w-5 h-5 text-slate-300 mb-1" />
-                <span>Print</span>
+                <span className="text-[10px]">Print</span>
               </button>
             </div>
-            <div className="text-xs text-[#999999]">
-              <span>TATTVA Presentation Studio • OpenXML Standard Verified</span>
+            <div className="text-xs text-[#999999] pl-3">
+              <span>Microsoft PowerPoint OpenXML (.pptx) Format Verified</span>
             </div>
           </div>
         )}
 
-        {/* ======================= TAB: HOME ======================= */}
+        {/* ======================= TAB: HOME (Matching Reference 2!) ======================= */}
         {activeTab.toLowerCase() === "home" && (
-          <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
-            {/* Clipboard */}
-            <div className="flex items-center space-x-1 pr-3">
-              <button
-                onClick={() => onFormatText("bold")}
-                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                title="Paste (Ctrl+V)"
-              >
-                <Copy className="w-5 h-5 text-amber-400 mb-0.5" />
-                <span className="text-[10px]">Paste</span>
-              </button>
-            </div>
-
-            {/* Slides */}
-            <div className="flex items-center space-x-2 px-3">
-              <button
-                onClick={() => onAddSlide()}
-                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                title="New Slide"
-              >
-                <Plus className="w-5 h-5 text-orange-400 mb-0.5" />
-                <span className="text-[10px]">New Slide</span>
-              </button>
-              <div className="flex flex-col space-y-1">
-                <button
-                  onClick={onDuplicateSlide}
-                  className="px-2 py-0.5 rounded hover:bg-[#3D3D3D] text-left text-[11px] text-[#B3B3B3] hover:text-white"
-                >
-                  Duplicate
-                </button>
-                <button
-                  onClick={onDeleteSlide}
-                  className="px-2 py-0.5 rounded hover:bg-[#3D3D3D] text-left text-[11px] text-rose-400 hover:text-rose-300"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-
-            {/* Font */}
-            <div className="flex flex-col space-y-1 px-3">
-              <div className="flex items-center space-x-2">
-                <select
-                  value={fontFamily}
-                  onChange={(e) => setFontFamily(e.target.value)}
-                  className="bg-[#1F1F1F] text-xs text-[#E0E0E0] border border-[#444444] rounded px-1.5 py-0.5 focus:outline-none"
-                >
-                  <option value="Segoe UI">Segoe UI</option>
-                  <option value="Calibri">Calibri</option>
-                  <option value="Arial">Arial</option>
-                  <option value="Helvetica Neue">Helvetica Neue</option>
-                  <option value="Georgia">Georgia</option>
-                  <option value="JetBrains Mono">JetBrains Mono</option>
-                </select>
-                <select
-                  value={fontSize}
-                  onChange={(e) => setFontSize(e.target.value)}
-                  className="bg-[#1F1F1F] text-xs text-[#E0E0E0] border border-[#444444] rounded px-1.5 py-0.5 focus:outline-none w-14"
-                >
-                  <option value="14">14</option>
-                  <option value="18">18</option>
-                  <option value="24">24</option>
-                  <option value="28">28</option>
-                  <option value="32">32</option>
-                  <option value="44">44</option>
-                  <option value="60">60</option>
-                </select>
-              </div>
+          <div className="flex items-stretch space-x-2 divide-x divide-[#3D3D3D]">
+            {/* Group 1: Clipboard */}
+            <div className="flex flex-col justify-between pr-2.5">
               <div className="flex items-center space-x-1">
                 <button
                   onClick={() => onFormatText("bold")}
-                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white font-bold"
-                  title="Bold (Ctrl+B)"
+                  className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Paste (Ctrl+V)"
                 >
-                  <Bold className="w-3.5 h-3.5" />
+                  <Copy className="w-5 h-5 text-amber-400 mb-0.5" />
+                  <span className="text-[10px]">Paste</span>
+                </button>
+                <div className="flex flex-col space-y-0.5">
+                  <button
+                    onClick={() => {}}
+                    className="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-[#3D3D3D] text-[#B3B3B3] hover:text-white text-[11px]"
+                  >
+                    <Scissors className="w-3 h-3" />
+                    <span>Cut</span>
+                  </button>
+                  <button
+                    onClick={() => {}}
+                    className="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-[#3D3D3D] text-[#B3B3B3] hover:text-white text-[11px]"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copy</span>
+                  </button>
+                </div>
+              </div>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Clipboard</span>
+            </div>
+
+            {/* Group 2: Slides (New Slide, Layout, Reset, Section) */}
+            <div className="flex flex-col justify-between px-2.5 relative">
+              <div className="flex items-center space-x-2">
+                {/* New Slide Split Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => onAddSlide("titleAndContent")}
+                    className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    title="New Slide (Ctrl+M)"
+                  >
+                    <Plus className="w-5 h-5 text-orange-400 mb-0.5" />
+                    <span className="text-[10px]">New Slide</span>
+                  </button>
+                </div>
+
+                <div className="flex flex-col space-y-0.5">
+                  {/* Layout Dropdown Trigger */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                      className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-[#3D3D3D] text-[#B3B3B3] hover:text-white text-[11px]"
+                    >
+                      <Layout className="w-3 h-3 text-cyan-400" />
+                      <span>Layout</span>
+                      <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
+                    </button>
+
+                    {showLayoutMenu && (
+                      <div className="absolute left-0 top-full mt-1 w-48 bg-[#1E1E1E] border border-[#444444] rounded shadow-xl py-1 z-50 text-xs">
+                        <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 border-b border-[#333333]">
+                          Choose Slide Layout
+                        </div>
+                        {LAYOUTS.map((lay) => (
+                          <button
+                            key={lay.id}
+                            onClick={() => {
+                              if (onChangeLayout) onChangeLayout(lay.id);
+                              else onAddSlide(lay.id);
+                              setShowLayoutMenu(false);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-[#333333] flex flex-col text-slate-200"
+                          >
+                            <span className="font-semibold">{lay.label}</span>
+                            <span className="text-[10px] text-slate-400">{lay.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {}}
+                    className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-[#3D3D3D] text-[#B3B3B3] hover:text-white text-[11px]"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              </div>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Slides</span>
+            </div>
+
+            {/* Group 3: Font (Family, Size, Bold, Italic, Underline, etc.) */}
+            <div className="flex flex-col justify-between px-2.5">
+              <div className="flex flex-col space-y-1">
+                {/* Family & Size Dropdowns */}
+                <div className="flex items-center space-x-1.5">
+                  <select
+                    value={fontFamily}
+                    onChange={(e) => setFontFamily(e.target.value)}
+                    className="bg-[#1F1F1F] text-xs text-[#E0E0E0] border border-[#444444] rounded px-1.5 py-0.5 focus:outline-none w-28"
+                  >
+                    <option value="Calibri">Calibri</option>
+                    <option value="Aptos">Aptos</option>
+                    <option value="Segoe UI">Segoe UI</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="JetBrains Mono">JetBrains Mono</option>
+                  </select>
+                  <select
+                    value={fontSize}
+                    onChange={(e) => setFontSize(e.target.value)}
+                    className="bg-[#1F1F1F] text-xs text-[#E0E0E0] border border-[#444444] rounded px-1.5 py-0.5 focus:outline-none w-14"
+                  >
+                    <option value="12">12</option>
+                    <option value="14">14</option>
+                    <option value="18">18</option>
+                    <option value="24">24</option>
+                    <option value="28">28</option>
+                    <option value="32">32</option>
+                    <option value="44">44</option>
+                    <option value="54">54</option>
+                    <option value="60">60</option>
+                    <option value="72">72</option>
+                  </select>
+                </div>
+
+                {/* Bold, Italic, Underline, Strikethrough buttons */}
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => onFormatText("bold")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white font-bold"
+                    title="Bold (Ctrl+B)"
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onFormatText("italic")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white italic"
+                    title="Italic (Ctrl+I)"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onFormatText("underline")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white underline"
+                    title="Underline (Ctrl+U)"
+                  >
+                    <Underline className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onFormatText("strikethrough")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    title="Strikethrough"
+                  >
+                    <Strikethrough className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Font</span>
+            </div>
+
+            {/* Group 4: Paragraph */}
+            <div className="flex flex-col justify-between px-2.5">
+              <div className="flex items-center space-x-1 pt-1">
+                <button
+                  onClick={() => onFormatText("alignLeft")}
+                  className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Align Left"
+                >
+                  <AlignLeft className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => onFormatText("italic")}
-                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white italic"
-                  title="Italic (Ctrl+I)"
+                  onClick={() => onFormatText("alignCenter")}
+                  className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Align Center"
                 >
-                  <Italic className="w-3.5 h-3.5" />
+                  <AlignCenter className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => onFormatText("underline")}
-                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white underline"
-                  title="Underline (Ctrl+U)"
+                  onClick={() => onFormatText("alignRight")}
+                  className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Align Right"
                 >
-                  <Underline className="w-3.5 h-3.5" />
+                  <AlignRight className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => onFormatText("strikethrough")}
-                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                  title="Strikethrough"
+                  onClick={() => onFormatText("alignJustify")}
+                  className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Justify"
                 >
-                  <Strikethrough className="w-3.5 h-3.5" />
+                  <AlignJustify className="w-3.5 h-3.5" />
                 </button>
               </div>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Paragraph</span>
             </div>
 
-            {/* Paragraph */}
-            <div className="flex items-center space-x-1 px-3">
-              <button
-                onClick={() => onFormatText("alignLeft")}
-                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                title="Align Left"
-              >
-                <AlignLeft className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onFormatText("alignCenter")}
-                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                title="Align Center"
-              >
-                <AlignCenter className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onFormatText("alignRight")}
-                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                title="Align Right"
-              >
-                <AlignRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onFormatText("alignJustify")}
-                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
-                title="Justify"
-              >
-                <AlignJustify className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Drawing */}
-            <div className="flex items-center space-x-2 px-3">
-              <div className="flex flex-col items-center">
+            {/* Group 5: Drawing (Shapes & Textbox) */}
+            <div className="flex flex-col justify-between px-2.5">
+              <div className="flex items-center space-x-1.5">
                 <button
                   onClick={() => onAddElement("textbox")}
                   className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
@@ -426,37 +513,69 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                   <Type className="w-4 h-4 text-cyan-400 mb-0.5" />
                   <span className="text-[10px]">Text Box</span>
                 </button>
-              </div>
-              <div className="flex flex-col space-y-1">
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1 bg-[#1F1F1F] p-1 rounded border border-[#3A3A3A]">
                   <button
                     onClick={() => onAddElement("shape", "rectangle")}
-                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-blue-400"
                     title="Rectangle"
                   >
-                    <Square className="w-3.5 h-3.5 text-blue-400" />
+                    <Square className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => onAddElement("shape", "circle")}
-                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-emerald-400"
                     title="Circle"
                   >
-                    <Circle className="w-3.5 h-3.5 text-emerald-400" />
+                    <Circle className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => onAddElement("process")}
-                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-orange-400"
                     title="Process Diagram"
                   >
-                    <Layers className="w-3.5 h-3.5 text-orange-400" />
+                    <Layers className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <span className="text-[10px] text-[#888888] text-center">Shapes</span>
               </div>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Drawing</span>
             </div>
 
-            {/* Designer AI button (Rightmost in Home tab, matching PowerPoint screenshot!) */}
-            <div className="flex items-center px-4 pl-6">
+            {/* Group 6: Editing */}
+            <div className="flex flex-col justify-between px-2.5">
+              <div className="flex flex-col space-y-0.5">
+                <button
+                  onClick={() => {}}
+                  className="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-[#3D3D3D] text-[#B3B3B3] hover:text-white text-[11px]"
+                >
+                  <Search className="w-3 h-3 text-slate-400" />
+                  <span>Find</span>
+                </button>
+                <button
+                  onClick={() => {}}
+                  className="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-[#3D3D3D] text-[#B3B3B3] hover:text-white text-[11px]"
+                >
+                  <RotateCw className="w-3 h-3 text-slate-400" />
+                  <span>Replace</span>
+                </button>
+              </div>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Editing</span>
+            </div>
+
+            {/* Group 7: Voice (Dictate) */}
+            <div className="flex flex-col justify-between px-2.5">
+              <button
+                onClick={() => alert("Dictate active: listening...")}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                title="Dictate Speech-to-Text"
+              >
+                <Mic className="w-5 h-5 text-sky-400 mb-0.5" />
+                <span className="text-[10px]">Dictate</span>
+              </button>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Voice</span>
+            </div>
+
+            {/* Group 8: Designer (Rightmost in Home tab, exactly matching Reference 2!) */}
+            <div className="flex flex-col justify-between px-3 pl-4">
               <button
                 onClick={onToggleAIAssistant}
                 className="flex flex-col items-center justify-center p-2 rounded-lg bg-gradient-to-tr from-orange-600/20 to-amber-600/20 hover:from-orange-600/30 hover:to-amber-600/30 border border-orange-500/40 text-orange-300 transition"
@@ -464,6 +583,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                 <Zap className="w-5 h-5 text-amber-400 mb-0.5 fill-current" />
                 <span className="text-[10px] font-bold">Designer</span>
               </button>
+              <span className="text-[9px] text-[#888888] text-center pt-1">Designer</span>
             </div>
           </div>
         )}
@@ -473,7 +593,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
             <div className="flex items-center space-x-2 pr-3">
               <button
-                onClick={() => onAddSlide()}
+                onClick={() => onAddSlide("titleAndContent")}
                 className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
               >
                 <Plus className="w-5 h-5 text-orange-400 mb-0.5" />

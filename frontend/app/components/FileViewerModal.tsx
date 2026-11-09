@@ -466,58 +466,50 @@ function getEnrichedDomainSections(rawTitle: string): DomainSectionBlock[] {
 
   return [
     {
-      heading: `1. Introduction & Theoretical Foundations: ${cleanTitle}`,
+      heading: `1. Overview & Key Concepts: ${cleanTitle}`,
       paragraphs: [
-        `${cleanTitle} represents a critical subject domain within modern scientific, technological, and computational systems.`,
-        `Formalized through continuous empirical investigation, technical standardization, and cross-disciplinary research, ${cleanTitle} provides the essential operational paradigms necessary for scalable, high-integrity implementations.`,
-        `This dossier examines the underlying principles, architectural subsystems, and practical deployment paradigms defining the field.`,
+        `${cleanTitle} is an essential subject in modern computing, technology, and applied workflows.`,
+        `It provides foundational principles and practical techniques that enable professionals to solve problems efficiently, design scalable solutions, and maintain high standards of quality.`,
+        `This document covers the core concepts, practical structure, and real-world applications of ${cleanTitle}.`,
       ],
     },
     {
-      heading: "2. Core Architectural Mechanisms & Algorithmic Formulation",
+      heading: "2. Core Principles & How It Works",
       paragraphs: [
-        `• Foundational Invariant: Guarantees structural deterministic consistency across system boundaries through rigorous input validation and state containment.`,
-        `• Component Interaction Topology: Modules communicate through clearly demarcated interfaces, decoupling execution logic from storage mechanisms.`,
-        `• Algorithmic Complexity: Optimized operational paths ensure bounded resource consumption, conforming to standard asymptotic complexity profiles under peak load.`,
+        `• Fundamental Principles: Establishes clear rules, definitions, and relationships to ensure consistent and predictable results.`,
+        `• Practical Organization: Organizes tasks and information into distinct, manageable components that work together seamlessly.`,
+        `• Efficiency & Best Practices: Employs proven techniques to optimize performance and prevent common pitfalls.`,
       ],
     },
     {
-      heading: "3. Comparative Engineering Metrics & Parameter Benchmarks",
+      heading: "3. Practical Features & Comparison",
       paragraphs: [
-        `Empirical evaluation of ${cleanTitle} against baseline architectural parameters:`,
+        `Key characteristics and advantages of ${cleanTitle}:`,
       ],
       table: {
-        headers: ["Parameter", "Traditional Model", "Advanced Modern Architecture", "Operational Impact"],
+        headers: ["Aspect", "Traditional Approach", "Modern Approach with " + cleanTitle, "Key Benefit"],
         rows: [
-          ["Throughput Capacity", "Linear / Sequential", "Parallelized / Non-blocking", "10x - 50x Scale Expansion"],
-          ["Fault Tolerance", "Single Point of Failure", "Distributed Byzantine Resilient", "Zero-Downtime High Availability"],
-          ["Resource Footprint", "High Static Allocation", "Dynamic Elastic Scaling", "40% Lower Operational Overhead"],
-          ["Latency Profile", "Millisecond Variable", "Sub-Millisecond Deterministic", "Predictable Real-Time Response"],
+          ["Organization", "Manual / Fragmented", "Structured & Modular", "Easier to maintain and scale"],
+          ["Reliability", "Error-prone", "Standardized & Verified", "Consistent quality"],
+          ["Productivity", "Time-consuming", "Streamlined Workflow", "Faster delivery and execution"],
+          ["Adaptability", "Rigid", "Flexible & Extensible", "Adapts quickly to new requirements"],
         ],
       },
     },
     {
-      heading: "4. Real-World Implementations & Production Deployment",
+      heading: "4. Real-World Applications & Use Cases",
       paragraphs: [
-        `• Enterprise Production Systems: Adopted across tier-one distributed architectures for resilient, scalable data processing and computational workflows.`,
-        `• Mission-Critical Systems: Deployed in environments demanding strict formal verification, predictable recovery times, and cryptographic integrity.`,
-        `• Emerging Paradigms: Continuously integrated into autonomous systems, next-generation AI pipelines, and cloud-native fabrics.`,
+        `• Industry Adoption: Widely utilized across software development, data management, and operational pipelines.`,
+        `• Practical Scenarios: Applied to build reliable systems, automate repetitive workflows, and analyze complex information.`,
+        `• Modern Integrations: Continues to evolve alongside modern cloud platforms and digital tools.`,
       ],
     },
     {
-      heading: "5. Engineering Trade-offs & Technical Constraints",
+      heading: "5. Best Practices & Guidelines",
       paragraphs: [
-        `• Scalability vs. Consistency: Systems must navigate fundamental trade-offs between instantaneous state synchronization and horizontal distribution latency.`,
-        `• Implementation Complexity: Rigorous adherence to architectural standards requires sophisticated monitoring, telemetry, and automated regression testing.`,
-        `• Best Practices: Implement automated pre-flight integrity inspection, structured logging, and automated contract testing across all interfaces.`,
-      ],
-    },
-    {
-      heading: "6. References & Authoritative Technical Standards",
-      paragraphs: [
-        "1. International Organization for Standardization (ISO/IEC) Software and Systems Engineering Standards.",
-        "2. IEEE Computer Society Authoritative Guidelines for Reliable Systems Architecture.",
-        "3. ACM Transactions on Computer Systems (TOCS) & Peer-Reviewed Architectural Publications.",
+        `• Maintain Clarity: Use clear definitions and straightforward logic across all components.`,
+        `• Follow Standards: Adhere to established industry guidelines and verified conventions.`,
+        `• Continuous Improvement: Review performance and refine workflows based on practical feedback.`,
       ],
     },
   ];
@@ -544,11 +536,12 @@ function parsePdfPagesFromContent(
       | (string | number)[][];
   }>
 ): PdfPageItem[] {
-  const cleanTitle = (docTitle || "Research Document")
+  const cleanTitle = (docTitle || "Document")
     .replace(/\.[a-zA-Z0-9]+$/, "")
+    .replace(/_pdf|_presentation|_document|_assignment|_report/gi, "")
     .split(/\b(?:is|are|was|were|refers to|defined as|consists of|deals with)\b/i)[0]
     .replace(/_/g, " ")
-    .trim() || "Research Document";
+    .trim() || "Document";
 
   let sectionBlocks: Array<{ heading: string; paragraphs: string[]; table?: { headers: string[]; rows: (string | number)[][] } }> = [];
 
@@ -582,7 +575,7 @@ function parsePdfPagesFromContent(
 
       sectionBlocks.push({
         heading: cleanViewerText(sec.heading),
-        paragraphs: paras.length > 0 ? paras : ["Verified architectural analysis and empirical findings."],
+        paragraphs: paras.length > 0 ? paras : ["Overview and practical concepts."],
         table: parsedTable,
       });
     }
@@ -617,7 +610,7 @@ function parsePdfPagesFromContent(
       if (cleanParas.length > 0 || tableLines.length > 0) {
         sectionBlocks.push({
           heading,
-          paragraphs: cleanParas.length > 0 ? cleanParas : ["Empirical domain investigation."],
+          paragraphs: cleanParas.length > 0 ? cleanParas : ["Overview and details."],
           table: tableLines.length > 0 ? parseTableLines(tableLines) : undefined,
         });
       }
@@ -625,7 +618,7 @@ function parsePdfPagesFromContent(
   }
 
   const totalParagraphWords = sectionBlocks.reduce((acc, s) => acc + s.paragraphs.join(" ").split(/\s+/).length, 0);
-  const isOutlineStubOnly = sectionBlocks.length <= 1 || totalParagraphWords < 30 || (content && content.includes("Document Structure (8 Sections):"));
+  const isOutlineStubOnly = sectionBlocks.length === 0 || totalParagraphWords < 20 || (content && content.includes("Document Structure (8 Sections):"));
 
   if (isOutlineStubOnly) {
     sectionBlocks = getEnrichedDomainSections(cleanTitle);
@@ -633,63 +626,30 @@ function parsePdfPagesFromContent(
 
   const pages: PdfPageItem[] = [];
 
-  const introBlock = sectionBlocks[0] || {
-    heading: "1. Introduction & Theoretical Foundations",
-    paragraphs: [
-      `${cleanTitle} is a foundational subject area requiring systematic analysis and empirical investigation.`,
-    ],
-  };
-
-  pages.push({
-    pageNumber: 1,
-    title: cleanTitle,
-    category: "EXECUTIVE BRIEF",
-    sections: [
-      {
-        heading: "Abstract & Empirical Synthesis",
-        paragraphs: [
-          `This document provides a verified empirical investigation into ${cleanTitle}.`,
-          `Through systematic synthesis of authoritative technical standards, industry publications, and structural specifications, this publication delivers foundational analysis, architectural formulations, and verified implementation blueprints.`,
-        ],
-      },
-      introBlock,
-    ],
-  });
-
-  const remaining = sectionBlocks.slice(1);
-  for (let i = 0; i < remaining.length; i += 2) {
-    const chunk = remaining.slice(i, i + 2);
+  // Group sections logically into pages (up to 2 sections per page)
+  for (let i = 0; i < sectionBlocks.length; i += 2) {
+    const chunk = sectionBlocks.slice(i, i + 2);
     pages.push({
       pageNumber: pages.length + 1,
-      title: chunk[0]?.heading || `${cleanTitle} Architecture`,
-      category: "TECHNICAL INVESTIGATION",
+      title: i === 0 ? cleanTitle : (chunk[0]?.heading || `${cleanTitle} Overview`),
+      category: i === 0 ? "OVERVIEW" : "DETAILS",
       sections: chunk,
     });
   }
 
-  pages.push({
-    pageNumber: pages.length + 1,
-    title: "References & Digital Authenticity",
-    category: "VERIFIABLE CITATIONS",
-    sections: [
-      {
-        heading: "Authoritative Technical Standards & Citations",
-        paragraphs: [
-          "1. Vaswani, A., et al. (2017). Attention Is All You Need. Advances in Neural Information Processing Systems.",
-          "2. IEEE / ACM International Standards for High-Reliability Software Systems Architecture.",
-          "3. ISO/IEC 27001 Cryptographic Integrity & Content Authentication Guidelines.",
-        ],
-      },
-      {
-        heading: "Digital Verification & Authenticity",
-        paragraphs: [
-          "Document verified via TATTVA AI Pre-Flight Integrity Engine. Magic bytes, OpenXML/PDF stream structure, and hash digests verified (PASSED).",
-        ],
-      },
-    ],
-  });
-
-  return pages;
+  return pages.length > 0 ? pages : [
+    {
+      pageNumber: 1,
+      title: cleanTitle,
+      category: "DOCUMENT",
+      sections: [
+        {
+          heading: "Overview",
+          paragraphs: [`Summary and details for ${cleanTitle}.`],
+        },
+      ],
+    },
+  ];
 }
 
 // =============================================================
