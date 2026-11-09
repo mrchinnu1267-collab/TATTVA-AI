@@ -284,10 +284,11 @@ export function detectDocumentIntent(
     .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
     .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
-    .replace(/\b(now|then|also|so|please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
+    .replace(/\b(now|then|also|so|please|can you|could you|i want to|i need to|i want|i need|give me a|give me|give)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce|convert|turn|transform|compile)\b/gi, "")
     .replace(/\b(that|this|the|my|our)\s+(research|investigation|findings|analysis|summary|discussion|topic)\b/gi, "")
     .replace(/\b(into|to|as)\s+(a\s+|an\s+)?(pdf|ppt|pptx|powerpoint|word|docx|excel|spreadsheet|file|document)\b/gi, "")
+    .replace(/\b(as\s+a\s+ppt|as\s+ppt|as\s+pptx|as\s+pdf|as\s+docx|as\s+excel|of\s+matter|matter)\b/gi, "")
     .replace(/\b(a|an|the)\s+(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/gi, "")
     .replace(/\b(a|an|the)\s+(word doc|word document|docx|doc|document|assignment|project report|research paper|notes)\b/gi, "")
     .replace(/\b(a|an|the)\s+(excel sheet|excel workbook|excel|xlsx|spreadsheet|sheet|budget|csv file|csv|pdf report|pdf document|pdf)\b/gi, "")
@@ -302,16 +303,16 @@ export function detectDocumentIntent(
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
-  // If topic is empty, a pronoun ("it", "this", "that", "same"), or generic reference ("this topic", "that research"):
+  // If topic is empty, a pronoun ("it", "this", "that", "same"), or generic reference ("this topic", "as ppt", "matter"):
   // inspect history for the substantive topic!
-  const isPronounTopic =
+  const isGenericFillerTopic =
     !topic ||
-    /^(it|this|that|above|same|the same|them|its|now|so|topic|this topic|that topic|the topic|research|that research|this research)$/i.test(topic) ||
+    /^(it|this|that|above|same|the same|them|its|now|so|topic|this topic|that topic|the topic|research|that research|this research|as ppt|as a ppt|matter|of matter|slides? as|8 slides as|slides? of matter|slides?|presentation|document|file|report)$/i.test(topic) ||
     /^(now\s+)?(it|this|that)$/i.test(topic) ||
-    /\b(about|on|for|of)\s+(it|this|that|this topic|that research)\b/i.test(clean) ||
+    /\b(about|on|for|of)\s+(it|this|that|this topic|that research|matter)\b/i.test(clean) ||
     topic.length < 2;
 
-  if (isPronounTopic && options?.history && options.history.length > 0) {
+  if (isGenericFillerTopic && options?.history && options.history.length > 0) {
     for (let i = options.history.length - 1; i >= 0; i--) {
       const msg = options.history[i];
       if (msg.role === "user") {
@@ -323,7 +324,7 @@ export function detectDocumentIntent(
           .replace(/[?!.,;:"']/g, " ")
           .trim();
         // Skip sub-aspect words or pronouns, looking for substantive subject
-        const isSubAspectOrPronoun = /^(it|this|that|same|now|applications?|use\s*cases?|advantages?|disadvantages?|benefits?|features?|details?|examples?|more|help|overview|summary)$/i.test(cleanedPrev);
+        const isSubAspectOrPronoun = /^(it|this|that|same|now|as ppt|matter|applications?|use\s*cases?|advantages?|disadvantages?|benefits?|features?|details?|examples?|more|help|overview|summary)$/i.test(cleanedPrev);
         if (cleanedPrev.length >= 3 && !isSubAspectOrPronoun) {
           topic = cleanedPrev;
           break;
@@ -332,14 +333,14 @@ export function detectDocumentIntent(
     }
   }
 
-  if (!topic || topic.length < 2 || /^(it|this|that|now\s+it)$/i.test(topic)) {
+  if (!topic || topic.length < 2 || /^(it|this|that|now\s+it|as ppt|matter|of matter|slides? as)$/i.test(topic)) {
     topic = clean
       .replace(/\[\s*Mode:[^\]]+\]:?/gi, "")
-      .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment|now|about|it|this|that)\b/gi, "")
+      .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment|now|about|it|this|that|as ppt|of matter|matter|slides?)\b/gi, "")
       .trim();
   }
 
-  if (!topic || topic.length < 2 || /^(it|this|that)$/i.test(topic)) {
+  if (!topic || topic.length < 2 || /^(it|this|that|as ppt|matter|of matter)$/i.test(topic)) {
     topic = archetype === "presentation" ? "Artificial Intelligence & Future Innovations" : "Comprehensive Technical Analysis";
   }
 

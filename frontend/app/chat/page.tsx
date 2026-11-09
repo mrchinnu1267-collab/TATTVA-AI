@@ -319,6 +319,27 @@ function resolveDocumentAttachment(msg: ChatMessage) {
     };
   }
 
+  // Pattern C: Bullet points with Topic and Format (e.g. • Topic: Amazon, • Format: .DOCX)
+  const topicMatch = msg.content.match(/[•\-*]\s*(?:\*\*)?Topic:(?:\*\*)?\s*([^\n]+)/i);
+  const formatMatch = msg.content.match(/[•\-*]\s*(?:\*\*)?Format:(?:\*\*)?\s*\.?([a-zA-Z0-9]+)/i);
+  if (topicMatch && formatMatch) {
+    const rawTopic = topicMatch[1].replace(/[*_]/g, "").trim();
+    const rawExt = formatMatch[1].trim().toLowerCase();
+    const cleanTopic = rawTopic.replace(/document|file|presentation|report/gi, "").trim() || rawTopic;
+    const filename = `${cleanTopic.replace(/[^a-zA-Z0-9_-]/g, "_")}_document.${rawExt}`;
+    const archetype = ["pptx", "ppt"].includes(rawExt) ? "presentation" : ["xlsx", "xls", "csv"].includes(rawExt) ? "spreadsheet" : "report";
+    return {
+      fileId: `hist_${filename}`,
+      filename,
+      format: rawExt,
+      mimeType: getClientMime(rawExt),
+      sizeBytes: 8192,
+      downloadUrl: `/api/download-document?fileId=${encodeURIComponent(filename)}`,
+      title: cleanTopic,
+      archetype,
+    };
+  }
+
   return null;
 }
 
@@ -337,27 +358,30 @@ function cleanDisplayContent(rawText: string, hasAttachment: boolean, docItem?: 
     .replace(/📥\s*\[[^\]]+\]\([^)]+\)\s*🚀?/gi, "")
     .trim();
 
-  // 2. When an attachment card is present, ensure the message is short and never duplicates download instructions or technical dumps
-  if (hasAttachment && docItem) {
-    if (
-      /I have researched, organized/i.test(cleaned) ||
-      /\bDocument Structure\b/i.test(cleaned) ||
-      /\bPresentation Structure\b/i.test(cleaned) ||
-      cleaned.length < 5 ||
-      /file:/i.test(cleaned)
-    ) {
-      const ext = (docItem.format || "").toLowerCase();
-      const typeLabel = ["pptx", "ppt"].includes(ext)
-        ? "presentation"
-        : ["xlsx", "xls", "csv"].includes(ext)
-        ? "spreadsheet"
-        : ext === "pdf"
-        ? "PDF"
-        : ext === "docx"
-        ? "document"
-        : "file";
-      return `Your ${typeLabel} on **${docItem.title || "your requested topic"}** is ready.`;
-    }
+  // 2. When an attachment card is present or message contains legacy document dump, ensure message is short & clean
+  if (
+    /I have researched, organized/i.test(cleaned) ||
+    /•\s*Topic:/i.test(cleaned) ||
+    /\bDocument Structure\b/i.test(cleaned) ||
+    /\bPresentation Structure\b/i.test(cleaned) ||
+    (hasAttachment && (cleaned.length < 5 || /file:/i.test(cleaned)))
+  ) {
+    const topicMatch =
+      cleaned.match(/[•\-*]\s*(?:\*\*)?Topic:(?:\*\*)?\s*([^\n]+)/i) ||
+      cleaned.match(/(?:prepared|verified) your (?:complete\s+)?(?:[\*_]*)([^*_\n]+)(?:[\*_]*)\s+(?:file|document|presentation|spreadsheet|dataset)/i);
+    const resolvedTopic = docItem?.title || (topicMatch ? topicMatch[1].replace(/[*_]/g, "").trim() : "your requested topic");
+
+    const ext = (docItem?.format || "").toLowerCase();
+    const typeLabel = ["pptx", "ppt"].includes(ext)
+      ? "presentation"
+      : ["xlsx", "xls", "csv"].includes(ext)
+      ? "spreadsheet"
+      : ext === "pdf"
+      ? "PDF"
+      : ext === "docx"
+      ? "document"
+      : "file";
+    return `Your ${typeLabel} on **${resolvedTopic}** is ready.`;
   }
 
   return cleaned;
