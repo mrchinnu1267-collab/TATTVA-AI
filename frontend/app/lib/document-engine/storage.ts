@@ -54,6 +54,10 @@ export async function saveGeneratedDocumentToVault(
   mimeType: string,
   userId = "guest_workspace"
 ): Promise<StoredDocumentResult> {
+  if (!buffer || buffer.length === 0) {
+    throw new Error(`Cannot store empty file (${filename}) in vault`);
+  }
+
   const sha256Hash = crypto.createHash("sha256").update(buffer).digest("hex");
   const fileId = crypto.randomUUID();
   const safeExtension = path.extname(filename) || "";

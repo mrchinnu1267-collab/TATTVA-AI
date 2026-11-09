@@ -32,6 +32,28 @@ try:
 except ImportError:
     HAS_DOCX = False
 
+import csv
+
+try:
+    import openpyxl
+    from openpyxl import Workbook
+    from openpyxl.styles import Font as XlsxFont, PatternFill as XlsxPatternFill, Alignment as XlsxAlignment, Border as XlsxBorder, Side as XlsxSide
+    from openpyxl.utils import get_column_letter
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
+
+try:
+    import reportlab
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
+    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+
 
 def hex_to_rgb(hex_str):
     hex_str = hex_str.lstrip('#')
@@ -436,6 +458,401 @@ def validate_docx(payload):
         return {"valid": False, "error": str(e)}
 
 
+def generate_xlsx(payload):
+    if not HAS_OPENPYXL:
+        raise RuntimeError("openpyxl is not installed")
+
+    wb = Workbook()
+    default_sheet = wb.active
+
+    title = payload.get("title", "TATTVA AI Spreadsheet")
+    raw_sheets = payload.get("sheets", [])
+    raw_data = payload.get("data", [])
+
+    if not raw_sheets and raw_data:
+        raw_sheets = [{"title": "Data", "rows": raw_data}]
+    elif not raw_sheets:
+        raw_sheets = [{"title": "Sheet1", "rows": [["Item", "Details", "Status"], ["Document", title, "Active"]]}]
+
+    header_font = XlsxFont(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = XlsxPatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    header_align = XlsxAlignment(horizontal="left", vertical="center", wrap_text=True)
+
+    data_font = XlsxFont(name="Calibri", size=11, color="1E293B")
+    alt_fill = XlsxPatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    regular_fill = XlsxPatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    data_align = XlsxAlignment(horizontal="left", vertical="center")
+
+    thin_border = XlsxBorder(
+        left=XlsxSide(style='thin', color='E2E8F0'),
+        right=XlsxSide(style='thin', color='E2E8F0'),
+        top=XlsxSide(style='thin', color='E2E8F0'),
+        bottom=XlsxSide(style='thin', color='E2E8F0')
+    )
+
+    total_rows = 0
+    for s_idx, s_info in enumerate(raw_sheets):
+        sheet_title = s_info.get("title", f"Sheet{s_idx + 1}")
+        safe_title = "".join(c for c in sheet_title if c not in r":\/?*[]")[:30].strip() or f"Sheet{s_idx+1}"
+
+        if s_idx == 0:
+            ws = default_sheet
+            ws.title = safe_title
+        else:
+            ws = wb.create_sheet(title=safe_title)
+
+        ws.views.sheetView[0].showGridLines = True
+        ws.freeze_panes = "A2"
+
+        rows = s_info.get("rows", [])
+        total_rows += len(rows)
+        for r_idx, row in enumerate(rows, 1):
+            for c_idx, val in enumerate(row, 1):
+                cell = ws.cell(row=r_idx, column=c_idx)
+
+                if val is not None:
+                    if isinstance(val, (int, float)):
+                        cell.value = val
+                    elif isinstance(val, str) and val.startswith("="):
+                        cell.value = val
+                    elif isinstance(val, str) and val.replace(".", "", 1).replace("-", "", 1).isdigit() and not val.startswith("0") and len(val) < 15:
+                        try:
+                            cell.value = float(val) if "." in val else int(val)
+                        except ValueError:
+                            cell.value = val
+                    else:
+                        cell.value = str(val)
+                else:
+                    cell.value = ""
+
+                cell.border = thin_border
+
+                if r_idx == 1:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_align
+                    ws.row_dimensions[r_idx].height = 28
+                else:
+                    cell.font = data_font
+                    cell.fill = alt_fill if r_idx % 2 == 0 else regular_fill
+                    cell.alignment = data_align
+                    ws.row_dimensions[r_idx].height = 20
+
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                val_str = str(cell.value or "")
+                max_len = max(max_len, len(val_str))
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    data = buf.read()
+
+    reopened = openpyxl.load_workbook(io.BytesIO(data), read_only=True)
+    sheet_count = len(reopened.sheetnames)
+
+    return {
+        "success": True,
+        "format": "xlsx",
+        "sheetCount": sheet_count,
+        "rowCount": total_rows,
+        "sizeBytes": len(data),
+        "base64": base64.b64encode(data).decode("ascii")
+    }
+
+
+def validate_xlsx(payload):
+    if not HAS_OPENPYXL:
+        return {"valid": False, "error": "openpyxl not available"}
+    try:
+        raw_b64 = payload.get("base64", "")
+        data = base64.b64decode(raw_b64)
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True)
+        return {
+            "valid": True,
+            "sheetCount": len(wb.sheetnames),
+            "sheets": wb.sheetnames,
+            "sizeBytes": len(data)
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica", 8)
+        self.setFillColor(colors.HexColor("#64748B"))
+
+        if self._pageNumber > 1:
+            self.drawString(54, 750, "TATTVA AI Intelligence Suite • Authoritative Document")
+            self.setStrokeColor(colors.HexColor("#E2E8F0"))
+            self.setLineWidth(0.5)
+            self.line(54, 744, 612 - 54, 744)
+
+        footer_text = f"Page {self._pageNumber} of {page_count}"
+        self.drawRightString(612 - 54, 36, footer_text)
+        self.drawString(54, 36, "Verified Standards Compliance • TATTVA AI Document Engine")
+        self.setStrokeColor(colors.HexColor("#E2E8F0"))
+        self.setLineWidth(0.5)
+        self.line(54, 46, 612 - 54, 46)
+
+        self.restoreState()
+
+
+def generate_pdf(payload):
+    if not HAS_REPORTLAB:
+        raise RuntimeError("reportlab is not installed")
+
+    title = payload.get("title", "TATTVA AI Document")
+    subtitle = payload.get("subtitle", "")
+    sections = payload.get("sections", [])
+    references = payload.get("references", [])
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter,
+        leftMargin=54,
+        rightMargin=54,
+        topMargin=54,
+        bottomMargin=54
+    )
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=24,
+        leading=28,
+        textColor=colors.HexColor('#0F172A'),
+        spaceAfter=6
+    )
+    sub_style = ParagraphStyle(
+        'DocSub',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=12,
+        leading=16,
+        textColor=colors.HexColor('#475569'),
+        spaceAfter=12
+    )
+    h1_style = ParagraphStyle(
+        'DocH1',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=15,
+        leading=19,
+        textColor=colors.HexColor('#1E3A8A'),
+        spaceBefore=14,
+        spaceAfter=6,
+        keepWithNext=True
+    )
+    h2_style = ParagraphStyle(
+        'DocH2',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=15,
+        textColor=colors.HexColor('#334155'),
+        spaceBefore=8,
+        spaceAfter=4,
+        keepWithNext=True
+    )
+    body_style = ParagraphStyle(
+        'DocBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=10,
+        leading=14.5,
+        textColor=colors.HexColor('#1E293B'),
+        spaceAfter=8
+    )
+    bullet_style = ParagraphStyle(
+        'DocBullet',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor('#334155'),
+        leftIndent=14,
+        firstLineIndent=-10,
+        spaceAfter=4
+    )
+    callout_style = ParagraphStyle(
+        'DocCallout',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=9.5,
+        leading=13.5,
+        textColor=colors.HexColor('#1E40AF'),
+        spaceBefore=4,
+        spaceAfter=4
+    )
+
+    story = []
+    story.append(Paragraph(title, title_style))
+    if subtitle:
+        story.append(Paragraph(subtitle, sub_style))
+
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#2563EB"), spaceBefore=2, spaceAfter=14))
+
+    for sec in sections:
+        heading = sec.get("heading")
+        if heading:
+            story.append(Paragraph(heading, h1_style))
+
+        subheading = sec.get("subheading")
+        if subheading:
+            story.append(Paragraph(subheading, h2_style))
+
+        callout = sec.get("callout")
+        if callout:
+            p_callout = Paragraph(f"<b>Key Insight:</b> {callout}", callout_style)
+            tbl_callout = Table([[p_callout]], colWidths=[612 - 108])
+            tbl_callout.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EFF6FF')),
+                ('LINEBEFORE', (0, 0), (0, -1), 3, colors.HexColor('#2563EB')),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            story.append(tbl_callout)
+            story.append(Spacer(1, 8))
+
+        content = sec.get("content")
+        if content:
+            for para in content.split("\n\n"):
+                if para.strip():
+                    story.append(Paragraph(para.strip(), body_style))
+
+        bullets = sec.get("bullets", [])
+        for b in bullets:
+            story.append(Paragraph(f"•  {b}", bullet_style))
+
+        table_data = sec.get("table", [])
+        if table_data and len(table_data) > 1:
+            num_cols = len(table_data[0])
+            col_width = (612 - 108) / max(num_cols, 1)
+            formatted_table = []
+            for r_idx, row in enumerate(table_data):
+                formatted_row = []
+                for val in row:
+                    cell_text = str(val if val is not None else "")
+                    cell_p = Paragraph(cell_text, ParagraphStyle(
+                        f'TableCell_{r_idx}',
+                        parent=styles['Normal'],
+                        fontName='Helvetica-Bold' if r_idx == 0 else 'Helvetica',
+                        fontSize=9,
+                        leading=11,
+                        textColor=colors.white if r_idx == 0 else colors.HexColor('#1E293B')
+                    ))
+                    formatted_row.append(cell_p)
+                formatted_table.append(formatted_row)
+
+            t = Table(formatted_table, colWidths=[col_width] * num_cols)
+            t_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F172A')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+            ]
+            for r in range(1, len(formatted_table)):
+                bg = colors.HexColor('#F8FAFC') if r % 2 == 1 else colors.white
+                t_style.append(('BACKGROUND', (0, r), (-1, r), bg))
+
+            t.setStyle(TableStyle(t_style))
+            story.append(t)
+            story.append(Spacer(1, 10))
+
+    if references:
+        story.append(Paragraph("References & Authoritative Literature", h1_style))
+        for r_idx, ref in enumerate(references, 1):
+            story.append(Paragraph(f"[{r_idx}] {ref}", ParagraphStyle(
+                'RefText',
+                parent=styles['Normal'],
+                fontName='Helvetica',
+                fontSize=8.5,
+                leading=12,
+                textColor=colors.HexColor('#64748B'),
+                leftIndent=14,
+                firstLineIndent=-10,
+                spaceAfter=3
+            )))
+
+    doc.build(story, canvasmaker=NumberedCanvas)
+    data = buf.getvalue()
+
+    return {
+        "success": True,
+        "format": "pdf",
+        "sizeBytes": len(data),
+        "base64": base64.b64encode(data).decode("ascii")
+    }
+
+
+def validate_pdf(payload):
+    try:
+        raw_b64 = payload.get("base64", "")
+        data = base64.b64decode(raw_b64)
+        if not data.startswith(b"%PDF-"):
+            return {"valid": False, "error": "Missing %PDF- header"}
+        if b"%%EOF" not in data:
+            return {"valid": False, "error": "Missing %%EOF trailer"}
+        page_count = max(1, data.count(b"/Type /Page") - data.count(b"/Type /Pages"))
+        return {
+            "valid": True,
+            "pageCount": page_count,
+            "sizeBytes": len(data)
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+def validate_csv(payload):
+    try:
+        raw_b64 = payload.get("base64", "")
+        data = base64.b64decode(raw_b64)
+        text = data.decode("utf-8-sig")
+        reader = csv.reader(io.StringIO(text))
+        rows = list(reader)
+        if not rows:
+            return {"valid": False, "error": "CSV file contains no rows"}
+        return {
+            "valid": True,
+            "rowCount": len(rows),
+            "columnCount": len(rows[0]),
+            "sizeBytes": len(data)
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
 def main():
     try:
         input_data = sys.stdin.read()
@@ -451,10 +868,20 @@ def main():
             res = generate_pptx(payload)
         elif action == "generate_docx":
             res = generate_docx(payload)
+        elif action == "generate_xlsx":
+            res = generate_xlsx(payload)
+        elif action == "generate_pdf":
+            res = generate_pdf(payload)
         elif action == "validate_pptx":
             res = validate_pptx(payload)
         elif action == "validate_docx":
             res = validate_docx(payload)
+        elif action == "validate_xlsx":
+            res = validate_xlsx(payload)
+        elif action == "validate_pdf":
+            res = validate_pdf(payload)
+        elif action == "validate_csv":
+            res = validate_csv(payload)
         else:
             res = {"success": False, "error": f"Unknown action: {action}"}
 

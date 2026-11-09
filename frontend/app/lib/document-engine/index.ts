@@ -237,24 +237,43 @@ export function buildDocument(options: BuildDocumentOptions): GeneratedDocumentR
       case "xls": {
         finalFormat = "xlsx";
         mimeType = MIME_TYPES.xlsx;
-        buffer = createXlsx({
+        const pyXlsx = executePythonOffice("generate_xlsx", {
           title,
           sheets: options.sheets,
           data: options.data,
-          rawText: options.content,
         });
+        if (pyXlsx && pyXlsx.success && pyXlsx.buffer) {
+          buffer = pyXlsx.buffer;
+        } else {
+          buffer = createXlsx({
+            title,
+            sheets: options.sheets,
+            data: options.data,
+            rawText: options.content,
+          });
+        }
         break;
       }
 
       case "pdf": {
         finalFormat = "pdf";
         mimeType = MIME_TYPES.pdf;
-        buffer = createPdf({
+        const pyPdf = executePythonOffice("generate_pdf", {
           title,
           subtitle: options.subtitle,
           sections: options.sections,
-          rawText: options.content,
+          references: options.references,
         });
+        if (pyPdf && pyPdf.success && pyPdf.buffer) {
+          buffer = pyPdf.buffer;
+        } else {
+          buffer = createPdf({
+            title,
+            subtitle: options.subtitle,
+            sections: options.sections,
+            rawText: options.content,
+          });
+        }
         break;
       }
 
@@ -349,15 +368,14 @@ export function buildDocument(options: BuildDocumentOptions): GeneratedDocumentR
     };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    const fallbackBuffer = Buffer.from(`${title}\n\n${options.content || ""}`, "utf8");
     return {
       success: false,
-      format: "txt",
-      filename: `${baseName}.txt`,
-      mimeType: "text/plain;charset=utf-8",
-      sizeBytes: fallbackBuffer.length,
-      buffer: fallbackBuffer,
-      dataUri: `data:text/plain;base64,${fallbackBuffer.toString("base64")}`,
+      format: finalFormat,
+      filename: `${baseName}.${finalFormat}`,
+      mimeType,
+      sizeBytes: 0,
+      buffer: Buffer.alloc(0),
+      dataUri: "",
       error: errorMsg,
     };
   }

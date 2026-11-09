@@ -1215,8 +1215,8 @@ export async function synthesizeResearchToFile(
   );
 
   if (!validation.valid) {
-    logStage("Detected formatting warning, repairing document package...");
-    console.warn("[Synthesizer] Validation warning:", validation.error);
+    console.error("[Synthesizer] File validation failed:", validation.error);
+    throw new Error(`File structure validation failed for ${generatedDoc.format.toUpperCase()}: ${validation.error || "Corrupted or non-compliant binary structure"}`);
   }
 
   // Stage 6: Secure Vault Storage
@@ -1227,6 +1227,10 @@ export async function synthesizeResearchToFile(
     generatedDoc.mimeType,
     options?.userId || "user_workspace"
   );
+
+  if (!vault || !vault.signedUrl) {
+    throw new Error(`Secure storage allocation failed for ${generatedDoc.filename}: Unable to generate download URL`);
+  }
 
   logStage("Your document is ready.");
 

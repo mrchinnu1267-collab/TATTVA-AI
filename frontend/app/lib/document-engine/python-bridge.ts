@@ -150,3 +150,87 @@ export function validateDocxWithPython(buffer: Buffer): { valid: boolean; paragr
   return { valid: true };
 }
 
+/**
+ * Validate an XLSX buffer using openpyxl
+ */
+export function validateXlsxWithPython(buffer: Buffer): { valid: boolean; sheetCount?: number; sheets?: string[]; error?: string } {
+  const pyCmd = getPythonCommand();
+  if (!pyCmd) return { valid: true };
+
+  try {
+    const inputJson = JSON.stringify({
+      action: "validate_xlsx",
+      payload: { base64: buffer.toString("base64") },
+    });
+    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [PYTHON_ENGINE_SCRIPT], {
+      input: inputJson,
+      encoding: "utf8",
+      timeout: 10000,
+      shell: false,
+    });
+    if (proc.status === 0 && proc.stdout) {
+      const parsed = JSON.parse(proc.stdout.trim());
+      return { valid: Boolean(parsed.valid), sheetCount: parsed.sheetCount, sheets: parsed.sheets, error: parsed.error };
+    }
+  } catch (err: any) {
+    return { valid: false, error: err.message };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate a PDF buffer using reportlab / pdf parser
+ */
+export function validatePdfWithPython(buffer: Buffer): { valid: boolean; pageCount?: number; error?: string } {
+  const pyCmd = getPythonCommand();
+  if (!pyCmd) return { valid: true };
+
+  try {
+    const inputJson = JSON.stringify({
+      action: "validate_pdf",
+      payload: { base64: buffer.toString("base64") },
+    });
+    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [PYTHON_ENGINE_SCRIPT], {
+      input: inputJson,
+      encoding: "utf8",
+      timeout: 10000,
+      shell: false,
+    });
+    if (proc.status === 0 && proc.stdout) {
+      const parsed = JSON.parse(proc.stdout.trim());
+      return { valid: Boolean(parsed.valid), pageCount: parsed.pageCount, error: parsed.error };
+    }
+  } catch (err: any) {
+    return { valid: false, error: err.message };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate a CSV buffer using RFC 4180 Python CSV reader
+ */
+export function validateCsvWithPython(buffer: Buffer): { valid: boolean; rowCount?: number; columnCount?: number; error?: string } {
+  const pyCmd = getPythonCommand();
+  if (!pyCmd) return { valid: true };
+
+  try {
+    const inputJson = JSON.stringify({
+      action: "validate_csv",
+      payload: { base64: buffer.toString("base64") },
+    });
+    const proc = spawnSync(/*turbopackIgnore: true*/ pyCmd, [PYTHON_ENGINE_SCRIPT], {
+      input: inputJson,
+      encoding: "utf8",
+      timeout: 10000,
+      shell: false,
+    });
+    if (proc.status === 0 && proc.stdout) {
+      const parsed = JSON.parse(proc.stdout.trim());
+      return { valid: Boolean(parsed.valid), rowCount: parsed.rowCount, columnCount: parsed.columnCount, error: parsed.error };
+    }
+  } catch (err: any) {
+    return { valid: false, error: err.message };
+  }
+  return { valid: true };
+}
+

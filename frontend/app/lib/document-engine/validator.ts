@@ -4,7 +4,13 @@
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
-import { validatePptxWithPython, validateDocxWithPython } from "./python-bridge";
+import {
+  validatePptxWithPython,
+  validateDocxWithPython,
+  validateXlsxWithPython,
+  validatePdfWithPython,
+  validateCsvWithPython,
+} from "./python-bridge";
 
 export interface ValidationReport {
   valid: boolean;
@@ -77,13 +83,24 @@ export function validateDocumentBuffer(
         buffer[2] === 0x03 &&
         buffer[3] === 0x04;
 
-      // Must contain OpenXML '[Content_Types].xml' entry
+      // Must contain OpenXML '[Content_Types].xml' and '_rels/.rels'
       const hasContentTypes = buffer.includes(Buffer.from("[Content_Types].xml", "utf8"));
-      report.checks.magicBytesValid = isZip && hasContentTypes;
+      const hasRels = buffer.includes(Buffer.from("_rels/.rels", "utf8"));
+
+      let hasCorePart = false;
+      if (normFormat === "docx") {
+        hasCorePart = buffer.includes(Buffer.from("word/document.xml", "utf8"));
+      } else if (normFormat === "pptx") {
+        hasCorePart = buffer.includes(Buffer.from("ppt/presentation.xml", "utf8"));
+      } else if (normFormat === "xlsx") {
+        hasCorePart = buffer.includes(Buffer.from("xl/workbook.xml", "utf8"));
+      }
+
+      report.checks.magicBytesValid = isZip && hasContentTypes && hasRels && hasCorePart;
 
       if (!report.checks.magicBytesValid) {
         report.valid = false;
-        report.error = `Invalid OpenXML package signature for .${normFormat}`;
+        report.error = `Invalid OpenXML package signature or missing required parts for .${normFormat}`;
         return report;
       }
       break;
@@ -156,7 +173,6 @@ export function validateDocumentBuffer(
 
   // 3. Structure & Reopening Inspection
   if (normFormat === "pptx") {
-    // Check slide count from python-pptx validator if available
     const pyVal = validatePptxWithPython(buffer);
     if (!pyVal.valid && pyVal.error && !pyVal.error.includes("not available")) {
       report.valid = false;
@@ -168,7 +184,6 @@ export function validateDocumentBuffer(
     report.checks.reopenVerificationPassed = true;
     report.metadata!.slideCount = pyVal.slideCount || expectedMinimumUnits;
   } else if (normFormat === "docx") {
-    // Check paragraph count from python-docx validator if available
     const pyVal = validateDocxWithPython(buffer);
     if (!pyVal.valid && pyVal.error && !pyVal.error.includes("not available")) {
       report.valid = false;
@@ -180,12 +195,37 @@ export function validateDocumentBuffer(
     report.checks.reopenVerificationPassed = true;
     report.metadata!.paragraphCount = pyVal.paragraphCount || expectedMinimumUnits;
   } else if (normFormat === "xlsx") {
+    const pyVal = validateXlsxWithPython(buffer);
+    if (!pyVal.valid && pyVal.error && !pyVal.error.includes("not available")) {
+      report.valid = false;
+      report.checks.structureCompliant = false;
+      report.error = `XLSX structure validation failed: ${pyVal.error}`;
+      return report;
+    }
     report.checks.structureCompliant = true;
     report.checks.reopenVerificationPassed = true;
-    report.metadata!.sheetCount = 1;
+    report.metadata!.sheetCount = pyVal.sheetCount || 1;
   } else if (normFormat === "pdf") {
+    const pyVal = validatePdfWithPython(buffer);
+    if (!pyVal.valid && pyVal.error && !pyVal.error.includes("not available")) {
+      report.valid = false;
+      report.checks.structureCompliant = false;
+      report.error = `PDF structure validation failed: ${pyVal.error}`;
+      return report;
+    }
     report.checks.structureCompliant = true;
     report.checks.reopenVerificationPassed = true;
+  } else if (normFormat === "csv") {
+    const pyVal = validateCsvWithPython(buffer);
+    if (!pyVal.valid && pyVal.error && !pyVal.error.includes("not available")) {
+      report.valid = false;
+      report.checks.structureCompliant = false;
+      report.error = `CSV RFC-4180 parsing failed: ${pyVal.error}`;
+      return report;
+    }
+    report.checks.structureCompliant = true;
+    report.checks.reopenVerificationPassed = true;
+    report.metadata!.rowCount = pyVal.rowCount;
   } else {
     report.checks.structureCompliant = true;
     report.checks.reopenVerificationPassed = true;
