@@ -738,5 +738,60 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
     assert.ok(intent.clarificationQuestion && intent.clarificationQuestion.includes("PDF"));
     assert.ok(!intent.topic.toLowerCase().includes("pdf") || intent.topic === "Document");
   });
+
+  // TEST 35: Natural Language & Human Quality Check (No Robotic AI Speak)
+  it("ACCEPTANCE TEST 23: Document content uses natural human English and strictly avoids artificial AI jargon", async () => {
+    const intent = detectDocumentIntent("Create a PDF about Operating Systems");
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pdf");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.validation.valid, true);
+
+    const fullText = (pkg.sections || [])
+      .map((s) => `${s.heading}\n${s.content || ""}\n${(s.bullets || []).join("\n")}`)
+      .join("\n\n");
+
+    // Strictly forbidden robotic boilerplate strings
+    assert.equal(fullText.includes("empirical and theoretical investigation into"), false, "Must not contain 'empirical and theoretical investigation into'");
+    assert.equal(fullText.includes("systematic synthesis of authoritative technical standards"), false, "Must not contain 'systematic synthesis of authoritative technical standards'");
+    assert.equal(fullText.includes("Methodology & Information Gathering"), false, "Must not contain 'Methodology & Information Gathering'");
+    assert.equal(fullText.includes("publication delivers foundational analysis"), false, "Must not contain 'publication delivers foundational analysis'");
+    assert.equal(fullText.includes("operational invariant"), false, "Must not contain 'operational invariant'");
+    assert.equal(fullText.includes("Core System Layer"), false, "Must not contain 'Core System Layer'");
+
+    // Verify sections have natural, human-readable headings
+    const headings = (pkg.sections || []).map((s) => s.heading);
+    assert.ok(headings.some((h) => h.toLowerCase().includes("introduction")), "Must have a clear Introduction section");
+    assert.ok(headings.some((h) => h.toLowerCase().includes("concept") || h.toLowerCase().includes("foundation")), "Must have a clear Concepts section");
+    assert.ok(headings.some((h) => h.toLowerCase().includes("application")), "Must have an Applications section");
+    assert.ok(headings.some((h) => h.toLowerCase().includes("conclusion")), "Must have a Conclusion section");
+  });
+
+  // TEST 36: Clean, Standard Presentation Formatting
+  it("ACCEPTANCE TEST 24: Presentation slides use clean titles and natural bullets without decorative clutter", async () => {
+    const intent = detectDocumentIntent("Create 8 slides about Artificial Intelligence");
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pptx");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(pkg.document.slides && pkg.document.slides.length >= 8);
+
+    for (const slide of pkg.document.slides) {
+      // Must not contain outline / planning labels in title
+      assert.equal(slide.title.includes("Presentation Structure"), false, "Slide title must not contain 'Presentation Structure'");
+      assert.equal(slide.title.includes("**"), false, "Slide title must not contain markdown asterisks");
+
+      // Bullets must not contain artificial prefixes like Phase 01: or [Advantage]
+      for (const b of slide.bullets) {
+        assert.equal(b.startsWith("[Advantage]"), false, "Bullet must not start with '[Advantage]'");
+        assert.equal(b.startsWith("[Limitation]"), false, "Bullet must not start with '[Limitation]'");
+        assert.equal(b.startsWith("Deployment Domain 0"), false, "Bullet must not start with 'Deployment Domain 0'");
+      }
+    }
+  });
 });
 

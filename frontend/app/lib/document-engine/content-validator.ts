@@ -63,6 +63,14 @@ export const ROBOTIC_BOILERPLATE_PATTERNS = [
   /\*\*Presentation Structure \(\d+ Slides\):\*\*/i,
   /\*\*Document Structure \(\d+ Sections\):\*\*/i,
   /^Slide \d+:.*Overview.*Pillars/i,
+  /empirical and theoretical investigation into/i,
+  /systematic synthesis of authoritative technical standards/i,
+  /publication delivers foundational analysis, architectural formulations/i,
+  /Methodology & Information Gathering/i,
+  /Multi-source corroboration across official documentation/i,
+  /A balanced engineering assessment reveals clear operational benefits/i,
+  /operational invariant/i,
+  /high-impact domain essential for next-generation system engineering/i,
 ];
 
 export function isForbiddenTopic(rawTopic: string): boolean {

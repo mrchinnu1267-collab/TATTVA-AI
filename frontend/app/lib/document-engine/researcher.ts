@@ -1462,46 +1462,46 @@ Respond strictly with valid JSON conforming to this schema:
     cleanFallback = {
       topic,
       subtopics: [
-        `Theoretical Foundations of ${topic}`,
-        `Architectural Design & Core Components`,
-        `Implementation Workflows & Protocols`,
-        `Industry Applications & Field Analysis`,
-        `Performance Evaluation & Invariant Properties`,
+        `Overview & Fundamentals of ${topic}`,
+        `Core Principles and Architecture`,
+        `Practical Workflows & Implementation`,
+        `Real-World Applications`,
+        `Advantages & Key Considerations`,
       ],
-      definition: `${topic} is a specialized technical discipline and system architecture designed to solve domain-critical challenges through rigorous algorithmic principles and structured execution paradigms.`,
-      backgroundAndMotivation: `The engineering development of ${topic} originated to eliminate historical structural bottlenecks, enforce deterministic invariants, and enable scalable, reproducible performance across complex operational environments.`,
+      definition: `${topic} is an important field of study and practical application focused on understanding, designing, and optimizing its core principles and workflows.`,
+      backgroundAndMotivation: `The development of ${topic} was driven by practical needs to improve efficiency, solve real-world challenges, and provide structured solutions within its domain.`,
       coreMechanisms: [
         {
-          name: `Foundational Mechanics of ${topic}`,
-          details: `The primary theoretical framework and operational rules that govern the deterministic behavior and data flow of ${topic}.`,
-          formulaOrStructure: `Domain Model: ${topic}`,
+          name: `Foundations of ${topic}`,
+          details: `The primary principles and guidelines that govern how ${topic} functions effectively.`,
+          formulaOrStructure: `Standard Model: ${topic}`,
         },
         {
-          name: `Systemic Interface & Pipeline Coordination`,
-          details: `Inter-module protocol definitions establishing reliable handshakes, state synchronization, and failure isolation boundaries.`,
+          name: `Core Systems & Workflow Integration`,
+          details: `How the main elements of ${topic} coordinate and connect with related processes and systems.`,
         },
       ],
       coreConcepts: [
         {
-          title: `Foundational Mechanics of ${topic}`,
-          explanation: `The primary theoretical framework and operational rules that govern the deterministic behavior and data flow of ${topic}.`,
-          example: `Domain Model: ${topic}`,
+          title: `Foundations of ${topic}`,
+          explanation: `The primary principles and guidelines that govern how ${topic} functions effectively.`,
+          example: `Standard Model: ${topic}`,
         },
         {
-          title: `Systemic Interface & Pipeline Coordination`,
-          explanation: `Inter-module protocol definitions establishing reliable handshakes, state synchronization, and failure isolation boundaries.`,
+          title: `Core Systems & Workflow Integration`,
+          explanation: `How the main elements of ${topic} coordinate and connect with related processes and systems.`,
         },
       ],
       architectureOrComponents: [
         {
-          component: `${topic} Core Execution Engine`,
-          role: "Central processing coordinator and invariant supervisor",
-          mechanism: `Executes core workflows and guarantees data consistency across all operations in ${topic}.`,
+          component: `${topic} Core Engine`,
+          role: "Main processing and coordination component",
+          mechanism: `Coordinates the primary workflows and processes for ${topic}.`,
         },
       ],
       trainingAndInferenceOrProcess: {
-        stages: ["Parameter Configuration & Pre-Condition Checks", "Core Execution Pipeline", "Invariant Verification", "Committed State Persistence"],
-        details: `Sequential execution lifecycle enforcing transactional verification and performance optimization for ${topic}.`,
+        stages: ["Initial Setup & Preparation", "Core Processing & Execution", "Review & Verification", "Final Output Delivery"],
+        details: `Step-by-step process flow ensuring quality and reliable outcomes for ${topic}.`,
       },
       applications: [
         `Enterprise and scientific implementations of ${topic}`,

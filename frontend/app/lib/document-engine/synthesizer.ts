@@ -10,7 +10,7 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
-import { DocumentIntentResult, RevisionDirectives } from "./intent";
+import { DocumentIntentResult, RevisionDirectives, DocumentArchetype, DocumentAudience } from "./intent";
 import { ResearchDossier, conductAutonomousResearch } from "./researcher";
 import { buildDocument, GeneratedDocumentResult } from "./index";
 import { saveGeneratedDocumentToVault, StoredDocumentResult } from "./storage";
@@ -100,15 +100,15 @@ async function buildPresentationSlides(
         }
       }
       existingSlides[targetIdx] = {
-        title: `${targetTopic}: Technical Specifications & Model Invariants`,
-        category: "REVISED SPECIFICATION",
+        title: `${targetTopic}: Key Concepts & Practical Implementation`,
+        category: "REVISED SLIDE",
         bullets: [
-          `Formal Model: Precision architectural dynamics for ${targetTopic}.`,
-          `Operational Invariants: Deterministic execution constraints and performance bounds.`,
-          `Applied Implementation: Concrete algorithmic workflow and empirical benchmarking.`,
+          `Core principles and structural framework for ${targetTopic}.`,
+          `Key operational details, workflows, and implementation best practices.`,
+          `Practical examples and real-world considerations.`,
         ],
-        takeaway: `Revised slide ${revisionDirectives.targetSlide}: High-precision architectural analysis for ${targetTopic}.`,
-        notes: `Speaker Notes: Emphasize the revised technical parameters for ${targetTopic}. Focus on domain mechanics and verified invariants.`,
+        takeaway: `Revised slide ${revisionDirectives.targetSlide}: Analysis and practical insights for ${targetTopic}.`,
+        notes: `Speaker Notes: Emphasize the revised points for ${targetTopic}. Focus on clear explanation and practical relevance.`,
       };
       return existingSlides;
     }
@@ -122,62 +122,38 @@ async function buildPresentationSlides(
   if (resolvedApiKey) {
     try {
       const ai = new GoogleGenAI({ apiKey: resolvedApiKey });
-      const prompt = `You are TATTVA AI's Master Technical Presentation Architect.
-Generate an authentic, highly detailed, professional presentation slide deck on the topic:
+      const prompt = `You are an expert presentation designer and subject matter specialist.
+Generate a clear, engaging, professional presentation slide deck on the topic:
 TOPIC: "${topic}"
 
-Use the following verified research dossier as your authoritative source material:
+Use the following verified information as your source:
 ${JSON.stringify({
   definition: research.definition,
-  backgroundAndMotivation: research.backgroundAndMotivation,
+  background: research.backgroundAndMotivation,
   subtopics: research.subtopics,
-  coreMechanisms: research.coreMechanisms,
-  architectureOrComponents: research.architectureOrComponents,
-  trainingAndInferenceOrProcess: research.trainingAndInferenceOrProcess,
+  coreConcepts: research.coreMechanisms,
+  components: research.architectureOrComponents,
+  process: research.trainingAndInferenceOrProcess,
   applications: research.applications,
   advantages: research.advantages,
-  limitationsAndChallenges: research.limitationsAndChallenges,
+  limitations: research.limitationsAndChallenges,
   citations: research.citations,
 }, null, 2)}
 
-STRICT RULES:
+STRICT RULES & QUALITY GUIDELINES:
 1. Generate exactly ${count} slides.
-2. Every slide title MUST name a specific concept, component, mechanism, or analytical angle of "${topic}".
-   Examples for "Transformer Architecture":
-   - "Historical Motivation: Limitations of Recurrent Models (RNNs/LSTMs)"
-   - "Encoder & Decoder Stack Overview"
-   - "Scaled Dot-Product Self-Attention: Mathematical Formulation"
-   - "Query, Key, and Value (Q, K, V) Vector Projections"
-   - "Multi-Head Attention: Parallel Representation Subspaces"
-   - "Positional Encoding: Injecting Sequential Order"
-   - "Position-Wise Feed-Forward Networks (FFN)"
-   - "Residual Connections & Layer Normalization (Add & Norm)"
-   - "Autoregressive Masked Attention in the Decoder"
-   - "Training Dynamics: Teacher Forcing, Loss & Inference"
-   - "Real-World Deployments: Large Language Models & Vision Transformers"
-   - "Technical Trade-offs & Quadratic Attention Complexity O(N^2)"
-   - "Foundational References: Vaswani et al. (2017)"
-3. NEVER use generic placeholder titles such as:
-   - "Executive Overview"
-   - "The Core Problem & Context"
-   - "Major Conceptual Pillars"
-   - "Practical Examples & Workflows"
-   - "High-Impact Industry Applications"
-   - "Key Advantages & Proven Benefits"
-   - "Operational Challenges & Trade-offs"
-   - "Cutting-Edge 2026 Developments"
-   - "Conclusion & Strategic Summary"
-4. NEVER invent fake benchmarks, made-up percentages, or fictional metrics (e.g., no "3.4x operational efficiency", no "99.9% uptime").
-5. Each slide must contain 3 to 4 informative, technical bullet points using the actual mechanisms, formulas, and verified applications.
-6. Provide an uppercase category (e.g., "FOUNDATIONS", "MOTIVATION", "CORE MECHANISM", "MATHEMATICS", "ARCHITECTURE", "TRAINING & INFERENCE", "APPLICATIONS", "SYSTEM ANALYSIS", "LITERATURE").
-7. Provide a 1-sentence analytical takeaway for each slide.
+2. Every slide title MUST be clear, natural, and descriptive (e.g. for "Transformer Architecture": "What is Transformer Architecture?", "Why Attention Replaced RNNs", "Scaled Dot-Product Attention", "Multi-Head Attention", "Real-World Applications", "Key Limitations & Future Directions").
+3. NEVER use robotic filler titles or planning notes like "Presentation Structure (8 Slides):", "Major Conceptual Pillars", "Executive Overview", "Operational Invariants".
+4. Provide simple, natural bullet points (3 to 4 per slide) that explain the topic clearly in complete, meaningful sentences without strange symbols.
+5. Provide a simple uppercase category for the slide (e.g., "OVERVIEW", "BACKGROUND", "ARCHITECTURE", "CORE CONCEPT", "APPLICATIONS", "SUMMARY").
+6. Provide a 1-sentence clear takeaway for each slide.
 
 Return ONLY pure JSON array conforming to this exact schema:
 [
   {
     "title": "Topic-Specific Title",
-    "category": "UPPERCASE_CATEGORY",
-    "bullets": ["Technical bullet 1", "Technical bullet 2", "Technical bullet 3"],
+    "category": "CATEGORY",
+    "bullets": ["Clear bullet point 1", "Clear bullet point 2", "Clear bullet point 3"],
     "takeaway": "One-sentence takeaway"
   }
 ]`;
@@ -192,10 +168,10 @@ Return ONLY pure JSON array conforming to this exact schema:
         const parsedSlides = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
         if (Array.isArray(parsedSlides) && parsedSlides.length >= 6) {
           return parsedSlides.map((s: any) => ({
-            title: String(s.title || `${topic} Key Concept`),
-            category: String(s.category || "TOPIC ANALYSIS").toUpperCase(),
+            title: String(s.title || `${topic} Key Concept`).replace(/\*\*|__/g, "").trim(),
+            category: String(s.category || "OVERVIEW").toUpperCase(),
             bullets: Array.isArray(s.bullets) && s.bullets.length > 0
-              ? s.bullets.map((b: any) => String(b))
+              ? s.bullets.map((b: any) => String(b).replace(/^[•\-\*]\s*/, "").trim())
               : [String(s.content || research.definition)],
             takeaway: s.takeaway ? String(s.takeaway) : undefined,
           }));
@@ -206,109 +182,303 @@ Return ONLY pure JSON array conforming to this exact schema:
     }
   }
 
-  // Fallback: Dynamic deterministic generation directly from research fields
+  // Fallback: Dynamic natural generation directly from research fields
   const fallbackSlides: Array<{ title: string; category?: string; bullets: string[]; takeaway?: string }> = [];
 
-  // Slide 1: Foundations & Definition
+  // Slide 1: Introduction & Overview
   fallbackSlides.push({
-    title: `${topic}: Foundations & Formal Definition`,
-    category: "FOUNDATIONS",
+    title: `Introduction to ${topic}`,
+    category: "OVERVIEW",
     bullets: [
       research.definition,
-      `Core Scope & Subtopics: ${research.subtopics.slice(0, 3).join(", ")}.`,
-      "Theoretical framework and foundational scientific principles.",
+      `Key aspects explored: ${research.subtopics.slice(0, 3).join(", ")}.`,
+      `Foundational concepts and practical applications across the field.`,
     ],
-    takeaway: `Establishes the formal definition and scope of ${topic}.`,
+    takeaway: `An overview of the foundational concepts and scope of ${topic}.`,
   });
 
-  // Slide 2: Background & Precursor Limitations
+  // Slide 2: Background & Importance
   fallbackSlides.push({
-    title: `${topic}: Precursors & Motivation`,
-    category: "MOTIVATION",
+    title: `Background & Motivation`,
+    category: "BACKGROUND",
     bullets: [
       research.backgroundAndMotivation,
-      `Key architectural drivers that mandated the development of ${topic}.`,
-      "Overcoming predecessor bottlenecks and throughput limitations.",
+      `Primary challenges and industry needs that motivated the development of ${topic}.`,
+      `How ${topic} improves upon earlier approaches and methodologies.`,
     ],
-    takeaway: `Identifies the fundamental challenges that motivated ${topic}.`,
+    takeaway: `Understanding why ${topic} was developed and its core advantages.`,
   });
 
   // Dedicated Slide for each Core Mechanism
   for (const m of research.coreMechanisms) {
     const bullets: string[] = [m.details];
     if (m.formulaOrStructure) {
-      bullets.push(`Structural / Algorithmic Model: ${m.formulaOrStructure}`);
+      bullets.push(`Key formulation: ${m.formulaOrStructure}`);
     }
     if (m.exampleOrApplication) {
-      bullets.push(`Concrete Application: ${m.exampleOrApplication}`);
+      bullets.push(`Practical example: ${m.exampleOrApplication}`);
     }
     fallbackSlides.push({
       title: m.name,
-      category: "CORE MECHANISM",
+      category: "CORE CONCEPT",
       bullets,
-      takeaway: `Operational mechanics of ${m.name}.`,
+      takeaway: `Essential principles and workings of ${m.name}.`,
     });
   }
 
   // Dedicated Slides for Architecture / Components
   for (const c of research.architectureOrComponents) {
     fallbackSlides.push({
-      title: `Architecture: ${c.component}`,
+      title: `${c.component}: Role & Function`,
       category: "ARCHITECTURE",
       bullets: [
-        `System Role: ${c.role}`,
-        `Functional Mechanism: ${c.mechanism}`,
-        `Integrates directly into the overall operational topology of ${topic}.`,
+        `Primary function: ${c.role}`,
+        `Working mechanism: ${c.mechanism}`,
+        `Coordinates with connected system components to ensure reliability.`,
       ],
-      takeaway: `Deconstructs ${c.component} and its operational responsibilities.`,
+      takeaway: `How ${c.component} operates within the system.`,
     });
   }
 
-  // Slide for Execution / Training Process
+  // Slide for Process / Execution Flow
   if (research.trainingAndInferenceOrProcess.stages.length > 0 || research.trainingAndInferenceOrProcess.details) {
     fallbackSlides.push({
-      title: `${topic}: Execution & Operational Dynamics`,
-      category: "OPERATIONAL DYNAMICS",
+      title: `${topic}: Key Steps & Workflow`,
+      category: "PROCESS",
       bullets: [
         research.trainingAndInferenceOrProcess.details,
-        ...research.trainingAndInferenceOrProcess.stages.map((st, i) => `Phase 0${i + 1}: ${st}`),
+        ...research.trainingAndInferenceOrProcess.stages.map((st, i) => `Step ${i + 1}: ${st}`),
       ],
-      takeaway: `Defines the complete end-to-end execution lifecycle of ${topic}.`,
+      takeaway: `Step-by-step workflow and operational lifecycle of ${topic}.`,
     });
   }
 
   // Slide for Real-World Applications
   if (research.applications.length > 0) {
     fallbackSlides.push({
-      title: `${topic}: Real-World Applications & Industry Deployments`,
+      title: `Real-World Applications of ${topic}`,
       category: "APPLICATIONS",
-      bullets: research.applications.map((app, i) => `Deployment Domain 0${i + 1}: ${app}`),
-      takeaway: `Demonstrates verified production adoption and industry utility of ${topic}.`,
+      bullets: research.applications.map((app) => app),
+      takeaway: `Common use cases and industry deployments of ${topic}.`,
     });
   }
 
-  // Slide for Technical Trade-offs & Limitations
+  // Slide for Advantages & Key Considerations
   fallbackSlides.push({
-    title: `${topic}: Technical Trade-offs & Engineering Limitations`,
-    category: "TRADE-OFF ANALYSIS",
+    title: `Advantages & Key Considerations`,
+    category: "EVALUATION",
     bullets: [
-      ...research.advantages.slice(0, 2).map((adv) => `[Advantage] ${adv}`),
-      ...research.limitationsAndChallenges.slice(0, 2).map((lim) => `[Limitation] ${lim}`),
+      ...research.advantages.slice(0, 2),
+      ...research.limitationsAndChallenges.slice(0, 2),
     ],
-    takeaway: `Provides a balanced, objective engineering assessment of ${topic}.`,
+    takeaway: `A balanced assessment of key benefits and considerations for ${topic}.`,
   });
 
   // Slide for Citations & Literature
   if (research.citations.length > 0) {
     fallbackSlides.push({
-      title: "Authoritative References & Seminal Publications",
+      title: "References & Authoritative Sources",
       category: "REFERENCES",
       bullets: research.citations.slice(0, 4).map((c) => `${c.sourceName}: ${c.referenceText}`),
-      takeaway: "Academic and international standard references supporting this presentation.",
+      takeaway: "Academic and standard references supporting this presentation.",
     });
   }
 
   return fallbackSlides;
+}
+
+/**
+ * Dynamic Document Section Architect
+ * Formulates natural, clearly written, human-like sections without artificial AI jargon.
+ */
+async function buildDocumentSections(
+  topic: string,
+  research: ResearchDossier,
+  archetype: DocumentArchetype,
+  audience: DocumentAudience,
+  apiKey?: string
+): Promise<Array<{ heading: string; content: string; bullets?: string[]; callout?: string }>> {
+  const resolvedApiKey = apiKey || process.env.GEMINI_API_KEY;
+  if (resolvedApiKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: resolvedApiKey });
+      const prompt = `You are a professional human author and technical writer.
+Write a clear, comprehensive, and well-structured document on:
+TOPIC: "${topic}"
+DOCUMENT TYPE: ${archetype}
+AUDIENCE: ${audience}
+
+Verified Source Information:
+${JSON.stringify({
+  definition: research.definition,
+  background: research.backgroundAndMotivation,
+  subtopics: research.subtopics,
+  coreConcepts: research.coreMechanisms,
+  components: research.architectureOrComponents,
+  process: research.trainingAndInferenceOrProcess,
+  applications: research.applications,
+  advantages: research.advantages,
+  limitations: research.limitationsAndChallenges,
+  citations: research.citations,
+}, null, 2)}
+
+STRICT WRITING & QUALITY GUIDELINES:
+1. Language: Clear, natural, grammatically correct English. Explain technical concepts simply and directly.
+2. Tone: Professional and informative, reading naturally as if written by a knowledgeable human expert.
+3. Strictly Avoid:
+   - Artificial AI buzzwords and robotic fluff (do NOT use "empirical synthesis", "operational invariants", "paradigm shift", "domain mechanics", "verifiable methodologies", "authoritative specifications").
+   - Random technical terminology that doesn't fit the topic.
+   - Repeated introductory formulas or repetitive conclusion paragraphs.
+   - Decorative symbols, emojis, or markdown asterisks in headings.
+   - Fake references or made-up statistics.
+4. Structure:
+   - Provide 5 to 7 logical sections with clean, descriptive headings.
+   - Each section must have 2 to 3 substantive, well-written paragraphs and/or clean bullet points.
+
+Return ONLY pure JSON array conforming to this exact schema:
+[
+  {
+    "heading": "Clear Section Heading",
+    "content": "Well-written paragraph text explaining this section in depth...",
+    "bullets": ["Informative bullet point 1", "Informative bullet point 2"]
+  }
+]`;
+
+      const text = await callGeminiResilient(ai, prompt, {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      });
+      const jsonStart = text.indexOf("[");
+      const jsonEnd = text.lastIndexOf("]");
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+        if (Array.isArray(parsed) && parsed.length >= 4) {
+          return parsed.map((s: any) => ({
+            heading: String(s.heading || "Key Concept").replace(/\*\*|__/g, "").trim(),
+            content: String(s.content || (Array.isArray(s.paragraphs) ? s.paragraphs.join("\n\n") : "") || ""),
+            bullets: Array.isArray(s.bullets) ? s.bullets.map(String) : undefined,
+            callout: s.callout ? String(s.callout) : undefined,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("[Synthesizer] Live document section generation fallback:", e);
+    }
+  }
+
+  // Fallback: Clean, natural, human-like deterministic generation
+  if (archetype === "assignment") {
+    return [
+      {
+        heading: `1. Overview & Objectives: ${topic}`,
+        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
+      },
+      {
+        heading: "2. Key Concepts & Principles",
+        content: `Understanding the essential foundations and principles of ${topic}:`,
+        bullets: research.coreMechanisms.map(
+          (m) => `${m.name}: ${m.details}${m.formulaOrStructure ? ` (${m.formulaOrStructure})` : ""}`
+        ),
+      },
+      {
+        heading: "3. System Architecture & Components",
+        content: `A structured breakdown of the main components and subsystems involved in ${topic}:`,
+        bullets: research.architectureOrComponents.length > 0
+          ? research.architectureOrComponents.map((c) => `${c.component} (${c.role}): ${c.mechanism}`)
+          : research.subtopics.map((st) => `${st}: Key area of study within ${topic}.`),
+      },
+      {
+        heading: "4. Practical Applications & Real-World Examples",
+        content: `How ${topic} is applied in practical scenarios and industry workflows:`,
+        bullets: research.applications,
+      },
+      {
+        heading: "5. Advantages & Key Considerations",
+        content: `A balanced analysis of the primary strengths and practical considerations of ${topic}:`,
+        bullets: [
+          ...research.advantages.map((a) => `Advantage: ${a}`),
+          ...research.limitationsAndChallenges.map((l) => `Consideration: ${l}`),
+        ],
+      },
+      {
+        heading: "6. Summary & Conclusion",
+        content: `In summary, ${topic} is an important subject combining fundamental principles with practical utility. Developing a clear understanding of its core components, mechanisms, and real-world applications enables effective implementation and problem-solving.`,
+      },
+    ];
+  } else if (archetype === "study_notes") {
+    return [
+      {
+        heading: `1. Topic Summary: ${topic}`,
+        content: research.definition,
+      },
+      {
+        heading: "2. Essential Terms & Definitions",
+        content: "Core vocabulary and definitions for quick reference and exam review:",
+        bullets: research.coreMechanisms.map(
+          (m) => `${m.name}: ${m.details}${m.formulaOrStructure ? ` (${m.formulaOrStructure})` : ""}`
+        ),
+      },
+      {
+        heading: "3. Component Breakdown & How It Works",
+        content: "How the core parts function together:",
+        bullets: research.architectureOrComponents.length > 0
+          ? research.architectureOrComponents.map((c) => `${c.component}: ${c.role} — ${c.mechanism}`)
+          : research.subtopics.map((st) => `${st}: Foundational topic in ${topic}.`),
+      },
+      {
+        heading: "4. Practical Scenarios & Examples",
+        content: "Common situations and real-world examples:",
+        bullets: research.applications,
+      },
+      {
+        heading: "5. Review Questions",
+        content: "Self-check questions to test your understanding:",
+        bullets: [
+          `What are the primary principles that define ${topic}?`,
+          `What challenges or predecessor limitations does ${topic} address?`,
+          `Describe two real-world applications of ${topic} and explain how they operate.`,
+        ],
+      },
+    ];
+  } else {
+    return [
+      {
+        heading: `1. Introduction to ${topic}`,
+        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
+      },
+      {
+        heading: "2. Key Concepts & Foundations",
+        content: `A comprehensive review of the foundational ideas behind ${topic}:`,
+        bullets: research.coreMechanisms.map(
+          (m) => `${m.name}: ${m.details}${m.formulaOrStructure ? ` (${m.formulaOrStructure})` : ""}`
+        ),
+      },
+      {
+        heading: "3. Structure & Main Components",
+        content: `The primary components and structural elements of ${topic}:`,
+        bullets: research.architectureOrComponents.length > 0
+          ? research.architectureOrComponents.map((c) => `${c.component}: ${c.role}. ${c.mechanism}`)
+          : research.subtopics.map((st) => `${st}: Central concept in ${topic}.`),
+      },
+      {
+        heading: "4. Practical Applications & Industry Usage",
+        content: `Where and how ${topic} is used across practical and industry domains:`,
+        bullets: research.applications,
+      },
+      {
+        heading: "5. Advantages & Practical Considerations",
+        content: `An objective evaluation of the main benefits and practical challenges:`,
+        bullets: [
+          ...research.advantages.map((a) => `Advantage: ${a}`),
+          ...research.limitationsAndChallenges.map((l) => `Challenge: ${l}`),
+        ],
+      },
+      {
+        heading: "6. Conclusion",
+        content: `In conclusion, ${topic} represents a valuable field of study with wide-ranging practical applications. Mastering its core principles and operational structure provides a strong foundation for technical work, research, and system implementation.`,
+      },
+    ];
+  }
 }
 
 /**
@@ -819,17 +989,17 @@ export async function synthesizeResearchToFile(
   logStage("Organizing the content structure...");
 
   const baseTitle = `${topic}`;
-  let subtitle = `${intent.audience.toUpperCase()} • TATTVA AI INTELLIGENCE SUITE`;
+  let subtitle = "Comprehensive Overview & Key Concepts";
   if (archetype === "assignment") {
-    subtitle = `Academic Coursework & Analytical Study • ${intent.audience.toUpperCase()}`;
+    subtitle = "Academic Coursework & Analytical Study";
   } else if (archetype === "presentation") {
-    subtitle = `Comprehensive Strategic Overview & Technical Insights`;
+    subtitle = "Key Concepts, Architecture & Practical Insights";
   } else if (archetype === "research_report") {
-    subtitle = `Rigorous Research Analysis & Empirical Synthesis`;
+    subtitle = "Comprehensive Technical & Practical Analysis";
   } else if (archetype === "study_notes") {
-    subtitle = `High-Yield Concepts, Worked Examples & Self-Review`;
+    subtitle = "Key Concepts, Summary Notes & Review";
   } else if (archetype === "spreadsheet") {
-    subtitle = `Quantitative Metrics, Operational Telemetry & Cost Model`;
+    subtitle = "Data Summary & Key Metrics";
   }
 
   // Build archetype-specific sections, slides, and sheets
@@ -925,158 +1095,18 @@ export async function synthesizeResearchToFile(
       options?.apiKey,
       intent.revisionDirectives
     );
-  } else if (archetype === "assignment") {
-    // -------------------------------------------------------------
-    // ASSIGNMENT ARCHETYPE: Complete Academic Coursework
-    // -------------------------------------------------------------
-    sections = [
-      {
-        heading: `1. Introduction & Theoretical Motivation of ${topic}`,
-        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
-        callout: `Academic Objective: Master the foundational principles, architectural mechanics, and empirical implementations of ${topic}.`,
-      },
-      {
-        heading: `2. Core Architectural Mechanisms & Principles`,
-        content: `A rigorous exploration of the functional mechanics defining ${topic}:`,
-        bullets: research.coreMechanisms.map(
-          (m) => `**${m.name}**: ${m.details}${m.formulaOrStructure ? ` *(Model: ${m.formulaOrStructure})*` : ""}`
-        ),
-      },
-      {
-        heading: `3. Structural Decomposition & Subsystems`,
-        content: `Deconstructing the principal architectural subsystems of ${topic}:`,
-        bullets: research.architectureOrComponents.length > 0
-          ? research.architectureOrComponents.map((c) => `**${c.component}** (${c.role}): ${c.mechanism}`)
-          : research.subtopics.map((st) => `**${st}**: Essential conceptual pillar of ${topic}.`),
-      },
-      {
-        heading: `4. Operational Dynamics & Implementation Workflows`,
-        content: research.trainingAndInferenceOrProcess.details || `The operational execution of ${topic} follows a deterministic sequence of stages:`,
-        bullets: research.trainingAndInferenceOrProcess.stages.length > 0
-          ? research.trainingAndInferenceOrProcess.stages.map((st, i) => `**Stage ${i + 1}**: ${st}`)
-          : research.coreMechanisms.filter((m) => m.exampleOrApplication).map((m) => `**${m.name}**: ${m.exampleOrApplication}`),
-        table: research.comparativeMetrics
-          ? research.comparativeMetrics.rows.map((r) => [String(r[0]), String(r[1]), String(r[2]), String(r[3])])
-          : undefined,
-      },
-      {
-        heading: `5. Real-World Applications & Industry Case Studies`,
-        content: `The theoretical constructs of ${topic} translate directly into mission-critical deployments:`,
-        bullets: research.applications,
-      },
-      {
-        heading: `6. Comparative Analysis: Advantages vs. Engineering Limitations`,
-        content: `An objective evaluation must consider both the significant advantages and the inherent engineering constraints:`,
-        bullets: [
-          ...research.advantages.map((a) => `[ADVANTAGE] ${a}`),
-          ...research.limitationsAndChallenges.map((l) => `[LIMITATION] ${l}`),
-        ],
-      },
-      {
-        heading: `7. Conclusion & Research Synthesis`,
-        content: `In conclusion, ${topic} constitutes an indispensable subject within modern computational and scientific paradigms. By mastering these foundational mechanisms and adhering to verified technical standards, researchers and practitioners can build resilient, high-throughput systems ready for future scale.`,
-      },
-    ];
-  } else if (archetype === "study_notes") {
-    // -------------------------------------------------------------
-    // STUDY NOTES ARCHETYPE: High-Yield Revision
-    // -------------------------------------------------------------
-    sections = [
-      {
-        heading: `1. Quick Concept Overview: ${topic}`,
-        content: research.definition,
-        callout: "Key Takeaway: Focus on foundational mechanics, edge-case behavior, and core architectural trade-offs.",
-      },
-      {
-        heading: "2. High-Yield Terms & Core Principles",
-        content: "Essential vocabulary for technical interviews, exams, and rapid reference:",
-        bullets: research.coreMechanisms.map(
-          (m) => `**${m.name}**: ${m.details}${m.formulaOrStructure ? ` *(Structure: ${m.formulaOrStructure})*` : ""}`
-        ),
-      },
-      {
-        heading: "3. Architecture & Subsystem Breakdown",
-        content: "Structural breakdown of key system components:",
-        bullets: research.architectureOrComponents.length > 0
-          ? research.architectureOrComponents.map((c) => `• **${c.component}**: ${c.role} — ${c.mechanism}`)
-          : research.subtopics.map((st) => `• **${st}**: Core theoretical element underpinning ${topic}.`),
-        table: research.comparativeMetrics
-          ? research.comparativeMetrics.rows.map((r) => [String(r[0]), String(r[1]), String(r[2]), String(r[3])])
-          : undefined,
-      },
-      {
-        heading: "4. Practical Scenarios & Real-World Use Cases",
-        content: "Walkthrough of standard applications and architecture implementations:",
-        bullets: research.applications.map((app) => `• Scenario: ${app}`),
-      },
-      {
-        heading: "5. High-Yield Self-Review Questions",
-        content: "Test your understanding with these foundational revision questions:",
-        bullets: [
-          `Q1: What are the primary structural mechanisms that define ${topic}?`,
-          `Q2: What predecessor limitations or bottlenecks did ${topic} solve?`,
-          `Q3: Identify two mission-critical real-world applications of ${topic} and explain their implementation trade-offs.`,
-        ],
-      },
-    ];
   } else {
     // -------------------------------------------------------------
-    // RESEARCH REPORT / GENERAL DOCUMENT (Default Formal Document)
+    // DOCUMENT ARCHETYPES: Assignment, Study Notes, Research Report
     // -------------------------------------------------------------
-    sections = [
-      {
-        heading: "Abstract",
-        content: `This research report provides a comprehensive empirical and theoretical investigation into **${topic}**. Through systematic synthesis of authoritative technical standards, industry publications, and structural benchmarks, this study evaluates the architectural paradigms, implementation advantages, and performance metrics defining modern deployments.`,
-        callout: "Research Objective: Establish an authoritative reference document grounded in verifiable evidence and empirical data.",
-      },
-      {
-        heading: `1. Introduction & Background: Evolution of ${topic}`,
-        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
-      },
-      {
-        heading: "2. Methodology & Information Gathering",
-        content: `This report synthesizes evidence gathered across peer-reviewed publications, international technical standards, and empirical benchmark datasets. Information has been rigorously cross-referenced to eliminate duplicate, obsolete, or contradictory claims.`,
-        bullets: [
-          "Multi-source corroboration across official documentation and educational publications.",
-          "Deterministic verification of technical claims and architectural trade-offs.",
-          "Preservation of academic citations conforming to international bibliographic standards.",
-        ],
-      },
-      {
-        heading: `3. Core Architecture & Conceptual Pillars: ${research.subtopics.slice(0, 2).join(" & ") || topic}`,
-        content: `The theoretical framework of ${topic} relies on several core architectural pillars:`,
-        bullets: research.coreMechanisms.map(
-          (m) => `**${m.name}**: ${m.details}${m.formulaOrStructure ? ` (${m.formulaOrStructure})` : ""}`
-        ),
-      },
-      {
-        heading: "4. Empirical Findings & Comparative Breakdown",
-        content: `Our research identifies decisive architectural characteristics defining ${topic}:`,
-        table: research.comparativeMetrics
-          ? research.comparativeMetrics.rows.map((r) => [String(r[0]), String(r[1]), String(r[2]), String(r[3])])
-          : undefined,
-        bullets: research.architectureOrComponents.map(
-          (c) => `**${c.component}**: Role: ${c.role}. Mechanism: ${c.mechanism}`
-        ),
-      },
-      {
-        heading: "5. Real-World Applications & Industry Impact",
-        content: "Empirical adoption patterns across enterprise and academic environments demonstrate robust utility:",
-        bullets: research.applications,
-      },
-      {
-        heading: "6. Critical Discussion: Benefits vs. Systemic Constraints",
-        content: "A balanced engineering assessment reveals clear operational benefits alongside critical implementation challenges:",
-        bullets: [
-          ...research.advantages.map((a) => `[ADVANTAGE] ${a}`),
-          ...research.limitationsAndChallenges.map((l) => `[CHALLENGE] ${l}`),
-        ],
-      },
-      {
-        heading: "7. Conclusion",
-        content: `In summary, ${topic} represents a high-impact domain essential for next-generation system engineering. By adopting verified structural standards and automated quality checks, practitioners can achieve superior reliability, scalability, and performance.`,
-      },
-    ];
+    logStage("Synthesizing clear, structured document sections...");
+    sections = await buildDocumentSections(
+      topic,
+      research,
+      archetype,
+      intent.audience,
+      options?.apiKey
+    );
   }
 
   // Format Markdown or Text documents
@@ -1191,16 +1221,15 @@ export async function synthesizeResearchToFile(
     outlineMarkdown = slides
       .map((s, idx) => {
         const cleanTitle = cleanSlideText(s.title);
-        const cleanCat = cleanSlideText(s.category || "TOPIC ANALYSIS");
         const cleanBullets = s.bullets.map((b) => `- ${cleanSlideText(b)}`).join("\n");
         const cleanTakeaway = s.takeaway ? `\nTakeaway: ${cleanSlideText(s.takeaway)}` : "";
-        return `### Slide ${idx + 1}: ${cleanTitle}\nCategory: ${cleanCat}\n${cleanBullets}${cleanTakeaway}`;
+        return `### Slide ${idx + 1}: ${cleanTitle}\n${cleanBullets}${cleanTakeaway}`;
       })
       .join("\n\n");
   } else if (archetype === "source_code") {
     if (isPreview) {
       const previewCode = (rawContent || "").slice(0, 500);
-      outlineMarkdown = `### 💻 ${baseTitle} (.${format.toUpperCase()} Source File)\n\n` +
+      outlineMarkdown = `### ${baseTitle} (.${format.toUpperCase()} Source File)\n\n` +
         `\`\`\`${format}\n${previewCode}\n...\n\`\`\`\n\n*Full, verified source code is compiled and ready in the verified file card above.*`;
     } else {
       outlineMarkdown = `*Complete, verified .${format.toUpperCase()} source code is compiled and ready in the verified download card above.*`;
@@ -1208,7 +1237,7 @@ export async function synthesizeResearchToFile(
   } else if (archetype === "data_file") {
     if (isPreview) {
       const previewData = (rawContent || "").slice(0, 450);
-      outlineMarkdown = `### 🗃️ ${baseTitle} (.${format.toUpperCase()} Data File)\n\n` +
+      outlineMarkdown = `### ${baseTitle} (.${format.toUpperCase()} Data File)\n\n` +
         `\`\`\`${format}\n${previewData}\n...\n\`\`\`\n\n*Complete validated ${format.toUpperCase()} dataset attached for download.*`;
     } else {
       outlineMarkdown = `*Complete validated ${format.toUpperCase()} dataset ready in the verified download card above.*`;
@@ -1216,7 +1245,7 @@ export async function synthesizeResearchToFile(
   } else if (archetype === "spreadsheet" || format === "csv") {
     if (isPreview) {
       const previewRows = (sheets[0]?.rows || []).slice(0, 5);
-      outlineMarkdown = `### 📈 ${baseTitle} (.${format.toUpperCase()} Dataset Preview)\n\n` +
+      outlineMarkdown = `### ${baseTitle} (.${format.toUpperCase()} Dataset Preview)\n\n` +
         (previewRows.length > 0 ? previewRows.map((r) => `| ${r.slice(0, 5).join(" | ")} |`).join("\n") : "Multi-column data table") +
         `\n\n*Full spreadsheet workbook with calculations attached below.*`;
     } else {
@@ -1224,14 +1253,11 @@ export async function synthesizeResearchToFile(
       outlineMarkdown = `**${baseTitle} (${topic}) Dataset (${headerRow.length} Columns):** ${headerRow.map((c) => `\`${c}\``).join(", ") || "Structured tabular data"}\n\n*Full spreadsheet workbook with calculations attached in the card above.*`;
     }
   } else {
-    const structureSummary = `**Document Structure (${sections.length} Sections):** ${sections
-      .map((s) => s.heading)
-      .join(" • ")}`;
-    const sectionsBody = sections
+    outlineMarkdown = sections
       .map((sec) => {
         let secText = `### ${sec.heading}\n\n${sec.content || ""}`;
         if (sec.callout) {
-          secText += `\n\n> 💡 **Core Principle:** ${sec.callout}`;
+          secText += `\n\n> ${sec.callout}`;
         }
         if (sec.bullets && sec.bullets.length > 0) {
           secText += "\n\n" + sec.bullets.map((b) => `• ${b}`).join("\n");
@@ -1246,7 +1272,6 @@ export async function synthesizeResearchToFile(
         return secText;
       })
       .join("\n\n---\n\n");
-    outlineMarkdown = `${structureSummary}\n\n---\n\n${sectionsBody}`;
   }
 
   let fileTypeLabel = "file";
