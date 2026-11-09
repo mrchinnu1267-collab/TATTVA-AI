@@ -48,6 +48,18 @@ export interface SynthesisOptions {
   onProgress?: (stage: string) => void;
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackVal: T): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallbackVal), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callGeminiResilient(
   ai: GoogleGenAI,
   prompt: string,
@@ -56,12 +68,16 @@ async function callGeminiResilient(
   const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
   for (const modelId of candidateModels) {
     try {
-      const res = await ai.models.generateContent({
-        model: modelId,
-        contents: prompt,
-        config: config || { temperature: 0.1 },
-      });
-      if (res.text && res.text.trim().length > 0) {
+      const res = await withTimeout(
+        ai.models.generateContent({
+          model: modelId,
+          contents: prompt,
+          config: config || { temperature: 0.1 },
+        }),
+        8000,
+        null
+      );
+      if (res && res.text && res.text.trim().length > 0) {
         return res.text;
       }
     } catch (err) {
@@ -114,9 +130,9 @@ async function buildPresentationSlides(
     }
   }
 
-  const count = targetSlideCount && targetSlideCount >= 6 && targetSlideCount <= 20
+  const count = targetSlideCount && targetSlideCount >= 2 && targetSlideCount <= 30
     ? targetSlideCount
-    : Math.max(8, Math.min(14, 4 + research.coreMechanisms.length + research.architectureOrComponents.length));
+    : Math.max(5, Math.min(14, 4 + research.coreMechanisms.length + research.architectureOrComponents.length));
 
   const resolvedApiKey = apiKey || process.env.GEMINI_API_KEY;
   if (resolvedApiKey) {
@@ -166,8 +182,9 @@ Return ONLY pure JSON array conforming to this exact schema:
       const jsonEnd = text.lastIndexOf("]");
       if (jsonStart !== -1 && jsonEnd !== -1) {
         const parsedSlides = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-        if (Array.isArray(parsedSlides) && parsedSlides.length >= 6) {
-          return parsedSlides.map((s: any) => ({
+        const minAcceptable = Math.min(count, 3);
+        if (Array.isArray(parsedSlides) && parsedSlides.length >= minAcceptable) {
+          return parsedSlides.slice(0, count).map((s: any) => ({
             title: String(s.title || `${topic} Key Concept`).replace(/\*\*|__/g, "").trim(),
             category: String(s.category || "OVERVIEW").toUpperCase(),
             bullets: Array.isArray(s.bullets) && s.bullets.length > 0
@@ -284,7 +301,7 @@ Return ONLY pure JSON array conforming to this exact schema:
     });
   }
 
-  return fallbackSlides;
+  return fallbackSlides.slice(0, count);
 }
 
 /**

@@ -1091,6 +1091,18 @@ const VERIFIED_TOPIC_KNOWLEDGE_BASE: Record<string, Partial<ResearchDossier>> = 
   },
 };
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackVal: T): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallbackVal), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Conducts autonomous, multi-dimensional topic research
  */
@@ -1211,16 +1223,20 @@ Respond strictly with valid JSON conforming to this schema:
 
       for (const modelId of candidateModels) {
         try {
-          const res = await ai.models.generateContent({
-            model: modelId,
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            config: {
-              responseMimeType: "application/json",
-              temperature: 0.1,
-              maxOutputTokens: 4000,
-            },
-          });
-          if (res.text && res.text.includes("{")) {
+          const res = await withTimeout(
+            ai.models.generateContent({
+              model: modelId,
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              config: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+                maxOutputTokens: 4000,
+              },
+            }),
+            8000,
+            null
+          );
+          if (res && res.text && res.text.includes("{")) {
             text = res.text;
             break;
           }

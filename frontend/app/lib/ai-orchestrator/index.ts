@@ -118,102 +118,9 @@ export class MasterAIOrchestrator {
     const sourceImageForEdit = userAttachedImage || lastAssistantImage;
     const hasImageToEdit = Boolean(sourceImageForEdit);
     const hasAttachedFile = Boolean(latestMessage.attachments?.some((a) => !a.type?.startsWith("image/")));
-
-    // 2. INTENT RECOGNITION & TASK CLASSIFICATION
     const apiKey = process.env.GEMINI_API_KEY;
-    const classification = await classifyIntent(
-      queryForClassification,
-      hasImageToEdit,
-      hasAttachedFile,
-      apiKey
-    );
 
-    let effectiveIntent: TaskIntent = classification.primaryIntent;
-    if (mode === "agent") {
-      effectiveIntent = "agent_task";
-    } else if (mode === "research") {
-      effectiveIntent = "web_research";
-    }
-
-    console.log(`[TATTVA Orchestrator] Task classified as "${effectiveIntent}" (complexity: ${classification.complexityScore}/10)`);
-
-    // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
-    if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
-      const candidatePrompt = classification.diffusionPrompt || cleanUserPrompt;
-      const nsfwCheck = isNsfwContent(candidatePrompt);
-      if (nsfwCheck.isBlocked) {
-        return {
-          role: "assistant",
-          content: "I cannot generate or edit images containing 18+, adult, nude, or sexually explicit content. TATTVA AI strictly restricts adult imagery to maintain a safe and family-friendly experience.",
-          kind: "text",
-          intent: effectiveIntent,
-          modelUsed: "tattva-guardrail",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-          warnings: [nsfwCheck.reason || "NSFW content restricted"],
-        };
-      }
-      try {
-        const imageResult = await generateImage({
-          prompt: classification.diffusionPrompt || cleanUserPrompt,
-          referenceImage:
-            effectiveIntent === "image_editing" ? sourceImageForEdit : userAttachedImage,
-          quality: "balanced",
-          verify: true,
-          userId: context.userId,
-        });
-
-        const failed = imageResult.verification.requirements.filter(
-          (item) => item.met === false
-        );
-        const accuracy = imageResult.accuracy;
-        const summary = [
-          accuracy >= 85
-            ? "Image generated and verified against your request."
-            : "Image generated, but some details need another pass.",
-          `Adherence: ${accuracy}%.`,
-          failed.length > 0
-            ? `Not confirmed: ${failed.map((item) => item.text).join("; ")}.`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-
-        return {
-          role: "assistant",
-          content: summary,
-          kind: "image",
-          intent: effectiveIntent,
-          modelUsed: imageResult.model,
-          provider: imageResult.provider,
-          latencyMs: Date.now() - startTime,
-          image: imageResult.image,
-          imageMetadata: {
-            ...imageResult.metadata,
-            isEdit: effectiveIntent === "image_editing",
-            verification: imageResult.verification,
-            compiled_prompt: imageResult.compiled.positive,
-          },
-          warnings: imageResult.warnings,
-        };
-      } catch (imageError) {
-        const message =
-          imageError instanceof Error ? imageError.message : String(imageError);
-        console.error("[TATTVA Image] Orchestrator generation failed:", message);
-        return {
-          role: "assistant",
-          content: `I could not generate that image yet. ${message}\n\nAdd Gemini image billing, Hugging Face credits, or start the local engine, then try again.`,
-          kind: "text",
-          intent: effectiveIntent,
-          modelUsed: "TATTVA Image Engine",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-          warnings: [message],
-        };
-      }
-    }
-
-    // 3.5 PIPELINE ROUTING: RESEARCH-TO-FILE GENERATION ENGINE
+    // 2. EARLY ROUTING: RESEARCH-TO-FILE GENERATION ENGINE (Bypasses redundant 3-5s classification LLM call)
     const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
       history: messages.map((m) => ({
         role: m.role,
@@ -319,6 +226,99 @@ export class MasterAIOrchestrator {
           provider: "local",
           latencyMs: Date.now() - startTime,
           warnings: [errorMsg],
+        };
+      }
+    }
+
+    // 3. INTENT RECOGNITION & TASK CLASSIFICATION
+    const classification = await classifyIntent(
+      queryForClassification,
+      hasImageToEdit,
+      hasAttachedFile,
+      apiKey
+    );
+
+    let effectiveIntent: TaskIntent = classification.primaryIntent;
+    if (mode === "agent") {
+      effectiveIntent = "agent_task";
+    } else if (mode === "research") {
+      effectiveIntent = "web_research";
+    }
+
+    console.log(`[TATTVA Orchestrator] Task classified as "${effectiveIntent}" (complexity: ${classification.complexityScore}/10)`);
+
+    // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
+    if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
+      const candidatePrompt = classification.diffusionPrompt || cleanUserPrompt;
+      const nsfwCheck = isNsfwContent(candidatePrompt);
+      if (nsfwCheck.isBlocked) {
+        return {
+          role: "assistant",
+          content: "I cannot generate or edit images containing 18+, adult, nude, or sexually explicit content. TATTVA AI strictly restricts adult imagery to maintain a safe and family-friendly experience.",
+          kind: "text",
+          intent: effectiveIntent,
+          modelUsed: "tattva-guardrail",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+          warnings: [nsfwCheck.reason || "NSFW content restricted"],
+        };
+      }
+      try {
+        const imageResult = await generateImage({
+          prompt: classification.diffusionPrompt || cleanUserPrompt,
+          referenceImage:
+            effectiveIntent === "image_editing" ? sourceImageForEdit : userAttachedImage,
+          quality: "balanced",
+          verify: true,
+          userId: context.userId,
+        });
+
+        const failed = imageResult.verification.requirements.filter(
+          (item) => item.met === false
+        );
+        const accuracy = imageResult.accuracy;
+        const summary = [
+          accuracy >= 85
+            ? "Image generated and verified against your request."
+            : "Image generated, but some details need another pass.",
+          `Adherence: ${accuracy}%.`,
+          failed.length > 0
+            ? `Not confirmed: ${failed.map((item) => item.text).join("; ")}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return {
+          role: "assistant",
+          content: summary,
+          kind: "image",
+          intent: effectiveIntent,
+          modelUsed: imageResult.model,
+          provider: imageResult.provider,
+          latencyMs: Date.now() - startTime,
+          image: imageResult.image,
+          imageMetadata: {
+            ...imageResult.metadata,
+            isEdit: effectiveIntent === "image_editing",
+            verification: imageResult.verification,
+            compiled_prompt: imageResult.compiled.positive,
+          },
+          warnings: imageResult.warnings,
+        };
+      } catch (imageError) {
+        const message =
+          imageError instanceof Error ? imageError.message : String(imageError);
+        console.error("[TATTVA Image] Orchestrator generation failed:", message);
+        return {
+          role: "assistant",
+          content: `I could not generate that image yet. ${message}\n\nAdd Gemini image billing, Hugging Face credits, or start the local engine, then try again.`,
+          kind: "text",
+          intent: effectiveIntent,
+          modelUsed: "TATTVA Image Engine",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+          warnings: [message],
         };
       }
     }

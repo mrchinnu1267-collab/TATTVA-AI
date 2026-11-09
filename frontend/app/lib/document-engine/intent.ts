@@ -424,7 +424,7 @@ export function detectDocumentIntent(
   topic = topic
     .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
     .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
-    .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
+    .replace(/\b(with|having|consisting of|containing|in|of|around|about)?\s*(\d{1,2})\s*[- ]*(slide|slides|sld|pages?|sections?)\b/gi, "")
     .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
     .replace(/\b(gather|collect|compile|summarize)\s+(the\s+)?(slide|slides|information|content|points|matter)\b/gi, "")
     .replace(/\b(slide\s*wise|slidewise|slide-wise|up\s*to|upto|slide\s*by\s*slide)\b/gi, "")
@@ -443,8 +443,14 @@ export function detectDocumentIntent(
     .replace(/\b(chey|cheyyi|cheyandi|cheyali|tayaru chey|kavali|ivvu|banao|banaiye|karo)\b/gi, "")
     .replace(/చేయి|చేయ్|చెయ్యి|చేయండి|తయారు చేయి|కావాలి|ఇవ్వు|పిపిటి|ప్రెజెంటేషన్/g, "")
     .replace(/बनाओ|बनाइए|बना दो|चाहिए|दीजिए|तैयार करो|पीपीटी|प्रेजेंटेशन/g, "")
-    .replace(/\b(on|about|regarding|for|meeda|gurinchi|par|pe)\b/gi, " ")
+    .replace(/\b(on|about|regarding|for|with|meeda|gurinchi|par|pe)\b/gi, " ")
     .replace(/[?!.,;:"']/g, " ")
+    .trim();
+
+  // Strip trailing or leading prepositions from topic
+  topic = topic
+    .replace(/\b(with|on|about|for|of|in|to|at|by|from)\s*$/gi, "")
+    .replace(/^\s*\b(with|on|about|for|of|in|to|at|by|from)\b/gi, "")
     .trim();
 
   // If topic is empty, a pronoun ("it", "this", "that", "same"), generic filler, or forbidden word:
@@ -531,10 +537,23 @@ export function detectDocumentIntent(
     clarificationQuestion = `What specific topic or subject would you like me to prepare the ${format.toUpperCase()} on?`;
     topic = "Document"; // placeholder safe identifier
   } else {
-    // Title-case topic
+    // Preserve common tech / computing acronyms & strip trailing prepositions
+    const ACRONYMS = new Set([
+      "AI", "ML", "API", "UI", "UX", "PPT", "PDF", "SQL", "DBMS", "OS",
+      "LLM", "NLP", "CPU", "GPU", "RAM", "HTTP", "REST", "JSON", "HTML",
+      "CSS", "AWS", "GCP", "SDK", "OOP", "IOT"
+    ]);
+
+    topic = topic.replace(/\b(with|on|about|for|of|in|to|at|by|from)\s*$/gi, "").trim();
+
+    // Title-case topic while keeping acronyms in uppercase
     topic = topic
       .split(/\s+/)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .map((w) => {
+        const upper = w.toUpperCase();
+        if (ACRONYMS.has(upper)) return upper;
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+      })
       .join(" ")
       .slice(0, 80);
   }

@@ -15,6 +15,7 @@ import {
 } from "../../lib/custom-provider-executor";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   let customKeyForScrubbing: string | undefined;
