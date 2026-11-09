@@ -42,6 +42,7 @@ import { SmartTemplatesModal } from "../components/workspace/SmartTemplatesModal
 import { AutomationCenterView } from "../components/workspace/AutomationCenterView";
 
 // Advanced Ecosystem Views
+import { DashboardView } from "../components/workspace/DashboardView";
 import { AICommandCenterView } from "../components/workspace/AICommandCenterView";
 import { SmartCanvasView } from "../components/workspace/SmartCanvasView";
 import { ProjectManagerView } from "../components/workspace/ProjectManagerView";
@@ -64,14 +65,14 @@ import { OneNoteApp } from "../components/workspace/apps/onenote/OneNoteApp";
 import { PublisherStudio } from "../components/workspace/apps/publisher/PublisherStudio";
 import { AccessStudio } from "../components/workspace/apps/access/AccessStudio";
 
-function WorkspaceMainContent() {
+export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceAppId }) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   // Storage & state
   const [items, setItems] = useState<WorkspaceItem[]>([]);
   const [activeItem, setActiveItem] = useState<WorkspaceItem | null>(null);
-  const [activeApp, setActiveApp] = useState<WorkspaceAppId>("powerpoint");
+  const [activeApp, setActiveApp] = useState<WorkspaceAppId | null>(initialApp || null);
   const [currentView, setCurrentView] = useState<string>("dashboard");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -107,10 +108,12 @@ function WorkspaceMainContent() {
       }
     }
 
-    if (qApp && WORKSPACE_APPS_LIST.some((a) => a.id === qApp)) {
+    if (initialApp && WORKSPACE_APPS_LIST.some((a) => a.id === initialApp)) {
+      setActiveApp(initialApp);
+    } else if (qApp && WORKSPACE_APPS_LIST.some((a) => a.id === qApp)) {
       setActiveApp(qApp);
     }
-  }, [searchParams]);
+  }, [searchParams, initialApp]);
 
   // Keyboard shortcut listener (Ctrl+K for Universal Search)
   useEffect(() => {
@@ -282,6 +285,12 @@ function WorkspaceMainContent() {
       {/* 1. Left Sidebar Navigation matching Reference Screenshot */}
       <WorkspaceSidebar
         currentView={currentView}
+        activeApp={activeApp}
+        onSelectApp={(appId) => {
+          setActiveApp(appId as WorkspaceAppId);
+          setCurrentView("dashboard");
+          setActiveItem(null);
+        }}
         onSelectView={(view) => {
           if (view === "focus_mode") {
             setIsFocusModalOpen(true);
@@ -292,7 +301,7 @@ function WorkspaceMainContent() {
         }}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onNewFile={() => handleNewItem(activeApp)}
+        onNewFile={() => handleNewItem(activeApp || "word")}
       />
 
       {/* 2. Main Work Area */}
@@ -395,7 +404,7 @@ function WorkspaceMainContent() {
               })}
 
               <button
-                onClick={() => handleNewItem(activeApp)}
+                onClick={() => handleNewItem(activeApp || "word")}
                 className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-xs text-slate-400 hover:text-white transition shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -472,57 +481,113 @@ function WorkspaceMainContent() {
             </div>
 
             {/* 2D. Main Central Application Viewport matching Screenshot */}
-            <div className="relative rounded-2xl border border-slate-800/80 bg-[#141414] shadow-2xl overflow-hidden min-h-[500px] flex flex-col">
-              {activeApp === "powerpoint" && (
-                <PowerPointApp
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onBack={() => {}}
-                />
-              )}
-              {activeApp === "word" && (
-                <WordEditor
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onBack={() => {}}
-                />
-              )}
-              {activeApp === "excel" && (
-                <ExcelEditor
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onBack={() => {}}
-                />
-              )}
-              {activeApp === "outlook" && (
-                <OutlookApp
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onBack={() => {}}
-                />
-              )}
-              {activeApp === "onenote" && (
-                <OneNoteApp
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onBack={() => {}}
-                />
-              )}
-              {activeApp === "publisher" && (
-                <PublisherStudio
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onBack={() => {}}
-                />
-              )}
-              {activeApp === "access" && (
-                <AccessStudio
-                  item={currentDisplayItem as any}
-                  onSave={handleSaveItem as any}
-                  onExport={() => {}}
-                />
-              )}
-            </div>
+            {activeApp === null ? (
+              <DashboardView
+                items={items}
+                onOpenItem={(item) => {
+                  setActiveItem(item);
+                  setActiveApp(item.app);
+                }}
+                onOpenApp={(appId) => {
+                  setActiveApp(appId);
+                  setActiveItem(null);
+                }}
+                onNewItemForApp={handleNewItem}
+                onToggleStar={(id) => {
+                  WorkspaceStorageManager.toggleStar(id);
+                  setItems(WorkspaceStorageManager.getAllItems());
+                }}
+                onTogglePin={(id) => {
+                  WorkspaceStorageManager.togglePin(id);
+                  setItems(WorkspaceStorageManager.getAllItems());
+                }}
+                onTrashItem={(id) => {
+                  WorkspaceStorageManager.trashItem(id);
+                  setItems(WorkspaceStorageManager.getAllItems());
+                }}
+                onExportItem={(item) => {}}
+              />
+            ) : (
+              <div className="relative rounded-2xl border border-slate-800/80 bg-[#141414] shadow-2xl overflow-hidden min-h-[500px] flex flex-col">
+                {/* Active Studio Top Bar */}
+                <div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-slate-800 text-xs shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setActiveApp(null);
+                        setActiveItem(null);
+                      }}
+                      className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition"
+                      title="Back to My Workspace Dashboard"
+                    >
+                      <span>← Dashboard</span>
+                    </button>
+                    <span className="text-slate-600">•</span>
+                    <span className="font-bold text-white capitalize">{getAppMeta(activeApp).name} Studio</span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleNewItem(activeApp)}
+                      className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>New {getAppMeta(activeApp).name} File</span>
+                    </button>
+                  </div>
+                </div>
+
+                {activeApp === "powerpoint" && (
+                  <PowerPointApp
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onBack={() => setActiveApp(null)}
+                  />
+                )}
+                {activeApp === "word" && (
+                  <WordEditor
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onBack={() => setActiveApp(null)}
+                  />
+                )}
+                {activeApp === "excel" && (
+                  <ExcelEditor
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onBack={() => setActiveApp(null)}
+                  />
+                )}
+                {activeApp === "outlook" && (
+                  <OutlookApp
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onBack={() => setActiveApp(null)}
+                  />
+                )}
+                {activeApp === "onenote" && (
+                  <OneNoteApp
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onBack={() => setActiveApp(null)}
+                  />
+                )}
+                {activeApp === "publisher" && (
+                  <PublisherStudio
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onBack={() => setActiveApp(null)}
+                  />
+                )}
+                {activeApp === "access" && (
+                  <AccessStudio
+                    item={currentDisplayItem as any}
+                    onSave={handleSaveItem as any}
+                    onExport={() => {}}
+                  />
+                )}
+              </div>
+            )}
 
             {/* 2E. Bottom Ecosystem Feature Cards matching Screenshot */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 pt-2">
@@ -722,7 +787,7 @@ function WorkspaceMainContent() {
         <UniversalAIAssistant
           isOpen={isAIAssistantOpen}
           onClose={() => setIsAIAssistantOpen(false)}
-          activeApp={activeApp}
+          activeApp={activeApp || "word"}
           activeDocument={currentDisplayItem}
           workspaceFiles={items}
           onExecuteAction={(type, payload) => {

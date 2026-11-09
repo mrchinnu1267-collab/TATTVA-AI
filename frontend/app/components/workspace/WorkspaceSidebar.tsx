@@ -33,6 +33,8 @@ interface WorkspaceSidebarProps {
   onToggleCollapse?: () => void;
   activeWorkspaceName?: string;
   onNewFile?: () => void;
+  activeApp?: string | null;
+  onSelectApp?: (app: string) => void;
 }
 
 export function WorkspaceSidebar({
@@ -44,7 +46,19 @@ export function WorkspaceSidebar({
   onToggleCollapse,
   activeWorkspaceName = "Project Review",
   onNewFile,
+  activeApp = null,
+  onSelectApp,
 }: WorkspaceSidebarProps) {
+  const officeApps = [
+    { id: "word", name: "Word", letter: "W", color: "bg-[#185ABD]" },
+    { id: "excel", name: "Excel", letter: "X", color: "bg-[#107C41]" },
+    { id: "powerpoint", name: "PowerPoint", letter: "P", color: "bg-[#C43E1C]" },
+    { id: "outlook", name: "Outlook", letter: "O", color: "bg-[#0078D4]" },
+    { id: "onenote", name: "OneNote", letter: "N", color: "bg-[#7719AA]" },
+    { id: "publisher", name: "Publisher", letter: "P", color: "bg-[#008272]" },
+    { id: "access", name: "Access", letter: "A", color: "bg-[#A4373A]" },
+  ];
+
   const workspacesList = [
     { id: "ws_proj", name: "Project Review", color: "bg-emerald-400" },
     { id: "ws_res", name: "Research", color: "bg-blue-400" },
@@ -216,6 +230,46 @@ export function WorkspaceSidebar({
             <Target className="w-4 h-4 shrink-0 text-rose-400" />
             {!isCollapsed && <span>Focus Mode</span>}
           </button>
+        </div>
+
+        {/* 7 Productivity Applications Section */}
+        <div className="pt-2 border-t border-slate-800/60">
+          {!isCollapsed && (
+            <div className="flex items-center justify-between px-3 py-1 mb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <span>Apps</span>
+            </div>
+          )}
+
+          <div className="space-y-0.5">
+            {officeApps.map((app) => {
+              const isAppActive = currentView === "dashboard" && activeApp === app.id;
+              return (
+                <button
+                  key={app.id}
+                  onClick={() => {
+                    if (onSelectApp) {
+                      onSelectApp(app.id);
+                    } else {
+                      onSelectView("dashboard");
+                    }
+                  }}
+                  className={`w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-xs transition text-left ${
+                    isAppActive
+                      ? "bg-slate-800 text-white font-semibold border border-slate-700/80 shadow-xs"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                  }`}
+                  title={app.name}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-sm ${app.color} flex items-center justify-center font-black text-[9px] text-white shrink-0 shadow-xs`}
+                  >
+                    {app.letter}
+                  </span>
+                  {!isCollapsed && <span className="truncate">{app.name}</span>}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Workspaces Section */}
