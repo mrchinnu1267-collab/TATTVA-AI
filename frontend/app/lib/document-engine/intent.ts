@@ -9,6 +9,8 @@
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
+import { isForbiddenTopic } from "./content-validator";
+
 export type DocumentFormat =
   | "docx"
   | "xlsx"
@@ -424,6 +426,8 @@ export function detectDocumentIntent(
     .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
     .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
+    .replace(/\b(gather|collect|compile|summarize)\s+(the\s+)?(slide|slides|information|content|points|matter)\b/gi, "")
+    .replace(/\b(slide\s*wise|slidewise|slide-wise|up\s*to|upto|slide\s*by\s*slide)\b/gi, "")
     .replace(/\b(now|then|also|so|please|can you|could you|i want to|i need to|i want|i need|give me a|give me|give)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce|convert|turn|transform|compile)\b/gi, "")
     .replace(/\b(that|this|the|my|our)\s+(research|investigation|findings|analysis|summary|discussion|topic)\b/gi, "")
@@ -443,10 +447,11 @@ export function detectDocumentIntent(
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
-  // If topic is empty, a pronoun ("it", "this", "that", "same"), or generic reference ("this topic", "as ppt", "matter"):
+  // If topic is empty, a pronoun ("it", "this", "that", "same"), generic filler, or forbidden word:
   // inspect history for the substantive topic!
   const isGenericFillerTopic =
     !topic ||
+    isForbiddenTopic(topic) ||
     /^(it|this|that|above|same|the same|them|its|now|so|topic|this topic|that topic|the topic|research|that research|this research|as ppt|as a ppt|matter|of matter|slides? as|8 slides as|slides? of matter|slides?|presentation|document|file|report)$/i.test(topic) ||
     /^(now\s+)?(it|this|that)$/i.test(topic) ||
     /\b(about|on|for|of)\s+(it|this|that|this topic|that research|matter)\b/i.test(clean) ||
@@ -455,6 +460,14 @@ export function detectDocumentIntent(
   if (isGenericFillerTopic && options?.history && options.history.length > 0) {
     for (let i = options.history.length - 1; i >= 0; i--) {
       const msg = options.history[i];
+      // Check attached files first
+      if (msg.attachments && msg.attachments.length > 0) {
+        const attName = msg.attachments[0].name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ").trim();
+        if (attName && !isForbiddenTopic(attName)) {
+          topic = attName;
+          break;
+        }
+      }
       if (msg.role === "user") {
         const cleanedPrev = msg.content
           .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
@@ -465,7 +478,7 @@ export function detectDocumentIntent(
           .trim();
         // Skip sub-aspect words or pronouns, looking for substantive subject
         const isSubAspectOrPronoun = /^(it|this|that|same|now|as ppt|matter|applications?|use\s*cases?|advantages?|disadvantages?|benefits?|features?|details?|examples?|more|help|overview|summary)$/i.test(cleanedPrev);
-        if (cleanedPrev.length >= 3 && !isSubAspectOrPronoun) {
+        if (cleanedPrev.length >= 3 && !isSubAspectOrPronoun && !isForbiddenTopic(cleanedPrev)) {
           topic = cleanedPrev;
           break;
         }
@@ -473,37 +486,58 @@ export function detectDocumentIntent(
     }
   }
 
-  if (isRevisionRequest && (!topic || topic.length < 3 || isGenericFillerTopic || /content is incorrect|recreate|regenerate|change only slide/i.test(topic))) {
+  if (isRevisionRequest && (!topic || topic.length < 3 || isForbiddenTopic(topic) || isGenericFillerTopic || /content is incorrect|recreate|regenerate|change only slide/i.test(topic))) {
     if (revisionDirectives?.previousTopic) {
       topic = revisionDirectives.previousTopic;
     }
   }
 
-  if (!topic || topic.length < 2 || /^(it|this|that|now\s+it|as ppt|matter|of matter|slides? as)$/i.test(topic)) {
-    topic = clean
-      .replace(/\[\s*Mode:[^\]]+\]:?/gi, "")
-      .replace(/\b(create|generate|make|prepare|ppt|word|excel|assignment|now|about|it|this|that|as ppt|of matter|matter|slides?)\b/gi, "")
-      .trim();
-  }
-
-  if (!topic || topic.length < 2 || /^(it|this|that|as ppt|matter|of matter)$/i.test(topic)) {
-    topic = archetype === "presentation" ? "Artificial Intelligence & Future Innovations" : "Comprehensive Technical Analysis";
-  }
-
   // Strip predicate verb clauses (e.g. "Object-Oriented Programming (OOP) is a foundational software paradigm..." -> "Object-Oriented Programming (OOP)")
-  if (/\b(?:is|are|was|were|refers to|defined as|consists of|deals with|meaning|means)\b/i.test(topic)) {
+  if (topic && /\b(?:is|are|was|were|refers to|defined as|consists of|deals with|meaning|means)\b/i.test(topic)) {
     const parts = topic.split(/\b(?:is|are|was|were|refers to|defined as|consists of|deals with|meaning|means)\b/i);
     if (parts[0] && parts[0].trim().length >= 2) {
       topic = parts[0].trim();
     }
   }
 
-  // Title-case topic
-  topic = topic
-    .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ")
-    .slice(0, 80);
+  // Strip any remaining procedural terms
+  if (topic) {
+    topic = topic.replace(/\b(gather|collect|compile|summarize|slide wise|slidewise|slide-wise|up to|upto|slide by slide|of matter|matter)\b/gi, "").trim();
+  }
+
+  // Check if topic is still empty or forbidden
+  if (!topic || topic.length < 2 || isForbiddenTopic(topic)) {
+    // If we have history with previous assistant answers, check for main topic
+    if (options?.history && options.history.length > 0) {
+      for (let i = options.history.length - 1; i >= 0; i--) {
+        const msg = options.history[i];
+        if (msg.role === "assistant" && msg.content) {
+          const match = msg.content.match(/^#+\s*([^\n]+)/m) || msg.content.match(/\*\*([A-Za-z0-9\s]{3,40})\*\*/);
+          if (match && match[1]) {
+            const candidate = match[1].replace(/[#*]/g, "").trim();
+            if (candidate.length >= 3 && !isForbiddenTopic(candidate)) {
+              topic = candidate;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // If STILL forbidden or empty, ask for clarification — NEVER fake topic as "Pdf" or "Artificial Intelligence"
+  if (!topic || topic.length < 2 || isForbiddenTopic(topic)) {
+    needsClarification = true;
+    clarificationQuestion = `What specific topic or subject would you like me to prepare the ${format.toUpperCase()} on?`;
+    topic = "Document"; // placeholder safe identifier
+  } else {
+    // Title-case topic
+    topic = topic
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ")
+      .slice(0, 80);
+  }
 
   // 10. Depth & Length Configuration
   const isComprehensive = /\b(comprehensive|detailed|in-depth|complete|full|exhaustive|deep dive)\b/i.test(lower);

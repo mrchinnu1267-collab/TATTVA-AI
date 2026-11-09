@@ -533,6 +533,137 @@ const VERIFIED_TOPIC_KNOWLEDGE_BASE: Record<string, Partial<ResearchDossier>> = 
     ],
   },
 
+  dbms: {
+    topic: "Database Management Systems (DBMS)",
+    definition: "A Database Management System (DBMS) is specialized system software designed to define, construct, manipulate, and share databases among multiple users and applications. It enforces data integrity, security, concurrent transaction management, and persistence according to the ACID (Atomicity, Consistency, Isolation, Durability) guarantees.",
+    backgroundAndMotivation: "Early computing relied on File Processing Systems, where application programs directly managed records in flat files. This caused severe structural liabilities: redundant data, update anomalies, data inconsistency, high program-data dependence, lack of concurrent multi-user coordination, and vulnerability to system crashes. Edgar F. Codd (1970) introduced the Relational Model to decouple physical storage mechanisms from logical queries, establishing DBMS as the foundational layer of modern data infrastructure.",
+    subtopics: [
+      "File Processing Systems vs DBMS Approaches",
+      "ANSI/SPARC Three-Schema Architecture (Internal, Conceptual, External)",
+      "Physical and Logical Data Independence",
+      "Database Languages (DDL, DML, DCL, TCL)",
+      "Entity-Relationship (ER) Modeling (Entities, Attributes, Relationships, Keys)",
+      "Relational Model: Relations, Tuples, Domains, Degree, and Cardinality",
+      "Integrity Constraints: Domain, Entity Integrity, and Referential Integrity",
+      "Relational Algebra Operators: Selection, Projection, Cartesian Product, Join, Set Operations",
+      "Transaction Processing & ACID Properties",
+      "Concurrency Control (Two-Phase Locking, Timestamp Ordering)",
+      "Database Recovery Techniques (Write-Ahead Logging, Checkpoints)",
+      "Database Normalization (1NF, 2NF, 3NF, BCNF)",
+    ],
+    coreMechanisms: [
+      {
+        name: "Three-Schema Architecture (ANSI/SPARC)",
+        details: "Separates database systems into three distinct abstraction tiers: the External Schema (custom user views), Conceptual Schema (community-wide logical structure without storage details), and Internal Schema (physical record layout, indexing, and allocation on disk).",
+        formulaOrStructure: "External Views -> (Logical Mapping) -> Conceptual Schema -> (Physical Mapping) -> Internal/Physical Schema",
+        exampleOrApplication: "A banking UI displays only customer account summaries (External view), while the bank's core schema links customer tables to ledger tables (Conceptual), stored as B-Tree indexed heap files on disk (Internal).",
+      },
+      {
+        name: "Data Independence (Logical & Physical)",
+        details: "Physical Data Independence allows altering physical storage structures (e.g., adding B-Tree indexes, partitioning disks) without rewriting conceptual schemas. Logical Data Independence permits modifying conceptual schemas (e.g., adding non-essential attributes or relations) without rewriting external applications.",
+        formulaOrStructure: "Physical: Internal changes !=> Conceptual changes; Logical: Conceptual changes !=> External view changes",
+        exampleOrApplication: "DBAs migrate database files to SSD arrays or convert tables to columnar indexes without changing SQL queries written in enterprise Java microservices.",
+      },
+      {
+        name: "Entity-Relationship (ER) Modeling & Constraints",
+        details: "Represents real-world domains through Entities (distinguishable objects), Attributes (Key, Simple, Composite, Multi-Valued, Derived), and Relationships with Structural Constraints (Cardinality Ratios: 1:1, 1:N, M:N; and Participation Constraints: Total vs Partial).",
+        formulaOrStructure: "Entity Type E with attributes {A1, ..., An}; Relationship R subset of E1 x E2 with Cardinality (min, max)",
+        exampleOrApplication: "A University database models STUDENT and COURSE: a student may enroll in 1 to 6 courses (1:N), where enrollment is mandatory (Total participation).",
+      },
+      {
+        name: "Relational Model & Integrity Constraints",
+        details: "Organizes data into Relations (tables) of Tuples (rows) and Attributes (columns). Enforces three fundamental constraints: Domain Constraint (values must belong to domain), Entity Integrity (Primary key cannot be null), and Referential Integrity (Foreign key must reference valid primary key or be null).",
+        formulaOrStructure: "Relation R(A1: D1, ..., An: Dn); Entity Integrity: PK != NULL; Referential: FK in PK_referenced or FK = NULL",
+        exampleOrApplication: "An Employee record requires a non-null EmployeeID (Primary Key) and a DepartmentID matching an existing Department in the DEPT table (Foreign Key).",
+      },
+      {
+        name: "Relational Algebra Operations",
+        details: "Formal procedural query language using relational operators: Selection (sigma, filters rows), Projection (pi, selects columns), Cartesian Product (X), Union (cup), Difference (-), and Natural/Theta Join (bowtie) to evaluate relational queries.",
+        formulaOrStructure: "sigma_{condition}(R), pi_{attributes}(R), R bowtie_{condition} S",
+        exampleOrApplication: "Querying employees earning over 80,000 in Dept 5: pi_{Name, Salary}(sigma_{DeptID = 5 AND Salary > 80000}(EMPLOYEE)).",
+      },
+      {
+        name: "ACID Transaction Guarantees",
+        details: "Atomicity (all-or-nothing execution), Consistency (preserves database integrity invariants), Isolation (concurrent executions yield serializable outcomes), and Durability (committed changes survive system failures).",
+        formulaOrStructure: "Transaction T = {Read, Write, Commit | Abort}; Invariant: DB_consistent -> DB_consistent'",
+        exampleOrApplication: "Funds transfer between two bank accounts: Debit from Account A and Credit to Account B occur atomically; failure midway triggers automatic rollback.",
+      },
+    ],
+    architectureOrComponents: [
+      {
+        component: "Query Execution & Optimization Engine",
+        role: "Parses, validates, and optimizes relational queries",
+        mechanism: "Transforms SQL AST into relational algebra trees, applies cost-based optimization using system catalog statistics, and executes operator pipelines.",
+      },
+      {
+        component: "Storage Engine & Buffer Manager",
+        role: "Manages disk-to-RAM memory paging",
+        mechanism: "Caches database pages in buffer pools using LRU/Clock replacement policies, coordinating dirty page flushing to persistent storage.",
+      },
+      {
+        component: "Transaction & Concurrency Manager",
+        role: "Enforces isolation and serializability",
+        mechanism: "Implements Strict Two-Phase Locking (Strict 2PL) or Multi-Version Concurrency Control (MVCC) with deadlock detection via wait-for graphs.",
+      },
+      {
+        component: "Recovery Manager (WAL / ARIES)",
+        role: "Guarantees durability and failure recovery",
+        mechanism: "Applies Write-Ahead Logging (WAL) where log records hit persistent disk before dirty data pages are flushed, executing Analysis, Redo, and Undo during recovery.",
+      },
+    ],
+    trainingAndInferenceOrProcess: {
+      stages: [
+        "SQL Query Parsing & Semantic Verification via System Catalog",
+        "Logical Query Plan Generation & Relational Algebra Rewriting",
+        "Cost-Based Optimization (Index Selection & Join Ordering)",
+        "Physical Operator Execution & Buffer Pool Cache Management",
+        "WAL Log Record Flushes & Two-Phase Transaction Commit",
+      ],
+      details: "Queries traverse parsing, optimization, buffer-cached execution, and strict two-phase write-ahead logging to guarantee ACID compliance at millisecond latency.",
+    },
+    applications: [
+      "Core banking and financial ledger accounting systems",
+      "Enterprise Resource Planning (ERP) and Customer Relationship Management (CRM) backends",
+      "High-throughput transactional e-commerce platforms and inventory management",
+      "Aviation reservation and telecommunications billing systems",
+    ],
+    advantages: [
+      "Eliminates data redundancy and prevents update/deletion anomalies",
+      "Provides robust logical and physical data independence",
+      "Guarantees data integrity through declarative mathematical constraints",
+      "Enables multi-user concurrent access with automated deadlock resolution",
+    ],
+    limitationsAndChallenges: [
+      "Substantial initial hardware, software licensing, and operational administration costs",
+      "Rigid schema migration requirements for rapidly evolving unstructured data structures",
+      "Performance overhead of maintaining ACID transactions and index trees under massive write loads",
+    ],
+    recentDevelopments: [
+      "Distributed NewSQL databases (e.g., Google Spanner, CockroachDB) combining ACID guarantees with horizontal scale",
+      "Hardware-accelerated transactional engines utilizing persistent memory (PMEM) and NVMe over Fabrics",
+    ],
+    citations: [
+      {
+        sourceName: "Silberschatz, Korth & Sudarshan (2020)",
+        authority: "educational",
+        referenceText: "Database System Concepts (7th Edition). McGraw-Hill Education.",
+        year: 2020,
+      },
+      {
+        sourceName: "Elmasri & Navathe (2015)",
+        authority: "educational",
+        referenceText: "Fundamentals of Database Systems (7th Edition). Pearson.",
+        year: 2015,
+      },
+      {
+        sourceName: "Codd, E. F. (1970)",
+        authority: "foundational_paper",
+        referenceText: "A Relational Model of Data for Large Shared Data Banks. Communications of the ACM, 13(6), 377–387.",
+        year: 1970,
+      },
+    ],
+  },
+
   oop: {
     topic: "Object-Oriented Programming (OOP)",
     definition: "Object-Oriented Programming (OOP) is a foundational software design paradigm structured around 'objects'—data structures encapsulating fields (attributes/state) and procedures (methods/behaviors). It models real-world domain entities into modular, reusable, and maintainable software components through four core pillars: Encapsulation, Abstraction, Inheritance, and Polymorphism.",
@@ -1075,7 +1206,7 @@ Respond strictly with valid JSON conforming to this schema:
 }`;
 
       // Call Gemini with resilient multi-model fallback
-      const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+      const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
       let text = "";
 
       for (const modelId of candidateModels) {
@@ -1331,46 +1462,46 @@ Respond strictly with valid JSON conforming to this schema:
     cleanFallback = {
       topic,
       subtopics: [
-        `Foundations & Theory of ${topic}`,
-        `Core Architectural Components`,
-        `Practical Workflows & Implementations`,
-        `Industry Applications & Case Studies`,
-        `Advantages & Current Constraints`,
+        `Theoretical Foundations of ${topic}`,
+        `Architectural Design & Core Components`,
+        `Implementation Workflows & Protocols`,
+        `Industry Applications & Field Analysis`,
+        `Performance Evaluation & Invariant Properties`,
       ],
-      definition: `${topic} is a conceptual and practical subject defined by formal principles, domain-specific mechanics, and verifiable methodologies.`,
-      backgroundAndMotivation: `${topic} emerged to resolve operational constraints, improve efficiency, and enable structured solutions within its domain.`,
+      definition: `${topic} is a specialized technical discipline and system architecture designed to solve domain-critical challenges through rigorous algorithmic principles and structured execution paradigms.`,
+      backgroundAndMotivation: `The engineering development of ${topic} originated to eliminate historical structural bottlenecks, enforce deterministic invariants, and enable scalable, reproducible performance across complex operational environments.`,
       coreMechanisms: [
         {
-          name: `Primary Mechanism of ${topic}`,
-          details: `Core functional process that defines how ${topic} operates and interacts with connected systems.`,
-          formulaOrStructure: "Domain specification standard",
+          name: `Foundational Mechanics of ${topic}`,
+          details: `The primary theoretical framework and operational rules that govern the deterministic behavior and data flow of ${topic}.`,
+          formulaOrStructure: `Domain Model: ${topic}`,
         },
         {
-          name: "Component Integration",
-          details: "Sub-layer coordination and data flow through the system architecture.",
+          name: `Systemic Interface & Pipeline Coordination`,
+          details: `Inter-module protocol definitions establishing reliable handshakes, state synchronization, and failure isolation boundaries.`,
         },
       ],
       coreConcepts: [
         {
-          title: `Primary Mechanism of ${topic}`,
-          explanation: `Core functional process that defines how ${topic} operates and interacts with connected systems.`,
-          example: "Domain specification standard",
+          title: `Foundational Mechanics of ${topic}`,
+          explanation: `The primary theoretical framework and operational rules that govern the deterministic behavior and data flow of ${topic}.`,
+          example: `Domain Model: ${topic}`,
         },
         {
-          title: "Component Integration",
-          explanation: "Sub-layer coordination and data flow through the system architecture.",
+          title: `Systemic Interface & Pipeline Coordination`,
+          explanation: `Inter-module protocol definitions establishing reliable handshakes, state synchronization, and failure isolation boundaries.`,
         },
       ],
       architectureOrComponents: [
         {
-          component: "Core System Layer",
-          role: "Primary processing and state management",
-          mechanism: "Maintains operational invariant rules and executes domain workflows.",
+          component: `${topic} Core Execution Engine`,
+          role: "Central processing coordinator and invariant supervisor",
+          mechanism: `Executes core workflows and guarantees data consistency across all operations in ${topic}.`,
         },
       ],
       trainingAndInferenceOrProcess: {
-        stages: ["Initialization", "Processing Phase", "Verification", "Output Delivery"],
-        details: "Systematic multi-stage process flow executing according to domain specifications.",
+        stages: ["Parameter Configuration & Pre-Condition Checks", "Core Execution Pipeline", "Invariant Verification", "Committed State Persistence"],
+        details: `Sequential execution lifecycle enforcing transactional verification and performance optimization for ${topic}.`,
       },
       applications: [
         `Enterprise and scientific implementations of ${topic}`,

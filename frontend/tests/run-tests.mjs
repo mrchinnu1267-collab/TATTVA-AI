@@ -17,6 +17,7 @@ try {
   await jiti("./human-intelligence.test.ts");
   await jiti("./research-file-engine.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
+  process.exit(0);
 } catch (err) {
   console.error("\n❌ Test execution failed:", err);
   process.exit(1);

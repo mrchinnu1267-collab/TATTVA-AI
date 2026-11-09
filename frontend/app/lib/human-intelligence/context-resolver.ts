@@ -13,6 +13,9 @@ const PRONOUN_REFERENCE_PATTERNS = [
   /\b(this|that|it|the same|same problem|previous one|last one)\b/i,
   /\b(about it|of this|on it|about this|for it|its|about that|of it)\b/i,
   /\b(create|make|generate|build|prepare)\s+(a\s+)?(ppt|presentation|pdf|document|docx|file|sheet)\s+(about|on|for|of)\s+(it|this|that)\b/i,
+  /^(now\s+)?(create|make|generate|build|prepare|give me)\s+(a\s+)?(ppt|presentation|pdf|document|docx|file|sheet|slides)\b/i,
+  /^(convert|turn|transform|export)\s+(this|that|it)?\s*(in|to|into|as)\s*(a\s+)?(pdf|ppt|pptx|docx|document|file)\b/i,
+  /^(gather|compile|collect|summarize)\s+(the\s+)?(slide|slides|information|content|points|matter)\b/i,
   /^(why did it fail|why isn't it working|still not working|still broken|same issue|failed again)\b/i,
   /^(continue|proceed|keep going|what next|next step|more|part 2)\b/i,
   /^(make it better|make it shorter|make it simpler|elaborate|add examples|give examples)\b/i,
@@ -184,6 +187,13 @@ export class ContextResolver {
       resolvedQuery = cleanPrompt.replace(/\b(about|on|for|of)\s+(it|this|that)\b/gi, `$1 ${referencedSubject}`);
     } else if (referencedSubject && /\bits\b/i.test(cleanPrompt)) {
       resolvedQuery = cleanPrompt.replace(/\bits\b/gi, `${referencedSubject}'s`);
+    } else if (referencedSubject && /^(now\s+)?(create|make|generate|build|prepare|give me)\s+(a\s+)?(ppt|presentation|pdf|document|docx|file|sheet|slides)\s*$/i.test(cleanPrompt)) {
+      resolvedQuery = `${cleanPrompt} about ${referencedSubject}`;
+    } else if (referencedSubject && /^(convert|turn|transform|export)\s+(this|that|it)?\s*(in|to|into|as)\s*(a\s+)?(pdf|ppt|pptx|docx|document|file)\b/i.test(cleanPrompt)) {
+      const targetFmt = cleanPrompt.match(/pdf|ppt|pptx|docx|document|file/i)?.[0] || "document";
+      resolvedQuery = `Convert ${referencedSubject} to ${targetFmt}`;
+    } else if (referencedSubject && /^(gather|compile|collect|summarize)\s+(the\s+)?(slide|slides|information|content|points|matter)\b/i.test(cleanPrompt)) {
+      resolvedQuery = `Create a presentation on ${referencedSubject}`;
     }
 
     return {

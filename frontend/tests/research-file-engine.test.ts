@@ -669,5 +669,74 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
       "Must include metrics / calculation sheets"
     );
   });
+
+  // TEST 31: Contextual Topic Resolution ("Now create a PDF")
+  it("ACCEPTANCE TEST 19: Contextual topic resolution extracts subject from history and NEVER creates 'Pdf'", () => {
+    const history = [
+      { role: "user", content: "Can you explain Transformer Architecture and self-attention in detail?" },
+      { role: "assistant", content: "Transformer Architecture relies on scaled dot-product self-attention..." },
+    ];
+
+    const intent = detectDocumentIntent("Now create a PDF", { history, inChatConversation: true });
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pdf");
+    assert.ok(!intent.topic.toLowerCase().includes("pdf"), `Topic must not be 'Pdf', got: ${intent.topic}`);
+    assert.ok(
+      intent.topic.toLowerCase().includes("transformer"),
+      `Topic must resolve to 'Transformer Architecture', got: ${intent.topic}`
+    );
+  });
+
+  // TEST 32: Strips procedural phrases ("Gather the slide wise ai upto 8 slides")
+  it("ACCEPTANCE TEST 20: Procedural command phrases are stripped and substantive topic is preserved", () => {
+    const history = [
+      { role: "user", content: "Tell me about Database Management Systems and SQL schemas" },
+      { role: "assistant", content: "A DBMS provides data independence, ACID guarantees, and relational algebra..." },
+    ];
+
+    const intent = detectDocumentIntent("Gather the slide wise ai upto 8 slides", { history, inChatConversation: true });
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pptx");
+    assert.ok(!intent.topic.toLowerCase().includes("gather"), `Topic must not contain 'gather', got: ${intent.topic}`);
+    assert.ok(!intent.topic.toLowerCase().includes("slide wise"), `Topic must not contain 'slide wise', got: ${intent.topic}`);
+    assert.ok(!intent.topic.toLowerCase().includes("upto"), `Topic must not contain 'upto', got: ${intent.topic}`);
+    assert.ok(
+      intent.topic.toLowerCase().includes("database") || intent.topic.toLowerCase().includes("dbms"),
+      `Topic must resolve to Database Management Systems, got: ${intent.topic}`
+    );
+  });
+
+  // TEST 33: "Create a PDF about DBMS Unit 1" produces authoritative syllabus content
+  it("ACCEPTANCE TEST 21: 'Create a PDF about DBMS Unit 1' synthesizes 3-Schema Architecture & Relational Model", async () => {
+    const intent = detectDocumentIntent("Create a PDF about DBMS Unit 1");
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pdf");
+    assert.ok(intent.topic.toLowerCase().includes("dbms"), `Topic must include DBMS, got: ${intent.topic}`);
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "pdf");
+    assert.equal(pkg.validation.valid, true);
+
+    // Verify sections contain real DBMS Unit 1 topics
+    const fullText = (pkg.sections || []).map((s) => `${s.heading} ${s.content} ${(s.bullets || []).join(" ")}`).join("\n");
+    assert.ok(
+      fullText.toLowerCase().includes("three-schema") || fullText.toLowerCase().includes("schema") || fullText.toLowerCase().includes("relational"),
+      "Must contain Three-Schema Architecture or Relational Model"
+    );
+    assert.ok(
+      !fullText.includes("is a conceptual and practical subject defined by formal principles"),
+      "Must NOT contain robotic fallback boilerplate"
+    );
+  });
+
+  // TEST 34: Cold-start "Create a PDF" without context sets needsClarification
+  it("ACCEPTANCE TEST 22: Cold-start 'Create a PDF' prompts for clarification rather than faking 'Pdf'", () => {
+    const intent = detectDocumentIntent("Create a PDF", { inChatConversation: true, history: [] });
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.needsClarification, true);
+    assert.ok(intent.clarificationQuestion && intent.clarificationQuestion.includes("PDF"));
+    assert.ok(!intent.topic.toLowerCase().includes("pdf") || intent.topic === "Document");
+  });
 });
 

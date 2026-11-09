@@ -16,6 +16,7 @@ import { buildDocument, GeneratedDocumentResult } from "./index";
 import { saveGeneratedDocumentToVault, StoredDocumentResult } from "./storage";
 import { validateDocumentBuffer, ValidationReport } from "./validator";
 import { cleanSlideText } from "./pptx";
+import { validateDocumentContent, isForbiddenTopic } from "./content-validator";
 
 export interface SynthesizedDocumentPackage {
   success: boolean;
@@ -52,7 +53,7 @@ async function callGeminiResilient(
   prompt: string,
   config?: any
 ): Promise<string> {
-  const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+  const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
   for (const modelId of candidateModels) {
     try {
       const res = await ai.models.generateContent({
@@ -1081,6 +1082,60 @@ export async function synthesizeResearchToFile(
   // Format Markdown or Text documents
   if (format === "md" || format === "txt") {
     rawContent = synthesizeMarkdownDocument(topic, research, sections);
+  }
+
+  // Stage 3.5: Pre-Generation Content Validation & Repair Stage
+  logStage("Validating content depth and domain relevance...");
+  const contentValidation = validateDocumentContent({
+    topic,
+    archetype,
+    format,
+    sections: sections.length > 0 ? sections : undefined,
+    slides: slides.length > 0 ? slides : undefined,
+    research,
+    hasAttachment: Boolean(options?.attachmentBuffer),
+  });
+
+  if (!contentValidation.valid) {
+    logStage("Detected content quality warnings, performing deterministic domain repair...");
+    console.warn("[Synthesizer] Content validation notice:", contentValidation.reasons);
+
+    // If forbidden topic, abort binary generation
+    if (isForbiddenTopic(topic)) {
+      throw new Error(`Cannot generate file: Topic "${topic}" is invalid or represents a command/file-format rather than real content.`);
+    }
+
+    // Repair presentation slides if needed
+    if (archetype === "presentation" && slides.length > 0) {
+      slides = slides.map((s) => {
+        let cleanTitle = s.title.replace(/\*\*|__|^#+\s*/g, "").trim();
+        if (/presentation structure|document structure/i.test(cleanTitle)) {
+          cleanTitle = `${topic}: Architectural Foundation & Core Scope`;
+        }
+        const cleanBullets = (s.bullets || []).filter((b) => !/is a conceptual and practical subject|Domain specification standard/i.test(b));
+        if (cleanBullets.length < 2) {
+          cleanBullets.push(`Key operational parameters and implementation invariants for ${topic}.`);
+          cleanBullets.push(`Applied architecture and integration methodology for ${topic}.`);
+        }
+        return {
+          ...s,
+          title: cleanTitle,
+          bullets: cleanBullets,
+        };
+      });
+    }
+
+    // Repair document sections if needed
+    if (sections.length > 0) {
+      sections = sections.map((sec) => {
+        let content = sec.content || "";
+        content = content.replace(/\*\*Document Structure \(\d+ Sections\):\*\*/gi, "").trim();
+        return {
+          ...sec,
+          content,
+        };
+      });
+    }
   }
 
   // Stage 4: Preparing the Binary File
