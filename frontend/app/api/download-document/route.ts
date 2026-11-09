@@ -19,31 +19,35 @@ export async function GET(request: Request) {
     const isInline = searchParams.get("inline") === "true";
 
     if (fileId) {
-      // Look for the file in the local vault directory
+      // Look for the file in the local vault directories (workspace and /tmp)
       const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, "_");
-      if (fs.existsSync(LOCAL_VAULT_DIR)) {
-        const userDirs = fs.readdirSync(LOCAL_VAULT_DIR);
-        for (const dir of userDirs) {
-          const dirPath = path.join(LOCAL_VAULT_DIR, dir);
-          if (fs.statSync(dirPath).isDirectory()) {
-            const files = fs.readdirSync(dirPath);
-            const matched = files.find((f) => f.startsWith(safeId));
-            if (matched) {
-              const fullPath = path.join(dirPath, matched);
-              const buffer = fs.readFileSync(fullPath);
-              const ext = path.extname(matched).toLowerCase().replace(/^\./, "");
-              const mimeType = getMimeType(ext);
-              const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const vaultDirs = [LOCAL_VAULT_DIR, path.join("/tmp", ".tattva-vault")];
 
-              return new Response(buffer, {
-                status: 200,
-                headers: {
-                  "Content-Type": mimeType,
-                  "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
-                  "Content-Length": buffer.length.toString(),
-                  "Cache-Control": "private, max-age=3600",
-                },
-              });
+      for (const vaultDir of vaultDirs) {
+        if (fs.existsSync(vaultDir)) {
+          const userDirs = fs.readdirSync(vaultDir);
+          for (const dir of userDirs) {
+            const dirPath = path.join(vaultDir, dir);
+            if (fs.statSync(dirPath).isDirectory()) {
+              const files = fs.readdirSync(dirPath);
+              const matched = files.find((f) => f.startsWith(safeId));
+              if (matched) {
+                const fullPath = path.join(dirPath, matched);
+                const buffer = fs.readFileSync(fullPath);
+                const ext = path.extname(matched).toLowerCase().replace(/^\./, "");
+                const mimeType = getMimeType(ext);
+                const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+                return new Response(buffer, {
+                  status: 200,
+                  headers: {
+                    "Content-Type": mimeType,
+                    "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
+                    "Content-Length": buffer.length.toString(),
+                    "Cache-Control": "private, max-age=3600",
+                  },
+                });
+              }
             }
           }
         }

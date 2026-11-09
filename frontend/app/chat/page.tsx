@@ -135,9 +135,10 @@ type Role = "user" | "assistant";
 type ChatAttachment = {
   name: string;
   type: string;
-  data: string; // base64 data URI
+  data?: string; // base64 data URI
   preview?: string;
   size?: number;
+  url?: string;
 };
 
 type ImageMetadata = {
@@ -257,10 +258,29 @@ function getClientMime(fmt: string): string {
 
 function resolveDocumentAttachment(msg: ChatMessage) {
   if (msg.generatedDocument) return msg.generatedDocument;
+
+  // Check explicit message attachments
+  if (msg.attachments && msg.attachments.length > 0) {
+    const fileAtt = msg.attachments.find((a) => a.name && !a.type?.startsWith("image/"));
+    if (fileAtt) {
+      const ext = (fileAtt.name.split(".").pop() || "bin").toLowerCase();
+      return {
+        fileId: `att_${fileAtt.name}`,
+        filename: fileAtt.name,
+        format: ext,
+        mimeType: fileAtt.type || getClientMime(ext),
+        sizeBytes: fileAtt.size || 8192,
+        downloadUrl: fileAtt.url || `/api/download-document?name=${encodeURIComponent(fileAtt.name)}`,
+        title: fileAtt.name.replace(/\.[^/.]+$/, "").replace(/_/g, " "),
+        archetype: ["pptx", "ppt"].includes(ext) ? "presentation" : ["xlsx", "xls", "csv"].includes(ext) ? "spreadsheet" : "report",
+      };
+    }
+  }
+
   if (!msg.content || typeof msg.content !== "string") return null;
 
   // Pattern A: "I have researched, organized, and prepared your complete ... document formatted as .EXT"
-  const summaryMatch = msg.content.match(/prepared your complete\s+(?:[\*_]*)([^*_\n]+)(?:[\*_]*)\s+(?:file|document|presentation|spreadsheet|dataset)\s+formatted as\s+(?:[\*_]*)\.([A-Za-z0-9]+)/i);
+  const summaryMatch = msg.content.match(/(?:prepared|verified) your (?:complete\s+)?(?:[\*_]*)([^*_\n]+)(?:[\*_]*)\s+(?:file|document|presentation|spreadsheet|dataset)\s+formatted as\s+(?:[\*_]*)\.([A-Za-z0-9]+)/i);
   if (summaryMatch) {
     const rawTopic = summaryMatch[1].trim();
     const rawExt = summaryMatch[2].trim().toLowerCase();
@@ -300,6 +320,47 @@ function resolveDocumentAttachment(msg: ChatMessage) {
   }
 
   return null;
+}
+
+function cleanDisplayContent(rawText: string, hasAttachment: boolean, docItem?: GeneratedDocument | null): string {
+  if (!rawText) return "";
+
+  // 1. Strip raw or invalid file: links, duplicate download directives, or internal storage references
+  let cleaned = rawText
+    .replace(/(?:📥\s*)?\[(?:Download|Click here to download)[^\]]*\](?:\([^)]*\))?\s*🚀?/gi, "")
+    .replace(/\[Download[^\]]*\](?:\([^)]*\))?/gi, "")
+    .replace(/\([^)]*file:[^)]*\)/gi, "")
+    .replace(/\bfile:[a-zA-Z0-9_\-./\\]+\b/gi, "")
+    .replace(/\(file:[^)]+\)/gi, "")
+    .replace(/Here is your (?:file|document|presentation):?/gi, "")
+    .replace(/You can (?:immediately\s+|easily\s+)?download (?:your\s+|the\s+)?[^\n]*(?:verified\s+)?[^\n]*(?:file|document|presentation|spreadsheet|dataset)[^\n]*/gi, "")
+    .replace(/📥\s*\[[^\]]+\]\([^)]+\)\s*🚀?/gi, "")
+    .trim();
+
+  // 2. When an attachment card is present, ensure the message is short and never duplicates download instructions or technical dumps
+  if (hasAttachment && docItem) {
+    if (
+      /I have researched, organized/i.test(cleaned) ||
+      /\bDocument Structure\b/i.test(cleaned) ||
+      /\bPresentation Structure\b/i.test(cleaned) ||
+      cleaned.length < 5 ||
+      /file:/i.test(cleaned)
+    ) {
+      const ext = (docItem.format || "").toLowerCase();
+      const typeLabel = ["pptx", "ppt"].includes(ext)
+        ? "presentation"
+        : ["xlsx", "xls", "csv"].includes(ext)
+        ? "spreadsheet"
+        : ext === "pdf"
+        ? "PDF"
+        : ext === "docx"
+        ? "document"
+        : "file";
+      return `Your ${typeLabel} on **${docItem.title || "your requested topic"}** is ready.`;
+    }
+  }
+
+  return cleaned;
 }
 
 function calculateChatWordCount(msgs: ChatMessage[]): number {
@@ -1639,7 +1700,7 @@ export default function ChatPage() {
     }
 
     showToast(`Opening ${doc.filename}... ✦`);
-    if (doc.downloadUrl && doc.downloadUrl.startsWith("/")) {
+    if (doc.downloadUrl) {
       try {
         const res = await fetch(doc.downloadUrl);
         if (res.ok) {
@@ -1690,7 +1751,7 @@ export default function ChatPage() {
       return;
     }
 
-    if (doc.downloadUrl && doc.downloadUrl.startsWith("/")) {
+    if (doc.downloadUrl) {
       try {
         const checkRes = await fetch(doc.downloadUrl);
         if (checkRes.ok) {
@@ -1700,7 +1761,10 @@ export default function ChatPage() {
           setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
           return;
         }
-      } catch {}
+      } catch {
+        window.open(doc.downloadUrl, "_blank");
+        return;
+      }
     }
 
     showToast(`Preparing ${doc.filename}... ⏳`);
@@ -1737,7 +1801,7 @@ export default function ChatPage() {
           const u8 = new Uint8Array(bytes.length);
           for (let i = 0; i < bytes.length; i++) u8[i] = bytes.charCodeAt(i);
           blob = new Blob([u8], { type: doc.mimeType || "application/octet-stream" });
-        } else if (doc.downloadUrl && doc.downloadUrl.startsWith("/")) {
+        } else if (doc.downloadUrl) {
           const res = await fetch(doc.downloadUrl);
           if (res.ok) blob = await res.blob();
         }
@@ -2878,6 +2942,12 @@ export default function ChatPage() {
         humanContext: data.humanContext,
         debugInfo: data.debugInfo,
         generatedDocument: data.generatedDocument,
+        attachments: data.attachments || (data.generatedDocument ? [{
+          name: data.generatedDocument.filename,
+          type: data.generatedDocument.mimeType,
+          size: data.generatedDocument.sizeBytes,
+          url: data.generatedDocument.downloadUrl,
+        }] : undefined),
         progressStages: data.progressStages,
       };
 
@@ -3004,6 +3074,12 @@ export default function ChatPage() {
         humanContext: data.humanContext,
         debugInfo: data.debugInfo,
         generatedDocument: data.generatedDocument,
+        attachments: data.attachments || (data.generatedDocument ? [{
+          name: data.generatedDocument.filename,
+          type: data.generatedDocument.mimeType,
+          size: data.generatedDocument.sizeBytes,
+          url: data.generatedDocument.downloadUrl,
+        }] : undefined),
         progressStages: data.progressStages,
       };
 
@@ -3099,6 +3175,12 @@ export default function ChatPage() {
         humanContext: data.humanContext,
         debugInfo: data.debugInfo,
         generatedDocument: data.generatedDocument,
+        attachments: data.attachments || (data.generatedDocument ? [{
+          name: data.generatedDocument.filename,
+          type: data.generatedDocument.mimeType,
+          size: data.generatedDocument.sizeBytes,
+          url: data.generatedDocument.downloadUrl,
+        }] : undefined),
         progressStages: data.progressStages,
       };
 
@@ -4846,7 +4928,14 @@ export default function ChatPage() {
                             })()}
 
                             {/* Markdown / Text content rendered directly on conversation surface */}
-                            <MarkdownView content={msg.content} isDark={isDark} />
+                            <MarkdownView
+                              content={cleanDisplayContent(
+                                msg.content,
+                                Boolean(msg.generatedDocument || resolveDocumentAttachment(msg)),
+                                (msg.generatedDocument || resolveDocumentAttachment(msg)) as GeneratedDocument | null
+                              )}
+                              isDark={isDark}
+                            />
 
                             {/* In-built Live Clock Card */}
                             {msg.clockData && (

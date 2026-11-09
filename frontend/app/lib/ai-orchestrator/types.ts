@@ -178,6 +178,12 @@ export interface OrchestratorResponse {
   warnings?: string[];
   progressStage?: string;
   progressStages?: string[];
+  attachments?: Array<{
+    name: string;
+    type: string;
+    size?: number;
+    url?: string;
+  }>;
   generatedDocument?: {
     fileId: string;
     filename: string;
@@ -190,6 +196,13 @@ export interface OrchestratorResponse {
     dataUri?: string;
     summary?: string;
     outlineMarkdown?: string;
+    slides?: Array<{
+      number?: number;
+      title: string;
+      category?: string;
+      bullets: string[];
+      takeaway?: string;
+    }>;
   };
   humanContext?: {
     goal: string;

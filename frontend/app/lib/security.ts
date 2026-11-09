@@ -183,6 +183,14 @@ export function guardAIOutput(responseText: string): string {
     }
   }
 
+  // Never leak raw or dead file: links, duplicate download directives, or internal storage references
+  guarded = guarded
+    .replace(/(?:📥\s*)?\[(?:Download|Click here to download)[^\]]*\]\((?:file:[^)]*|[^)]*\.(?:pptx|docx|xlsx|pdf|csv))\)\s*🚀?/gi, "")
+    .replace(/\(file:[^)]+\)/gi, "")
+    .replace(/\bfile:[a-zA-Z0-9_\-./\\]+\b/gi, "")
+    .replace(/(?:download|downloading)\s+(?:from\s+)?(?:file:[^\s]+)/gi, "")
+    .replace(/You can (?:immediately\s+|easily\s+)?download (?:your\s+|the\s+)?[^\n]*(?:verified\s+)?[^\n]*(?:file|document|presentation|spreadsheet|dataset)[^\n]*/gi, "");
+
   return guarded;
 }
 

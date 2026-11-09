@@ -14,11 +14,19 @@ const LOCAL_VAULT_DIR = path.resolve(process.cwd(), ".tattva-vault");
 
 function ensureVaultDir(userId: string): string {
   const safeId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const userDir = path.join(LOCAL_VAULT_DIR, safeId);
-  if (!fs.existsSync(userDir)) {
-    fs.mkdirSync(userDir, { recursive: true });
+  try {
+    const userDir = path.join(LOCAL_VAULT_DIR, safeId);
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+    return userDir;
+  } catch {
+    const tmpDir = path.join("/tmp", ".tattva-vault", safeId);
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    return tmpDir;
   }
-  return userDir;
 }
 
 function getSupabase() {
@@ -81,16 +89,18 @@ export async function saveGeneratedDocumentToVault(
     }
   }
 
-  // Local Private Vault Fallback
-  if (!uploadedToCloud) {
-    try {
-      const userDir = ensureVaultDir(safeUserId);
-      const localFilePath = path.join(userDir, `${fileId}${safeExtension}`);
-      fs.writeFileSync(localFilePath, buffer);
+  // Maintain in local vault for instant in-app streaming & zero-latency downloads
+  try {
+    const userDir = ensureVaultDir(safeUserId);
+    const localFilePath = path.join(userDir, `${fileId}${safeExtension}`);
+    fs.writeFileSync(localFilePath, buffer);
+    if (!signedUrl) {
       signedUrl = `/api/download-document?fileId=${fileId}&name=${encodeURIComponent(filename)}`;
-    } catch (localErr) {
-      console.warn("[Vault Storage] Local disk fallback warning:", localErr);
-      signedUrl = `/api/download-document?name=${encodeURIComponent(filename)}`;
+    }
+  } catch (localErr) {
+    console.warn("[Vault Storage] Local disk fallback warning:", localErr);
+    if (!signedUrl) {
+      signedUrl = `/api/download-document?fileId=${fileId}&name=${encodeURIComponent(filename)}`;
     }
   }
 

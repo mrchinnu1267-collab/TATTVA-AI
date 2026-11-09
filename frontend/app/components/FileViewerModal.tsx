@@ -30,6 +30,15 @@ import {
   Laptop,
   CheckCircle2,
 } from "lucide-react";
+import { triggerDownload } from "../lib/download-helper";
+
+export interface SlideItem {
+  number?: number;
+  title: string;
+  category?: string;
+  bullets: string[];
+  takeaway?: string;
+}
 
 export interface GeneratedDocument {
   fileId: string;
@@ -43,6 +52,7 @@ export interface GeneratedDocument {
   dataUri?: string;
   summary?: string;
   outlineMarkdown?: string;
+  slides?: SlideItem[];
 }
 
 export interface FileViewerModalProps {
@@ -117,22 +127,30 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, showOpenWith]);
 
-  // Trigger Download helper
-  const handleDownload = () => {
-    if (blobUrl) {
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = file.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else if (file.downloadUrl) {
-      const a = document.createElement("a");
-      a.href = file.downloadUrl;
-      a.download = file.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+  // Trigger Universal Cross-Platform Download helper
+  const handleDownload = async () => {
+    try {
+      const targetUrl = blobUrl || file.downloadUrl || file.dataUri;
+      if (targetUrl) {
+        await triggerDownload(targetUrl, file.filename, file.mimeType || "application/octet-stream");
+      }
+    } catch (e) {
+      console.error("[TATTVA FileViewer] Download fallback:", e);
+      if (blobUrl) {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else if (file.downloadUrl) {
+        const a = document.createElement("a");
+        a.href = file.downloadUrl;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     }
   };
 
@@ -203,7 +221,15 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
     : "text-blue-400 bg-blue-500/10 border-blue-500/20";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top), 0px)",
+        paddingBottom: "max(env(safe-area-inset-bottom), 0px)",
+        paddingLeft: "max(env(safe-area-inset-left), 0px)",
+        paddingRight: "max(env(safe-area-inset-right), 0px)",
+      }}
+    >
       <div
         className={`flex flex-col w-full h-full ${
           isFullscreen ? "max-w-none max-h-none rounded-none" : "sm:max-w-6xl sm:max-h-[92vh] sm:rounded-2xl"
@@ -217,9 +243,12 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
         {/* HEADER TOOLBAR */}
         {/* ============================================================ */}
         <div
-          className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${
+          className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b shrink-0 ${
             isDark ? "bg-neutral-900/90 border-neutral-800" : "bg-neutral-50/90 border-neutral-200"
           }`}
+          style={{
+            paddingTop: "max(env(safe-area-inset-top), 10px)",
+          }}
         >
           {/* File Meta */}
           <div className="flex items-center gap-3 min-w-0">
@@ -325,7 +354,7 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
               type="button"
               onClick={() => setIsFullscreen(!isFullscreen)}
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              className={`p-1.5 rounded-lg border transition ${
+              className={`min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-lg border transition active:scale-95 touch-manipulation ${
                 isDark ? "border-neutral-700 hover:bg-neutral-800 text-neutral-400" : "border-neutral-300 hover:bg-neutral-100 text-neutral-600"
               }`}
             >
@@ -337,7 +366,7 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
               type="button"
               onClick={onClose}
               title="Close viewer (Return to chat)"
-              className="p-1.5 rounded-lg bg-neutral-200/70 dark:bg-neutral-800 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 text-neutral-500 dark:text-neutral-300 transition"
+              className="min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-lg bg-neutral-200/70 dark:bg-neutral-800 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 text-neutral-500 dark:text-neutral-300 transition active:scale-95 touch-manipulation"
             >
               <X className="w-4 h-4" />
             </button>
@@ -441,12 +470,17 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
 // -------------------------------------------------------------
 // 1. PPTX SLIDE VIEWER COMPONENT (16:9 Widescreen + Thumbnails)
 // -------------------------------------------------------------
-interface SlideItem {
-  number: number;
-  title: string;
-  category?: string;
-  bullets: string[];
-  takeaway?: string;
+function cleanViewerText(raw?: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\s*(?:ADVANTAGE|BENEFIT|CHALLENGE|LIMITATION|FEATURE|NOTE|CRITICAL)\s*\]:?\s*/gi, "")
+    .replace(/^[•\-\*]\s*/, "")
+    .trim();
 }
 
 function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"): SlideItem[] {
@@ -462,14 +496,45 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
   }
 
   const slides: SlideItem[] = [];
-  // Match patterns like "### Slide 1: Title" or "# Slide 1" or slides listed in outline
+
+  // Check if content is a numbered outline list:
+  // e.g.:
+  // 1. **Historical Motivation: RNN Limitations** *(FOUNDATIONS)*
+  // 2. **Encoder-Decoder Architecture** *(STRUCTURE)*
+  const numberedOutlineRegex = /^\s*(\d+)[\.\)]\s*(?:\*\*)?([^*]+?)(?:\*\*)?(?:\s*\*\(([^)]+)\)\*)?\s*$/gm;
+  const outlineMatches = [...content.matchAll(numberedOutlineRegex)];
+  if (outlineMatches.length >= 2) {
+    for (const match of outlineMatches) {
+      const slideNum = parseInt(match[1], 10);
+      const title = cleanViewerText(match[2]);
+      const category = cleanViewerText(match[3] || "TOPIC ANALYSIS").toUpperCase();
+      if (title.length > 0 && !title.toLowerCase().includes("presentation structure")) {
+        slides.push({
+          number: slideNum,
+          title,
+          category,
+          bullets: [
+            `Comprehensive technical exploration and structural analysis of ${title}.`,
+            `Key mechanisms, architecture relationships, and operational characteristics.`,
+            `Practical implementations, industry paradigms, and performance implications.`,
+          ],
+          takeaway: `Core technical insights and strategic highlights for ${title}.`,
+        });
+      }
+    }
+    if (slides.length >= 2) {
+      return slides;
+    }
+  }
+
+  // Otherwise, match patterns like "### Slide 1: Title" or "# Slide 1" or slides separated by ---
   const rawParts = content.split(/(?:###?\s*Slide\s*\d+:?|---|\n(?=# Slide))/i).filter(Boolean);
 
   let slideIndex = 1;
   for (const part of rawParts) {
     const lines = part.trim().split("\n").filter((l) => l.trim().length > 0);
     if (lines.length > 0) {
-      const firstLine = lines[0].replace(/^#+\s*/, "").replace(/^Slide\s*\d+:?\s*/i, "").trim();
+      const firstLine = cleanViewerText(lines[0].replace(/^#+\s*/, "").replace(/^Slide\s*\d+:?\s*/i, "").trim());
       const bullets: string[] = [];
       let category = "ANALYSIS";
       let takeaway = "";
@@ -477,17 +542,19 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (/^category:\s*/i.test(line)) {
-          category = line.replace(/^category:\s*/i, "").trim();
+          category = cleanViewerText(line.replace(/^category:\s*/i, "")).toUpperCase();
         } else if (/^takeaway:\s*/i.test(line)) {
-          takeaway = line.replace(/^takeaway:\s*/i, "").trim();
+          takeaway = cleanViewerText(line.replace(/^takeaway:\s*/i, ""));
         } else if (/^[-*•\d.]+\s+/.test(line)) {
-          bullets.push(line.replace(/^[-*•\d.]+\s+/, "").trim());
+          const b = cleanViewerText(line.replace(/^[-*•\d.]+\s+/, ""));
+          if (b) bullets.push(b);
         } else if (line.length > 0 && !line.startsWith("#")) {
-          bullets.push(line);
+          const b = cleanViewerText(line);
+          if (b) bullets.push(b);
         }
       }
 
-      if (firstLine.length > 0) {
+      if (firstLine.length > 0 && !firstLine.toLowerCase().includes("presentation structure")) {
         slides.push({
           number: slideIndex++,
           title: firstLine,
@@ -502,9 +569,9 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
   if (slides.length === 0) {
     slides.push({
       number: 1,
-      title: fallbackTitle,
+      title: cleanViewerText(fallbackTitle),
       category: "PRESENTATION",
-      bullets: content.split("\n").filter((l) => l.trim().length > 0).slice(0, 6),
+      bullets: content.split("\n").filter((l) => l.trim().length > 0).map(cleanViewerText).slice(0, 6),
     });
   }
 
@@ -524,13 +591,22 @@ function PptxSlideViewer({
   searchTerm: string;
   onSearchChange: (v: string) => void;
 }) {
-  const slides = useMemo(
-    () => parseSlidesFromContent(file.outlineMarkdown || file.summary, file.title || file.filename),
-    [file.outlineMarkdown, file.summary, file.title, file.filename]
-  );
+  const slides = useMemo(() => {
+    if (file.slides && file.slides.length > 0) {
+      return file.slides.map((s, idx) => ({
+        number: s.number || idx + 1,
+        title: cleanViewerText(s.title),
+        category: cleanViewerText(s.category || "TOPIC ANALYSIS").toUpperCase(),
+        bullets: (s.bullets || []).map(cleanViewerText).filter(Boolean),
+        takeaway: cleanViewerText(s.takeaway) || undefined,
+      }));
+    }
+    return parseSlidesFromContent(file.outlineMarkdown || file.summary, file.title || file.filename);
+  }, [file.slides, file.outlineMarkdown, file.summary, file.title, file.filename]);
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
   const [isSlidePresentationMode, setIsSlidePresentationMode] = useState<boolean>(false);
+  const touchStartX = useRef<number | null>(null);
 
   // Keyboard navigation
   useEffect(() => {
@@ -543,16 +619,128 @@ function PptxSlideViewer({
         setCurrentSlideIndex(0);
       } else if (e.key === "End") {
         setCurrentSlideIndex(slides.length - 1);
+      } else if (e.key === "Escape" && isSlidePresentationMode) {
+        setIsSlidePresentationMode(false);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [slides.length]);
+  }, [slides.length, isSlidePresentationMode]);
+
+  // Touch swipe detection for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchEndX - touchStartX.current;
+    if (diff > 50) {
+      // Swiped Right -> Previous slide
+      setCurrentSlideIndex((prev) => Math.max(0, prev - 1));
+    } else if (diff < -50) {
+      // Swiped Left -> Next slide
+      setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1));
+    }
+    touchStartX.current = null;
+  };
 
   const activeSlide = slides[currentSlideIndex] || slides[0];
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-between gap-4">
+      {/* Fullscreen Presentation Mode (Presenter View) */}
+      {isSlidePresentationMode && (
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="fixed inset-0 z-[100] bg-black text-white flex flex-col justify-between p-4 sm:p-8 touch-manipulation select-none animate-in fade-in duration-150"
+          style={{
+            paddingTop: "max(env(safe-area-inset-top), 16px)",
+            paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+          }}
+        >
+          {/* Top Presenter Bar */}
+          <div className="flex items-center justify-between px-2 text-sm text-neutral-400 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-white">
+                Slide {currentSlideIndex + 1} of {slides.length}
+              </span>
+              <span className="hidden sm:inline">• {file.title || file.filename}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSlidePresentationMode(false)}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs transition active:scale-95"
+            >
+              Exit Slideshow (Esc)
+            </button>
+          </div>
+
+          {/* Center 16:9 Presentation Canvas */}
+          <div className="w-full max-w-6xl aspect-[16/9] mx-auto my-auto rounded-3xl border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 p-6 sm:p-12 md:p-16 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="px-3.5 py-1 rounded-full text-xs font-bold tracking-widest uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  {activeSlide.category || "PRESENTATION"}
+                </span>
+                <span className="text-sm font-mono opacity-50">
+                  {String(activeSlide.number).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-3xl md:text-5xl font-extrabold tracking-tight font-sans leading-tight text-white">
+                {activeSlide.title}
+              </h1>
+            </div>
+
+            <div className="my-auto py-4 sm:py-6 space-y-3 sm:space-y-4">
+              {activeSlide.bullets.map((bullet, idx) => (
+                <div key={idx} className="flex items-start gap-3 sm:gap-4">
+                  <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500/20 text-amber-400 text-xs sm:text-sm shrink-0 mt-0.5 font-bold">
+                    •
+                  </span>
+                  <p className="text-base sm:text-xl md:text-2xl leading-relaxed text-neutral-200 font-normal">
+                    {bullet}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 sm:pt-4 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm opacity-80">
+              <div className="flex items-center gap-2 text-amber-400 font-medium">
+                <Sparkles className="w-4 h-4" />
+                <span>{activeSlide.takeaway || "TATTVA AI Autonomous Intelligence"}</span>
+              </div>
+              <span className="font-mono text-xs opacity-60">TATTVA Presentation Suite</span>
+            </div>
+          </div>
+
+          {/* Bottom Presenter Controls */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6 py-2 shrink-0">
+            <button
+              type="button"
+              disabled={currentSlideIndex === 0}
+              onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
+              className="min-h-[44px] min-w-[44px] px-5 py-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition flex items-center gap-2 text-sm font-medium active:scale-95"
+            >
+              <ChevronLeft className="w-5 h-5" /> Previous
+            </button>
+            <span className="text-sm font-mono text-neutral-400">
+              {currentSlideIndex + 1} / {slides.length}
+            </span>
+            <button
+              type="button"
+              disabled={currentSlideIndex === slides.length - 1}
+              onClick={() => setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
+              className="min-h-[44px] min-w-[44px] px-5 py-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition flex items-center gap-2 text-sm font-medium active:scale-95"
+            >
+              Next <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Presentation Top bar */}
       <div className="w-full flex items-center justify-between px-2 text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
         <div className="flex items-center gap-2">
@@ -565,7 +753,7 @@ function PptxSlideViewer({
           <button
             type="button"
             onClick={() => setIsSlidePresentationMode(!isSlidePresentationMode)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-medium transition"
+            className="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 font-semibold transition active:scale-95 touch-manipulation"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>{isSlidePresentationMode ? "Exit Slideshow" : "Present"}</span>
@@ -575,8 +763,10 @@ function PptxSlideViewer({
 
       {/* Main Slide Canvas (16:9 Aspect Ratio) */}
       <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
-        className={`w-full max-w-4xl aspect-[16/9] rounded-2xl border p-6 sm:p-10 flex flex-col justify-between shadow-xl transition-all relative overflow-hidden select-none ${
+        className={`w-full max-w-4xl aspect-[16/9] rounded-2xl border p-5 sm:p-8 md:p-10 flex flex-col justify-between shadow-xl transition-all relative overflow-hidden select-none touch-manipulation ${
           isDark
             ? "bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 border-neutral-800 text-neutral-100"
             : "bg-gradient-to-br from-white via-neutral-50 to-neutral-100 border-neutral-300 text-neutral-900"
@@ -595,19 +785,19 @@ function PptxSlideViewer({
               {String(activeSlide.number).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight font-sans leading-tight">
+          <h2 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight font-sans leading-tight">
             {activeSlide.title}
           </h2>
         </div>
 
         {/* Slide Bullets */}
-        <div className="my-auto py-4 space-y-3">
+        <div className="my-auto py-3 sm:py-4 space-y-2.5 sm:space-y-3">
           {activeSlide.bullets.map((bullet, idx) => (
-            <div key={idx} className="flex items-start gap-3">
+            <div key={idx} className="flex items-start gap-2.5 sm:gap-3">
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs shrink-0 mt-0.5 font-bold">
                 •
               </span>
-              <p className="text-sm sm:text-base leading-relaxed text-neutral-300 dark:text-neutral-200 font-normal">
+              <p className="text-xs sm:text-sm md:text-base leading-relaxed text-neutral-300 dark:text-neutral-200 font-normal">
                 {bullet}
               </p>
             </div>
@@ -625,37 +815,42 @@ function PptxSlideViewer({
       </div>
 
       {/* Slide Navigation Controls & Thumbnails Strip */}
-      <div className="w-full max-w-4xl flex flex-col gap-2 shrink-0">
+      <div
+        className="w-full max-w-4xl flex flex-col gap-2 shrink-0"
+        style={{
+          paddingBottom: "max(env(safe-area-inset-bottom), 8px)",
+        }}
+      >
         <div className="flex items-center justify-center gap-3">
           <button
             type="button"
             disabled={currentSlideIndex === 0}
             onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
-            className="p-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 transition"
+            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition active:scale-95 touch-manipulation flex items-center justify-center"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-xs font-mono px-3">
+          <span className="text-xs font-mono px-3 select-none">
             {currentSlideIndex + 1} / {slides.length}
           </span>
           <button
             type="button"
             disabled={currentSlideIndex === slides.length - 1}
             onClick={() => setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
-            className="p-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 transition"
+            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition active:scale-95 touch-manipulation flex items-center justify-center"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
 
         {/* Thumbnails strip */}
-        <div className="flex items-center gap-2 overflow-x-auto py-2 px-1 scrollbar-thin">
+        <div className="flex items-center gap-2 overflow-x-auto py-2 px-1 scrollbar-thin touch-manipulation">
           {slides.map((s, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => setCurrentSlideIndex(idx)}
-              className={`flex flex-col items-center justify-between w-24 h-14 p-1.5 rounded-lg border text-[9px] shrink-0 transition-all font-mono ${
+              className={`flex flex-col items-center justify-between w-24 h-14 p-1.5 rounded-lg border text-[9px] shrink-0 transition-all font-mono active:scale-95 ${
                 idx === currentSlideIndex
                   ? "border-amber-500 bg-amber-500/15 shadow-sm text-amber-400 ring-1 ring-amber-500"
                   : isDark

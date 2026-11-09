@@ -15,6 +15,7 @@ import { ResearchDossier, conductAutonomousResearch } from "./researcher";
 import { buildDocument, GeneratedDocumentResult } from "./index";
 import { saveGeneratedDocumentToVault, StoredDocumentResult } from "./storage";
 import { validateDocumentBuffer, ValidationReport } from "./validator";
+import { cleanSlideText } from "./pptx";
 
 export interface SynthesizedDocumentPackage {
   success: boolean;
@@ -26,6 +27,13 @@ export interface SynthesizedDocumentPackage {
   summary: string;
   outlineMarkdown: string;
   progressStages: string[];
+  slides?: Array<{
+    number?: number;
+    title: string;
+    category?: string;
+    bullets: string[];
+    takeaway?: string;
+  }>;
 }
 
 export interface SynthesisOptions {
@@ -1064,13 +1072,15 @@ export async function synthesizeResearchToFile(
   let outlineMarkdown = "";
 
   if (archetype === "presentation") {
-    if (isPreview) {
-      outlineMarkdown = `### 📊 ${baseTitle} (${slides.length} Slides Preview)\n\n` +
-        slides.map((s, idx) => `**Slide ${idx + 1}: ${s.title}** (${s.category || "TOPIC"})\n${s.bullets.map((b) => `• ${b}`).join("\n")}`).join("\n\n");
-    } else {
-      outlineMarkdown = `**Presentation Structure (${slides.length} Slides):**\n` +
-        slides.map((s, idx) => `${idx + 1}. **${s.title}** *(${s.category || "TOPIC"})*`).join("\n");
-    }
+    outlineMarkdown = slides
+      .map((s, idx) => {
+        const cleanTitle = cleanSlideText(s.title);
+        const cleanCat = cleanSlideText(s.category || "TOPIC ANALYSIS");
+        const cleanBullets = s.bullets.map((b) => `- ${cleanSlideText(b)}`).join("\n");
+        const cleanTakeaway = s.takeaway ? `\nTakeaway: ${cleanSlideText(s.takeaway)}` : "";
+        return `### Slide ${idx + 1}: ${cleanTitle}\nCategory: ${cleanCat}\n${cleanBullets}${cleanTakeaway}`;
+      })
+      .join("\n\n");
   } else if (archetype === "source_code") {
     if (isPreview) {
       const previewCode = (rawContent || "").slice(0, 500);
@@ -1107,11 +1117,19 @@ export async function synthesizeResearchToFile(
     }
   }
 
-  const summary = `I have researched, organized, and verified your **${baseTitle}** file formatted as **.${generatedDoc.format.toUpperCase()}** (${Math.round(generatedDoc.sizeBytes / 1024) || 1} KB).\n\n` +
-    `• **Topic:** ${topic}\n` +
-    `• **File Type:** .${generatedDoc.format.toUpperCase()} (${generatedDoc.mimeType})\n` +
-    `• **Target Audience:** ${intent.audience.toUpperCase()}\n` +
-    `• **Validation Status:** Structure verified & binary integrity passed (${validation.valid ? "PASSED" : "VERIFIED"}).`;
+  let fileTypeLabel = "file";
+  if (generatedDoc.format === "pptx" || archetype === "presentation") {
+    fileTypeLabel = "presentation";
+  } else if (generatedDoc.format === "xlsx" || generatedDoc.format === "csv" || archetype === "spreadsheet") {
+    fileTypeLabel = "spreadsheet";
+  } else if (generatedDoc.format === "pdf") {
+    fileTypeLabel = "PDF";
+  } else if (generatedDoc.format === "docx") {
+    fileTypeLabel = "document";
+  } else if (["py", "java", "c", "cpp", "js", "ts", "html", "css", "sql"].includes(generatedDoc.format)) {
+    fileTypeLabel = "program file";
+  }
+  const summary = `Your ${fileTypeLabel} on ${topic} is ready.`;
 
   return {
     success: true,
@@ -1123,6 +1141,16 @@ export async function synthesizeResearchToFile(
     summary,
     outlineMarkdown,
     progressStages,
+    slides:
+      archetype === "presentation"
+        ? slides.map((s, idx) => ({
+            number: idx + 1,
+            title: cleanSlideText(s.title),
+            category: cleanSlideText(s.category || "TOPIC ANALYSIS"),
+            bullets: (s.bullets || []).map(cleanSlideText),
+            takeaway: s.takeaway ? cleanSlideText(s.takeaway) : undefined,
+          }))
+        : undefined,
   };
 }
 

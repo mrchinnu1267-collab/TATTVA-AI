@@ -26,6 +26,19 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, "&apos;");
 }
 
+export function cleanSlideText(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\s*(?:ADVANTAGE|BENEFIT|CHALLENGE|LIMITATION|FEATURE|NOTE|CRITICAL)\s*\]:?\s*/gi, "")
+    .replace(/^[•\-\*]\s*/, "")
+    .trim();
+}
+
 /**
  * Builds a 100% genuine Microsoft PowerPoint (.pptx) OpenXML presentation
  * Uses the modern 16:9 widescreen standard (12192000 x 6858000 EMU).
@@ -37,35 +50,51 @@ function escapeXml(unsafe: string): string {
  * 4. Generates per-slide relationship files referencing slideLayout1.xml.
  */
 export function createPptx(payload: PresentationPayload): Buffer {
-  const presentationTitle = escapeXml(payload.title || "TATTVA AI Presentation");
-  const presentationSubtitle = payload.subtitle ? escapeXml(payload.subtitle) : "";
-  const author = escapeXml(payload.author || "TATTVA AI Intelligence Suite");
-  const organization = escapeXml(payload.organization || "TATTVA AI");
+  const presentationTitle = escapeXml(cleanSlideText(payload.title || "TATTVA AI Presentation"));
+  const presentationSubtitle = payload.subtitle ? escapeXml(cleanSlideText(payload.subtitle)) : "";
+  const author = escapeXml(cleanSlideText(payload.author || "TATTVA AI Intelligence Suite"));
+  const organization = escapeXml(cleanSlideText(payload.organization || "TATTVA AI"));
 
   let slides: PresentationSlide[] = [];
 
-  // 1. Cover Slide
-  slides.push({
-    title: presentationTitle,
-    category: "EXECUTIVE BRIEF",
-    bullets: presentationSubtitle
-      ? [presentationSubtitle, `${author} • ${organization}`]
-      : [`Prepared by ${author}`, organization],
-  });
+  if (payload.slides && payload.slides.length >= 2) {
+    slides = payload.slides.map((s) => ({
+      title: cleanSlideText(s.title),
+      category: cleanSlideText(s.category || "TOPIC ANALYSIS"),
+      bullets: (s.bullets || []).map(cleanSlideText),
+      content: s.content ? cleanSlideText(s.content) : undefined,
+      takeaway: s.takeaway ? cleanSlideText(s.takeaway) : undefined,
+    }));
+  } else {
+    // 1. Cover Slide
+    slides.push({
+      title: presentationTitle,
+      category: "EXECUTIVE BRIEF",
+      bullets: presentationSubtitle
+        ? [presentationSubtitle, `${author} • ${organization}`]
+        : [`Prepared by ${author}`, organization],
+    });
 
-  if (payload.slides && payload.slides.length > 0) {
-    slides.push(...payload.slides);
-  } else if (payload.rawText) {
-    const rawParts = payload.rawText.split(/---|\n#{1,2}\s+/).filter(Boolean);
-    for (const part of rawParts) {
-      const lines = part.trim().split("\n").filter(Boolean);
-      if (lines.length > 0) {
-        const slideTitle = lines[0].replace(/^#+\s*/, "").trim();
-        const bullets = lines.slice(1).map((l) => l.replace(/^[-*•\d.]+\s*/, "").trim()).filter(Boolean);
-        slides.push({
-          title: slideTitle || "Strategic Insights",
-          bullets: bullets.length > 0 ? bullets : [lines[0]],
-        });
+    if (payload.slides && payload.slides.length > 0) {
+      slides.push(...payload.slides.map((s) => ({
+        title: cleanSlideText(s.title),
+        category: cleanSlideText(s.category || "TOPIC ANALYSIS"),
+        bullets: (s.bullets || []).map(cleanSlideText),
+        content: s.content ? cleanSlideText(s.content) : undefined,
+        takeaway: s.takeaway ? cleanSlideText(s.takeaway) : undefined,
+      })));
+    } else if (payload.rawText) {
+      const rawParts = payload.rawText.split(/---|\n#{1,2}\s+/).filter(Boolean);
+      for (const part of rawParts) {
+        const lines = part.trim().split("\n").filter(Boolean);
+        if (lines.length > 0) {
+          const slideTitle = cleanSlideText(lines[0].replace(/^#+\s*/, "").trim());
+          const bullets = lines.slice(1).map((l) => cleanSlideText(l.replace(/^[-*•\d.]+\s*/, "").trim())).filter(Boolean);
+          slides.push({
+            title: slideTitle || "Strategic Insights",
+            bullets: bullets.length > 0 ? bullets : [cleanSlideText(lines[0])],
+          });
+        }
       }
     }
   }
@@ -97,9 +126,10 @@ export function createPptx(payload: PresentationPayload): Buffer {
     presSlideRelsXml += `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${slideNum}.xml"/>`;
     contentTypesOverrideXml += `<Override PartName="/ppt/slides/slide${slideNum}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`;
 
-    const slideTitle = escapeXml(slide.title);
-    const category = escapeXml(slide.category || (idx === 0 ? "EXECUTIVE BRIEF" : `SECTION 0${idx}`));
-    const bullets = slide.bullets || (slide.content ? [slide.content] : []);
+    const slideTitle = escapeXml(cleanSlideText(slide.title));
+    const category = escapeXml(cleanSlideText(slide.category || (idx === 0 ? "EXECUTIVE BRIEF" : `SECTION 0${idx}`)));
+    const rawBullets = slide.bullets || (slide.content ? [slide.content] : []);
+    const bullets = rawBullets.map(cleanSlideText);
     const isTitleSlide = idx === 0;
 
     let bulletsXml = "";

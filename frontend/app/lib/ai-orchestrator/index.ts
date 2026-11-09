@@ -250,14 +250,38 @@ export class MasterAIOrchestrator {
           attachmentFilename: attachmentName,
         });
 
+        // Resolve clean, concise accompanying message (e.g., "Your presentation on The Evolution of Gaming is ready.")
+        let fileTypeLabel = "file";
+        const fmt = (docPkg.document.format || "").toLowerCase();
+        if (fmt === "pptx" || docPkg.intent.archetype === "presentation") {
+          fileTypeLabel = "presentation";
+        } else if (fmt === "xlsx" || fmt === "csv" || docPkg.intent.archetype === "spreadsheet") {
+          fileTypeLabel = "spreadsheet";
+        } else if (fmt === "pdf") {
+          fileTypeLabel = "PDF";
+        } else if (fmt === "docx") {
+          fileTypeLabel = "document";
+        } else if (["py", "java", "c", "cpp", "js", "ts", "html", "css", "sql"].includes(fmt)) {
+          fileTypeLabel = "program file";
+        }
+        const shortMessage = `Your ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`;
+
         return {
           role: "assistant",
-          content: `${docPkg.summary}\n\n${docPkg.outlineMarkdown}`,
+          content: shortMessage,
           kind: "text",
           intent: "document_generation",
           modelUsed: "TATTVA Universal File Engine",
           provider: "gemini",
           latencyMs: Date.now() - startTime,
+          attachments: [
+            {
+              name: docPkg.document.filename,
+              type: docPkg.document.mimeType,
+              size: docPkg.document.sizeBytes,
+              url: docPkg.vault.signedUrl,
+            },
+          ],
           generatedDocument: {
             fileId: docPkg.vault.fileId,
             filename: docPkg.document.filename,
@@ -268,14 +292,26 @@ export class MasterAIOrchestrator {
             title: docPkg.intent.topic,
             archetype: docPkg.intent.archetype,
             dataUri: docPkg.document.dataUri,
-            summary: docPkg.summary,
+            summary: shortMessage,
             outlineMarkdown: docPkg.outlineMarkdown,
+            slides: docPkg.slides,
           },
           progressStages: docPkg.progressStages,
         };
       } catch (docErr: any) {
-        console.error("[TATTVA Orchestrator] Document generation error:", docErr);
-        // Fall back to general conversation if generation encountered an issue
+        const errorMsg = docErr instanceof Error ? docErr.message : String(docErr);
+        console.error("[TATTVA Orchestrator] Document generation error:", errorMsg);
+        // Explicit file creation request failed: return accurate error, never fall back to chat text improvisation
+        return {
+          role: "assistant",
+          content: `I encountered an issue generating your ${docIntent.format.toUpperCase()} file: ${errorMsg}. Please try again.`,
+          kind: "text",
+          intent: "document_generation",
+          modelUsed: "TATTVA Universal File Engine",
+          provider: "local",
+          latencyMs: Date.now() - startTime,
+          warnings: [errorMsg],
+        };
       }
     }
 
