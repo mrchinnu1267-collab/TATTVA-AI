@@ -426,7 +426,8 @@ export function detectDocumentIntent(
     .replace(/^[-_\s]*(mode|web_search|fact_retrieval|deep_research|research)[-_\s]*/gi, "")
     .replace(/\b(with|having|consisting of|containing|in|of|around|about)?\s*(\d{1,2})\s*[- ]*(slide|slides|sld|pages?|sections?)\b/gi, "")
     .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
-    .replace(/\b(gather|collect|compile|summarize)\s+(the\s+)?(slide|slides|information|content|points|matter)\b/gi, "")
+    .replace(/\b(gather|collect|compile|summarize)\s+(the\s+)?(slide\s*wise|slidewise|slide-wise|slide\s*by\s*slide|slides?|information|content|points|matter)\s*(up\s*to|upto)?\b/gi, "")
+    .replace(/\b(gather|collect|compile|summarize)\b/gi, "")
     .replace(/\b(slide\s*wise|slidewise|slide-wise|up\s*to|upto|slide\s*by\s*slide)\b/gi, "")
     .replace(/\b(now|then|also|so|please|can you|could you|i want to|i need to|i want|i need|give me a|give me|give)\b/gi, "")
     .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce|convert|turn|transform|compile)\b/gi, "")
@@ -447,11 +448,17 @@ export function detectDocumentIntent(
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
-  // Strip trailing or leading prepositions from topic
+  // Strip trailing or leading prepositions and residual procedural artifacts from topic
   topic = topic
+    .replace(/\b(wise|upto|up to)\s+/gi, "")
+    .replace(/\s+\b(wise|upto|up to)\b/gi, "")
     .replace(/\b(with|on|about|for|of|in|to|at|by|from)\s*$/gi, "")
     .replace(/^\s*\b(with|on|about|for|of|in|to|at|by|from)\b/gi, "")
     .trim();
+
+  if (/^ai$/i.test(topic)) {
+    topic = "Artificial Intelligence";
+  }
 
   // If topic is empty, a pronoun ("it", "this", "that", "same"), generic filler, or forbidden word:
   // inspect history for the substantive topic!

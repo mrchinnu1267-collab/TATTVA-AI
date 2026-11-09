@@ -1089,6 +1089,116 @@ const VERIFIED_TOPIC_KNOWLEDGE_BASE: Record<string, Partial<ResearchDossier>> = 
       },
     ],
   },
+
+  agentic_ai: {
+    topic: "Agentic AI & Autonomous Multi-Agent Systems",
+    definition: "Agentic AI refers to artificial intelligence systems capable of autonomous perception, goal-directed planning, multi-step tool execution, and reflective self-correction to solve complex tasks with minimal human intervention. Unlike passive LLMs that generate single-turn completions, agentic systems operate in dynamic environments via perception-action loops.",
+    backgroundAndMotivation: "Traditional language models operate passively in single-turn request-response patterns, limited by fixed context windows, lack of real-time environmental grounding, and inability to act upon external software systems. Agentic AI addresses these limitations by pairing foundation models with reasoning architectures (ReAct, Reflexion, Plan-and-Solve), memory stores, and executable tool integrations.",
+    subtopics: [
+      "Foundations of Autonomous Agency & Perception-Action Loops",
+      "Cognitive Architecture: Planning, Memory, & Reflection",
+      "Reasoning Paradigms: ReAct, Chain-of-Thought, and Reflexion",
+      "Tool Calling, Environment Grounding & API Integration",
+      "Multi-Agent Collaboration: Hierarchical & Swarm Topologies",
+      "State Management & Vector Memory Systems",
+      "Safety, Verification & Guardrails in Autonomous Systems",
+      "Enterprise Deployments & Future Outlook",
+    ],
+    coreMechanisms: [
+      {
+        name: "Perception-Reasoning-Action Loop (ReAct)",
+        details: "Synergizes reasoning traces ('Thought') and domain-specific actions ('Action'), observing feedback ('Observation') to iteratively formulate sub-goals until completion.",
+        formulaOrStructure: "Loop: State_t -> Thought_t -> Action_t -> Observation_{t+1} -> State_{t+1}",
+        exampleOrApplication: "An agent inspects an error stack trace, queries internal documentation via tools, applies a git patch, runs unit tests, and verifies success.",
+      },
+      {
+        name: "Hierarchical Planning & Task Decomposition",
+        details: "Breaks broad, underspecified user objectives into sequential Directed Acyclic Graphs (DAGs) of executable sub-tasks with dependency resolution and rollback capability.",
+        formulaOrStructure: "Planner(Goal) -> {Task_1, Task_2, ..., Task_n} with dependency graph G=(V, E)",
+      },
+      {
+        name: "Episodic and Semantic Memory Architecture",
+        details: "Combines short-term in-context memory, working scratchpads, and long-term vector database storage to recall past decisions, user preferences, and learned behaviors.",
+        formulaOrStructure: "Memory retrieval via cosine_similarity(embed(query), embed(memory_k))",
+      },
+      {
+        name: "Reflective Self-Correction & Critique",
+        details: "Evaluates intermediate tool responses and generated outputs against target constraints, detecting hallucination or execution failure before presenting results to users.",
+      },
+    ],
+    architectureOrComponents: [
+      {
+        component: "Cognitive Orchestration Core",
+        role: "High-Level Decision Making & Planning",
+        mechanism: "Coordinates multi-turn reasoning cycles, selects tools, and manages context compaction.",
+      },
+      {
+        component: "Tool & API Execution Environment",
+        role: "External Grounding & Action Dispatch",
+        mechanism: "Sandboxed execution runtimes, OpenAPI client dispatchers, database query executors, and filesystem drivers.",
+      },
+      {
+        component: "Persistent Memory Subsystem",
+        role: "Long-Term Knowledge Storage",
+        mechanism: "Hybrid vector search, episodic session logs, and key-value state persistence.",
+      },
+      {
+        component: "Safety & Alignment Guardrails",
+        role: "Zero-Trust Boundary Enforcement",
+        mechanism: "Content filtering, prompt injection defense, credential redaction, and human-in-the-loop approvals.",
+      },
+    ],
+    trainingAndInferenceOrProcess: {
+      stages: [
+        "User Objective Ingestion & Goal Clarification",
+        "Hierarchical Task Decomposition & Planning",
+        "Iterative Tool Execution & Environment Observation",
+        "Reflective Evaluation & Output Validation",
+        "Memory Storage & User Delivery",
+      ],
+      details: "Deterministic execution loop governing non-deterministic foundation model outputs with structured verifiers.",
+    },
+    applications: [
+      "Autonomous software engineering agents writing, debugging, and testing production codebases",
+      "Enterprise workflow automation orchestrating ERP, CRM, and financial compliance pipelines",
+      "Autonomous scientific literature synthesis, hypothesis generation, and experimental design",
+      "Customer support copilot teams resolving complex multi-system inquiries independently",
+    ],
+    advantages: [
+      "Transforms passive language models into active, goal-driven digital coworkers",
+      "Executes hours of manual multi-step digital workflows in minutes with auditable trails",
+      "Learns and adapts from environmental feedback and past execution experiences",
+    ],
+    limitationsAndChallenges: [
+      "Vulnerability to compounding error cascades during multi-step autonomous execution",
+      "High computational cost and token consumption across extended reflection loops",
+      "Non-deterministic execution paths requiring strict sandbox security controls",
+    ],
+    recentDevelopments: [
+      "Emergence of standard Model Context Protocol (MCP) for interoperable tool and resource connectivity",
+      "Native test-time compute scaling and extended thinking models with built-in reflection",
+    ],
+    citations: [
+      {
+        sourceName: "Yao et al. (2022)",
+        authority: "foundational_paper",
+        referenceText: "ReAct: Synergizing Reasoning and Acting in Language Models. International Conference on Learning Representations (ICLR).",
+        year: 2022,
+      },
+      {
+        sourceName: "Shinn et al. (2023)",
+        authority: "academic_journal",
+        referenceText: "Reflexion: Language Agents with Verbal Reinforcement Learning. NeurIPS.",
+        year: 2023,
+      },
+      {
+        sourceName: "Wang et al. (2023)",
+        authority: "academic_journal",
+        referenceText: "A Survey on Large Language Model based Autonomous Agents. Frontiers of Computer Science.",
+        year: 2023,
+      },
+    ],
+  },
 };
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackVal: T): Promise<T> {
@@ -1236,15 +1346,20 @@ Respond strictly with valid JSON conforming to this schema:
                 maxOutputTokens: 3000,
               },
             }),
-            6000,
+            3500,
             null
           );
           if (res && res.text && res.text.includes("{")) {
             text = res.text;
             break;
           }
-        } catch (modelErr) {
-          console.warn(`[TATTVA Research Engine] Live research attempt on ${modelId} failed:`, modelErr);
+        } catch (modelErr: any) {
+          const errString = String(modelErr?.message || modelErr);
+          console.warn(`[TATTVA Research Engine] Live research attempt on ${modelId} failed:`, errString);
+          if (errString.includes("429") || errString.includes("quota") || errString.includes("RESOURCE_EXHAUSTED")) {
+            // Free Tier / project quota exhausted: break immediately to avoid 504 Gateway Timeout
+            break;
+          }
         }
       }
 
@@ -1300,14 +1415,25 @@ Respond strictly with valid JSON conforming to this schema:
   // 3. Match against High-Density Verified Domain Knowledge Repository
   for (const [key, knownData] of Object.entries(VERIFIED_TOPIC_KNOWLEDGE_BASE)) {
     const keyLower = key.toLowerCase();
+    const keyClean = keyLower.replace(/_/g, " ");
     const isOopMatch =
       keyLower === "oop" &&
       (normTopic.includes("object-oriented") ||
         normTopic.includes("object oriented") ||
         normTopic.includes("oop") ||
         normTopic.includes("oops"));
+    const isAgenticMatch =
+      (keyLower.includes("agentic") || keyLower.includes("agent")) &&
+      (normTopic.includes("agentic") || normTopic.includes("agent") || normTopic.includes("multi-agent") || normTopic.includes("autonomous agent"));
 
-    if (normTopic.includes(keyLower) || keyLower.includes(normTopic) || isOopMatch) {
+    if (
+      normTopic.includes(keyLower) ||
+      keyLower.includes(normTopic) ||
+      normTopic.includes(keyClean) ||
+      keyClean.includes(normTopic) ||
+      isOopMatch ||
+      isAgenticMatch
+    ) {
       const knownMechanisms = knownData.coreMechanisms || [];
       const matchedDossier: ResearchDossier = {
         topic: knownData.topic || topic,

@@ -261,3 +261,4 @@ export function DocumentIntelligenceModal({
     </div>
   );
 }
+

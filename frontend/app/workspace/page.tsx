@@ -23,6 +23,10 @@ import {
   Layers,
   Rocket,
   FolderOpen,
+  Mic,
+  Brain,
+  Store,
+  Target,
 } from "lucide-react";
 import { WorkspaceItem, WorkspaceAppId } from "../components/workspace/types";
 import { WORKSPACE_APPS_LIST } from "../components/workspace/constants";
@@ -36,6 +40,20 @@ import { UniversalSearchModal } from "../components/workspace/UniversalSearchMod
 import { WorkspaceInsightsModal } from "../components/workspace/WorkspaceInsightsModal";
 import { SmartTemplatesModal } from "../components/workspace/SmartTemplatesModal";
 import { AutomationCenterView } from "../components/workspace/AutomationCenterView";
+
+// Advanced Ecosystem Views
+import { AICommandCenterView } from "../components/workspace/AICommandCenterView";
+import { SmartCanvasView } from "../components/workspace/SmartCanvasView";
+import { ProjectManagerView } from "../components/workspace/ProjectManagerView";
+import { ResearchLabView } from "../components/workspace/ResearchLabView";
+import { SmartLearningView } from "../components/workspace/SmartLearningView";
+import { KnowledgeGraphView } from "../components/workspace/KnowledgeGraphView";
+
+// Advanced Feature Modals
+import { FocusModeModal } from "../components/workspace/FocusModeModal";
+import { VoiceWorkspaceModal } from "../components/workspace/VoiceWorkspaceModal";
+import { WorkflowMarketplaceModal } from "../components/workspace/WorkflowMarketplaceModal";
+import { ProjectMemoryModal } from "../components/workspace/ProjectMemoryModal";
 
 // 7 Productivity Apps
 import { WordEditor } from "../components/workspace/apps/word/WordEditor";
@@ -66,6 +84,10 @@ function WorkspaceMainContent() {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false);
+  const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
 
   // Initialize data
   useEffect(() => {
@@ -114,6 +136,7 @@ function WorkspaceMainContent() {
     setItems(WorkspaceStorageManager.getAllItems());
     setActiveItem(newItem);
     setActiveApp(targetApp);
+    setCurrentView("dashboard");
   };
 
   // Mock initial Agentic AI project review slides matching reference screenshot
@@ -260,8 +283,12 @@ function WorkspaceMainContent() {
       <WorkspaceSidebar
         currentView={currentView}
         onSelectView={(view) => {
+          if (view === "focus_mode") {
+            setIsFocusModalOpen(true);
+            return;
+          }
           setCurrentView(view);
-          if (view === "automation_center") setActiveItem(null);
+          if (view !== "dashboard") setActiveItem(null);
         }}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -270,9 +297,29 @@ function WorkspaceMainContent() {
 
       {/* 2. Main Work Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0B0F19]">
+        {/* Render View Depending on currentView state */}
         {currentView === "automation_center" ? (
           <AutomationCenterView />
+        ) : currentView === "ai_command_center" ? (
+          <AICommandCenterView
+            items={items}
+            onOpenApp={(app) => {
+              setActiveApp(app);
+              setCurrentView("dashboard");
+            }}
+          />
+        ) : currentView === "projects" ? (
+          <ProjectManagerView />
+        ) : currentView === "canvas" ? (
+          <SmartCanvasView />
+        ) : currentView === "research" ? (
+          <ResearchLabView />
+        ) : currentView === "learning" ? (
+          <SmartLearningView />
+        ) : currentView === "knowledge_graph" ? (
+          <KnowledgeGraphView />
         ) : (
+          /* Normal Dashboard View matching Reference Screenshot */
           <div className="flex-1 flex flex-col h-full overflow-y-auto px-6 py-4 space-y-4">
             {/* 2A. Top Header Bar matching Screenshot */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
@@ -587,6 +634,87 @@ function WorkspaceMainContent() {
                 </div>
               </div>
             </div>
+
+            {/* 2F. Additional Advanced Features matching Reference Images */}
+            <div className="pt-2">
+              <div className="flex items-center space-x-2 mb-2 text-xs font-semibold text-slate-400">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span>Additional Advanced Features</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
+                <button
+                  onClick={() => setIsVoiceModalOpen(true)}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Mic className="w-4 h-4 text-purple-400" />
+                  <span className="font-semibold text-white text-[11px]">Voice Workspace</span>
+                  <span className="text-[9px] text-slate-500">Dictation & Commands</span>
+                </button>
+
+                <button
+                  onClick={() => setIsFocusModalOpen(true)}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Target className="w-4 h-4 text-rose-400" />
+                  <span className="font-semibold text-white text-[11px]">Focus Mode</span>
+                  <span className="text-[9px] text-slate-500">Deep Work Timer</span>
+                </button>
+
+                <button
+                  onClick={() => setIsDocIntelModalOpen(true)}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span className="font-semibold text-white text-[11px]">Version History</span>
+                  <span className="text-[9px] text-slate-500">Track & Restore</span>
+                </button>
+
+                <button
+                  onClick={() => setIsMarketplaceModalOpen(true)}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Store className="w-4 h-4 text-orange-400" />
+                  <span className="font-semibold text-white text-[11px]">Workflow Market</span>
+                  <span className="text-[9px] text-slate-500">Automation Hub</span>
+                </button>
+
+                <button
+                  onClick={() => setIsMemoryModalOpen(true)}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Brain className="w-4 h-4 text-pink-400" />
+                  <span className="font-semibold text-white text-[11px]">Project Memory</span>
+                  <span className="text-[9px] text-slate-500">Persistent Context</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentView("projects")}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Layout className="w-4 h-4 text-blue-400" />
+                  <span className="font-semibold text-white text-[11px]">Project Board</span>
+                  <span className="text-[9px] text-slate-500">Kanban & Timeline</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentView("canvas")}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <Sparkles className="w-4 h-4 text-indigo-400" />
+                  <span className="font-semibold text-white text-[11px]">Smart Canvas</span>
+                  <span className="text-[9px] text-slate-500">Visual Mindmap</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentView("research")}
+                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                >
+                  <BookOpen className="w-4 h-4 text-emerald-400" />
+                  <span className="font-semibold text-white text-[11px]">Research Lab</span>
+                  <span className="text-[9px] text-slate-500">Sources & Citations</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -631,6 +759,7 @@ function WorkspaceMainContent() {
           onOpenItem={(it) => {
             setActiveItem(it);
             setActiveApp(it.app);
+            setCurrentView("dashboard");
           }}
         />
 
@@ -647,6 +776,32 @@ function WorkspaceMainContent() {
             setActiveApp(app);
             handleNewItem(app);
           }}
+        />
+
+        <FocusModeModal
+          isOpen={isFocusModalOpen}
+          onClose={() => setIsFocusModalOpen(false)}
+        />
+
+        <VoiceWorkspaceModal
+          isOpen={isVoiceModalOpen}
+          onClose={() => setIsVoiceModalOpen(false)}
+          onExecuteVoiceCommand={(cmd) => {
+            console.log("Voice Command:", cmd);
+          }}
+        />
+
+        <WorkflowMarketplaceModal
+          isOpen={isMarketplaceModalOpen}
+          onClose={() => setIsMarketplaceModalOpen(false)}
+          onRunWorkflow={(wf) => {
+            console.log("Run Workflow:", wf);
+          }}
+        />
+
+        <ProjectMemoryModal
+          isOpen={isMemoryModalOpen}
+          onClose={() => setIsMemoryModalOpen(false)}
         />
       </div>
     </div>

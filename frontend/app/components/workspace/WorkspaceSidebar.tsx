@@ -15,8 +15,13 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  HardDrive,
   Sparkles,
+  Kanban,
+  Layout,
+  BookOpen,
+  GraduationCap,
+  Network,
+  Target,
 } from "lucide-react";
 
 interface WorkspaceSidebarProps {
@@ -53,8 +58,8 @@ export function WorkspaceSidebar({
         isCollapsed ? "w-16" : "w-60"
       }`}
     >
-      {/* 1. Brand Logo Header matching screenshot */}
-      <div className="p-4 flex items-center justify-between border-b border-slate-800/60">
+      {/* 1. Brand Logo Header */}
+      <div className="p-4 flex items-center justify-between border-b border-slate-800/60 shrink-0">
         <div className="flex items-center space-x-2.5 overflow-hidden">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
             <Sparkles className="w-4 h-4" />
@@ -77,7 +82,7 @@ export function WorkspaceSidebar({
         )}
       </div>
 
-      {/* 2. Main Navigation Links matching screenshot */}
+      {/* 2. Main Navigation Links */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         <div className="space-y-1">
           {/* Home */}
@@ -107,11 +112,85 @@ export function WorkspaceSidebar({
           {/* AI Command Center */}
           <button
             onClick={() => onSelectView("ai_command_center")}
-            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "ai_command_center"
+                ? "bg-indigo-900/40 text-indigo-300 border border-indigo-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
             title="AI Command Center"
           >
             <Bot className="w-4 h-4 shrink-0 text-indigo-400" />
             {!isCollapsed && <span>AI Command Center</span>}
+          </button>
+
+          {/* AI Project Manager */}
+          <button
+            onClick={() => onSelectView("projects")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "projects"
+                ? "bg-indigo-900/40 text-indigo-300 border border-indigo-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
+            title="AI Project Manager"
+          >
+            <Kanban className="w-4 h-4 shrink-0 text-blue-400" />
+            {!isCollapsed && <span>Projects</span>}
+          </button>
+
+          {/* Smart Canvas */}
+          <button
+            onClick={() => onSelectView("canvas")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "canvas"
+                ? "bg-indigo-900/40 text-indigo-300 border border-indigo-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
+            title="Smart Canvas"
+          >
+            <Layout className="w-4 h-4 shrink-0 text-purple-400" />
+            {!isCollapsed && <span>Smart Canvas</span>}
+          </button>
+
+          {/* Research Lab */}
+          <button
+            onClick={() => onSelectView("research")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "research"
+                ? "bg-indigo-900/40 text-indigo-300 border border-indigo-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
+            title="Research Lab"
+          >
+            <BookOpen className="w-4 h-4 shrink-0 text-emerald-400" />
+            {!isCollapsed && <span>Research Lab</span>}
+          </button>
+
+          {/* Smart Learning Mode */}
+          <button
+            onClick={() => onSelectView("learning")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "learning"
+                ? "bg-indigo-900/40 text-indigo-300 border border-indigo-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
+            title="Smart Learning Mode"
+          >
+            <GraduationCap className="w-4 h-4 shrink-0 text-pink-400" />
+            {!isCollapsed && <span>Learning Mode</span>}
+          </button>
+
+          {/* Knowledge Graph */}
+          <button
+            onClick={() => onSelectView("knowledge_graph")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "knowledge_graph"
+                ? "bg-indigo-900/40 text-indigo-300 border border-indigo-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
+            title="Knowledge Graph"
+          >
+            <Network className="w-4 h-4 shrink-0 text-cyan-400" />
+            {!isCollapsed && <span>Knowledge Graph</span>}
           </button>
 
           {/* Automation Center */}
@@ -128,48 +207,18 @@ export function WorkspaceSidebar({
             {!isCollapsed && <span>Automation Center</span>}
           </button>
 
-          {/* Shared with me */}
+          {/* Focus Mode */}
           <button
-            onClick={() => onSelectView("shared")}
+            onClick={() => onSelectView("focus_mode")}
             className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
-            title="Shared with me"
+            title="Focus Mode"
           >
-            <Share2 className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>Shared with me</span>}
-          </button>
-
-          {/* Recent */}
-          <button
-            onClick={() => onSelectView("recent")}
-            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
-            title="Recent"
-          >
-            <Clock className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>Recent</span>}
-          </button>
-
-          {/* Starred */}
-          <button
-            onClick={() => onSelectView("starred")}
-            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
-            title="Starred"
-          >
-            <Star className="w-4 h-4 shrink-0 text-amber-400" />
-            {!isCollapsed && <span>Starred</span>}
-          </button>
-
-          {/* All Files */}
-          <button
-            onClick={() => onSelectView("all")}
-            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
-            title="All Files"
-          >
-            <Folder className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>All Files</span>}
+            <Target className="w-4 h-4 shrink-0 text-rose-400" />
+            {!isCollapsed && <span>Focus Mode</span>}
           </button>
         </div>
 
-        {/* Workspaces Section matching screenshot */}
+        {/* Workspaces Section */}
         {!isCollapsed && (
           <div className="pt-2 border-t border-slate-800/60">
             <div className="flex items-center justify-between px-3 py-1 mb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -199,8 +248,8 @@ export function WorkspaceSidebar({
         )}
       </div>
 
-      {/* 3. Bottom Storage & Settings matching screenshot */}
-      <div className="p-3 border-t border-slate-800/60 space-y-3 bg-[#080B11]">
+      {/* 3. Bottom Storage & Settings */}
+      <div className="p-3 border-t border-slate-800/60 space-y-3 bg-[#080B11] shrink-0">
         {!isCollapsed && (
           <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-2">
             <div className="flex justify-between items-center text-[11px]">
