@@ -212,3 +212,4 @@ DROP POLICY IF EXISTS "Users can manage own db projects" ON public.workspace_db_
 CREATE POLICY "Users can manage own db projects" ON public.workspace_db_projects
     FOR ALL USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
+

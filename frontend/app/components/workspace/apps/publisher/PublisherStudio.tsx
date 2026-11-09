@@ -409,3 +409,4 @@ export function PublisherStudio({ item, onSave, onBack }: PublisherStudioProps) 
     </div>
   );
 }
+

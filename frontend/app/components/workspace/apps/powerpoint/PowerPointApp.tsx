@@ -53,3 +53,4 @@ export function PowerPointApp({ item, onSave, onBack }: PowerPointAppProps) {
     </div>
   );
 }
+

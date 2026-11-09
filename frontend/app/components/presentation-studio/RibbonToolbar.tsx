@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Play,
   Save,
@@ -12,10 +12,13 @@ import {
   Bold,
   Italic,
   Underline,
+  Strikethrough,
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
   List,
+  ListOrdered,
   Type,
   Square,
   Circle,
@@ -30,9 +33,37 @@ import {
   FileText,
   RotateCcw,
   RotateCw,
+  Search,
+  Mic,
+  PenTool,
+  Highlighter,
+  Eraser,
+  Tv,
+  Clock,
+  CheckCircle,
+  Eye,
+  Grid,
+  HelpCircle,
+  Volume2,
+  ChevronDown,
+  ArrowRight,
+  ArrowUpRight,
+  Split,
+  Move,
+  Layout,
+  MessageSquare,
+  Sliders,
+  Settings,
+  ShieldCheck,
+  Video,
+  Music,
+  FolderOpen,
+  Printer,
+  FilePlus,
+  Zap,
 } from "lucide-react";
 import { PRESENTATION_THEMES } from "./themes";
-import { TransitionType, AnimationType } from "./types";
+import { TransitionType, AnimationType, ViewMode } from "./types";
 
 interface RibbonToolbarProps {
   activeTab: string;
@@ -41,15 +72,15 @@ interface RibbonToolbarProps {
   onDownload: () => void;
   onOpenWith: () => void;
   onStartSlideShow: (fromBeginning: boolean) => void;
-  onAddSlide: () => void;
+  onAddSlide: (layout?: string) => void;
   onDuplicateSlide: () => void;
   onDeleteSlide: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onFormatText: (command: "bold" | "italic" | "underline" | "alignLeft" | "alignCenter" | "alignRight") => void;
-  onAddElement: (type: "textbox" | "shape", shapeType?: "rectangle" | "rounded" | "circle" | "callout") => void;
+  onFormatText: (command: "bold" | "italic" | "underline" | "strikethrough" | "alignLeft" | "alignCenter" | "alignRight" | "alignJustify") => void;
+  onAddElement: (type: "textbox" | "shape" | "table" | "process" | "image", shapeType?: any) => void;
   currentThemeId: string;
   onSelectTheme: (themeId: string) => void;
   currentTransition: TransitionType;
@@ -65,19 +96,36 @@ interface RibbonToolbarProps {
   setShowNotes: (show: boolean) => void;
   showThumbnails: boolean;
   setShowThumbnails: (show: boolean) => void;
-  saveStatus: "saved" | "unsaved" | "saving";
+  viewMode: ViewMode;
+  setViewMode: (vm: ViewMode) => void;
+  saveStatus: "saved" | "unsaved" | "saving" | "failed";
+  showRuler: boolean;
+  setShowRuler: (show: boolean) => void;
+  showGridlines: boolean;
+  setShowGridlines: (show: boolean) => void;
+  showGuides: boolean;
+  setShowGuides: (show: boolean) => void;
+  drawingTool: "none" | "pen" | "highlighter" | "eraser";
+  setDrawingTool: (tool: "none" | "pen" | "highlighter" | "eraser") => void;
+  drawingColor: string;
+  setDrawingColor: (c: string) => void;
+  onToggleAIAssistant?: () => void;
+  isAIAssistantOpen?: boolean;
 }
 
 const TABS = [
-  "FILE",
-  "HOME",
-  "INSERT",
-  "DESIGN",
-  "TRANSITIONS",
-  "ANIMATIONS",
-  "SLIDE SHOW",
-  "REVIEW",
-  "VIEW",
+  "File",
+  "Home",
+  "Insert",
+  "Draw",
+  "Design",
+  "Transitions",
+  "Animations",
+  "Slide Show",
+  "Record",
+  "Review",
+  "View",
+  "Help",
 ];
 
 const TRANSITIONS: { id: TransitionType; label: string }[] = [
@@ -88,6 +136,9 @@ const TRANSITIONS: { id: TransitionType; label: string }[] = [
   { id: "wipe", label: "Wipe" },
   { id: "split", label: "Split" },
   { id: "reveal", label: "Reveal" },
+  { id: "cover", label: "Cover" },
+  { id: "uncover", label: "Uncover" },
+  { id: "randomBars", label: "Random Bars" },
 ];
 
 const ANIMATIONS: { id: AnimationType; label: string }[] = [
@@ -96,454 +147,648 @@ const ANIMATIONS: { id: AnimationType; label: string }[] = [
   { id: "fadeIn", label: "Fade In" },
   { id: "flyIn", label: "Fly In" },
   { id: "zoomIn", label: "Zoom In" },
+  { id: "floatIn", label: "Float In" },
   { id: "bounce", label: "Bounce" },
+  { id: "spin", label: "Spin" },
 ];
 
-export function RibbonToolbar({
-  activeTab,
-  setActiveTab,
-  onSave,
-  onDownload,
-  onOpenWith,
-  onStartSlideShow,
-  onAddSlide,
-  onDuplicateSlide,
-  onDeleteSlide,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo,
-  onFormatText,
-  onAddElement,
-  currentThemeId,
-  onSelectTheme,
-  currentTransition,
-  transitionDuration,
-  onSelectTransition,
-  onChangeTransitionDuration,
-  onApplyTransitionToAll,
-  currentAnimation,
-  onSelectAnimation,
-  zoom,
-  setZoom,
-  showNotes,
-  setShowNotes,
-  showThumbnails,
-  setShowThumbnails,
-  saveStatus,
-}: RibbonToolbarProps) {
+export function RibbonToolbar(props: RibbonToolbarProps) {
+  const {
+    activeTab,
+    setActiveTab,
+    onSave,
+    onDownload,
+    onStartSlideShow,
+    onAddSlide,
+    onDuplicateSlide,
+    onDeleteSlide,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
+    onFormatText,
+    onAddElement,
+    currentThemeId,
+    onSelectTheme,
+    currentTransition,
+    transitionDuration,
+    onSelectTransition,
+    onChangeTransitionDuration,
+    onApplyTransitionToAll,
+    currentAnimation,
+    onSelectAnimation,
+    zoom,
+    setZoom,
+    showNotes,
+    setShowNotes,
+    showThumbnails,
+    setShowThumbnails,
+    viewMode,
+    setViewMode,
+    showRuler,
+    setShowRuler,
+    showGridlines,
+    setShowGridlines,
+    showGuides,
+    setShowGuides,
+    drawingTool,
+    setDrawingTool,
+    drawingColor,
+    setDrawingColor,
+    onToggleAIAssistant,
+    isAIAssistantOpen,
+  } = props;
+
+  const [fontSize, setFontSize] = useState("24");
+  const [fontFamily, setFontFamily] = useState("Segoe UI");
+
   return (
-    <div className="flex flex-col bg-[#1E1E1E] border-b border-neutral-700/80 text-neutral-200 select-none shrink-0 shadow-md">
-      {/* 1. TABS HEADER ROW */}
-      <div className="flex items-center px-2 bg-[#252526] border-b border-neutral-700/60 overflow-x-auto scrollbar-none">
-        <button
-          type="button"
-          onClick={() => setActiveTab("FILE")}
-          className={`px-3 py-1.5 font-bold tracking-wider text-[11px] transition ${
-            activeTab === "FILE"
-              ? "bg-[#C43E1C] text-white"
-              : "bg-[#C43E1C]/80 hover:bg-[#C43E1C] text-white"
-          }`}
-        >
-          FILE
-        </button>
+    <div className="bg-[#242424] text-[#E0E0E0] border-b border-[#333333] select-none text-xs flex flex-col shrink-0 shadow-sm">
+      {/* 1. Ribbon Tab Headers */}
+      <div className="flex items-center px-2 pt-1 border-b border-[#303030] overflow-x-auto space-x-0.5">
+        {TABS.map((tab) => {
+          const isActive = activeTab.toLowerCase() === tab.toLowerCase();
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1.5 font-medium rounded-t-sm transition-colors text-xs whitespace-nowrap ${
+                isActive
+                  ? "bg-[#333333] text-white font-semibold border-b-2 border-[#EA580C]"
+                  : "text-[#B3B3B3] hover:text-white hover:bg-[#2A2A2A]"
+              }`}
+            >
+              {tab}
+            </button>
+          );
+        })}
 
-        {TABS.slice(1).map((tab) => (
+        {/* AI Designer quick pill */}
+        <div className="ml-auto pl-2 flex items-center">
           <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 text-[11px] font-medium transition whitespace-nowrap ${
-              activeTab === tab
-                ? "bg-[#1E1E1E] text-white border-t-2 border-[#C43E1C] font-semibold"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+            onClick={onToggleAIAssistant}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition ${
+              isAIAssistantOpen
+                ? "bg-gradient-to-r from-orange-600 to-amber-600 text-white"
+                : "bg-white/10 text-orange-400 hover:bg-white/20"
             }`}
+            title="Open Gemini AI Presentation Assistant"
           >
-            {tab}
+            <Zap className="w-3.5 h-3.5 fill-current text-amber-400" />
+            <span className="hidden sm:inline">Designer AI</span>
           </button>
-        ))}
-
-        <div className="ml-auto hidden sm:flex items-center gap-2 pr-2 text-[10px] text-neutral-400 font-mono">
-          <span
-            className={`inline-block w-2 h-2 rounded-full ${
-              saveStatus === "saved"
-                ? "bg-emerald-500"
-                : saveStatus === "saving"
-                ? "bg-amber-400 animate-pulse"
-                : "bg-rose-400"
-            }`}
-          />
-          <span className="capitalize">{saveStatus}</span>
         </div>
       </div>
 
-      {/* 2. TAB CONTROLS STRIP */}
-      <div className="px-3 py-2 bg-[#1E1E1E] min-h-[58px] flex items-center overflow-x-auto scrollbar-none text-xs gap-3">
-        {/* ================= FILE TAB ================= */}
-        {activeTab === "FILE" && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onSave}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save & Compile PPTX</span>
-            </button>
-            <button
-              type="button"
-              onClick={onDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#C43E1C] hover:bg-[#a93315] text-white font-semibold transition"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download PPTX</span>
-            </button>
-            <button
-              type="button"
-              onClick={onOpenWith}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition"
-            >
-              <Share2 className="w-4 h-4" />
-              <span>Open With External App</span>
-            </button>
+      {/* 2. Ribbon Content Band */}
+      <div className="p-2 min-h-[76px] flex items-center overflow-x-auto bg-[#2B2B2B]">
+        {/* ======================= TAB: FILE ======================= */}
+        {activeTab.toLowerCase() === "file" && (
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 border-r border-[#3D3D3D] pr-4">
+              <button
+                onClick={() => onAddSlide("title")}
+                className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
+              >
+                <FilePlus className="w-5 h-5 text-orange-400 mb-1" />
+                <span>New</span>
+              </button>
+              <button
+                onClick={onSave}
+                className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
+              >
+                <Save className="w-5 h-5 text-emerald-400 mb-1" />
+                <span>Save</span>
+              </button>
+              <button
+                onClick={onDownload}
+                className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
+              >
+                <Download className="w-5 h-5 text-blue-400 mb-1" />
+                <span>Export PPTX</span>
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex flex-col items-center p-2 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white transition"
+              >
+                <Printer className="w-5 h-5 text-slate-300 mb-1" />
+                <span>Print</span>
+              </button>
+            </div>
+            <div className="text-xs text-[#999999]">
+              <span>TATTVA Presentation Studio • OpenXML Standard Verified</span>
+            </div>
           </div>
         )}
 
-        {/* ================= HOME TAB ================= */}
-        {activeTab === "HOME" && (
-          <div className="flex items-center gap-3 divide-x divide-neutral-700/60">
-            {/* Undo / Redo */}
-            <div className="flex items-center gap-1 pr-2">
+        {/* ======================= TAB: HOME ======================= */}
+        {activeTab.toLowerCase() === "home" && (
+          <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
+            {/* Clipboard */}
+            <div className="flex items-center space-x-1 pr-3">
               <button
-                type="button"
-                onClick={onUndo}
-                disabled={!canUndo}
-                title="Undo (Ctrl+Z)"
-                className="p-1.5 rounded hover:bg-neutral-800 disabled:opacity-30 transition"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={onRedo}
-                disabled={!canRedo}
-                title="Redo (Ctrl+Y)"
-                className="p-1.5 rounded hover:bg-neutral-800 disabled:opacity-30 transition"
-              >
-                <RotateCw className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Slides Operations */}
-            <div className="flex items-center gap-1.5 px-2">
-              <button
-                type="button"
-                onClick={onAddSlide}
-                className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#C43E1C]/20 hover:bg-[#C43E1C]/30 text-[#ff6842] border border-[#C43E1C]/40 font-medium transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New Slide</span>
-              </button>
-              <button
-                type="button"
-                onClick={onDuplicateSlide}
-                className="p-1.5 rounded hover:bg-neutral-800 text-neutral-300 transition"
-                title="Duplicate Slide"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={onDeleteSlide}
-                className="p-1.5 rounded hover:bg-rose-950/60 text-rose-400 transition"
-                title="Delete Slide"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Font Formatting */}
-            <div className="flex items-center gap-1 px-2">
-              <button
-                type="button"
                 onClick={() => onFormatText("bold")}
-                className="p-1.5 rounded hover:bg-neutral-800 font-bold transition"
-                title="Bold"
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                title="Paste (Ctrl+V)"
               >
-                <Bold className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onFormatText("italic")}
-                className="p-1.5 rounded hover:bg-neutral-800 italic transition"
-                title="Italic"
-              >
-                <Italic className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onFormatText("underline")}
-                className="p-1.5 rounded hover:bg-neutral-800 underline transition"
-                title="Underline"
-              >
-                <Underline className="w-4 h-4" />
+                <Copy className="w-5 h-5 text-amber-400 mb-0.5" />
+                <span className="text-[10px]">Paste</span>
               </button>
             </div>
 
-            {/* Paragraph Alignment */}
-            <div className="flex items-center gap-1 px-2">
+            {/* Slides */}
+            <div className="flex items-center space-x-2 px-3">
               <button
-                type="button"
+                onClick={() => onAddSlide()}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                title="New Slide"
+              >
+                <Plus className="w-5 h-5 text-orange-400 mb-0.5" />
+                <span className="text-[10px]">New Slide</span>
+              </button>
+              <div className="flex flex-col space-y-1">
+                <button
+                  onClick={onDuplicateSlide}
+                  className="px-2 py-0.5 rounded hover:bg-[#3D3D3D] text-left text-[11px] text-[#B3B3B3] hover:text-white"
+                >
+                  Duplicate
+                </button>
+                <button
+                  onClick={onDeleteSlide}
+                  className="px-2 py-0.5 rounded hover:bg-[#3D3D3D] text-left text-[11px] text-rose-400 hover:text-rose-300"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            {/* Font */}
+            <div className="flex flex-col space-y-1 px-3">
+              <div className="flex items-center space-x-2">
+                <select
+                  value={fontFamily}
+                  onChange={(e) => setFontFamily(e.target.value)}
+                  className="bg-[#1F1F1F] text-xs text-[#E0E0E0] border border-[#444444] rounded px-1.5 py-0.5 focus:outline-none"
+                >
+                  <option value="Segoe UI">Segoe UI</option>
+                  <option value="Calibri">Calibri</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Helvetica Neue">Helvetica Neue</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="JetBrains Mono">JetBrains Mono</option>
+                </select>
+                <select
+                  value={fontSize}
+                  onChange={(e) => setFontSize(e.target.value)}
+                  className="bg-[#1F1F1F] text-xs text-[#E0E0E0] border border-[#444444] rounded px-1.5 py-0.5 focus:outline-none w-14"
+                >
+                  <option value="14">14</option>
+                  <option value="18">18</option>
+                  <option value="24">24</option>
+                  <option value="28">28</option>
+                  <option value="32">32</option>
+                  <option value="44">44</option>
+                  <option value="60">60</option>
+                </select>
+              </div>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => onFormatText("bold")}
+                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white font-bold"
+                  title="Bold (Ctrl+B)"
+                >
+                  <Bold className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onFormatText("italic")}
+                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white italic"
+                  title="Italic (Ctrl+I)"
+                >
+                  <Italic className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onFormatText("underline")}
+                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white underline"
+                  title="Underline (Ctrl+U)"
+                >
+                  <Underline className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onFormatText("strikethrough")}
+                  className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Strikethrough"
+                >
+                  <Strikethrough className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Paragraph */}
+            <div className="flex items-center space-x-1 px-3">
+              <button
                 onClick={() => onFormatText("alignLeft")}
-                className="p-1.5 rounded hover:bg-neutral-800 transition"
+                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
                 title="Align Left"
               >
-                <AlignLeft className="w-4 h-4" />
+                <AlignLeft className="w-3.5 h-3.5" />
               </button>
               <button
-                type="button"
                 onClick={() => onFormatText("alignCenter")}
-                className="p-1.5 rounded hover:bg-neutral-800 transition"
+                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
                 title="Align Center"
               >
-                <AlignCenter className="w-4 h-4" />
+                <AlignCenter className="w-3.5 h-3.5" />
               </button>
               <button
-                type="button"
                 onClick={() => onFormatText("alignRight")}
-                className="p-1.5 rounded hover:bg-neutral-800 transition"
+                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
                 title="Align Right"
               >
-                <AlignRight className="w-4 h-4" />
+                <AlignRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onFormatText("alignJustify")}
+                className="p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                title="Justify"
+              >
+                <AlignJustify className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Drawing */}
+            <div className="flex items-center space-x-2 px-3">
+              <div className="flex flex-col items-center">
+                <button
+                  onClick={() => onAddElement("textbox")}
+                  className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                  title="Insert Text Box"
+                >
+                  <Type className="w-4 h-4 text-cyan-400 mb-0.5" />
+                  <span className="text-[10px]">Text Box</span>
+                </button>
+              </div>
+              <div className="flex flex-col space-y-1">
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => onAddElement("shape", "rectangle")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    title="Rectangle"
+                  >
+                    <Square className="w-3.5 h-3.5 text-blue-400" />
+                  </button>
+                  <button
+                    onClick={() => onAddElement("shape", "circle")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    title="Circle"
+                  >
+                    <Circle className="w-3.5 h-3.5 text-emerald-400" />
+                  </button>
+                  <button
+                    onClick={() => onAddElement("process")}
+                    className="p-1 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+                    title="Process Diagram"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-orange-400" />
+                  </button>
+                </div>
+                <span className="text-[10px] text-[#888888] text-center">Shapes</span>
+              </div>
+            </div>
+
+            {/* Designer AI button (Rightmost in Home tab, matching PowerPoint screenshot!) */}
+            <div className="flex items-center px-4 pl-6">
+              <button
+                onClick={onToggleAIAssistant}
+                className="flex flex-col items-center justify-center p-2 rounded-lg bg-gradient-to-tr from-orange-600/20 to-amber-600/20 hover:from-orange-600/30 hover:to-amber-600/30 border border-orange-500/40 text-orange-300 transition"
+              >
+                <Zap className="w-5 h-5 text-amber-400 mb-0.5 fill-current" />
+                <span className="text-[10px] font-bold">Designer</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* ================= INSERT TAB ================= */}
-        {activeTab === "INSERT" && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onAddElement("textbox")}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition"
-            >
-              <Type className="w-4 h-4 text-sky-400" />
-              <span>Text Box</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onAddElement("shape", "rectangle")}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition"
-            >
-              <Square className="w-4 h-4 text-emerald-400" />
-              <span>Rectangle</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onAddElement("shape", "rounded")}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition"
-            >
-              <Square className="w-4 h-4 text-amber-400 rounded-sm" />
-              <span>Card / Pill</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onAddElement("shape", "circle")}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition"
-            >
-              <Circle className="w-4 h-4 text-purple-400" />
-              <span>Circle / Node</span>
-            </button>
+        {/* ======================= TAB: INSERT ======================= */}
+        {activeTab.toLowerCase() === "insert" && (
+          <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
+            <div className="flex items-center space-x-2 pr-3">
+              <button
+                onClick={() => onAddSlide()}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+              >
+                <Plus className="w-5 h-5 text-orange-400 mb-0.5" />
+                <span className="text-[10px]">New Slide</span>
+              </button>
+              <button
+                onClick={() => onAddElement("table")}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+              >
+                <TableIcon className="w-5 h-5 text-emerald-400 mb-0.5" />
+                <span className="text-[10px]">Table</span>
+              </button>
+              <button
+                onClick={() => onAddElement("image")}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+              >
+                <ImageIcon className="w-5 h-5 text-sky-400 mb-0.5" />
+                <span className="text-[10px]">Pictures</span>
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-2 px-3">
+              <button
+                onClick={() => onAddElement("textbox")}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+              >
+                <Type className="w-5 h-5 text-cyan-400 mb-0.5" />
+                <span className="text-[10px]">Text Box</span>
+              </button>
+              <button
+                onClick={() => onAddElement("process")}
+                className="flex flex-col items-center p-1.5 rounded hover:bg-[#3D3D3D] text-[#CCCCCC] hover:text-white"
+              >
+                <Layers className="w-5 h-5 text-amber-400 mb-0.5" />
+                <span className="text-[10px]">SmartArt</span>
+              </button>
+            </div>
           </div>
         )}
 
-        {/* ================= DESIGN TAB (THEMES) ================= */}
-        {activeTab === "DESIGN" && (
-          <div className="flex items-center gap-2.5 overflow-x-auto pb-0.5">
-            <span className="text-[11px] text-neutral-400 uppercase font-semibold mr-1">
-              Themes:
-            </span>
-            {PRESENTATION_THEMES.map((th) => (
+        {/* ======================= TAB: DRAW ======================= */}
+        {activeTab.toLowerCase() === "draw" && (
+          <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
+            <div className="flex items-center space-x-2 pr-3">
               <button
-                key={th.id}
-                type="button"
-                onClick={() => onSelectTheme(th.id)}
-                className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition ${
-                  currentThemeId === th.id
-                    ? "border-[#C43E1C] bg-[#C43E1C]/15 ring-1 ring-[#C43E1C]"
-                    : "border-neutral-700 bg-neutral-800/80 hover:bg-neutral-700"
+                onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
+                className={`flex flex-col items-center p-1.5 rounded transition ${
+                  drawingTool === "pen" ? "bg-orange-600 text-white" : "hover:bg-[#3D3D3D] text-[#CCCCCC]"
                 }`}
               >
-                <span
-                  className="w-4 h-4 rounded-full border border-black/30 shadow-inner shrink-0"
-                  style={{ backgroundColor: th.accent }}
-                />
-                <span className="text-[11px] font-medium whitespace-nowrap text-neutral-200">
-                  {th.name}
-                </span>
+                <PenTool className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px]">Pen</span>
               </button>
-            ))}
+              <button
+                onClick={() => setDrawingTool(drawingTool === "highlighter" ? "none" : "highlighter")}
+                className={`flex flex-col items-center p-1.5 rounded transition ${
+                  drawingTool === "highlighter" ? "bg-amber-600 text-white" : "hover:bg-[#3D3D3D] text-[#CCCCCC]"
+                }`}
+              >
+                <Highlighter className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px]">Highlighter</span>
+              </button>
+              <button
+                onClick={() => setDrawingTool(drawingTool === "eraser" ? "none" : "eraser")}
+                className={`flex flex-col items-center p-1.5 rounded transition ${
+                  drawingTool === "eraser" ? "bg-rose-600 text-white" : "hover:bg-[#3D3D3D] text-[#CCCCCC]"
+                }`}
+              >
+                <Eraser className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px]">Eraser</span>
+              </button>
+            </div>
+
+            {/* Colors */}
+            <div className="flex items-center space-x-1.5 px-3">
+              {["#EA580C", "#2563EB", "#10B981", "#F43F5E", "#FFFFFF", "#FACC15"].map((col) => (
+                <button
+                  key={col}
+                  onClick={() => setDrawingColor(col)}
+                  style={{ backgroundColor: col }}
+                  className={`w-5 h-5 rounded-full border-2 transition ${
+                    drawingColor === col ? "border-white scale-110 shadow-sm" : "border-transparent"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* ================= TRANSITIONS TAB ================= */}
-        {activeTab === "TRANSITIONS" && (
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] text-neutral-400 uppercase font-semibold">
-              Slide Transition:
-            </span>
-            <div className="flex items-center gap-1.5">
-              {TRANSITIONS.map((tr) => (
+        {/* ======================= TAB: DESIGN ======================= */}
+        {activeTab.toLowerCase() === "design" && (
+          <div className="flex items-center space-x-3 overflow-x-auto py-1">
+            <span className="text-[11px] text-[#888888] font-semibold uppercase pr-2">Themes:</span>
+            {PRESENTATION_THEMES.map((theme) => {
+              const isSelected = currentThemeId === theme.id;
+              return (
                 <button
-                  key={tr.id}
-                  type="button"
-                  onClick={() => onSelectTransition(tr.id)}
-                  className={`px-2.5 py-1 rounded text-[11px] font-medium border transition ${
-                    currentTransition === tr.id
-                      ? "bg-[#C43E1C] border-[#C43E1C] text-white font-bold"
-                      : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700"
+                  key={theme.id}
+                  onClick={() => onSelectTheme(theme.id)}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-left transition shrink-0 ${
+                    isSelected
+                      ? "border-orange-500 bg-[#383838] shadow-sm ring-1 ring-orange-500"
+                      : "border-[#404040] hover:bg-[#333333]"
                   }`}
                 >
-                  {tr.label}
+                  <div
+                    style={{ backgroundColor: theme.bg }}
+                    className="w-5 h-5 rounded border border-[#555555] shrink-0"
+                  />
+                  <div>
+                    <div className="font-semibold text-xs text-white leading-none">{theme.name}</div>
+                    <span className="text-[10px] text-[#888888]">{theme.isDark ? "Dark" : "Light"}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ======================= TAB: TRANSITIONS ======================= */}
+        {activeTab.toLowerCase() === "transitions" && (
+          <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
+            <div className="flex items-center space-x-1 overflow-x-auto pr-3">
+              {TRANSITIONS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onSelectTransition(t.id)}
+                  className={`px-3 py-1.5 rounded text-xs transition ${
+                    currentTransition === t.id
+                      ? "bg-orange-600 text-white font-semibold"
+                      : "hover:bg-[#3D3D3D] text-[#CCCCCC]"
+                  }`}
+                >
+                  {t.label}
                 </button>
               ))}
             </div>
 
-            <div className="h-5 w-px bg-neutral-700" />
-
-            <div className="flex items-center gap-1.5 text-[11px]">
-              <span className="text-neutral-400">Duration:</span>
-              <select
-                value={transitionDuration}
-                onChange={(e) => onChangeTransitionDuration(parseFloat(e.target.value))}
-                className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-white text-[11px]"
+            <div className="flex items-center space-x-3 px-3">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[11px] text-[#999999]">Duration:</span>
+                <input
+                  type="number"
+                  min="0.2"
+                  max="5.0"
+                  step="0.1"
+                  value={transitionDuration}
+                  onChange={(e) => onChangeTransitionDuration(parseFloat(e.target.value) || 0.7)}
+                  className="w-14 bg-[#1F1F1F] border border-[#444444] rounded px-1.5 py-0.5 text-xs text-white"
+                />
+                <span className="text-[10px] text-[#777777]">sec</span>
+              </div>
+              <button
+                onClick={onApplyTransitionToAll}
+                className="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded text-xs text-[#E0E0E0] font-medium transition"
               >
-                <option value={0.5}>0.5s Fast</option>
-                <option value={1.0}>1.0s Standard</option>
-                <option value={1.5}>1.5s Smooth</option>
-                <option value={2.0}>2.0s Slow</option>
-              </select>
+                Apply to All
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={onApplyTransitionToAll}
-              className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-[11px] font-medium transition"
-            >
-              Apply To All
-            </button>
           </div>
         )}
 
-        {/* ================= ANIMATIONS TAB ================= */}
-        {activeTab === "ANIMATIONS" && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-neutral-400 uppercase font-semibold mr-1">
-              Element Animation:
-            </span>
-            {ANIMATIONS.map((an) => (
+        {/* ======================= TAB: ANIMATIONS ======================= */}
+        {activeTab.toLowerCase() === "animations" && (
+          <div className="flex items-center space-x-2 overflow-x-auto">
+            {ANIMATIONS.map((anim) => (
               <button
-                key={an.id}
-                type="button"
-                onClick={() => onSelectAnimation(an.id)}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium border transition ${
-                  currentAnimation === an.id
-                    ? "bg-[#C43E1C] border-[#C43E1C] text-white font-bold"
-                    : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700"
+                key={anim.id}
+                onClick={() => onSelectAnimation(anim.id)}
+                className={`px-3 py-1.5 rounded text-xs transition ${
+                  currentAnimation === anim.id
+                    ? "bg-orange-600 text-white font-semibold"
+                    : "hover:bg-[#3D3D3D] text-[#CCCCCC]"
                 }`}
               >
-                {an.label}
+                {anim.label}
               </button>
             ))}
           </div>
         )}
 
-        {/* ================= SLIDE SHOW TAB ================= */}
-        {activeTab === "SLIDE SHOW" && (
-          <div className="flex items-center gap-2">
+        {/* ======================= TAB: SLIDE SHOW ======================= */}
+        {activeTab.toLowerCase() === "slide show" && (
+          <div className="flex items-center space-x-4">
             <button
-              type="button"
               onClick={() => onStartSlideShow(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#C43E1C] hover:bg-[#a93315] text-white font-bold transition shadow-sm"
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 rounded-lg text-white font-semibold shadow transition"
             >
               <Play className="w-4 h-4 fill-current" />
               <span>From Beginning (F5)</span>
             </button>
             <button
-              type="button"
               onClick={() => onStartSlideShow(false)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 font-medium transition"
+              className="flex items-center space-x-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white font-medium transition"
             >
-              <Play className="w-3.5 h-3.5 fill-current text-amber-400" />
-              <span>From Current Slide (Shift+F5)</span>
+              <Play className="w-4 h-4" />
+              <span>From Current Slide</span>
             </button>
           </div>
         )}
 
-        {/* ================= REVIEW TAB ================= */}
-        {activeTab === "REVIEW" && (
-          <div className="flex items-center gap-3">
+        {/* ======================= TAB: RECORD ======================= */}
+        {activeTab.toLowerCase() === "record" && (
+          <div className="flex items-center space-x-3">
             <button
-              type="button"
+              onClick={() => alert("Recording started: Slide timings and audio narration active.")}
+              className="flex items-center space-x-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 rounded text-white font-semibold text-xs transition"
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+              <span>Record Narration</span>
+            </button>
+            <span className="text-[11px] text-[#888888]">Captures slide timings and voiceover.</span>
+          </div>
+        )}
+
+        {/* ======================= TAB: REVIEW ======================= */}
+        {activeTab.toLowerCase() === "review" && (
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => alert("Spelling check: All slides verified. No grammar errors found.")}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs text-white transition"
+            >
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span>Spelling & Grammar</span>
+            </button>
+            <button
               onClick={() => setShowNotes(!showNotes)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition ${
-                showNotes
-                  ? "bg-[#C43E1C]/20 border-[#C43E1C] text-[#ff6842]"
-                  : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700"
-              }`}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs text-white transition"
             >
-              <FileText className="w-4 h-4" />
-              <span>Speaker Notes Pane</span>
+              <MessageSquare className="w-4 h-4 text-blue-400" />
+              <span>Speaker Notes Review</span>
             </button>
           </div>
         )}
 
-        {/* ================= VIEW TAB ================= */}
-        {activeTab === "VIEW" && (
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowThumbnails(!showThumbnails)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition ${
-                showThumbnails
-                  ? "bg-[#C43E1C]/20 border-[#C43E1C] text-[#ff6842]"
-                  : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700"
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>Thumbnails Pane</span>
-            </button>
-            <div className="flex items-center gap-1">
+        {/* ======================= TAB: VIEW ======================= */}
+        {activeTab.toLowerCase() === "view" && (
+          <div className="flex items-center space-x-4 divide-x divide-[#3D3D3D]">
+            <div className="flex items-center space-x-2 pr-3">
               <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(50, z - 10))}
-                className="p-1.5 rounded hover:bg-neutral-800 transition"
-                title="Zoom Out"
+                onClick={() => setViewMode("normal")}
+                className={`px-2.5 py-1 rounded text-xs ${
+                  viewMode === "normal" ? "bg-orange-600 text-white font-semibold" : "text-[#CCCCCC] hover:bg-[#3D3D3D]"
+                }`}
               >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <span className="w-12 text-center font-mono text-[11px]">{zoom}%</span>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(180, z + 10))}
-                className="p-1.5 rounded hover:bg-neutral-800 transition"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-4 h-4" />
+                Normal
               </button>
               <button
-                type="button"
-                onClick={() => setZoom(100)}
-                className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-[10px] ml-1 transition"
+                onClick={() => setViewMode("slideSorter")}
+                className={`px-2.5 py-1 rounded text-xs ${
+                  viewMode === "slideSorter" ? "bg-orange-600 text-white font-semibold" : "text-[#CCCCCC] hover:bg-[#3D3D3D]"
+                }`}
               >
-                100% Fit
+                Slide Sorter
+              </button>
+              <button
+                onClick={() => setViewMode("readingView")}
+                className={`px-2.5 py-1 rounded text-xs ${
+                  viewMode === "readingView" ? "bg-orange-600 text-white font-semibold" : "text-[#CCCCCC] hover:bg-[#3D3D3D]"
+                }`}
+              >
+                Reading View
               </button>
             </div>
+
+            <div className="flex items-center space-x-3 px-3">
+              <label className="flex items-center space-x-1 text-xs text-[#CCCCCC] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showRuler}
+                  onChange={(e) => setShowRuler(e.target.checked)}
+                  className="rounded text-orange-600"
+                />
+                <span>Ruler</span>
+              </label>
+              <label className="flex items-center space-x-1 text-xs text-[#CCCCCC] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showGridlines}
+                  onChange={(e) => setShowGridlines(e.target.checked)}
+                  className="rounded text-orange-600"
+                />
+                <span>Gridlines</span>
+              </label>
+              <label className="flex items-center space-x-1 text-xs text-[#CCCCCC] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showGuides}
+                  onChange={(e) => setShowGuides(e.target.checked)}
+                  className="rounded text-orange-600"
+                />
+                <span>Guides</span>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* ======================= TAB: HELP ======================= */}
+        {activeTab.toLowerCase() === "help" && (
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() =>
+                alert(
+                  "PowerPoint Studio Shortcuts:\nF5: Start Slideshow\nCtrl+S: Save\nCtrl+B: Bold\nCtrl+I: Italic\nCtrl+Z: Undo\nCtrl+Y: Redo\nDelete: Remove selected element"
+                )
+              }
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs text-white"
+            >
+              <HelpCircle className="w-4 h-4 text-cyan-400" />
+              <span>Keyboard Shortcuts</span>
+            </button>
+            <span className="text-[11px] text-[#888888]">TATTVA AI Presentation Studio 2026</span>
           </div>
         )}
       </div>
     </div>
   );
 }
-

@@ -1,7 +1,17 @@
 "use client";
 
-import React from "react";
-import { Plus, Copy, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Plus,
+  Copy,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Star,
+  Eye,
+  EyeOff,
+  MoreVertical,
+} from "lucide-react";
 import { StudioSlide, PresentationTheme } from "./types";
 
 interface SlideThumbnailPanelProps {
@@ -13,6 +23,7 @@ interface SlideThumbnailPanelProps {
   onDeleteSlide: (index: number) => void;
   onMoveSlide: (fromIndex: number, toIndex: number) => void;
   theme: PresentationTheme;
+  onToggleHideSlide?: (index: number) => void;
 }
 
 export function SlideThumbnailPanel({
@@ -24,53 +35,83 @@ export function SlideThumbnailPanel({
   onDeleteSlide,
   onMoveSlide,
   theme,
+  onToggleHideSlide,
 }: SlideThumbnailPanelProps) {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.setData("text/plain", String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== targetIndex) {
+      onMoveSlide(draggedIndex, targetIndex);
+    }
+    setDraggedIndex(null);
+  };
+
   return (
-    <div className="w-32 sm:w-52 border-r border-neutral-800 bg-[#141414] flex flex-col shrink-0 select-none">
-      {/* Header with New Slide button */}
-      <div className="p-2 border-b border-neutral-800/80 flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+    <div className="w-36 sm:w-56 border-r border-[#2B2B2B] bg-[#1E1E1E] flex flex-col shrink-0 select-none">
+      {/* Header */}
+      <div className="p-2 border-b border-[#2D2D2D] flex items-center justify-between bg-[#252525]">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[#A0A0A0]">
           Slides ({slides.length})
         </span>
         <button
           type="button"
           onClick={onAddSlide}
-          className="p-1 rounded bg-[#C43E1C]/20 text-[#ff6842] hover:bg-[#C43E1C]/40 transition active:scale-95 flex items-center gap-1 text-[11px] font-semibold px-2"
+          className="p-1 rounded bg-[#EA580C]/20 text-[#FF7A33] hover:bg-[#EA580C]/30 transition active:scale-95 flex items-center gap-1 text-[11px] font-semibold px-2 border border-[#EA580C]/30"
           title="Add New Slide"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Add</span>
+          <span className="hidden sm:inline">New Slide</span>
         </button>
       </div>
 
-      {/* Thumbnails Scrollable List */}
-      <div className="flex-1 p-2 overflow-y-auto space-y-2.5 scrollbar-thin scrollbar-thumb-neutral-700">
+      {/* Thumbnails List */}
+      <div className="flex-1 p-2 overflow-y-auto space-y-2.5 scrollbar-thin scrollbar-thumb-[#444444]">
         {slides.map((slide, idx) => {
           const isActive = idx === currentSlideIndex;
+          const isHidden = Boolean(slide.isHidden);
+
           return (
             <div
               key={slide.id || idx}
-              className={`group relative flex items-start gap-1.5 p-1 rounded-xl transition cursor-pointer ${
+              draggable
+              onDragStart={(e) => handleDragStart(e, idx)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, idx)}
+              className={`group relative flex items-start gap-1.5 p-1 rounded-lg transition cursor-pointer ${
                 isActive
-                  ? "bg-[#C43E1C]/15 border-2 border-[#C43E1C] shadow-lg shadow-black/40"
-                  : "hover:bg-neutral-800/70 border border-neutral-800/80"
-              }`}
+                  ? "bg-[#EA580C]/15 border-2 border-[#EA580C] shadow-lg shadow-black/50"
+                  : "hover:bg-[#2A2A2A] border border-[#333333]"
+              } ${isHidden ? "opacity-50" : ""}`}
               onClick={() => onSelectSlide(idx)}
             >
-              {/* Slide Number */}
-              <span className="text-[10px] font-mono font-bold text-neutral-400 w-4 text-right pt-1 shrink-0">
-                {idx + 1}
-              </span>
+              {/* Left Column: Slide Number + Transition Star */}
+              <div className="flex flex-col items-center w-4 pt-1 shrink-0">
+                <span className="text-[11px] font-mono font-bold text-[#888888]">
+                  {idx + 1}
+                </span>
+                {/* Transition star indicator matching PowerPoint screenshot */}
+                <span className="text-[8px] text-[#A0A0A0] mt-0.5">★</span>
+              </div>
 
               {/* 16:9 Thumbnail Canvas Preview */}
               <div
-                className="flex-1 aspect-[16/9] rounded-lg border border-neutral-700/60 p-1.5 flex flex-col justify-between overflow-hidden shadow-inner relative"
+                className="flex-1 aspect-[16/9] rounded border border-[#444444] p-1.5 flex flex-col justify-between overflow-hidden shadow-inner relative"
                 style={{
-                  backgroundColor: theme.bg || "#0F172A",
+                  backgroundColor: slide.background || theme.bg || "#0F172A",
                   color: theme.text || "#FFFFFF",
                 }}
               >
-                {/* Micro Category Pill */}
+                {/* Category Pill */}
                 <span
                   className="text-[6px] font-bold uppercase px-1 py-0.2 rounded w-fit"
                   style={{ backgroundColor: `${theme.accent}33`, color: theme.accent }}
@@ -78,25 +119,25 @@ export function SlideThumbnailPanel({
                   {slide.category || "SLIDE"}
                 </span>
 
-                {/* Micro Title */}
-                <div className="text-[7.5px] font-bold truncate leading-tight mt-0.5">
+                {/* Title */}
+                <div className="text-[8px] font-bold truncate leading-tight mt-0.5 text-white">
                   {slide.title || `Slide ${idx + 1}`}
                 </div>
 
-                {/* Micro Bullet lines preview */}
+                {/* Process Dots / Mini bullets */}
                 <div className="space-y-0.5 my-auto">
-                  <div className="h-0.5 w-4/5 bg-neutral-600/60 rounded" />
-                  <div className="h-0.5 w-3/5 bg-neutral-700/50 rounded" />
+                  <div className="h-0.5 w-4/5 bg-slate-500/60 rounded" />
+                  <div className="h-0.5 w-3/5 bg-slate-600/50 rounded" />
                 </div>
 
-                {/* Micro Footer Indicator */}
+                {/* Slide Number in bottom right */}
                 <div className="text-[5.5px] text-right font-mono opacity-50">
-                  {idx + 1} / {slides.length}
+                  {idx + 1}
                 </div>
               </div>
 
-              {/* Hover Quick Action Menu (Desktop) */}
-              <div className="absolute right-1.5 top-1.5 hidden group-hover:flex items-center gap-0.5 bg-neutral-900/90 rounded px-1 py-0.5 border border-neutral-700 shadow-md z-10">
+              {/* Hover Actions (Move Up / Down, Duplicate, Delete) */}
+              <div className="absolute right-1.5 top-1.5 hidden group-hover:flex items-center gap-0.5 bg-[#181818]/95 rounded px-1 py-0.5 border border-[#444444] shadow-md z-10">
                 <button
                   type="button"
                   disabled={idx === 0}
@@ -104,8 +145,8 @@ export function SlideThumbnailPanel({
                     e.stopPropagation();
                     onMoveSlide(idx, idx - 1);
                   }}
+                  className="p-1 hover:text-white text-[#AAAAAA] disabled:opacity-20"
                   title="Move Up"
-                  className="p-0.5 hover:text-white text-neutral-400 disabled:opacity-30"
                 >
                   <ArrowUp className="w-2.5 h-2.5" />
                 </button>
@@ -116,8 +157,8 @@ export function SlideThumbnailPanel({
                     e.stopPropagation();
                     onMoveSlide(idx, idx + 1);
                   }}
+                  className="p-1 hover:text-white text-[#AAAAAA] disabled:opacity-20"
                   title="Move Down"
-                  className="p-0.5 hover:text-white text-neutral-400 disabled:opacity-30"
                 >
                   <ArrowDown className="w-2.5 h-2.5" />
                 </button>
@@ -127,24 +168,23 @@ export function SlideThumbnailPanel({
                     e.stopPropagation();
                     onDuplicateSlide(idx);
                   }}
-                  title="Duplicate"
-                  className="p-0.5 hover:text-white text-neutral-400"
+                  className="p-1 hover:text-white text-[#AAAAAA]"
+                  title="Duplicate Slide"
                 >
                   <Copy className="w-2.5 h-2.5" />
                 </button>
-                {slides.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteSlide(idx);
-                    }}
-                    title="Delete"
-                    className="p-0.5 hover:text-rose-400 text-neutral-400"
-                  >
-                    <Trash2 className="w-2.5 h-2.5" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={slides.length <= 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteSlide(idx);
+                  }}
+                  className="p-1 hover:text-rose-400 text-[#AAAAAA] disabled:opacity-20"
+                  title="Delete Slide"
+                >
+                  <Trash2 className="w-2.5 h-2.5" />
+                </button>
               </div>
             </div>
           );
@@ -153,4 +193,3 @@ export function SlideThumbnailPanel({
     </div>
   );
 }
-
