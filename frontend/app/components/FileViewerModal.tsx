@@ -47,6 +47,7 @@ import {
   Grid,
 } from "lucide-react";
 import { triggerDownload } from "../lib/download-helper";
+import { PresentationStudio } from "./presentation-studio/PresentationStudio";
 
 export interface SlideItem {
   number?: number;
@@ -815,13 +816,13 @@ export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModa
       <div className="relative w-full h-full max-w-7xl max-h-[96vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden border border-neutral-700/60 bg-neutral-950 text-neutral-100">
         {/* Format-Dedicated Application Shell */}
         {isPpt ? (
-          <PowerPointViewer
-            file={file}
-            blobUrl={blobUrl}
+          <PresentationStudio
+            initialTitle={file.title || file.filename}
+            initialSlides={file.slides}
+            downloadUrl={file.downloadUrl || blobUrl || undefined}
+            vaultFileId={file.fileId}
             onClose={onClose}
-            onDownload={handleDownload}
             onOpenWith={handleOpenWithClick}
-            isDark={isDark}
           />
         ) : isSheet ? (
           <ExcelViewer

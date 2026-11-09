@@ -1218,7 +1218,12 @@ Respond strictly with valid JSON conforming to this schema:
 }`;
 
       // Call Gemini with resilient multi-model fallback
-      const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
+      const candidateModels = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.8-flash",
+      ];
       let text = "";
 
       for (const modelId of candidateModels) {
@@ -1248,8 +1253,21 @@ Respond strictly with valid JSON conforming to this schema:
       const jsonStart = text.indexOf("{");
       const jsonEnd = text.lastIndexOf("}");
       if (jsonStart !== -1 && jsonEnd !== -1) {
-        const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-        const rawMechanisms = Array.isArray(parsed.coreMechanisms) ? parsed.coreMechanisms : [];
+        let rawSlice = text.slice(jsonStart, jsonEnd + 1);
+        let parsed: any;
+        try {
+          parsed = JSON.parse(rawSlice);
+        } catch {
+          try {
+            // Repair unescaped LaTeX/control backslashes
+            const sanitized = rawSlice.replace(/\\([^"\\\/bfnrtu])/g, "\\\\$1");
+            parsed = JSON.parse(sanitized);
+          } catch {
+            parsed = null;
+          }
+        }
+        if (parsed) {
+          const rawMechanisms = Array.isArray(parsed.coreMechanisms) ? parsed.coreMechanisms : [];
         const dossier: ResearchDossier = {
           topic,
           subtopics: Array.isArray(parsed.subtopics) ? parsed.subtopics : [topic],
@@ -1274,6 +1292,7 @@ Respond strictly with valid JSON conforming to this schema:
 
         researchCache.set(cacheKey, { dossier, timestamp: Date.now() });
         return dossier;
+        }
       }
     } catch (researchErr) {
       console.warn("[TATTVA Research Engine] Live research failed, checking verified domain knowledge:", researchErr);

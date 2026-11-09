@@ -10,6 +10,7 @@ import json
 import base64
 import io
 import os
+import zipfile
 
 try:
     from pptx import Presentation
@@ -101,6 +102,15 @@ def generate_pptx(payload):
     subtitle = payload.get("subtitle", "Comprehensive Analysis & Strategic Overview")
     author = payload.get("author", "TATTVA AI Intelligence Suite")
     organization = payload.get("organization", "TATTVA AI")
+
+    # Theme Settings
+    theme = payload.get("theme", {})
+    bg_hex = theme.get("bg", "FFFFFF").lstrip("#")
+    is_dark = theme.get("isDark", False) or bg_hex.lower() in ["0f172a", "1e1e1e", "000000", "111827", "18181b"]
+    text_hex = theme.get("text", "F8FAFC" if is_dark else "0F172A").lstrip("#")
+    accent_hex = theme.get("accent", "2563EB").lstrip("#")
+    subtext_hex = "94A3B8" if is_dark else "475569"
+
     raw_slides = payload.get("slides", [])
     content_slides = raw_slides
     if len(content_slides) > 0:
@@ -112,10 +122,16 @@ def generate_pptx(payload):
     # 1. Slide 1: Executive Title Slide
     slide1 = prs.slides.add_slide(blank_layout)
 
+    if is_dark:
+        bg1 = slide1.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.333), Inches(7.5))
+        bg1.fill.solid()
+        bg1.fill.fore_color.rgb = hex_to_rgb(bg_hex)
+        bg1.line.fill.background()
+
     # Accent Top Stripe
     stripe = slide1.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(13.333), Inches(0.15))
     stripe.fill.solid()
-    stripe.fill.fore_color.rgb = hex_to_rgb("2563EB")
+    stripe.fill.fore_color.rgb = hex_to_rgb(accent_hex)
     stripe.line.fill.background()
 
     # Kicker Badge
@@ -126,7 +142,7 @@ def generate_pptx(payload):
     p_badge.text = "EXECUTIVE BRIEF • TATTVA AI INTELLIGENCE SUITE"
     p_badge.font.size = Pt(11)
     p_badge.font.bold = True
-    p_badge.font.color.rgb = hex_to_rgb("2563EB")
+    p_badge.font.color.rgb = hex_to_rgb(accent_hex)
 
     # Title Box
     title_box = slide1.shapes.add_textbox(Inches(1.2), Inches(2.3), Inches(10.9), Inches(2.2))
@@ -136,7 +152,7 @@ def generate_pptx(payload):
     p_title.text = title
     p_title.font.size = Pt(40)
     p_title.font.bold = True
-    p_title.font.color.rgb = hex_to_rgb("0F172A")
+    p_title.font.color.rgb = hex_to_rgb(text_hex)
 
     # Subtitle Box
     sub_box = slide1.shapes.add_textbox(Inches(1.2), Inches(4.5), Inches(10.9), Inches(1.2))
@@ -145,7 +161,7 @@ def generate_pptx(payload):
     p_sub = tf_sub.paragraphs[0]
     p_sub.text = subtitle
     p_sub.font.size = Pt(18)
-    p_sub.font.color.rgb = hex_to_rgb("475569")
+    p_sub.font.color.rgb = hex_to_rgb(subtext_hex)
 
     # Author / Metadata Footer
     meta_box = slide1.shapes.add_textbox(Inches(1.2), Inches(6.3), Inches(10.9), Inches(0.5))
@@ -160,10 +176,16 @@ def generate_pptx(payload):
     for idx, s_data in enumerate(content_slides, 2):
         slide = prs.slides.add_slide(blank_layout)
 
-        # Subtle top accent bar
+        if is_dark:
+            bgs = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, Inches(13.333), Inches(7.5))
+            bgs.fill.solid()
+            bgs.fill.fore_color.rgb = hex_to_rgb(bg_hex)
+            bgs.line.fill.background()
+
+        # Top accent bar
         top_bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(13.333), Inches(0.08))
         top_bar.fill.solid()
-        top_bar.fill.fore_color.rgb = hex_to_rgb("3B82F6")
+        top_bar.fill.fore_color.rgb = hex_to_rgb(accent_hex)
         top_bar.line.fill.background()
 
         # Category Kicker
@@ -174,7 +196,7 @@ def generate_pptx(payload):
         p_cat.text = cat_text.upper()
         p_cat.font.size = Pt(10)
         p_cat.font.bold = True
-        p_cat.font.color.rgb = hex_to_rgb("2563EB")
+        p_cat.font.color.rgb = hex_to_rgb(accent_hex)
 
         # Slide Title
         slide_title = s_data.get("title", f"Key Insights {idx-1}")
@@ -185,7 +207,7 @@ def generate_pptx(payload):
         p_st.text = slide_title
         p_st.font.size = Pt(26)
         p_st.font.bold = True
-        p_st.font.color.rgb = hex_to_rgb("0F172A")
+        p_st.font.color.rgb = hex_to_rgb(text_hex)
 
         # Bullets
         bullets = s_data.get("bullets", [])
@@ -201,9 +223,39 @@ def generate_pptx(payload):
                 p_b = tf_b.paragraphs[0] if b_idx == 0 else tf_b.add_paragraph()
                 p_b.text = f"•  {bullet}"
                 p_b.font.size = Pt(16)
-                p_b.font.color.rgb = hex_to_rgb("334155")
+                p_b.font.color.rgb = hex_to_rgb(subtext_hex if is_dark else "334155")
                 p_b.space_before = Pt(10)
                 p_b.space_after = Pt(6)
+
+        # Elements (Custom shapes / text boxes)
+        elements = s_data.get("elements", [])
+        for el in elements:
+            el_type = el.get("type", "textbox")
+            ex = Inches(float(el.get("x", 1.0)))
+            ey = Inches(float(el.get("y", 1.0)))
+            ew = Inches(float(el.get("w", 4.0)))
+            eh = Inches(float(el.get("h", 2.0)))
+            if el_type == "shape":
+                shp_type = MSO_SHAPE.ROUNDED_RECTANGLE if el.get("shape") == "rounded" else MSO_SHAPE.RECTANGLE
+                shp = slide.shapes.add_shape(shp_type, ex, ey, ew, eh)
+                shp.fill.solid()
+                shp.fill.fore_color.rgb = hex_to_rgb(el.get("fill", accent_hex))
+                shp.line.color.rgb = hex_to_rgb(el.get("border", accent_hex))
+            elif el_type == "textbox":
+                tb = slide.shapes.add_textbox(ex, ey, ew, eh)
+                tb.text_frame.word_wrap = True
+                ptb = tb.text_frame.paragraphs[0]
+                ptb.text = str(el.get("content", ""))
+                ptb.font.size = Pt(int(el.get("fontSize", 14)))
+                ptb.font.color.rgb = hex_to_rgb(el.get("color", text_hex))
+
+        # Speaker notes
+        notes_text = s_data.get("notes")
+        if notes_text:
+            try:
+                slide.notes_slide.notes_text_frame.text = str(notes_text)
+            except Exception:
+                pass
 
         # Footer
         footer_box = slide.shapes.add_textbox(Inches(0.9), Inches(6.7), Inches(11.5), Inches(0.4))
@@ -432,11 +484,44 @@ def validate_pptx(payload):
     try:
         raw_b64 = payload.get("base64", "")
         data = base64.b64decode(raw_b64)
+        if len(data) == 0:
+            return {"valid": False, "error": "Presentation file is missing or empty"}
+
+        # 1. ZIP Package Integrity Check
+        zip_buf = io.BytesIO(data)
+        with zipfile.ZipFile(zip_buf, "r") as archive:
+            if archive.testzip() is not None:
+                return {"valid": False, "error": "PPTX ZIP package is corrupted"}
+
+            required = [
+                "[Content_Types].xml",
+                "ppt/presentation.xml",
+                "ppt/_rels/presentation.xml.rels",
+            ]
+            for item in required:
+                if item not in archive.namelist():
+                    return {"valid": False, "error": f"Missing PPTX component: {item}"}
+
+            slide_files = [f for f in archive.namelist() if f.startswith("ppt/slides/slide") and f.endswith(".xml")]
+
+        # 2. PowerPoint Presentation Object Inspection
         prs = Presentation(io.BytesIO(data))
+        if len(prs.slides) == 0:
+            return {"valid": False, "error": "Presentation contains no slides"}
+
+        extracted_text = []
+        for s in prs.slides:
+            for shape in s.shapes:
+                if shape.has_text_frame and shape.text_frame.text:
+                    extracted_text.append(shape.text_frame.text.strip())
+
         return {
             "valid": True,
             "slideCount": len(prs.slides),
-            "sizeBytes": len(data)
+            "slideFilesCount": len(slide_files),
+            "sizeBytes": len(data),
+            "textExtracted": len(extracted_text) > 0,
+            "sampleHeadings": [t[:40] for t in extracted_text[:5]]
         }
     except Exception as e:
         return {"valid": False, "error": str(e)}
