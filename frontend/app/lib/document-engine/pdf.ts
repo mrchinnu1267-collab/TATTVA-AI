@@ -22,6 +22,28 @@ function escapePdfText(text: string): string {
     .replace(/[\r\n\t]/g, " ");
 }
 
+function cleanPdfText(raw: string): string {
+  if (!raw) return "";
+  let text = String(raw);
+  let prev = "";
+  let iterations = 0;
+  while (text !== prev && iterations < 10) {
+    prev = text;
+    iterations++;
+    text = text
+      .replace(/(?:\*\*\*|___)([\s\S]+?)(?:\*\*\*|___)/g, "$1")
+      .replace(/(?:\*\*|__)([\s\S]+?)(?:\*\*|__)/g, "$1")
+      .replace(/(?<!\*)\*(?!\*)([^\n]+?)(?<!\*)\*(?!\*)/g, "$1")
+      .replace(/(?<!_)_(?!_)([^\n]+?)(?<!_)_(?!_)/g, "$1")
+      .replace(/`([^`\n]+)`/g, "$1");
+  }
+  return text
+    .replace(/\[\s*(?:ADVANTAGE|BENEFIT|CHALLENGE|LIMITATION|FEATURE|NOTE|CRITICAL)\s*\]:?\s*/gi, "")
+    .replace(/^\*+\s*|\s*\*+$/g, "")
+    .replace(/^_+|_+$/g, "")
+    .trim();
+}
+
 /**
  * Builds a 100% compliant PDF 1.4 binary with mathematically exact xref byte offsets.
  * Opens natively in Adobe Acrobat, Chrome/Edge PDF, macOS Preview, and Android PDF readers.
@@ -98,7 +120,7 @@ export function createPdf(payload: PdfPayload): Buffer {
   for (const sec of sections) {
     if (sec.heading) {
       currentY -= 6;
-      addTextLine(sec.heading, "/F2", 14, [0.1, 0.15, 0.25]);
+      addTextLine(cleanPdfText(sec.heading), "/F2", 14, [0.1, 0.15, 0.25]);
       currentY -= 4;
     }
 
@@ -108,7 +130,7 @@ export function createPdf(payload: PdfPayload): Buffer {
         const rawLines = p.trim().split("\n");
         for (const rawLine of rawLines) {
           const isBullet = rawLine.trim().startsWith("- ") || rawLine.trim().startsWith("* ") || rawLine.trim().startsWith("• ");
-          const clean = isBullet ? rawLine.trim().replace(/^[-*•]\s+/, "") : rawLine.trim();
+          const clean = cleanPdfText(isBullet ? rawLine.trim().replace(/^[-*•]\s+/, "") : rawLine.trim());
           const wrapped = wrapText(clean, isBullet ? 72 : 78);
 
           wrapped.forEach((line, idx) => {
@@ -128,7 +150,7 @@ export function createPdf(payload: PdfPayload): Buffer {
 
     if (sec.bullets) {
       for (const b of sec.bullets) {
-        const wrapped = wrapText(b, 72);
+        const wrapped = wrapText(cleanPdfText(b), 72);
         wrapped.forEach((line, idx) => {
           if (idx === 0) {
             addTextLine(`  • ${line}`, "/F1", 10.5, [0.2, 0.25, 0.3]);

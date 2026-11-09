@@ -397,26 +397,40 @@ function calculateChatWordCount(msgs: ChatMessage[]): number {
 
 function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
   if (!text) return [""];
-  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+
+  // Negative lookahead / lookbehind pattern that properly distinguishes:
+  // 1. Code span: `...`
+  // 2. Link: [...]()
+  // 3. Triple emphasis: ***...*** or ___...___
+  // 4. Double emphasis: **...** or __...__ (allowing contained *italic* or _italic_)
+  // 5. Single emphasis: *...* or _..._ (allowing contained **bold** or __bold__)
+  const regex =
+    /(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*\*(.+?)\*\*\*|___(.+?)___|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|(?<!\*)\*(?!\*)([^\n]+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)([^\n]+?)(?<!_)_(?!_))/g;
+
   const nodes: React.ReactNode[] = [];
   let lastIdx = 0;
   let m: RegExpExecArray | null;
 
-  while ((m = pattern.exec(text)) !== null) {
+  while ((m = regex.exec(text)) !== null) {
     if (m.index > lastIdx) {
       nodes.push(text.slice(lastIdx, m.index));
     }
+
     const token = m[0];
-    if (token.startsWith("**") && token.endsWith("**")) {
-      nodes.push(<strong key={m.index} className="font-semibold text-inherit">{token.slice(2, -2)}</strong>);
-    } else if (token.startsWith("*") && token.endsWith("*")) {
-      nodes.push(<em key={m.index} className="italic text-inherit">{token.slice(1, -1)}</em>);
-    } else if (token.startsWith("`") && token.endsWith("`")) {
+    const triple1 = m[2]; // ***...***
+    const triple2 = m[3]; // ___...___
+    const bold1 = m[4];   // **...**
+    const bold2 = m[5];   // __...__
+    const italic1 = m[6]; // *...*
+    const italic2 = m[7]; // _..._
+
+    if (token.startsWith("`")) {
       nodes.push(
         <code
           key={m.index}
-          className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${isDark ? "bg-neutral-800 text-neutral-200 border border-neutral-700/60" : "bg-neutral-100 text-neutral-800 border border-neutral-200"
-            }`}
+          className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${
+            isDark ? "bg-neutral-800 text-neutral-200 border border-neutral-700/60" : "bg-neutral-100 text-neutral-800 border border-neutral-200"
+          }`}
         >
           {token.slice(1, -1)}
         </code>
@@ -443,12 +457,36 @@ function parseInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
       } else {
         nodes.push(token);
       }
+    } else if (triple1 || triple2) {
+      const inner = triple1 || triple2;
+      nodes.push(
+        <strong key={m.index} className="font-semibold text-inherit">
+          <em className="italic text-inherit">{parseInlineMarkdown(inner, isDark)}</em>
+        </strong>
+      );
+    } else if (bold1 || bold2) {
+      const inner = bold1 || bold2;
+      nodes.push(
+        <strong key={m.index} className="font-semibold text-inherit">
+          {parseInlineMarkdown(inner, isDark)}
+        </strong>
+      );
+    } else if (italic1 || italic2) {
+      const inner = italic1 || italic2;
+      nodes.push(
+        <em key={m.index} className="italic text-inherit">
+          {parseInlineMarkdown(inner, isDark)}
+        </em>
+      );
     }
+
     lastIdx = m.index + token.length;
   }
+
   if (lastIdx < text.length) {
     nodes.push(text.slice(lastIdx));
   }
+
   return nodes.length > 0 ? nodes : [text];
 }
 

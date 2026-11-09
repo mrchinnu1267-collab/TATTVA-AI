@@ -28,14 +28,27 @@ function escapeXml(unsafe: string): string {
 
 export function cleanSlideText(raw: string): string {
   if (!raw) return "";
-  return raw
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    .replace(/_([^_]+)_/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
+  let text = String(raw);
+
+  // Iteratively strip markdown formatting to resolve arbitrarily nested / contained emphasized items
+  let prev = "";
+  let iterations = 0;
+  while (text !== prev && iterations < 10) {
+    prev = text;
+    iterations++;
+    text = text
+      .replace(/(?:\*\*\*|___)([\s\S]+?)(?:\*\*\*|___)/g, "$1")
+      .replace(/(?:\*\*|__)([\s\S]+?)(?:\*\*|__)/g, "$1")
+      .replace(/(?<!\*)\*(?!\*)([^\n]+?)(?<!\*)\*(?!\*)/g, "$1")
+      .replace(/(?<!_)_(?!_)([^\n]+?)(?<!_)_(?!_)/g, "$1")
+      .replace(/`([^`\n]+)`/g, "$1");
+  }
+
+  return text
     .replace(/\[\s*(?:ADVANTAGE|BENEFIT|CHALLENGE|LIMITATION|FEATURE|NOTE|CRITICAL)\s*\]:?\s*/gi, "")
     .replace(/^[•\-\*]\s*/, "")
+    .replace(/^\*+\s*|\s*\*+$/g, "")
+    .replace(/^_+|_+$/g, "")
     .trim();
 }
 

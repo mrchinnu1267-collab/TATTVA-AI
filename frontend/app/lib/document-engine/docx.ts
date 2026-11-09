@@ -29,6 +29,28 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, "&apos;");
 }
 
+function cleanDocxText(raw: string): string {
+  if (!raw) return "";
+  let text = String(raw);
+  let prev = "";
+  let iterations = 0;
+  while (text !== prev && iterations < 10) {
+    prev = text;
+    iterations++;
+    text = text
+      .replace(/(?:\*\*\*|___)([\s\S]+?)(?:\*\*\*|___)/g, "$1")
+      .replace(/(?:\*\*|__)([\s\S]+?)(?:\*\*|__)/g, "$1")
+      .replace(/(?<!\*)\*(?!\*)([^\n]+?)(?<!\*)\*(?!\*)/g, "$1")
+      .replace(/(?<!_)_(?!_)([^\n]+?)(?<!_)_(?!_)/g, "$1")
+      .replace(/`([^`\n]+)`/g, "$1");
+  }
+  return text
+    .replace(/\[\s*(?:ADVANTAGE|BENEFIT|CHALLENGE|LIMITATION|FEATURE|NOTE|CRITICAL)\s*\]:?\s*/gi, "")
+    .replace(/^\*+\s*|\s*\*+$/g, "")
+    .replace(/^_+|_+$/g, "")
+    .trim();
+}
+
 /**
  * Builds a 100% valid Microsoft Word (.docx) OpenXML document
  * Features: Header, dynamic page numbers in footer, formatted tables,
@@ -122,7 +144,7 @@ export function createDocx(payload: DocxPayload): Buffer {
               <w:sz w:val="32"/>
               <w:color w:val="1E3A8A"/>
             </w:rPr>
-            <w:t>${escapeXml(sec.heading)}</w:t>
+            <w:t>${escapeXml(cleanDocxText(sec.heading))}</w:t>
           </w:r>
         </w:p>`;
     }
@@ -142,7 +164,7 @@ export function createDocx(payload: DocxPayload): Buffer {
               <w:sz w:val="26"/>
               <w:color w:val="334155"/>
             </w:rPr>
-            <w:t>${escapeXml(sec.subheading)}</w:t>
+            <w:t>${escapeXml(cleanDocxText(sec.subheading))}</w:t>
           </w:r>
         </w:p>`;
     }
@@ -175,7 +197,7 @@ export function createDocx(payload: DocxPayload): Buffer {
               <w:sz w:val="22"/>
               <w:color w:val="334155"/>
             </w:rPr>
-            <w:t>${escapeXml(sec.callout)}</w:t>
+            <w:t>${escapeXml(cleanDocxText(sec.callout))}</w:t>
           </w:r>
         </w:p>`;
     }
@@ -207,7 +229,7 @@ export function createDocx(payload: DocxPayload): Buffer {
                   <w:sz w:val="22"/>
                   <w:color w:val="334155"/>
                 </w:rPr>
-                <w:t>${isBullet ? "• " : ""}${escapeXml(text)}</w:t>
+                <w:t>${isBullet ? "• " : ""}${escapeXml(cleanDocxText(text))}</w:t>
               </w:r>
             </w:p>`;
         }
@@ -238,7 +260,7 @@ export function createDocx(payload: DocxPayload): Buffer {
                 <w:sz w:val="22"/>
                 <w:color w:val="334155"/>
               </w:rPr>
-              <w:t>${escapeXml(b)}</w:t>
+              <w:t>${escapeXml(cleanDocxText(b))}</w:t>
             </w:r>
           </w:p>`;
       }

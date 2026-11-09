@@ -471,5 +471,44 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
       `Expected resolved topic to reference Transformer Architecture, but got: "${intent.topic}"`
     );
   });
+
+  // TEST 27: Contained Emphasized Items Cleaning & Normalization
+  it("ACCEPTANCE TEST 15: Contained emphasized items (nested markdown emphasis) are completely and cleanly normalized", () => {
+    const { cleanSlideText } = require("../app/lib/document-engine/pptx");
+
+    const cases = [
+      {
+        input: "**Bold text containing *contained emphasized item* inside**",
+        expected: "Bold text containing contained emphasized item inside",
+      },
+      {
+        input: "*Italic containing **bold item** inside*",
+        expected: "Italic containing bold item inside",
+      },
+      {
+        input: "***Triple emphasized item***",
+        expected: "Triple emphasized item",
+      },
+      {
+        input: "**Formal Principles and Domain-Specific Definition of As Ppt** *(FOUNDATIONS)*",
+        expected: "Formal Principles and Domain-Specific Definition of As Ppt (FOUNDATIONS)",
+      },
+      {
+        input: "* **Slide Title with *inner emphasis* here** *(CATEGORY)*",
+        expected: "Slide Title with inner emphasis here (CATEGORY)",
+      },
+      {
+        input: "**Presentation Structure (8 Slides):**",
+        expected: "Presentation Structure (8 Slides):",
+      },
+    ];
+
+    for (const c of cases) {
+      const output = cleanSlideText(c.input);
+      assert.equal(output, c.expected, `Failed for input: "${c.input}". Expected "${c.expected}", got "${output}"`);
+      assert.ok(!output.includes("**"), `Output must not contain raw asterisks: "${output}"`);
+      assert.ok(!output.startsWith("*") && !output.endsWith("*"), `Output must not have border asterisks: "${output}"`);
+    }
+  });
 });
 
