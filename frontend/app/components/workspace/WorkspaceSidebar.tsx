@@ -3,250 +3,238 @@
 import React from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard,
-  Files,
+  Home,
+  LayoutGrid,
+  Bot,
+  Zap,
+  Share2,
+  Clock,
   Star,
-  Pin,
-  Trash2,
-  HardDrive,
+  Folder,
+  Plus,
+  Settings,
   ChevronLeft,
   ChevronRight,
-  ArrowLeft,
+  HardDrive,
   Sparkles,
-  Plus,
-  FolderOpen,
-  Settings,
 } from "lucide-react";
-import { WORKSPACE_APPS_LIST } from "./constants";
-import { WorkspaceAppId } from "./types";
 
 interface WorkspaceSidebarProps {
-  currentView: string; // "dashboard" | "all" | "starred" | "pinned" | "trash" | WorkspaceAppId
+  currentView: string;
   onSelectView: (view: string) => void;
   storageUsageBytes?: number;
   maxStorageBytes?: number;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   activeWorkspaceName?: string;
-  onNewFile?: (app?: WorkspaceAppId) => void;
+  onNewFile?: () => void;
 }
 
-export const WorkspaceSidebar: React.FC<WorkspaceSidebarProps> = ({
+export function WorkspaceSidebar({
   currentView,
   onSelectView,
-  storageUsageBytes = 28400000, // ~28.4 MB
-  maxStorageBytes = 1073741824, // 1 GB
+  storageUsageBytes = 135291469824, // ~126 GB
+  maxStorageBytes = 536870912000, // 500 GB
   isCollapsed = false,
   onToggleCollapse,
-  activeWorkspaceName = "Personal Workspace",
+  activeWorkspaceName = "Project Review",
   onNewFile,
-}) => {
-  const usageMb = (storageUsageBytes / (1024 * 1024)).toFixed(1);
-  const maxMb = (maxStorageBytes / (1024 * 1024)).toFixed(0);
-  const usagePercent = Math.min(
-    100,
-    Math.round((storageUsageBytes / maxStorageBytes) * 100)
-  );
+}: WorkspaceSidebarProps) {
+  const workspacesList = [
+    { id: "ws_proj", name: "Project Review", color: "bg-emerald-400" },
+    { id: "ws_res", name: "Research", color: "bg-blue-400" },
+    { id: "ws_acad", name: "Academic", color: "bg-amber-400" },
+    { id: "ws_pers", name: "Personal", color: "bg-purple-400" },
+  ];
 
   return (
     <aside
-      className={`bg-slate-900 text-slate-300 flex flex-col h-full border-r border-slate-800 transition-all duration-300 select-none z-20 ${
-        isCollapsed ? "w-16" : "w-64"
+      className={`bg-[#0A0D14] text-slate-300 flex flex-col h-full border-r border-slate-800/80 transition-all duration-300 select-none z-20 shrink-0 ${
+        isCollapsed ? "w-16" : "w-60"
       }`}
     >
-      {/* 1. Header & Back to Chat */}
-      <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+      {/* 1. Brand Logo Header matching screenshot */}
+      <div className="p-4 flex items-center justify-between border-b border-slate-800/60">
         <div className="flex items-center space-x-2.5 overflow-hidden">
-          <Link
-            href="/chat"
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition shrink-0"
-            title="Back to TATTVA AI Chat"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </div>
           {!isCollapsed && (
-            <div className="truncate">
-              <div className="flex items-center space-x-1.5">
-                <span className="font-bold text-sm tracking-tight text-white">
-                  TATTVA AI
-                </span>
-                <span className="text-[10px] bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold px-1.5 py-0.2 rounded">
-                  WORKSPACE
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 truncate">
-                {activeWorkspaceName}
-              </p>
-            </div>
+            <span className="font-extrabold text-base tracking-tight text-white">
+              TATTVA AI
+            </span>
           )}
         </div>
 
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800/60 transition"
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
+            {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
         )}
       </div>
 
-      {/* 2. New Document Action */}
-      <div className="p-3 border-b border-slate-800/60">
-        <button
-          onClick={() => onNewFile && onNewFile()}
-          className={`w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md transition ${
-            isCollapsed ? "px-0" : ""
-          }`}
-          title="Create New File"
-        >
-          <Plus className="w-4 h-4" />
-          {!isCollapsed && <span>New Document</span>}
-        </button>
-      </div>
-
-      {/* 3. Navigation Links */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-6">
-        {/* Core Navigation */}
+      {/* 2. Main Navigation Links matching screenshot */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         <div className="space-y-1">
+          {/* Home */}
+          <Link
+            href="/chat"
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
+            title="Home"
+          >
+            <Home className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span>Home</span>}
+          </Link>
+
+          {/* My Workspace (Active glowing purple pill) */}
           <button
             onClick={() => onSelectView("dashboard")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-semibold transition ${
               currentView === "dashboard"
-                ? "bg-blue-600/20 text-blue-400 font-semibold border-l-2 border-blue-500"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-gradient-to-r from-purple-700/80 to-indigo-600/80 text-white shadow-lg shadow-purple-900/30 border border-purple-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
             }`}
-            title="Dashboard"
+            title="My Workspace"
           >
-            <LayoutDashboard className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>Dashboard</span>}
+            <LayoutGrid className="w-4 h-4 shrink-0 text-purple-300" />
+            {!isCollapsed && <span>My Workspace</span>}
           </button>
 
+          {/* AI Command Center */}
           <button
-            onClick={() => onSelectView("all")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
-              currentView === "all"
-                ? "bg-blue-600/20 text-blue-400 font-semibold border-l-2 border-blue-500"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-            }`}
-            title="All Documents"
+            onClick={() => onSelectView("ai_command_center")}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
+            title="AI Command Center"
           >
-            <Files className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>All Documents</span>}
+            <Bot className="w-4 h-4 shrink-0 text-indigo-400" />
+            {!isCollapsed && <span>AI Command Center</span>}
           </button>
 
+          {/* Automation Center */}
+          <button
+            onClick={() => onSelectView("automation_center")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium transition ${
+              currentView === "automation_center"
+                ? "bg-purple-900/40 text-purple-300 border border-purple-500/30"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+            }`}
+            title="Automation Center"
+          >
+            <Zap className="w-4 h-4 shrink-0 text-amber-400" />
+            {!isCollapsed && <span>Automation Center</span>}
+          </button>
+
+          {/* Shared with me */}
+          <button
+            onClick={() => onSelectView("shared")}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
+            title="Shared with me"
+          >
+            <Share2 className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span>Shared with me</span>}
+          </button>
+
+          {/* Recent */}
+          <button
+            onClick={() => onSelectView("recent")}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
+            title="Recent"
+          >
+            <Clock className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span>Recent</span>}
+          </button>
+
+          {/* Starred */}
           <button
             onClick={() => onSelectView("starred")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
-              currentView === "starred"
-                ? "bg-blue-600/20 text-blue-400 font-semibold border-l-2 border-blue-500"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-            }`}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
             title="Starred"
           >
             <Star className="w-4 h-4 shrink-0 text-amber-400" />
             {!isCollapsed && <span>Starred</span>}
           </button>
 
+          {/* All Files */}
           <button
-            onClick={() => onSelectView("pinned")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
-              currentView === "pinned"
-                ? "bg-blue-600/20 text-blue-400 font-semibold border-l-2 border-blue-500"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-            }`}
-            title="Pinned"
+            onClick={() => onSelectView("all")}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/40 transition"
+            title="All Files"
           >
-            <Pin className="w-4 h-4 shrink-0 text-rose-400" />
-            {!isCollapsed && <span>Pinned</span>}
-          </button>
-
-          <button
-            onClick={() => onSelectView("trash")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
-              currentView === "trash"
-                ? "bg-blue-600/20 text-blue-400 font-semibold border-l-2 border-blue-500"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-            }`}
-            title="Recycle Bin"
-          >
-            <Trash2 className="w-4 h-4 shrink-0 text-slate-500" />
-            {!isCollapsed && <span>Recycle Bin</span>}
+            <Folder className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span>All Files</span>}
           </button>
         </div>
 
-        {/* 4. Productivity Applications (7 Apps) */}
-        <div>
-          {!isCollapsed && (
-            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Applications
+        {/* Workspaces Section matching screenshot */}
+        {!isCollapsed && (
+          <div className="pt-2 border-t border-slate-800/60">
+            <div className="flex items-center justify-between px-3 py-1 mb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <span>Workspaces</span>
+              <button
+                onClick={() => {}}
+                className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                title="Create Workspace"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
-          <div className="space-y-1">
-            {WORKSPACE_APPS_LIST.map((app) => {
-              const isActive = currentView === app.id;
-              return (
+
+            <div className="space-y-0.5">
+              {workspacesList.map((ws) => (
                 <button
-                  key={app.id}
-                  onClick={() => onSelectView(app.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
-                    isActive
-                      ? "bg-slate-800 text-white font-semibold"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                  }`}
-                  title={app.name}
+                  key={ws.id}
+                  onClick={() => onSelectView("dashboard")}
+                  className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/40 transition text-left"
                 >
-                  <div
-                    style={{ backgroundColor: app.color }}
-                    className="w-5 h-5 rounded flex items-center justify-center font-black text-white text-[11px] shadow-sm shrink-0"
-                  >
-                    {app.letter}
-                  </div>
-                  {!isCollapsed && (
-                    <div className="flex-1 text-left truncate">
-                      <span className="truncate">{app.name}</span>
-                    </div>
-                  )}
+                  <span className={`w-2 h-2 rounded-sm ${ws.color}`} />
+                  <span className="truncate">{ws.name}</span>
                 </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Storage Meter & Footer */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/40">
-        {!isCollapsed ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 flex items-center space-x-1.5">
-                <HardDrive className="w-3.5 h-3.5 text-blue-400" />
-                <span>Vault Storage</span>
-              </span>
-              <span className="text-slate-300 font-mono">
-                {usageMb} MB / {maxMb} MB
-              </span>
+              ))}
             </div>
-            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
-                style={{ width: `${usagePercent}%` }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex justify-center" title={`Storage: ${usageMb} MB / ${maxMb} MB`}>
-            <HardDrive className="w-4 h-4 text-blue-400" />
           </div>
         )}
       </div>
+
+      {/* 3. Bottom Storage & Settings matching screenshot */}
+      <div className="p-3 border-t border-slate-800/60 space-y-3 bg-[#080B11]">
+        {!isCollapsed && (
+          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-2">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-slate-400 font-medium">Storage</span>
+              <span className="text-slate-300 font-mono">126 GB of 500 GB</span>
+            </div>
+
+            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
+                style={{ width: "25.2%" }}
+              />
+            </div>
+
+            <button
+              onClick={() => {}}
+              className="w-full py-1 text-center rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] font-semibold transition"
+            >
+              Upgrade Plan
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={() => {}}
+          className="w-full flex items-center space-x-3 px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-800/50 transition"
+          title="Settings"
+        >
+          <Settings className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span>Settings</span>}
+        </button>
+      </div>
     </aside>
   );
-};
+}
 
 export default WorkspaceSidebar;
