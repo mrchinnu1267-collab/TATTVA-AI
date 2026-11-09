@@ -592,12 +592,14 @@ export function saveWorkspaceItem(item: Partial<WorkspaceItem> & { name: string;
 
   persistWorkspaceItems(currentItems);
 
-  // Background sync to backend API
-  fetch("/api/workspace", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "save", item: updated! }),
-  }).catch((e) => console.warn("[Workspace Storage] Remote sync deferred:", e));
+  // Background sync to backend API (client-side only)
+  if (typeof window !== "undefined") {
+    fetch("/api/workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "save", item: updated! }),
+    }).catch((e) => console.warn("[Workspace Storage] Remote sync deferred:", e));
+  }
 
   return updated!;
 }

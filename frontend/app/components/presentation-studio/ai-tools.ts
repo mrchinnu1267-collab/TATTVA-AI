@@ -406,10 +406,12 @@ export function executeToolOnPresentation(
       };
     }
 
+    case "set_theme":
     case "apply_theme": {
-      const theme = PRESENTATION_THEMES.find((t) => t.id === args.theme_id);
+      const themeId = args.theme_id || args.themeId;
+      const theme = PRESENTATION_THEMES.find((t) => t.id === themeId);
       if (!theme) {
-        return { nextState: next, message: `Theme "${args.theme_id}" not recognized.` };
+        return { nextState: next, message: `Theme "${themeId}" not recognized.` };
       }
       next = {
         ...next,

@@ -133,3 +133,4 @@ export function FocusModeModal({ isOpen, onClose }: FocusModeModalProps) {
     </div>
   );
 }
+

@@ -376,6 +376,12 @@ export function detectDocumentIntent(
   } else if (isDocxExplicit) {
     archetype = /\b(assignment|homework)\b/i.test(lower) ? "assignment" : "research_report";
     format = "docx";
+  } else if (lower.includes(".txt") || lower.includes("text file") || /\b(as a txt|as txt|in txt format|\.txt|txt file)\b/i.test(lower)) {
+    archetype = "general_document";
+    format = "txt";
+  } else if (lower.includes(".md") || lower.includes("markdown") || /\b(as markdown|as a md file|\.md|markdown file)\b/i.test(lower)) {
+    archetype = "general_document";
+    format = "md";
   } else if (isDataFileExplicit) {
     archetype = "data_file";
     format = lower.includes("xml") ? "xml" : "json";
