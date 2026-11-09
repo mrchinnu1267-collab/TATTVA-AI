@@ -510,5 +510,58 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
       assert.ok(!output.startsWith("*") && !output.endsWith("*"), `Output must not have border asterisks: "${output}"`);
     }
   });
+
+  // TEST 28: Authentic Object-Oriented Programming (OOP) PDF Generation with Full Substantive Matter
+  it("ACCEPTANCE TEST 16: OOP PDF & Document Generation delivers full substantive matter (4 Pillars, SOLID, comparative metrics)", async () => {
+    // 1. Intent extraction strips predicate verbs cleanly
+    const intent = detectDocumentIntent("Generate a PDF on Object-Oriented Programming (OOP) is a foundational software paradigm structured around objects.");
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "pdf");
+    assert.ok(
+      intent.topic.toLowerCase().includes("object-oriented programming") || intent.topic.toLowerCase().includes("oop"),
+      `Topic must be cleanly extracted, got: ${intent.topic}`
+    );
+    assert.ok(
+      !intent.topic.toLowerCase().includes("is a foundational software paradigm"),
+      `Topic must strip predicate sentence tail, got: ${intent.topic}`
+    );
+
+    // 2. Autonomous research for OOP contains genuine domain knowledge
+    const research = await conductAutonomousResearch("Object-Oriented Programming (OOP)");
+    assert.ok(
+      research.coreMechanisms.some((m) => m.name.toLowerCase().includes("encapsulation")),
+      "Must include Encapsulation"
+    );
+    assert.ok(
+      research.coreMechanisms.some((m) => m.name.toLowerCase().includes("inheritance")),
+      "Must include Inheritance"
+    );
+    assert.ok(
+      research.coreMechanisms.some((m) => m.name.toLowerCase().includes("polymorphism")),
+      "Must include Polymorphism"
+    );
+    assert.ok(
+      research.coreMechanisms.some((m) => m.name.toLowerCase().includes("abstraction")),
+      "Must include Abstraction"
+    );
+    assert.ok(
+      research.coreMechanisms.some((m) => m.name.toLowerCase().includes("solid")) ||
+      research.architectureOrComponents.some((c) => c.component.toLowerCase().includes("solid")),
+      "Must include SOLID principles"
+    );
+    assert.ok(research.comparativeMetrics !== undefined, "Must include comparative metrics table");
+
+    // 3. Document Synthesis delivers genuine PDF package with full matter
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "pdf");
+    assert.equal(pkg.validation.valid, true);
+    assert.ok(pkg.sections && pkg.sections.length >= 5, "Must deliver structured sections with full matter");
+    assert.ok(
+      pkg.outlineMarkdown.toLowerCase().includes("encapsulation") ||
+      pkg.outlineMarkdown.toLowerCase().includes("polymorphism"),
+      "Outline markdown must include core OOP matter"
+    );
+  });
 });
 

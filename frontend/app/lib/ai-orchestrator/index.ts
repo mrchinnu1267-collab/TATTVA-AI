@@ -295,6 +295,7 @@ export class MasterAIOrchestrator {
             summary: shortMessage,
             outlineMarkdown: docPkg.outlineMarkdown,
             slides: docPkg.slides,
+            sections: docPkg.sections,
           },
           progressStages: docPkg.progressStages,
         };

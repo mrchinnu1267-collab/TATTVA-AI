@@ -344,6 +344,14 @@ export function detectDocumentIntent(
     topic = archetype === "presentation" ? "Artificial Intelligence & Future Innovations" : "Comprehensive Technical Analysis";
   }
 
+  // Strip predicate verb clauses (e.g. "Object-Oriented Programming (OOP) is a foundational software paradigm..." -> "Object-Oriented Programming (OOP)")
+  if (/\b(?:is|are|was|were|refers to|defined as|consists of|deals with|meaning|means)\b/i.test(topic)) {
+    const parts = topic.split(/\b(?:is|are|was|were|refers to|defined as|consists of|deals with|meaning|means)\b/i);
+    if (parts[0] && parts[0].trim().length >= 2) {
+      topic = parts[0].trim();
+    }
+  }
+
   // Title-case topic
   topic = topic
     .split(/\s+/)

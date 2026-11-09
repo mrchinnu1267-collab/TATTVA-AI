@@ -533,6 +533,162 @@ const VERIFIED_TOPIC_KNOWLEDGE_BASE: Record<string, Partial<ResearchDossier>> = 
     ],
   },
 
+  oop: {
+    topic: "Object-Oriented Programming (OOP)",
+    definition: "Object-Oriented Programming (OOP) is a foundational software design paradigm structured around 'objects'—data structures encapsulating fields (attributes/state) and procedures (methods/behaviors). It models real-world domain entities into modular, reusable, and maintainable software components through four core pillars: Encapsulation, Abstraction, Inheritance, and Polymorphism.",
+    backgroundAndMotivation: "Prior to OOP, procedural and imperative programming (e.g., C, Pascal, FORTRAN) separated data structures from the functions operating on them. In large-scale systems, this created severe global state mutation bugs, high module coupling, difficulty maintaining domain invariants, and code duplication. Originating with Simula 67 and formalized in Smalltalk by Alan Kay, OOP was developed to co-locate state with the valid operations on that state, enforcing encapsulation boundaries, cognitive modularity, and reusable type hierarchies.",
+    subtopics: [
+      "Procedural vs Object-Oriented Paradigm Foundations",
+      "Classes and Objects (State, Behavior, Identity)",
+      "Pillar 1: Encapsulation & Information Hiding (Access Specifiers)",
+      "Pillar 2: Abstraction (Abstract Classes & Interface Contracts)",
+      "Pillar 3: Inheritance & Code Reusability (IS-A Relationships)",
+      "Pillar 4: Polymorphism (Compile-Time Overloading vs Runtime Overriding)",
+      "Virtual Method Tables (VTables) & Dynamic Dispatch Mechanics",
+      "SOLID Architectural Design Principles for Maintainable Code",
+      "Composition over Inheritance (HAS-A vs IS-A Guidelines)",
+      "Enterprise Design Patterns (Creational, Structural, Behavioral)",
+      "Industry Language Implementations (Java, C++, Python, C#)",
+      "Advantages, Memory Footprint Trade-Offs & Multi-Paradigm Trends",
+    ],
+    coreMechanisms: [
+      {
+        name: "Encapsulation & Information Hiding",
+        details: "Prevents direct external modification of an object's internal fields. State is marked private or protected, accessible exclusively through validated public methods (getters, setters, domain actions) to guarantee business invariants.",
+        formulaOrStructure: "Object = { private: [State Variables], public: [Guarded Methods / API] }",
+        exampleOrApplication: "A BankAccount class protects its balance attribute: direct assignment is prohibited; only deposit() and withdraw() methods with positive balance validation can modify it.",
+      },
+      {
+        name: "Abstraction & Interface Contracts",
+        details: "Hides complex internal implementation details and exposes only essential operational interfaces. Decouples client code from concrete implementations through abstract classes and pure virtual interfaces.",
+        formulaOrStructure: "interface PaymentGateway { process(amount: Decimal): TransactionResult; }",
+        exampleOrApplication: "An e-commerce order service invokes PaymentGateway.process() without knowing whether Stripe, PayPal, or a local banking switch is executing behind the interface.",
+      },
+      {
+        name: "Inheritance & Hierarchical Generalization",
+        details: "Enables derived (child/subclass) classes to inherit properties and behaviors from a base (parent/superclass) class, establishing an IS-A relationship and promoting DRY (Don't Repeat Yourself) code reusability.",
+        formulaOrStructure: "class ElectricVehicle extends Vehicle { batteryCapacity: kWh; }",
+        exampleOrApplication: "A Vehicle base class manages VIN, manufacturer, and speed, while ElectricVehicle adds battery state and charge kinetics without rewriting vehicle mechanics.",
+      },
+      {
+        name: "Polymorphism & Dynamic Dispatch",
+        details: "Allows objects of distinct derived classes to be treated uniformly through a shared base interface. Subclasses override base method behaviors, resolved at runtime via Virtual Method Tables (VTables).",
+        formulaOrStructure: "vptr -> VTable[method_index]() resolved dynamically at runtime",
+        exampleOrApplication: "A graphics rendering pipeline iterates through a heterogeneous array of Shape instances (Circle, Rectangle, Polygon) calling shape.render(); each executes its specific geometry automatically.",
+      },
+      {
+        name: "SOLID Architectural Principles",
+        details: "Five foundational design principles ensuring extensible, clean OOP architectures: Single Responsibility (SRP), Open/Closed (OCP), Liskov Substitution (LSP), Interface Segregation (ISP), and Dependency Inversion (DIP).",
+        formulaOrStructure: "SOLID = SRP + OCP + LSP + ISP + DIP",
+        exampleOrApplication: "Dependency Inversion ensures high-level application business logic depends on abstract repositories rather than concrete low-level SQL database drivers.",
+      },
+    ],
+    coreConcepts: [
+      {
+        title: "Class vs Object",
+        explanation: "A Class is a compile-time schema or blueprint specifying attributes and methods; an Object is a concrete runtime instance allocated in memory with distinct identity and state.",
+        example: "Class: UserAccount; Object: user_4091 (id: 4091, name: 'Alice', active: true).",
+      },
+      {
+        title: "Composition over Inheritance",
+        explanation: "A best-practice design principle favoring object composition (HAS-A) over class inheritance (IS-A) to avoid fragile base class issues and rigid class hierarchies.",
+        example: "Instead of class FlyingSwimmingRobot inheriting from Robot, it contains FlightModule and WaterPropulsionModule component instances.",
+      },
+    ],
+    architectureOrComponents: [
+      {
+        component: "Class Schema & Metadata",
+        role: "Structural Type Definition",
+        mechanism: "Defines field types, method signatures, access specifiers, and constructor/destructor life cycles.",
+      },
+      {
+        component: "Heap Object Instance",
+        role: "Runtime State Container",
+        mechanism: "Allocated memory block holding instance variables, an object header, and a pointer (vptr) to the class VTable.",
+      },
+      {
+        component: "Virtual Method Table (VTable)",
+        role: "Dynamic Dispatch Resolution",
+        mechanism: "An array of function pointers created per class that maps virtual method calls to concrete function implementations at runtime.",
+      },
+      {
+        component: "Interface & Abstract Boundaries",
+        role: "Architectural Decoupling Contract",
+        mechanism: "Enforces compile-time compliance for required method signatures across unrelated class hierarchies.",
+      },
+    ],
+    trainingAndInferenceOrProcess: {
+      stages: [
+        "Domain Modeling & Class Responsibility Allocation (CRC Cards)",
+        "Encapsulation & Access Specifier Boundary Definition",
+        "Interface Extraction & Dependency Inversion Structure",
+        "Polymorphic Implementation & Dynamic Dispatch Wiring",
+        "Unit Testing against Abstract Interface Contracts",
+      ],
+      details: "Full software engineering lifecycle utilizing Object-Oriented Analysis and Design (OOAD) with UML diagrams and design patterns.",
+    },
+    applications: [
+      "Enterprise Backend Systems & Microservices (Java Spring Boot, C# .NET Core)",
+      "Game Development & Physics Simulation Engines (Unreal Engine C++, Unity C#)",
+      "Operating System GUI Frameworks & Desktop Applications (Qt, macOS Cocoa, Android SDK)",
+      "High-Frequency Financial Trading & Banking Systems",
+      "Database Object-Relational Mappings (Hibernate, Prisma, Entity Framework)",
+    ],
+    advantages: [
+      "Exceptional modularity: co-locating data with valid operations localizes changes and eliminates global side effects",
+      "High reusability through inheritance hierarchies and polymorphic interface abstraction",
+      "Robust maintainability and team scalability guided by SOLID architectural boundaries",
+      "Intuitive domain modeling that maps real-world entities directly into software classes",
+    ],
+    limitationsAndChallenges: [
+      "Slight runtime overhead from dynamic dispatch pointer indirection (VTable lookup) and object header memory overhead",
+      "Risk of over-engineering and fragile deep inheritance trees if composition principles are neglected",
+      "Steeper architectural learning curve compared to straightforward procedural scripts",
+    ],
+    recentDevelopments: [
+      "Multi-paradigm language evolution uniting OOP encapsulation with functional immutability and pattern matching",
+      "Modern trait and protocol systems (Rust traits, Swift protocols, Go interfaces) refining traditional class inheritance",
+      "Data-Oriented Design (DOD) optimizations prioritizing cache locality in high-performance computing",
+    ],
+    comparativeMetrics: {
+      dimension: "Programming Paradigm Comparison",
+      headers: ["Dimension", "Procedural Programming", "Object-Oriented Programming (OOP)", "Functional Programming"],
+      rows: [
+        ["Core Organizing Unit", "Functions & Procedures", "Objects (Data + Methods)", "Pure Mathematical Functions"],
+        ["State Management", "Separated, Global or Passed", "Encapsulated Inside Objects", "Immutable, No State Mutation"],
+        ["Code Reusability", "Function Libraries / Modules", "Inheritance & Polymorphism", "Function Composition & Higher-Order Functions"],
+        ["Polymorphism Mechanism", "Switch / Function Pointers", "Dynamic Dispatch (VTables)", "Parametric / Type Classes"],
+        ["Primary Strength", "Simple execution flow, low memory", "Modular enterprise architecture", "Predictable, concurrency-friendly"],
+      ],
+    },
+    citations: [
+      {
+        sourceName: "Kay, A. (1993)",
+        authority: "foundational_paper",
+        referenceText: "The Early History of Smalltalk. ACM SIGPLAN Notices, History of Programming Languages (HOPL-II).",
+        year: 1993,
+      },
+      {
+        sourceName: "Martin, R. C. (2002)",
+        authority: "educational",
+        referenceText: "Agile Software Development, Principles, Patterns, and Practices (SOLID). Prentice Hall.",
+        year: 2002,
+      },
+      {
+        sourceName: "Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994)",
+        authority: "educational",
+        referenceText: "Design Patterns: Elements of Reusable Object-Oriented Software. Addison-Wesley.",
+        year: 1994,
+      },
+      {
+        sourceName: "Stroustrup, B. (1994)",
+        authority: "foundational_paper",
+        referenceText: "The Design and Evolution of C++. Addison-Wesley Professional.",
+        year: 1994,
+      },
+    ],
+  },
+
   amazon: {
     topic: "Amazon.com, Inc. & AWS Ecosystem",
     definition: "Amazon.com, Inc. is an American multinational technology and commerce conglomerate founded by Jeff Bezos in 1994, focusing on e-commerce, cloud computing (Amazon Web Services), online advertising, digital streaming, and artificial intelligence.",
@@ -979,7 +1135,15 @@ Respond strictly with valid JSON conforming to this schema:
 
   // 3. Match against High-Density Verified Domain Knowledge Repository
   for (const [key, knownData] of Object.entries(VERIFIED_TOPIC_KNOWLEDGE_BASE)) {
-    if (normTopic.includes(key) || key.includes(normTopic)) {
+    const keyLower = key.toLowerCase();
+    const isOopMatch =
+      keyLower === "oop" &&
+      (normTopic.includes("object-oriented") ||
+        normTopic.includes("object oriented") ||
+        normTopic.includes("oop") ||
+        normTopic.includes("oops"));
+
+    if (normTopic.includes(keyLower) || keyLower.includes(normTopic) || isOopMatch) {
       const knownMechanisms = knownData.coreMechanisms || [];
       const matchedDossier: ResearchDossier = {
         topic: knownData.topic || topic,

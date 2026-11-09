@@ -138,6 +138,7 @@ export interface GeneratedDocumentResult {
   buffer: Buffer;
   dataUri: string;
   error?: string;
+  sections?: any[];
 }
 
 const MIME_TYPES: Record<string, string> = {

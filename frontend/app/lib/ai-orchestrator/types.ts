@@ -203,6 +203,7 @@ export interface OrchestratorResponse {
       bullets: string[];
       takeaway?: string;
     }>;
+    sections?: any[];
   };
   humanContext?: {
     goal: string;

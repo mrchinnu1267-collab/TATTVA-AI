@@ -34,6 +34,7 @@ export interface SynthesizedDocumentPackage {
     bullets: string[];
     takeaway?: string;
   }>;
+  sections?: any[];
 }
 
 export interface SynthesisOptions {
@@ -1108,13 +1109,29 @@ export async function synthesizeResearchToFile(
       outlineMarkdown = `**${baseTitle} (${topic}) Dataset (${headerRow.length} Columns):** ${headerRow.map((c) => `\`${c}\``).join(", ") || "Structured tabular data"}\n\n*Full spreadsheet workbook with calculations attached in the card above.*`;
     }
   } else {
-    if (isPreview) {
-      outlineMarkdown = `### 📄 ${baseTitle} (${sections.length} Comprehensive Sections Preview)\n\n` +
-        sections.map((sec) => `**${sec.heading}**\n${sec.content.slice(0, 200)}...`).join("\n\n");
-    } else {
-      outlineMarkdown = `**Document Structure (${sections.length} Sections):**\n` +
-        sections.map((sec, idx) => `${idx + 1}. **${sec.heading}**`).join("\n");
-    }
+    const structureSummary = `**Document Structure (${sections.length} Sections):** ${sections
+      .map((s) => s.heading)
+      .join(" • ")}`;
+    const sectionsBody = sections
+      .map((sec) => {
+        let secText = `### ${sec.heading}\n\n${sec.content || ""}`;
+        if (sec.callout) {
+          secText += `\n\n> 💡 **Core Principle:** ${sec.callout}`;
+        }
+        if (sec.bullets && sec.bullets.length > 0) {
+          secText += "\n\n" + sec.bullets.map((b) => `• ${b}`).join("\n");
+        }
+        if (sec.table && sec.table.length > 0) {
+          const headers = sec.table[0];
+          const rows = sec.table.slice(1);
+          secText +=
+            `\n\n| ${headers.join(" | ")} |\n| ${headers.map(() => "---").join(" | ")} |\n` +
+            rows.map((r) => `| ${r.join(" | ")} |`).join("\n");
+        }
+        return secText;
+      })
+      .join("\n\n---\n\n");
+    outlineMarkdown = `${structureSummary}\n\n---\n\n${sectionsBody}`;
   }
 
   let fileTypeLabel = "file";
@@ -1135,7 +1152,11 @@ export async function synthesizeResearchToFile(
     success: true,
     intent,
     research,
-    document: generatedDoc,
+    document: {
+      ...generatedDoc,
+      sections: sections.length > 0 ? sections : undefined,
+    },
+    sections: sections.length > 0 ? sections : undefined,
     vault,
     validation,
     summary,

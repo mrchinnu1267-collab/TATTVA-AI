@@ -87,6 +87,8 @@ export async function POST(request: Request) {
         dataUri: docPackage.document.dataUri,
         summary: docPackage.summary,
         outlineMarkdown: docPackage.outlineMarkdown,
+        sections: docPackage.sections,
+        slides: docPackage.slides,
       },
       validation: docPackage.validation,
       progressStages: docPackage.progressStages,

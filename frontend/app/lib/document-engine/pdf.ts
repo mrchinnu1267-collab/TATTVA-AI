@@ -1,8 +1,15 @@
 export interface PdfSection {
   heading?: string;
   content?: string;
+  paragraphs?: string[];
   bullets?: string[];
-  table?: (string | number)[][];
+  callout?: string;
+  table?:
+    | (string | number)[][]
+    | {
+        headers: string[];
+        rows: (string | number)[][];
+      };
 }
 
 export interface PdfPayload {
@@ -124,8 +131,19 @@ export function createPdf(payload: PdfPayload): Buffer {
       currentY -= 4;
     }
 
-    if (sec.content) {
-      const paragraphs = sec.content.split(/\n\s*\n/);
+    if (sec.callout) {
+      currentY -= 4;
+      const calloutText = cleanPdfText(sec.callout);
+      const wrapped = wrapText(calloutText, 74);
+      wrapped.forEach((line) => {
+        addTextLine(`  > ${line}`, "/F1", 10, [0.15, 0.35, 0.55]);
+      });
+      currentY -= 4;
+    }
+
+    const textContent = sec.content || (sec.paragraphs && Array.isArray(sec.paragraphs) ? sec.paragraphs.join("\n\n") : "");
+    if (textContent) {
+      const paragraphs = textContent.split(/\n\s*\n/);
       for (const p of paragraphs) {
         const rawLines = p.trim().split("\n");
         for (const rawLine of rawLines) {
@@ -163,11 +181,17 @@ export function createPdf(payload: PdfPayload): Buffer {
       currentY -= 6;
     }
 
-    if (sec.table && Array.isArray(sec.table) && sec.table.length > 0) {
-      currentY -= 8;
-      const colWidth = Math.floor(504 / Math.max(1, sec.table[0].length));
+    const tableRows: (string | number)[][] = Array.isArray(sec.table)
+      ? sec.table
+      : sec.table && typeof sec.table === "object" && "headers" in sec.table && "rows" in sec.table
+      ? [sec.table.headers, ...(sec.table.rows || [])]
+      : [];
 
-      sec.table.slice(0, 30).forEach((row, rowIdx) => {
+    if (tableRows.length > 0) {
+      currentY -= 8;
+      const colWidth = Math.floor(504 / Math.max(1, tableRows[0].length));
+
+      tableRows.slice(0, 30).forEach((row, rowIdx) => {
         if (currentY < 60) startNewPage();
         const isHeader = rowIdx === 0;
 
