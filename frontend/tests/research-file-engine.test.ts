@@ -563,5 +563,111 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
       "Outline markdown must include core OOP matter"
     );
   });
+
+  // TEST 29: Context-Aware Document Revision & Regeneration Pipeline
+  it("ACCEPTANCE TEST 17: Context-aware document revision & regeneration preserves previous document context and modifies target slides", async () => {
+    // 1. Initial document in conversation context
+    const previousDocument = {
+      fileId: "doc-101",
+      filename: "Artificial_Intelligence_Overview.pptx",
+      format: "pptx",
+      topic: "Artificial Intelligence",
+      slides: [
+        { number: 1, title: "Introduction to Artificial Intelligence", category: "OVERVIEW", bullets: ["Foundational AI concepts"] },
+        { number: 2, title: "Machine Learning Paradigms", category: "FOUNDATIONS", bullets: ["Supervised and Unsupervised Learning"] },
+        { number: 3, title: "Neural Networks and Deep Learning", category: "ARCHITECTURE", bullets: ["Perceptrons and Multilayer Nets"] },
+        { number: 4, title: "Ethics and Future Trajectory", category: "ETHICS", bullets: ["Safety and Governance"] },
+      ],
+    };
+
+    const historyWithDoc = [
+      { role: "user" as const, content: "Make a PPT about Artificial Intelligence." },
+      {
+        role: "assistant" as const,
+        content: "Your presentation on Artificial Intelligence is ready.",
+        generatedDocument: previousDocument,
+        attachments: [
+          {
+            name: "Artificial_Intelligence_Overview.pptx",
+            type: "pptx",
+          },
+        ],
+      },
+    ];
+
+    // Case A: User requests content correction with technical information
+    const revisionPromptA = "The content is incorrect. Use more relevant technical information.";
+    const intentA = detectDocumentIntent(revisionPromptA, {
+      history: historyWithDoc,
+      inChatConversation: true,
+    });
+
+    assert.equal(intentA.isDocumentRequest, true);
+    assert.equal(intentA.isRevision, true);
+    assert.equal(intentA.format, "pptx");
+    assert.ok(intentA.revisionDirectives !== undefined);
+    assert.equal(intentA.revisionDirectives?.depth, "technical");
+
+    // Case B: User specifies targeted slide revision ("Change only slide 3")
+    const revisionPromptB = "Change only slide 3. Make it focus on Transformer Self-Attention mechanism.";
+    const intentB = detectDocumentIntent(revisionPromptB, {
+      history: historyWithDoc,
+      inChatConversation: true,
+    });
+
+    assert.equal(intentB.isDocumentRequest, true);
+    assert.equal(intentB.isRevision, true);
+    assert.equal(intentB.format, "pptx");
+    assert.equal(intentB.revisionDirectives?.targetSlide, 3);
+
+    // Case C: Synthesizer regenerates the PPTX file with the targeted slide modified and others preserved
+    const regeneratedPkg = await synthesizeResearchToFile(intentB);
+    assert.equal(regeneratedPkg.success, true);
+    assert.equal(regeneratedPkg.document.format, "pptx");
+    assert.equal(regeneratedPkg.validation.valid, true);
+    assert.ok(regeneratedPkg.document.slides && regeneratedPkg.document.slides.length >= 4);
+
+    // Slide 1 should still be preserved
+    assert.equal(regeneratedPkg.document.slides[0].number, 1);
+    assert.equal(regeneratedPkg.document.slides[0].title, "Introduction to Artificial Intelligence");
+
+    // Slide 3 should be revised with transformer focus
+    const revisedSlide3 = regeneratedPkg.document.slides[2];
+    assert.equal(revisedSlide3.number, 3);
+    assert.ok(
+      revisedSlide3.title.toLowerCase().includes("transformer") ||
+      revisedSlide3.bullets.some((b: any) => String(b).toLowerCase().includes("attention") || String(b).toLowerCase().includes("transformer")),
+      `Slide 3 must reflect revision directives, got title: ${revisedSlide3.title}`
+    );
+
+    // Summary must indicate ready / revised
+    assert.ok(
+      (regeneratedPkg.summary || (regeneratedPkg.document as any).summary)?.toLowerCase().includes("revised") ||
+      (regeneratedPkg.summary || (regeneratedPkg.document as any).summary)?.toLowerCase().includes("ready")
+    );
+  });
+
+  // TEST 30: Multi-Sheet Excel Workbook Generation with Dynamic Calculations
+  it("ACCEPTANCE TEST 18: Excel generation produces multi-sheet workbook with KPI metrics & formulas", async () => {
+    const intent = detectDocumentIntent("Generate an Excel sheet comparing Cloud Providers AWS, Azure, GCP with cost and performance metrics.");
+    assert.equal(intent.isDocumentRequest, true);
+    assert.equal(intent.format, "xlsx");
+
+    const pkg = await synthesizeResearchToFile(intent);
+    assert.equal(pkg.success, true);
+    assert.equal(pkg.document.format, "xlsx");
+    assert.equal(pkg.validation.valid, true);
+
+    // Document must include multiple sheets
+    assert.ok(pkg.document.sheets && pkg.document.sheets.length >= 2, "Must produce multiple sheets in workbook");
+    assert.ok(
+      pkg.document.sheets.some((s) => s.title.toLowerCase().includes("summary") || s.title.toLowerCase().includes("overview")),
+      "Must include a Summary / Overview sheet"
+    );
+    assert.ok(
+      pkg.document.sheets.some((s) => s.title.toLowerCase().includes("metric") || s.title.toLowerCase().includes("calculation")),
+      "Must include metrics / calculation sheets"
+    );
+  });
 });
 

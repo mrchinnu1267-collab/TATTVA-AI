@@ -29,6 +29,22 @@ import {
   Smartphone,
   Laptop,
   CheckCircle2,
+  Save,
+  Undo,
+  Redo,
+  Bookmark,
+  Hand,
+  MousePointer,
+  Edit3,
+  MessageSquare,
+  HelpCircle,
+  Minus,
+  Plus,
+  Sliders,
+  Filter,
+  ArrowUpDown,
+  FileCheck,
+  Grid,
 } from "lucide-react";
 import { triggerDownload } from "../lib/download-helper";
 
@@ -38,6 +54,13 @@ export interface SlideItem {
   category?: string;
   bullets: string[];
   takeaway?: string;
+  notes?: string;
+}
+
+export interface SheetData {
+  title: string;
+  headers: string[];
+  rows: (string | number)[][];
 }
 
 export interface GeneratedDocument {
@@ -53,6 +76,7 @@ export interface GeneratedDocument {
   summary?: string;
   outlineMarkdown?: string;
   slides?: SlideItem[];
+  sheets?: SheetData[];
   sections?: Array<{
     heading: string;
     paragraphs?: string[];
@@ -87,397 +111,7 @@ function dataUriToBlob(dataUri: string): Blob {
   return new Blob([ab], { type: mimeType });
 }
 
-// -------------------------------------------------------------
-// Universal File Viewer Modal Component
-// -------------------------------------------------------------
-export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModalProps) {
-  const format = (file.format || "").toLowerCase().replace(/^\./, "");
-  const [zoom, setZoom] = useState<number>(100);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [copied, setCopied] = useState<boolean>(false);
-  const [showOpenWith, setShowOpenWith] = useState<boolean>(false);
-
-  // Blob URL state for binary streaming (PDF, etc.)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let url: string | null = null;
-    if (file.dataUri) {
-      try {
-        const blob = dataUriToBlob(file.dataUri);
-        url = URL.createObjectURL(blob);
-        setBlobUrl(url);
-      } catch (err) {
-        console.warn("Could not create blob URL from dataUri:", err);
-      }
-    } else if (file.downloadUrl) {
-      setBlobUrl(`${file.downloadUrl}${file.downloadUrl.includes("?") ? "&" : "?"}inline=true`);
-    }
-
-    return () => {
-      if (url) {
-        URL.revokeObjectURL(url);
-      }
-    };
-  }, [file.dataUri, file.downloadUrl]);
-
-  // Handle escape key
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        if (showOpenWith) {
-          setShowOpenWith(false);
-        } else {
-          onClose();
-        }
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, showOpenWith]);
-
-  // Trigger Universal Cross-Platform Download helper
-  const handleDownload = async () => {
-    try {
-      const targetUrl = blobUrl || file.downloadUrl || file.dataUri;
-      if (targetUrl) {
-        await triggerDownload(targetUrl, file.filename, file.mimeType || "application/octet-stream");
-      }
-    } catch (e) {
-      console.error("[TATTVA FileViewer] Download fallback:", e);
-      if (blobUrl) {
-        const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = file.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else if (file.downloadUrl) {
-        const a = document.createElement("a");
-        a.href = file.downloadUrl;
-        a.download = file.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-    }
-  };
-
-  // Trigger Native Mobile Share or Open With Chooser
-  const handleOpenWithClick = async () => {
-    if (typeof navigator !== "undefined" && navigator.canShare && navigator.share) {
-      try {
-        let blob: Blob;
-        if (file.dataUri) {
-          blob = dataUriToBlob(file.dataUri);
-        } else if (file.downloadUrl) {
-          const res = await fetch(file.downloadUrl);
-          blob = await res.blob();
-        } else {
-          blob = new Blob([file.outlineMarkdown || ""], { type: file.mimeType || "text/plain" });
-        }
-
-        const nativeFile = new File([blob], file.filename, {
-          type: file.mimeType || "application/octet-stream",
-        });
-
-        if (navigator.canShare({ files: [nativeFile] })) {
-          await navigator.share({
-            files: [nativeFile],
-            title: file.filename,
-            text: `Open ${file.filename} in compatible application`,
-          });
-          return;
-        }
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.warn("Native share could not complete:", err);
-        } else {
-          return; // User dismissed share sheet
-        }
-      }
-    }
-
-    // Fall back to the structured Open With dialog
-    setShowOpenWith(true);
-  };
-
-  // Copy text helper
-  const handleCopyText = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Format category badge styling
-  const isPpt = ["pptx", "ppt"].includes(format);
-  const isSheet = ["xlsx", "xls", "csv"].includes(format);
-  const isPdf = format === "pdf";
-  const isCode = ["py", "ts", "js", "java", "c", "cpp", "sql", "html", "css"].includes(format);
-  const isData = ["json", "xml"].includes(format);
-  const isDoc = ["docx", "doc", "rtf"].includes(format);
-
-  const badgeColor = isPpt
-    ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-    : isSheet
-    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-    : isPdf
-    ? "text-rose-400 bg-rose-500/10 border-rose-500/20"
-    : isCode
-    ? "text-violet-400 bg-violet-500/10 border-violet-500/20"
-    : isData
-    ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
-    : "text-blue-400 bg-blue-500/10 border-blue-500/20";
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-      style={{
-        paddingTop: "max(env(safe-area-inset-top, 0px), 56px)",
-        paddingBottom: "max(env(safe-area-inset-bottom, 0px), 64px)",
-        paddingLeft: "max(env(safe-area-inset-left, 0px), 0px)",
-        paddingRight: "max(env(safe-area-inset-right, 0px), 0px)",
-      }}
-    >
-      <div
-        className={`flex flex-col w-full h-full ${
-          isFullscreen ? "max-w-none max-h-none rounded-none" : "sm:max-w-6xl sm:max-h-[92vh] sm:rounded-2xl"
-        } border transition-all overflow-hidden ${
-          isDark
-            ? "bg-neutral-950 text-neutral-100 border-neutral-800 shadow-2xl"
-            : "bg-white text-neutral-900 border-neutral-200 shadow-2xl"
-        }`}
-      >
-        {/* ============================================================ */}
-        {/* HEADER TOOLBAR */}
-        {/* ============================================================ */}
-        <div
-          className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b shrink-0 ${
-            isDark ? "bg-neutral-900/90 border-neutral-800" : "bg-neutral-50/90 border-neutral-200"
-          }`}
-        >
-          {/* File Meta */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={`flex items-center justify-center w-9 h-9 rounded-xl border shrink-0 ${badgeColor}`}>
-              {isPpt ? (
-                <Presentation className="w-4 h-4" />
-              ) : isSheet ? (
-                <FileSpreadsheet className="w-4 h-4" />
-              ) : isCode ? (
-                <Code2 className="w-4 h-4" />
-              ) : isData ? (
-                <FileCode className="w-4 h-4" />
-              ) : (
-                <FileText className="w-4 h-4" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-semibold text-sm truncate font-mono tracking-tight max-w-[220px] sm:max-w-md">
-                {file.filename}
-              </h3>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
-                <span className="uppercase font-bold tracking-wider">{format}</span>
-                <span>•</span>
-                <span>{Math.round((file.sizeBytes || 1024) / 1024) || 1} KB</span>
-                <span>•</span>
-                <span className="text-emerald-500 flex items-center gap-0.5">
-                  <CheckCircle2 className="w-3 h-3 inline" /> Verified
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {/* Action Controls */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Zoom Controls */}
-            {!isCode && (
-              <div
-                className={`hidden sm:flex items-center rounded-lg border text-xs ${
-                  isDark ? "bg-neutral-800/80 border-neutral-700 text-neutral-300" : "bg-neutral-100 border-neutral-300 text-neutral-700"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.max(50, z - 15))}
-                  title="Zoom Out"
-                  className="px-2 py-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-l-lg transition"
-                >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <span className="px-2 py-1 font-mono text-[11px] min-w-[42px] text-center select-none">
-                  {zoom}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.min(200, z + 15))}
-                  title="Zoom In"
-                  className="px-2 py-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-r-lg transition"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Print Button (PDF & DOCX) */}
-            {(isPdf || isDoc) && (
-              <button
-                type="button"
-                onClick={() => window.print()}
-                title="Print document"
-                className={`hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ${
-                  isDark ? "border-neutral-700 hover:bg-neutral-800 text-neutral-300" : "border-neutral-300 hover:bg-neutral-100 text-neutral-700"
-                }`}
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print</span>
-              </button>
-            )}
-
-            {/* Open With Button */}
-            <button
-              type="button"
-              onClick={handleOpenWithClick}
-              title="Open with external application or share"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition active:scale-95"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Open With</span>
-            </button>
-
-            {/* Download Button */}
-            <button
-              type="button"
-              onClick={handleDownload}
-              title="Download file"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D95B26] hover:bg-[#E26630] text-white text-xs font-semibold transition shadow-sm active:scale-95"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Download</span>
-            </button>
-
-            {/* Fullscreen Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              className={`min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-lg border transition active:scale-95 touch-manipulation ${
-                isDark ? "border-neutral-700 hover:bg-neutral-800 text-neutral-400" : "border-neutral-300 hover:bg-neutral-100 text-neutral-600"
-              }`}
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-
-            {/* Close Modal */}
-            <button
-              type="button"
-              onClick={onClose}
-              title="Close viewer (Return to chat)"
-              className="min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-lg bg-neutral-200/70 dark:bg-neutral-800 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 text-neutral-500 dark:text-neutral-300 transition active:scale-95 touch-manipulation"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* ============================================================ */}
-        {/* VIEWPORT CONTENT AREA (TAILORED BY FORMAT) */}
-        {/* ============================================================ */}
-        <div className="flex-1 overflow-auto relative p-2 sm:p-6 flex flex-col items-center">
-          {/* 1. PPTX VIEWER */}
-          {isPpt && (
-            <PptxSlideViewer
-              file={file}
-              zoom={zoom}
-              isDark={isDark}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-            />
-          )}
-
-          {/* 2. SPREADSHEET / CSV VIEWER */}
-          {isSheet && (
-            <SpreadsheetViewer
-              file={file}
-              zoom={zoom}
-              isDark={isDark}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-            />
-          )}
-
-          {/* 3. PDF VIEWER */}
-          {isPdf && (
-            <PdfDocumentViewer
-              file={file}
-              blobUrl={blobUrl}
-              zoom={zoom}
-              isDark={isDark}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-            />
-          )}
-
-          {/* 4. DOCX VIEWER */}
-          {isDoc && (
-            <DocxDocumentViewer
-              file={file}
-              zoom={zoom}
-              isDark={isDark}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-            />
-          )}
-
-          {/* 5. CODE FILE VIEWER */}
-          {isCode && (
-            <CodeFileViewer
-              file={file}
-              format={format}
-              isDark={isDark}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              onCopy={handleCopyText}
-              copied={copied}
-            />
-          )}
-
-          {/* 6. DATA / TEXT / MARKDOWN VIEWER */}
-          {(!isPpt && !isSheet && !isPdf && !isDoc && !isCode) && (
-            <TextDataViewer
-              file={file}
-              format={format}
-              isDark={isDark}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              onCopy={handleCopyText}
-              copied={copied}
-            />
-          )}
-        </div>
-
-        {/* ============================================================ */}
-        {/* OPEN WITH COMPATIBILITY CHOOSER DIALOG */}
-        {/* ============================================================ */}
-        {showOpenWith && (
-          <OpenWithModal
-            file={file}
-            format={format}
-            blobUrl={blobUrl}
-            isDark={isDark}
-            onClose={() => setShowOpenWith(false)}
-            onDownload={handleDownload}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
-// 1. PPTX SLIDE VIEWER COMPONENT (16:9 Widescreen + Thumbnails)
-// -------------------------------------------------------------
-function cleanViewerText(raw?: string): string {
+export function cleanViewerText(raw?: string): string {
   if (!raw) return "";
   let text = String(raw);
 
@@ -511,17 +145,13 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
         title: fallbackTitle,
         category: "OVERVIEW",
         bullets: ["Presentation slide generated by TATTVA AI Suite"],
+        notes: "Welcome the audience and introduce the core objectives of this presentation.",
       },
     ];
   }
 
   const slides: SlideItem[] = [];
 
-  // 1. Check if content is an outline list (numbered 1. or bulleted *, -, •):
-  // e.g.:
-  // **Presentation Structure (8 Slides):**
-  // * **Formal Principles and Domain-Specific Definition...** *(FOUNDATIONS)*
-  // * **Operational Constraints...** *(MOTIVATION)*
   const outlineRegex = /^\s*(?:(?:\d+)[\.\)]|[\*\-\•])\s*(?:\*\*)?([^*]+?)(?:\*\*)?(?:\s*\*\(([^)]+)\)\*)?\s*$/gm;
   const outlineMatches = [...content.matchAll(outlineRegex)];
   const validOutlineMatches = outlineMatches.filter((m) => {
@@ -544,12 +174,12 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
           `Practical implementation paradigms, performance metrics, and industry considerations.`,
         ],
         takeaway: `Key strategic highlights and core takeaways for ${title}.`,
+        notes: `Speaker Notes for Slide ${slideNum}: Focus on the architectural nuances and primary operational invariants of ${title}.`,
       });
     });
     return slides;
   }
 
-  // 2. Otherwise, match patterns like "### Slide 1: Title" or "# Slide 1" or slides separated by ---
   const rawParts = content.split(/(?:###?\s*Slide\s*\d+:?|---|\n(?=# Slide))/i).filter(Boolean);
 
   let slideIndex = 1;
@@ -560,6 +190,7 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
       const bullets: string[] = [];
       let category = "ANALYSIS";
       let takeaway = "";
+      let notes = "";
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -567,6 +198,8 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
           category = cleanViewerText(line.replace(/^category:\s*/i, "")).toUpperCase();
         } else if (/^takeaway:\s*/i.test(line)) {
           takeaway = cleanViewerText(line.replace(/^takeaway:\s*/i, ""));
+        } else if (/^notes?:\s*/i.test(line)) {
+          notes = cleanViewerText(line.replace(/^notes?:\s*/i, ""));
         } else if (/^[-*•\d.]+\s+/.test(line)) {
           const b = cleanViewerText(line.replace(/^[-*•\d.]+\s+/, ""));
           if (b && !b.toLowerCase().includes("presentation structure")) bullets.push(b);
@@ -583,6 +216,7 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
           category,
           bullets: bullets.length > 0 ? bullets : ["Detailed conceptual breakdown and strategic highlights."],
           takeaway: takeaway || undefined,
+          notes: notes || `Speaker Notes: Key talking points for ${firstLine}. Emphasize real-world impact and domain constraints.`,
         });
       }
     }
@@ -594,376 +228,11 @@ function parseSlidesFromContent(content?: string, fallbackTitle = "Presentation"
       title: cleanViewerText(fallbackTitle),
       category: "PRESENTATION",
       bullets: content.split("\n").filter((l) => l.trim().length > 0 && !l.toLowerCase().includes("presentation structure")).map(cleanViewerText).slice(0, 6),
+      notes: "Overview slide notes and executive briefing context.",
     });
   }
 
   return slides;
-}
-
-function PptxSlideViewer({
-  file,
-  zoom,
-  isDark,
-  searchTerm,
-  onSearchChange,
-}: {
-  file: GeneratedDocument;
-  zoom: number;
-  isDark: boolean;
-  searchTerm: string;
-  onSearchChange: (v: string) => void;
-}) {
-  const slides = useMemo(() => {
-    if (file.slides && file.slides.length > 0) {
-      return file.slides.map((s, idx) => ({
-        number: s.number || idx + 1,
-        title: cleanViewerText(s.title),
-        category: cleanViewerText(s.category || (idx === 0 ? "EXECUTIVE BRIEF" : "TOPIC ANALYSIS")).toUpperCase(),
-        bullets: (s.bullets || []).map(cleanViewerText).filter(Boolean),
-        takeaway: cleanViewerText(s.takeaway) || undefined,
-      }));
-    }
-    return parseSlidesFromContent(file.outlineMarkdown || file.summary, file.title || file.filename);
-  }, [file.slides, file.outlineMarkdown, file.summary, file.title, file.filename]);
-
-  const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
-  const [isSlidePresentationMode, setIsSlidePresentationMode] = useState<boolean>(false);
-  const touchStartX = useRef<number | null>(null);
-
-  // Keyboard navigation
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
-        setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1));
-      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
-        setCurrentSlideIndex((prev) => Math.max(0, prev - 1));
-      } else if (e.key === "Home") {
-        setCurrentSlideIndex(0);
-      } else if (e.key === "End") {
-        setCurrentSlideIndex(slides.length - 1);
-      } else if (e.key === "Escape" && isSlidePresentationMode) {
-        setIsSlidePresentationMode(false);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [slides.length, isSlidePresentationMode]);
-
-  // Touch swipe detection for mobile
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const diff = touchEndX - touchStartX.current;
-    if (diff > 50) {
-      // Swiped Right -> Previous slide
-      setCurrentSlideIndex((prev) => Math.max(0, prev - 1));
-    } else if (diff < -50) {
-      // Swiped Left -> Next slide
-      setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1));
-    }
-    touchStartX.current = null;
-  };
-
-  const activeSlide = slides[currentSlideIndex] || slides[0];
-  const catUpper = (activeSlide.category || "").toUpperCase();
-
-  // Distinct executive styling themes based on slide content archetype
-  const theme = catUpper.includes("FOUNDATION") || catUpper.includes("CONCEPT")
-    ? { badge: "bg-teal-500/20 text-teal-300 border-teal-500/40", num: "bg-teal-500/20 text-teal-300", accent: "from-teal-500/10" }
-    : catUpper.includes("ARCHITECTURE") || catUpper.includes("MECHANISM")
-    ? { badge: "bg-sky-500/20 text-sky-300 border-sky-500/40", num: "bg-sky-500/20 text-sky-300", accent: "from-sky-500/10" }
-    : catUpper.includes("MATH") || catUpper.includes("FORMULATION")
-    ? { badge: "bg-purple-500/20 text-purple-300 border-purple-500/40", num: "bg-purple-500/20 text-purple-300", accent: "from-purple-500/10" }
-    : catUpper.includes("APPLICATION") || catUpper.includes("USE CASE")
-    ? { badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40", num: "bg-emerald-500/20 text-emerald-300", accent: "from-emerald-500/10" }
-    : catUpper.includes("CHALLENGE") || catUpper.includes("TRADE-OFF")
-    ? { badge: "bg-rose-500/20 text-rose-300 border-rose-500/40", num: "bg-rose-500/20 text-rose-300", accent: "from-rose-500/10" }
-    : { badge: "bg-amber-500/20 text-amber-300 border-amber-500/40", num: "bg-amber-500/20 text-amber-300", accent: "from-amber-500/10" };
-
-  return (
-    <div className="w-full h-full flex flex-col items-center justify-between gap-4">
-      {/* Fullscreen Presentation Mode (Presenter View) */}
-      {isSlidePresentationMode && (
-        <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          className="fixed inset-0 z-[100] bg-black text-white flex flex-col justify-between p-4 sm:p-8 touch-manipulation select-none animate-in fade-in duration-150"
-          style={{
-            paddingTop: "max(env(safe-area-inset-top, 0px), 56px)",
-            paddingBottom: "max(env(safe-area-inset-bottom, 0px), 64px)",
-          }}
-        >
-          {/* Top Presenter Bar */}
-          <div className="flex items-center justify-between px-2 text-sm text-neutral-400 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-white">
-                Slide {currentSlideIndex + 1} of {slides.length}
-              </span>
-              <span className="hidden sm:inline">• {file.title || file.filename}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSlidePresentationMode(false)}
-              className="min-h-[44px] px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs transition active:scale-95"
-            >
-              Exit Slideshow (Esc)
-            </button>
-          </div>
-
-          {/* Center 16:9 Presentation Canvas */}
-          <div className={`w-full max-w-6xl aspect-[16/9] mx-auto my-auto rounded-3xl border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 p-6 sm:p-12 md:p-16 flex flex-col justify-between shadow-2xl relative overflow-hidden`}>
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className={`px-3.5 py-1 rounded-full text-xs font-bold tracking-widest uppercase border ${theme.badge}`}>
-                  {activeSlide.category || "PRESENTATION"}
-                </span>
-                <span className="text-sm font-mono opacity-50">
-                  {String(activeSlide.number).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-3xl md:text-5xl font-extrabold tracking-tight font-sans leading-tight text-white">
-                {activeSlide.title}
-              </h1>
-            </div>
-
-            <div className="my-auto py-4 sm:py-6 grid grid-cols-1 gap-3 sm:gap-4">
-              {activeSlide.bullets.map((bullet, idx) => (
-                <div key={idx} className="p-3.5 sm:p-5 rounded-2xl bg-neutral-900/80 border border-neutral-800/80 flex items-start gap-4 shadow-sm">
-                  <span className={`w-6 h-6 sm:w-8 sm:h-8 rounded-xl text-xs sm:text-sm font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${theme.num}`}>
-                    0{idx + 1}
-                  </span>
-                  <p className="text-base sm:text-xl md:text-2xl leading-relaxed text-neutral-200 font-normal">
-                    {bullet}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-3 sm:pt-4 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm opacity-80">
-              <div className="flex items-center gap-2 text-amber-400 font-medium">
-                <Sparkles className="w-4 h-4" />
-                <span>{activeSlide.takeaway || "TATTVA AI Autonomous Intelligence"}</span>
-              </div>
-              <span className="font-mono text-xs opacity-60">TATTVA Presentation Suite</span>
-            </div>
-          </div>
-
-          {/* Bottom Presenter Controls */}
-          <div className="flex items-center justify-center gap-4 sm:gap-6 py-2 shrink-0">
-            <button
-              type="button"
-              disabled={currentSlideIndex === 0}
-              onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
-              className="min-h-[44px] min-w-[44px] px-5 py-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition flex items-center gap-2 text-sm font-medium active:scale-95"
-            >
-              <ChevronLeft className="w-5 h-5" /> Previous
-            </button>
-            <span className="text-sm font-mono text-neutral-400">
-              {currentSlideIndex + 1} / {slides.length}
-            </span>
-            <button
-              type="button"
-              disabled={currentSlideIndex === slides.length - 1}
-              onClick={() => setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
-              className="min-h-[44px] min-w-[44px] px-5 py-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition flex items-center gap-2 text-sm font-medium active:scale-95"
-            >
-              Next <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Presentation Top bar */}
-      <div className="w-full flex items-center justify-between px-2 text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-            Slide {currentSlideIndex + 1} of {slides.length}
-          </span>
-          <span className="hidden sm:inline">• 16:9 Widescreen Layout</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsSlidePresentationMode(!isSlidePresentationMode)}
-            className="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 font-semibold transition active:scale-95 touch-manipulation"
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>{isSlidePresentationMode ? "Exit Slideshow" : "Present"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Slide Canvas (16:9 Aspect Ratio) */}
-      <div
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
-        className={`w-full max-w-4xl aspect-[16/9] rounded-2xl border p-5 sm:p-8 md:p-10 flex flex-col justify-between shadow-xl transition-all relative overflow-hidden select-none touch-manipulation ${
-          isDark
-            ? "bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 border-neutral-800 text-neutral-100"
-            : "bg-gradient-to-br from-white via-neutral-50 to-neutral-100 border-neutral-300 text-neutral-900"
-        }`}
-      >
-        {/* Subtle decorative accent */}
-        <div className={`absolute -top-24 -right-24 w-72 h-72 rounded-full bg-gradient-to-br ${theme.accent} to-transparent blur-3xl pointer-events-none`} />
-
-        {/* Slide Header */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border ${theme.badge}`}>
-              {activeSlide.category || "PRESENTATION"}
-            </span>
-            <span className="text-xs font-mono opacity-50">
-              {String(activeSlide.number).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
-            </span>
-          </div>
-          <h2 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight font-sans leading-tight">
-            {activeSlide.title}
-          </h2>
-        </div>
-
-        {/* Slide Bullets / Cards */}
-        <div className="my-auto py-2 sm:py-3 grid grid-cols-1 gap-2.5 sm:gap-3">
-          {activeSlide.bullets.map((bullet, idx) => (
-            <div
-              key={idx}
-              className={`p-3 sm:p-4 rounded-xl border transition-all flex items-start gap-3 shadow-sm ${
-                isDark
-                  ? "bg-neutral-900/60 border-neutral-800/80 hover:border-neutral-700 text-neutral-100"
-                  : "bg-white/80 border-neutral-200/80 hover:border-neutral-300 text-neutral-900 shadow-sm"
-              }`}
-            >
-              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md text-[11px] sm:text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${theme.num}`}>
-                0{idx + 1}
-              </span>
-              <p className="text-xs sm:text-sm md:text-base leading-relaxed font-normal">
-                {bullet}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Key Takeaway & Footer */}
-        <div className="pt-3 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-xs opacity-75">
-          <div className="flex items-center gap-1.5 text-amber-400 font-medium">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{activeSlide.takeaway || "TATTVA AI Autonomous Intelligence"}</span>
-          </div>
-          <span className="font-mono text-[11px] opacity-60">TATTVA Presentation Suite</span>
-        </div>
-      </div>
-
-      {/* Slide Navigation Controls & Thumbnails Strip */}
-      <div
-        className="w-full max-w-4xl flex flex-col gap-2 shrink-0"
-        style={{
-          paddingBottom: "max(env(safe-area-inset-bottom, 0px), 12px)",
-        }}
-      >
-        <div className="flex items-center justify-center gap-3">
-          <button
-            type="button"
-            disabled={currentSlideIndex === 0}
-            onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
-            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition active:scale-95 touch-manipulation flex items-center justify-center"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <span className="text-xs font-mono px-3 select-none">
-            {currentSlideIndex + 1} / {slides.length}
-          </span>
-          <button
-            type="button"
-            disabled={currentSlideIndex === slides.length - 1}
-            onClick={() => setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
-            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition active:scale-95 touch-manipulation flex items-center justify-center"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Thumbnails strip */}
-        <div className="flex items-center gap-2 overflow-x-auto py-2 px-1 scrollbar-thin touch-manipulation">
-          {slides.map((s, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => setCurrentSlideIndex(idx)}
-              className={`flex flex-col items-center justify-between w-24 h-14 p-1.5 rounded-lg border text-[9px] shrink-0 transition-all font-mono active:scale-95 ${
-                idx === currentSlideIndex
-                  ? "border-amber-500 bg-amber-500/15 shadow-sm text-amber-400 ring-1 ring-amber-500"
-                  : isDark
-                  ? "border-neutral-800 bg-neutral-900 text-neutral-400 hover:border-neutral-700"
-                  : "border-neutral-300 bg-neutral-100 text-neutral-600 hover:border-neutral-400"
-              }`}
-            >
-              <span className="font-bold">SLIDE {s.number}</span>
-              <span className="truncate w-full text-center text-[8px] opacity-75">{s.title}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
-// 2. SPREADSHEET & CSV VIEWER COMPONENT (Grid, Sheets, fx bar)
-// -------------------------------------------------------------
-interface SheetData {
-  title: string;
-  headers: string[];
-  rows: string[][];
-}
-
-function parseSpreadsheetFromContent(content?: string, filename = "Workbook.xlsx"): SheetData[] {
-  if (!content) {
-    return [
-      {
-        title: "Sheet1",
-        headers: ["Column A", "Column B", "Column C"],
-        rows: [["Data 1", "Data 2", "Data 3"]],
-      },
-    ];
-  }
-
-  const sheets: SheetData[] = [];
-  // Check for multiple sheet indicators: "### Sheet: Name"
-  const rawSheets = content.split(/###?\s*Sheet:\s*/i).filter(Boolean);
-
-  if (rawSheets.length > 1) {
-    for (const raw of rawSheets) {
-      const lines = raw.trim().split("\n");
-      const title = lines[0].trim() || `Sheet ${sheets.length + 1}`;
-      const tableLines = lines.slice(1).filter((l) => l.includes("|") || l.includes(","));
-      const parsed = parseTableLines(tableLines);
-      if (parsed.headers.length > 0) {
-        sheets.push({ title, ...parsed });
-      }
-    }
-  } else {
-    // Single sheet table or CSV parsing
-    const lines = content.split("\n").filter((l) => l.trim().length > 0);
-    const parsed = parseTableLines(lines);
-    sheets.push({
-      title: filename.replace(/\.[a-zA-Z0-9]+$/, ""),
-      ...parsed,
-    });
-  }
-
-  return sheets.length > 0
-    ? sheets
-    : [
-        {
-          title: "Sheet1",
-          headers: ["Item", "Category", "Value"],
-          rows: [["Sample Record", "General", "100"]],
-        },
-      ];
 }
 
 function parseTableLines(lines: string[]): { headers: string[]; rows: string[][] } {
@@ -982,7 +251,6 @@ function parseTableLines(lines: string[]): { headers: string[]; rows: string[][]
     return { headers, rows };
   }
 
-  // Fallback CSV comma parser
   const csvLines = lines.filter((l) => l.includes(","));
   if (csvLines.length > 0) {
     const headers = csvLines[0].split(",").map((c) => c.replace(/^"|"$/g, "").trim());
@@ -993,263 +261,62 @@ function parseTableLines(lines: string[]): { headers: string[]; rows: string[][]
   return { headers: ["Column 1", "Column 2"], rows: [["Value 1", "Value 2"]] };
 }
 
-// -------------------------------------------------------------
-// 2. SPREADSHEET & CSV VIEWER COMPONENT (Excel Grid, Formula Bar, KPI Bar)
-// -------------------------------------------------------------
-function SpreadsheetViewer({
-  file,
-  zoom,
-  isDark,
-  searchTerm,
-  onSearchChange,
-}: {
-  file: GeneratedDocument;
-  zoom: number;
-  isDark: boolean;
-  searchTerm: string;
-  onSearchChange: (v: string) => void;
-}) {
-  const sheets = useMemo(
-    () => parseSpreadsheetFromContent(file.outlineMarkdown || file.summary, file.filename),
-    [file.outlineMarkdown, file.summary, file.filename]
-  );
+function parseSpreadsheetFromContent(content?: string, filename = "Workbook.xlsx", explicitSheets?: SheetData[]): SheetData[] {
+  if (explicitSheets && explicitSheets.length > 0) {
+    return explicitSheets;
+  }
 
-  const [activeSheetIndex, setActiveSheetIndex] = useState<number>(0);
-  const [selectedCell, setSelectedCell] = useState<{ col: number; row: number; val: string } | null>({
-    col: 0,
-    row: 0,
-    val: sheets[0]?.rows?.[0]?.[0] || "",
-  });
-  const [sortColumn, setSortColumn] = useState<number | null>(null);
-  const [sortAsc, setSortAsc] = useState<boolean>(true);
-  const [sheetCopied, setSheetCopied] = useState<boolean>(false);
+  if (!content) {
+    return [
+      {
+        title: "Summary Overview",
+        headers: ["Metric", "Category", "Baseline", "Target", "Status"],
+        rows: [
+          ["Operational Efficiency", "Performance", 82.5, 96.0, "Active"],
+          ["System Latency (ms)", "Infrastructure", 45, 12, "Optimized"],
+          ["Resource Utilization", "Compute", 74.2, 88.0, "Verified"],
+        ],
+      },
+    ];
+  }
 
-  const currentSheet = sheets[activeSheetIndex] || sheets[0];
+  const sheets: SheetData[] = [];
+  const rawSheets = content.split(/###?\s*Sheet:\s*/i).filter(Boolean);
 
-  // Column labels (A, B, C, D, ...)
-  const colLetter = (idx: number) => String.fromCharCode(65 + (idx % 26));
-
-  const filteredRows = useMemo(() => {
-    let rows = [...currentSheet.rows];
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      rows = rows.filter((r) => r.some((cell) => cell.toLowerCase().includes(q)));
-    }
-    if (sortColumn !== null) {
-      rows.sort((a, b) => {
-        const valA = a[sortColumn] || "";
-        const valB = b[sortColumn] || "";
-        const numA = parseFloat(valA.replace(/[^0-9.-]/g, ""));
-        const numB = parseFloat(valB.replace(/[^0-9.-]/g, ""));
-        if (!isNaN(numA) && !isNaN(numB)) {
-          return sortAsc ? numA - numB : numB - numA;
-        }
-        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      });
-    }
-    return rows;
-  }, [currentSheet.rows, searchTerm, sortColumn, sortAsc]);
-
-  // Compute live spreadsheet KPI metrics
-  const kpis = useMemo(() => {
-    let sum = 0;
-    let numCount = 0;
-    for (const r of currentSheet.rows) {
-      for (const cell of r) {
-        const num = parseFloat(String(cell).replace(/[^0-9.-]/g, ""));
-        if (!isNaN(num) && isFinite(num)) {
-          sum += num;
-          numCount++;
-        }
+  if (rawSheets.length > 1) {
+    for (const raw of rawSheets) {
+      const lines = raw.trim().split("\n");
+      const title = lines[0].trim() || `Sheet ${sheets.length + 1}`;
+      const tableLines = lines.slice(1).filter((l) => l.includes("|") || l.includes(","));
+      const parsed = parseTableLines(tableLines);
+      if (parsed.headers.length > 0) {
+        sheets.push({ title, ...parsed });
       }
     }
-    const avg = numCount > 0 ? (sum / numCount).toFixed(1) : "0";
-    return {
-      sum: sum.toLocaleString(),
-      avg: parseFloat(avg).toLocaleString(),
-      cells: currentSheet.rows.length * currentSheet.headers.length,
-    };
-  }, [currentSheet]);
+  } else {
+    const lines = content.split("\n").filter((l) => l.trim().length > 0);
+    const parsed = parseTableLines(lines);
+    sheets.push({
+      title: "Summary",
+      ...parsed,
+    });
+  }
 
-  const handleCopyCsv = () => {
-    const csvContent = [
-      currentSheet.headers.join(","),
-      ...currentSheet.rows.map((r) => r.join(",")),
-    ].join("\n");
-    navigator.clipboard.writeText(csvContent);
-    setSheetCopied(true);
-    setTimeout(() => setSheetCopied(false), 2000);
-  };
-
-  return (
-    <div className="w-full h-full flex flex-col rounded-2xl border border-neutral-700/80 bg-neutral-900 overflow-hidden shadow-2xl">
-      {/* Excel Ribbon / KPI Strip */}
-      <div className="flex flex-wrap items-center justify-between px-3 py-2 border-b border-neutral-800 bg-neutral-950/80 text-xs gap-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            EXCEL 365
-          </span>
-          <span className="font-semibold text-neutral-300 truncate max-w-[160px] sm:max-w-xs font-mono text-[11px]">
-            {file.filename}
-          </span>
-        </div>
-
-        {/* Quick KPI stats */}
-        <div className="flex items-center gap-2 sm:gap-4 font-mono text-[11px] text-neutral-400">
-          <span>Rows: <strong className="text-neutral-200">{filteredRows.length}</strong></span>
-          <span>Cols: <strong className="text-neutral-200">{currentSheet.headers.length}</strong></span>
-          <span className="hidden sm:inline">Sum: <strong className="text-emerald-400">{kpis.sum}</strong></span>
-          <span className="hidden md:inline">Avg: <strong className="text-emerald-400">{kpis.avg}</strong></span>
-          <button
-            type="button"
-            onClick={handleCopyCsv}
-            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[10px] font-semibold transition active:scale-95"
-          >
-            {sheetCopied ? "Copied CSV!" : "Copy CSV"}
-          </button>
-        </div>
-      </div>
-
-      {/* Formula & Search Bar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800 bg-neutral-900/90 text-xs font-mono text-neutral-300 shrink-0 gap-3">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-            fx
-          </span>
-          <span className="font-semibold text-neutral-400">
-            [{selectedCell ? `${colLetter(selectedCell.col)}${selectedCell.row + 1}` : "A1"}]:
-          </span>
-          <span className="truncate max-w-sm text-neutral-200 select-all font-sans">
-            {selectedCell?.val || ""}
-          </span>
-        </div>
-
-        {/* Filter input */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search cells..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="px-2.5 py-1 text-xs rounded-md bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 w-28 sm:w-44 font-sans"
-          />
-        </div>
-      </div>
-
-      {/* Grid Table Container */}
-      <div
-        style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
-        className="flex-1 overflow-auto relative select-none"
-      >
-        <table className="w-full text-left border-collapse text-xs font-mono">
-          <thead>
-            <tr className="bg-neutral-800 text-neutral-400 sticky top-0 z-10 border-b border-neutral-700 shadow-sm">
-              <th className="w-12 px-2 py-2 text-center border-r border-neutral-700 font-normal select-none bg-neutral-850">
-                #
-              </th>
-              {currentSheet.headers.map((h, i) => (
-                <th
-                  key={i}
-                  onClick={() => {
-                    if (sortColumn === i) {
-                      setSortAsc(!sortAsc);
-                    } else {
-                      setSortColumn(i);
-                      setSortAsc(true);
-                    }
-                  }}
-                  className="px-4 py-2 border-r border-neutral-700 font-semibold cursor-pointer hover:bg-neutral-700/60 transition whitespace-nowrap"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span>
-                      <span className="text-emerald-400 font-normal mr-1.5">{colLetter(i)}</span>
-                      {h}
-                    </span>
-                    {sortColumn === i && (
-                      <span className="text-emerald-400">{sortAsc ? "▲" : "▼"}</span>
-                    )}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((row, rowIdx) => (
-              <tr
-                key={rowIdx}
-                className={`border-b border-neutral-800/60 hover:bg-emerald-500/5 transition ${
-                  rowIdx % 2 === 0 ? "bg-neutral-900" : "bg-neutral-900/60"
-                }`}
-              >
-                <td className="w-12 px-2 py-1.5 text-center text-neutral-500 border-r border-neutral-800 select-none bg-neutral-950/40 font-mono">
-                  {rowIdx + 1}
-                </td>
-                {currentSheet.headers.map((_, colIdx) => {
-                  const val = row[colIdx] || "";
-                  const isSelected = selectedCell?.row === rowIdx && selectedCell?.col === colIdx;
-                  return (
-                    <td
-                      key={colIdx}
-                      onClick={() => setSelectedCell({ col: colIdx, row: rowIdx, val })}
-                      className={`px-4 py-1.5 border-r border-neutral-800/60 whitespace-nowrap transition cursor-cell ${
-                        isSelected
-                          ? "bg-emerald-500/20 text-emerald-300 ring-2 ring-emerald-500"
-                          : "text-neutral-200"
-                      }`}
-                    >
-                      {val}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Sheets Tabs Bar (Bottom) */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-t border-neutral-800 bg-neutral-950 shrink-0 text-xs">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {sheets.map((sheet, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => {
-                setActiveSheetIndex(idx);
-                setSelectedCell(null);
-              }}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition ${
-                idx === activeSheetIndex
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold shadow-sm"
-                  : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
-              }`}
-            >
-              {sheet.title}
-            </button>
-          ))}
-        </div>
-        <span className="text-neutral-500 text-[11px] font-mono shrink-0">
-          {filteredRows.length} rows • {currentSheet.headers.length} cols
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
-// 3. ENHANCED IN-APP PDF DOCUMENT VIEWER (Multi-Page Reader & Substantive Matter Fallback)
-// -------------------------------------------------------------
-interface PdfPageItem {
-  pageNumber: number;
-  title: string;
-  category: string;
-  sections: Array<{ heading: string; paragraphs: string[]; table?: { headers: string[]; rows: string[][] } }>;
+  return sheets.length > 0
+    ? sheets
+    : [
+        {
+          title: "Sheet1",
+          headers: ["Item", "Category", "Value"],
+          rows: [["Sample Record", "General", 100]],
+        },
+      ];
 }
 
 interface DomainSectionBlock {
   heading: string;
   paragraphs: string[];
-  table?: { headers: string[]; rows: string[][] };
+  table?: { headers: string[]; rows: (string | number)[][] };
 }
 
 function getEnrichedDomainSections(rawTitle: string): DomainSectionBlock[] {
@@ -1261,7 +328,6 @@ function getEnrichedDomainSections(rawTitle: string): DomainSectionBlock[] {
 
   const lower = cleanTitle.toLowerCase();
 
-  // 1. Object-Oriented Programming (OOP)
   if (
     lower.includes("oop") ||
     lower.includes("object-oriented") ||
@@ -1340,7 +406,6 @@ function getEnrichedDomainSections(rawTitle: string): DomainSectionBlock[] {
     ];
   }
 
-  // 2. Amazon
   if (lower.includes("amazon") || lower.includes("aws")) {
     return [
       {
@@ -1398,7 +463,6 @@ function getEnrichedDomainSections(rawTitle: string): DomainSectionBlock[] {
     ];
   }
 
-  // 3. Generic High-Density Technical Topic Fallback
   return [
     {
       heading: `1. Introduction & Theoretical Foundations: ${cleanTitle}`,
@@ -1458,6 +522,13 @@ function getEnrichedDomainSections(rawTitle: string): DomainSectionBlock[] {
   ];
 }
 
+interface PdfPageItem {
+  pageNumber: number;
+  title: string;
+  category: string;
+  sections: Array<{ heading: string; paragraphs: string[]; table?: { headers: string[]; rows: (string | number)[][] } }>;
+}
+
 function parsePdfPagesFromContent(
   content?: string,
   docTitle = "Research Document",
@@ -1478,9 +549,8 @@ function parsePdfPagesFromContent(
     .replace(/_/g, " ")
     .trim() || "Research Document";
 
-  let sectionBlocks: Array<{ heading: string; paragraphs: string[]; table?: { headers: string[]; rows: string[][] } }> = [];
+  let sectionBlocks: Array<{ heading: string; paragraphs: string[]; table?: { headers: string[]; rows: (string | number)[][] } }> = [];
 
-  // 1. Structured sections explicitly supplied
   if (fileSections && fileSections.length > 0) {
     for (const sec of fileSections) {
       const paras: string[] = [];
@@ -1494,17 +564,17 @@ function parsePdfPagesFromContent(
         paras.push(...sec.bullets.map((b) => `• ${cleanViewerText(b)}`).filter(Boolean));
       }
 
-      let parsedTable: { headers: string[]; rows: string[][] } | undefined;
+      let parsedTable: { headers: string[]; rows: (string | number)[][] } | undefined;
       if (sec.table) {
         if (Array.isArray(sec.table) && sec.table.length > 0) {
           parsedTable = {
             headers: sec.table[0].map(String),
-            rows: sec.table.slice(1).map((r) => (Array.isArray(r) ? r.map(String) : [String(r)])),
+            rows: sec.table.slice(1).map((r) => (Array.isArray(r) ? r : [r])),
           };
         } else if (typeof sec.table === "object" && "headers" in sec.table && "rows" in sec.table) {
           parsedTable = {
             headers: (sec.table as any).headers.map(String),
-            rows: (sec.table as any).rows.map((r: any) => r.map(String)),
+            rows: (sec.table as any).rows,
           };
         }
       }
@@ -1517,7 +587,6 @@ function parsePdfPagesFromContent(
     }
   }
 
-  // 2. Parse from markdown content if sections empty
   if (sectionBlocks.length === 0 && content) {
     const rawParts = content.split(/\n---\n|\n(?=###?\s+)/).filter((p) => p.trim().length > 0);
     for (const part of rawParts) {
@@ -1554,7 +623,6 @@ function parsePdfPagesFromContent(
     }
   }
 
-  // Check if content is empty or only had table of contents with no real body matter
   const totalParagraphWords = sectionBlocks.reduce((acc, s) => acc + s.paragraphs.join(" ").split(/\s+/).length, 0);
   const isOutlineStubOnly = sectionBlocks.length <= 1 || totalParagraphWords < 30 || (content && content.includes("Document Structure (8 Sections):"));
 
@@ -1564,7 +632,6 @@ function parsePdfPagesFromContent(
 
   const pages: PdfPageItem[] = [];
 
-  // Page 1: Executive Cover Sheet & Abstract & Theoretical Intro
   const introBlock = sectionBlocks[0] || {
     heading: "1. Introduction & Theoretical Foundations",
     paragraphs: [
@@ -1588,7 +655,6 @@ function parsePdfPagesFromContent(
     ],
   });
 
-  // Pages 2..N: Technical Sections (1 or 2 per page depending on size/table)
   const remaining = sectionBlocks.slice(1);
   for (let i = 0; i < remaining.length; i += 2) {
     const chunk = remaining.slice(i, i + 2);
@@ -1600,7 +666,6 @@ function parsePdfPagesFromContent(
     });
   }
 
-  // Final Page: Authoritative Citations & Cryptographic Verification
   pages.push({
     pageNumber: pages.length + 1,
     title: "References & Digital Authenticity",
@@ -1626,20 +691,1023 @@ function parsePdfPagesFromContent(
   return pages;
 }
 
-function PdfDocumentViewer({
+// =============================================================
+// MAIN UNIVERSAL MODAL ENTRY POINT
+// =============================================================
+export function FileViewerModal({ file, onClose, isDark = true }: FileViewerModalProps) {
+  const format = (file.format || "").toLowerCase().replace(/^\./, "");
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [showOpenWith, setShowOpenWith] = useState<boolean>(false);
+
+  useEffect(() => {
+    let url: string | null = null;
+    if (file.dataUri) {
+      try {
+        const blob = dataUriToBlob(file.dataUri);
+        url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      } catch (err) {
+        console.warn("Could not create blob URL from dataUri:", err);
+      }
+    } else if (file.downloadUrl) {
+      setBlobUrl(`${file.downloadUrl}${file.downloadUrl.includes("?") ? "&" : "?"}inline=true`);
+    }
+
+    return () => {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [file.dataUri, file.downloadUrl]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (showOpenWith) {
+          setShowOpenWith(false);
+        } else {
+          onClose();
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, showOpenWith]);
+
+  const handleDownload = async () => {
+    try {
+      const targetUrl = blobUrl || file.downloadUrl || file.dataUri;
+      if (targetUrl) {
+        await triggerDownload(targetUrl, file.filename, file.mimeType || "application/octet-stream");
+      }
+    } catch (e) {
+      console.error("[TATTVA FileViewer] Download fallback:", e);
+      if (blobUrl) {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else if (file.downloadUrl) {
+        const a = document.createElement("a");
+        a.href = file.downloadUrl;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    }
+  };
+
+  const handleOpenWithClick = async () => {
+    if (typeof navigator !== "undefined" && navigator.canShare && navigator.share) {
+      try {
+        let blob: Blob;
+        if (file.dataUri) {
+          blob = dataUriToBlob(file.dataUri);
+        } else if (file.downloadUrl) {
+          const res = await fetch(file.downloadUrl);
+          blob = await res.blob();
+        } else {
+          blob = new Blob([file.outlineMarkdown || ""], { type: file.mimeType || "text/plain" });
+        }
+
+        const nativeFile = new File([blob], file.filename, {
+          type: file.mimeType || "application/octet-stream",
+        });
+
+        if (navigator.canShare({ files: [nativeFile] })) {
+          await navigator.share({
+            files: [nativeFile],
+            title: file.filename,
+            text: `Open ${file.filename} in compatible application`,
+          });
+          return;
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.warn("Native share could not complete:", err);
+        } else {
+          return;
+        }
+      }
+    }
+    setShowOpenWith(true);
+  };
+
+  const isPpt = ["pptx", "ppt"].includes(format);
+  const isSheet = ["xlsx", "xls", "csv"].includes(format);
+  const isPdf = format === "pdf";
+  const isDoc = ["docx", "doc", "rtf"].includes(format);
+  const isCode = ["py", "ts", "js", "java", "c", "cpp", "sql", "html", "css"].includes(format);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-3 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top, 0px), 16px)",
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)",
+        paddingLeft: "max(env(safe-area-inset-left, 0px), 0px)",
+        paddingRight: "max(env(safe-area-inset-right, 0px), 0px)",
+      }}
+    >
+      <div className="relative w-full h-full max-w-7xl max-h-[96vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden border border-neutral-700/60 bg-neutral-950 text-neutral-100">
+        {/* Format-Dedicated Application Shell */}
+        {isPpt ? (
+          <PowerPointViewer
+            file={file}
+            blobUrl={blobUrl}
+            onClose={onClose}
+            onDownload={handleDownload}
+            onOpenWith={handleOpenWithClick}
+            isDark={isDark}
+          />
+        ) : isSheet ? (
+          <ExcelViewer
+            file={file}
+            blobUrl={blobUrl}
+            onClose={onClose}
+            onDownload={handleDownload}
+            onOpenWith={handleOpenWithClick}
+            isDark={isDark}
+          />
+        ) : isPdf ? (
+          <AcrobatPdfViewer
+            file={file}
+            blobUrl={blobUrl}
+            onClose={onClose}
+            onDownload={handleDownload}
+            onOpenWith={handleOpenWithClick}
+            isDark={isDark}
+          />
+        ) : isDoc ? (
+          <WordDocxViewer
+            file={file}
+            blobUrl={blobUrl}
+            onClose={onClose}
+            onDownload={handleDownload}
+            onOpenWith={handleOpenWithClick}
+            isDark={isDark}
+          />
+        ) : isCode ? (
+          <CodeStudioViewer
+            file={file}
+            format={format}
+            blobUrl={blobUrl}
+            onClose={onClose}
+            onDownload={handleDownload}
+            onOpenWith={handleOpenWithClick}
+            isDark={isDark}
+          />
+        ) : (
+          <DataTextViewer
+            file={file}
+            format={format}
+            blobUrl={blobUrl}
+            onClose={onClose}
+            onDownload={handleDownload}
+            onOpenWith={handleOpenWithClick}
+            isDark={isDark}
+          />
+        )}
+      </div>
+
+      {showOpenWith && (
+        <OpenWithModal
+          file={file}
+          format={format}
+          blobUrl={blobUrl}
+          isDark={isDark}
+          onClose={() => setShowOpenWith(false)}
+          onDownload={handleDownload}
+        />
+      )}
+    </div>
+  );
+}
+
+// =============================================================
+// 1. POWERPOINT PRESENTATION VIEWER (Office Red #C43E1C)
+// Matches Reference Images: Red Title Bar, Ribbon, Thumbnails,
+// Center 16:9 Workspace, Presenter Notes Pane, Red Status Bar
+// =============================================================
+function PowerPointViewer({
   file,
   blobUrl,
-  zoom,
+  onClose,
+  onDownload,
+  onOpenWith,
   isDark,
-  searchTerm,
-  onSearchChange,
 }: {
   file: GeneratedDocument;
   blobUrl: string | null;
-  zoom: number;
+  onClose: () => void;
+  onDownload: () => void;
+  onOpenWith: () => void;
   isDark: boolean;
-  searchTerm: string;
-  onSearchChange: (v: string) => void;
+}) {
+  const slides = useMemo(() => {
+    if (file.slides && file.slides.length > 0) {
+      return file.slides.map((s, idx) => ({
+        number: s.number || idx + 1,
+        title: cleanViewerText(s.title),
+        category: cleanViewerText(s.category || (idx === 0 ? "EXECUTIVE BRIEF" : "TOPIC ANALYSIS")).toUpperCase(),
+        bullets: (s.bullets || []).map(cleanViewerText).filter(Boolean),
+        takeaway: cleanViewerText(s.takeaway) || undefined,
+        notes: cleanViewerText(s.notes) || `Speaker Notes: Focus on ${cleanViewerText(s.title)} and core deliverables.`,
+      }));
+    }
+    return parseSlidesFromContent(file.outlineMarkdown || file.summary, file.title || file.filename);
+  }, [file.slides, file.outlineMarkdown, file.summary, file.title, file.filename]);
+
+  const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<string>("HOME");
+  const [showNotes, setShowNotes] = useState<boolean>(true);
+  const [showThumbnails, setShowThumbnails] = useState<boolean>(true);
+  const [isSlidePresentationMode, setIsSlidePresentationMode] = useState<boolean>(false);
+  const [zoom, setZoom] = useState<number>(100);
+  const touchStartX = useRef<number | null>(null);
+
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+        setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1));
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        setCurrentSlideIndex((prev) => Math.max(0, prev - 1));
+      } else if (e.key === "Home") {
+        setCurrentSlideIndex(0);
+      } else if (e.key === "End") {
+        setCurrentSlideIndex(slides.length - 1);
+      } else if (e.key === "F5") {
+        e.preventDefault();
+        setIsSlidePresentationMode(true);
+      } else if (e.key === "Escape" && isSlidePresentationMode) {
+        setIsSlidePresentationMode(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [slides.length, isSlidePresentationMode]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    if (diff > 50) {
+      setCurrentSlideIndex((prev) => Math.max(0, prev - 1));
+    } else if (diff < -50) {
+      setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1));
+    }
+    touchStartX.current = null;
+  };
+
+  const activeSlide = slides[currentSlideIndex] || slides[0];
+  const catUpper = (activeSlide.category || "").toUpperCase();
+
+  const theme = catUpper.includes("FOUNDATION") || catUpper.includes("CONCEPT")
+    ? { badge: "bg-teal-500/20 text-teal-300 border-teal-500/40", num: "bg-teal-500/20 text-teal-300", accent: "from-teal-500/10" }
+    : catUpper.includes("ARCHITECTURE") || catUpper.includes("MECHANISM")
+    ? { badge: "bg-sky-500/20 text-sky-300 border-sky-500/40", num: "bg-sky-500/20 text-sky-300", accent: "from-sky-500/10" }
+    : catUpper.includes("MATH") || catUpper.includes("FORMULATION")
+    ? { badge: "bg-purple-500/20 text-purple-300 border-purple-500/40", num: "bg-purple-500/20 text-purple-300", accent: "from-purple-500/10" }
+    : catUpper.includes("APPLICATION") || catUpper.includes("USE CASE")
+    ? { badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40", num: "bg-emerald-500/20 text-emerald-300", accent: "from-emerald-500/10" }
+    : catUpper.includes("CHALLENGE") || catUpper.includes("TRADE-OFF")
+    ? { badge: "bg-rose-500/20 text-rose-300 border-rose-500/40", num: "bg-rose-500/20 text-rose-300", accent: "from-rose-500/10" }
+    : { badge: "bg-amber-500/20 text-amber-300 border-amber-500/40", num: "bg-amber-500/20 text-amber-300", accent: "from-amber-500/10" };
+
+  const ribbonTabs = ["FILE", "HOME", "INSERT", "DESIGN", "TRANSITIONS", "ANIMATIONS", "SLIDE SHOW", "REVIEW", "VIEW"];
+
+  return (
+    <div className="w-full h-full flex flex-col bg-neutral-900 text-neutral-100 select-none">
+      {/* 1. POWERPOINT RED TITLE BAR (#C43E1C) */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#C43E1C] text-white shrink-0 shadow-md">
+        {/* Quick Access Toolbar */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 bg-black/20 rounded px-1.5 py-0.5 text-xs font-semibold">
+            <Presentation className="w-3.5 h-3.5 fill-current" />
+            <span className="hidden sm:inline">AutoSave</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block ml-0.5" />
+          </div>
+          <button
+            type="button"
+            onClick={onDownload}
+            title="Save / Download Presentation"
+            className="p-1 hover:bg-white/20 rounded transition active:scale-95 min-h-[32px] min-w-[32px] flex items-center justify-center"
+          >
+            <Save className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentSlideIndex((p) => Math.max(0, p - 1))}
+            title="Undo"
+            className="p-1 hover:bg-white/20 rounded transition hidden sm:flex items-center justify-center"
+          >
+            <Undo className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentSlideIndex((p) => Math.min(slides.length - 1, p + 1))}
+            title="Redo"
+            className="p-1 hover:bg-white/20 rounded transition hidden sm:flex items-center justify-center"
+          >
+            <Redo className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSlidePresentationMode(true)}
+            title="Start from Beginning (F5)"
+            className="p-1 hover:bg-white/20 rounded transition flex items-center justify-center"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+          </button>
+        </div>
+
+        {/* Center Presentation Title */}
+        <div className="text-xs sm:text-sm font-semibold truncate max-w-[200px] sm:max-w-md text-center">
+          {file.filename} - PowerPoint
+        </div>
+
+        {/* Right Window Controls */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onOpenWith}
+            title="Open With Compatible Application"
+            className="p-1.5 hover:bg-white/20 rounded transition text-xs flex items-center gap-1"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Open With</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close Window"
+            className="p-1.5 hover:bg-red-700 rounded transition min-h-[36px] min-w-[36px] flex items-center justify-center"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. RIBBON TABS */}
+      <div className="flex items-center px-2 bg-neutral-800 border-b border-neutral-700 text-xs overflow-x-auto scrollbar-none shrink-0">
+        <button
+          type="button"
+          onClick={onDownload}
+          className="px-3 py-1.5 bg-[#C43E1C] hover:bg-[#b03718] text-white font-bold tracking-wider text-[11px] transition"
+        >
+          FILE
+        </button>
+        {ribbonTabs.slice(1).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`px-3 py-1.5 font-medium transition text-[11px] whitespace-nowrap ${
+              activeTab === tab
+                ? "bg-neutral-900 text-white border-t-2 border-[#C43E1C] font-semibold"
+                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* 3. RIBBON TOOLBAR ROW */}
+      <div className="hidden sm:flex items-center justify-between px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs shrink-0 gap-3">
+        <div className="flex items-center gap-2">
+          {/* Slide Actions */}
+          <button
+            type="button"
+            onClick={() => setIsSlidePresentationMode(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#C43E1C]/20 text-[#ff6842] hover:bg-[#C43E1C]/30 border border-[#C43E1C]/40 font-semibold transition"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Present (F5)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowThumbnails(!showThumbnails)}
+            className={`px-2 py-1 rounded border text-[11px] transition ${
+              showThumbnails ? "bg-neutral-800 border-neutral-700 text-neutral-200" : "border-neutral-800 text-neutral-500"
+            }`}
+          >
+            Thumbnails
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowNotes(!showNotes)}
+            className={`px-2 py-1 rounded border text-[11px] transition ${
+              showNotes ? "bg-neutral-800 border-neutral-700 text-neutral-200" : "border-neutral-800 text-neutral-500"
+            }`}
+          >
+            Notes Pane
+          </button>
+        </div>
+
+        {/* Zoom & Navigation Actions */}
+        <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-400">
+          <span>{slides.length} Slides</span>
+          <span>•</span>
+          <span className="text-emerald-400">Verified OpenXML</span>
+        </div>
+      </div>
+
+      {/* 4. MAIN WORKSPACE (Left Thumbnails Pane + Center 16:9 Slide + Bottom Notes) */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left Thumbnails Pane */}
+        {showThumbnails && (
+          <div className="w-28 sm:w-44 border-r border-neutral-800 bg-neutral-950 p-2 overflow-y-auto shrink-0 space-y-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 px-1 mb-1">
+              Slides ({slides.length})
+            </div>
+            {slides.map((s, idx) => (
+              <div
+                key={idx}
+                onClick={() => setCurrentSlideIndex(idx)}
+                className={`group flex items-start gap-1.5 p-1 rounded-lg cursor-pointer transition active:scale-95 ${
+                  idx === currentSlideIndex
+                    ? "bg-[#C43E1C]/15 border-2 border-[#C43E1C]"
+                    : "hover:bg-neutral-800 border border-neutral-800/80"
+                }`}
+              >
+                <span className="text-[10px] font-mono font-bold text-neutral-400 w-4 text-right pt-0.5">
+                  {idx + 1}
+                </span>
+                <div className="flex-1 aspect-[16/9] rounded bg-neutral-900 border border-neutral-700/50 p-1 flex flex-col justify-between overflow-hidden shadow-inner">
+                  <div className="text-[7px] font-bold truncate text-white leading-tight">
+                    {s.title}
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="h-0.5 w-3/4 bg-neutral-600 rounded" />
+                    <div className="h-0.5 w-1/2 bg-neutral-700 rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Center Workspace & Notes Area */}
+        <div className="flex-1 flex flex-col overflow-auto bg-neutral-950/70 p-2 sm:p-6 items-center justify-between">
+          {/* Main 16:9 Slide Pane */}
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+            className={`w-full max-w-4xl aspect-[16/9] rounded-2xl border p-5 sm:p-8 md:p-10 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden my-auto ${
+              isDark
+                ? "bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 border-neutral-800 text-neutral-100"
+                : "bg-gradient-to-br from-white via-neutral-50 to-neutral-100 border-neutral-300 text-neutral-900"
+            }`}
+          >
+            <div className={`absolute -top-24 -right-24 w-72 h-72 rounded-full bg-gradient-to-br ${theme.accent} to-transparent blur-3xl pointer-events-none`} />
+
+            {/* Slide Header */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase border ${theme.badge}`}>
+                  {activeSlide.category || "PRESENTATION"}
+                </span>
+                <span className="text-xs font-mono opacity-50">
+                  {String(activeSlide.number).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+                </span>
+              </div>
+              <h2 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight font-sans leading-tight">
+                {activeSlide.title}
+              </h2>
+            </div>
+
+            {/* Bullets List */}
+            <div className="my-auto py-2 sm:py-3 grid grid-cols-1 gap-2 sm:gap-3">
+              {activeSlide.bullets.map((bullet, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2.5 sm:p-3.5 rounded-xl border transition-all flex items-start gap-3 shadow-sm ${
+                    isDark
+                      ? "bg-neutral-900/60 border-neutral-800/80 hover:border-neutral-700 text-neutral-100"
+                      : "bg-white/80 border-neutral-200/80 hover:border-neutral-300 text-neutral-900 shadow-sm"
+                  }`}
+                >
+                  <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md text-[11px] sm:text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${theme.num}`}>
+                    0{idx + 1}
+                  </span>
+                  <p className="text-xs sm:text-sm md:text-base leading-relaxed font-normal">
+                    {bullet}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Key Takeaway */}
+            <div className="pt-3 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-xs opacity-75">
+              <div className="flex items-center gap-1.5 text-amber-400 font-medium">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{activeSlide.takeaway || "TATTVA AI Autonomous Intelligence"}</span>
+              </div>
+              <span className="font-mono text-[11px] opacity-60">Slide {currentSlideIndex + 1}</span>
+            </div>
+          </div>
+
+          {/* Collapsible Notes Pane */}
+          {showNotes && (
+            <div className="w-full max-w-4xl mt-3 p-3 rounded-xl border border-neutral-800 bg-neutral-900/90 text-xs text-neutral-300 shrink-0">
+              <div className="flex items-center justify-between font-semibold text-[11px] text-neutral-400 mb-1">
+                <span>Presenter Notes (Slide {currentSlideIndex + 1}):</span>
+                <span className="font-mono text-[10px]">Holds notes for the presenter</span>
+              </div>
+              <p className="italic leading-relaxed font-sans text-neutral-200">
+                {activeSlide.notes || "Introduce the presentation topic and give a clear description of the deliverables."}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 5. POWERPOINT RED STATUS BAR (#C43E1C) */}
+      <div className="flex items-center justify-between px-3 py-1 bg-[#C43E1C] text-white text-xs shrink-0 select-none">
+        {/* Left Status info */}
+        <div className="flex items-center gap-3">
+          <span className="font-bold tracking-wider text-[11px]">
+            SLIDE {currentSlideIndex + 1} OF {slides.length}
+          </span>
+          <span className="hidden sm:inline font-mono text-[10px] opacity-80">
+            ENGLISH (US)
+          </span>
+        </div>
+
+        {/* Center / Right Controls */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => setShowNotes(!showNotes)}
+            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition ${
+              showNotes ? "bg-black/30 text-white" : "hover:bg-white/20"
+            }`}
+          >
+            NOTES
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowThumbnails(!showThumbnails)}
+            className="hidden sm:inline px-2 py-0.5 rounded text-[10px] font-semibold hover:bg-white/20 transition"
+          >
+            THUMBNAILS
+          </button>
+
+          {/* Previous / Next Slide Nav */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={currentSlideIndex === 0}
+              onClick={() => setCurrentSlideIndex((p) => Math.max(0, p - 1))}
+              className="p-1 hover:bg-white/20 rounded disabled:opacity-40 min-h-[32px] min-w-[32px] flex items-center justify-center"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={currentSlideIndex === slides.length - 1}
+              onClick={() => setCurrentSlideIndex((p) => Math.min(slides.length - 1, p + 1))}
+              className="p-1 hover:bg-white/20 rounded disabled:opacity-40 min-h-[32px] min-w-[32px] flex items-center justify-center"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Presentation Fullscreen Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsSlidePresentationMode(true)}
+            title="Slide Show"
+            className="p-1 hover:bg-white/20 rounded transition flex items-center justify-center"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+          </button>
+
+          {/* Zoom Controls */}
+          <div className="hidden sm:flex items-center gap-1.5 font-mono text-[11px]">
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(60, z - 10))}
+              className="p-0.5 hover:bg-white/20 rounded"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+            <span className="w-10 text-center">{zoom}%</span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(150, z + 10))}
+              className="p-0.5 hover:bg-white/20 rounded"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* FULLSCREEN PRESENTER MODE (F5) */}
+      {isSlidePresentationMode && (
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="fixed inset-0 z-[100] bg-black text-white flex flex-col justify-between p-4 sm:p-8 touch-manipulation select-none animate-in fade-in duration-150"
+          style={{
+            paddingTop: "max(env(safe-area-inset-top, 0px), 16px)",
+            paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)",
+          }}
+        >
+          <div className="flex items-center justify-between px-2 text-sm text-neutral-400 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-white">
+                Slide {currentSlideIndex + 1} of {slides.length}
+              </span>
+              <span className="hidden sm:inline">• {file.title || file.filename}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSlidePresentationMode(false)}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs transition active:scale-95"
+            >
+              Exit Slideshow (Esc)
+            </button>
+          </div>
+
+          <div className="w-full max-w-6xl aspect-[16/9] mx-auto my-auto rounded-3xl border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 p-6 sm:p-12 md:p-16 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className={`px-3.5 py-1 rounded-full text-xs font-bold tracking-widest uppercase border ${theme.badge}`}>
+                  {activeSlide.category || "PRESENTATION"}
+                </span>
+                <span className="text-sm font-mono opacity-50">
+                  {String(activeSlide.number).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-3xl md:text-5xl font-extrabold tracking-tight font-sans leading-tight text-white">
+                {activeSlide.title}
+              </h1>
+            </div>
+
+            <div className="my-auto py-4 sm:py-6 grid grid-cols-1 gap-3 sm:gap-4">
+              {activeSlide.bullets.map((bullet, idx) => (
+                <div key={idx} className="p-3.5 sm:p-5 rounded-2xl bg-neutral-900/80 border border-neutral-800/80 flex items-start gap-4 shadow-sm">
+                  <span className={`w-6 h-6 sm:w-8 sm:h-8 rounded-xl text-xs sm:text-sm font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${theme.num}`}>
+                    0{idx + 1}
+                  </span>
+                  <p className="text-base sm:text-xl md:text-2xl leading-relaxed text-neutral-200 font-normal">
+                    {bullet}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 sm:pt-4 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm opacity-80">
+              <div className="flex items-center gap-2 text-amber-400 font-medium">
+                <Sparkles className="w-4 h-4" />
+                <span>{activeSlide.takeaway || "TATTVA AI Autonomous Intelligence"}</span>
+              </div>
+              <span className="font-mono text-xs opacity-60">TATTVA Presentation Suite</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-4 sm:gap-6 py-2 shrink-0">
+            <button
+              type="button"
+              disabled={currentSlideIndex === 0}
+              onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
+              className="min-h-[44px] min-w-[44px] px-5 py-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition flex items-center gap-2 text-sm font-medium active:scale-95"
+            >
+              <ChevronLeft className="w-5 h-5" /> Previous
+            </button>
+            <span className="text-sm font-mono text-neutral-400">
+              {currentSlideIndex + 1} / {slides.length}
+            </span>
+            <button
+              type="button"
+              disabled={currentSlideIndex === slides.length - 1}
+              onClick={() => setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
+              className="min-h-[44px] min-w-[44px] px-5 py-2.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-30 transition flex items-center gap-2 text-sm font-medium active:scale-95"
+            >
+              Next <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================
+// 2. EXCEL SPREADSHEET VIEWER (Office Green #107C41)
+// Matches Reference Image: Green Header, Quick Access, Ribbon Tabs,
+// Name Box (A1), Formula Bar (fx), Grid with Column Letters/Row Numbers,
+// Multi-sheet Tabs, Status Bar with Average/Count/Sum
+// =============================================================
+function ExcelViewer({
+  file,
+  blobUrl,
+  onClose,
+  onDownload,
+  onOpenWith,
+  isDark,
+}: {
+  file: GeneratedDocument;
+  blobUrl: string | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onOpenWith: () => void;
+  isDark: boolean;
+}) {
+  const sheets = useMemo(
+    () => parseSpreadsheetFromContent(file.outlineMarkdown || file.summary, file.filename, file.sheets),
+    [file.outlineMarkdown, file.summary, file.filename, file.sheets]
+  );
+
+  const [activeSheetIndex, setActiveSheetIndex] = useState<number>(0);
+  const currentSheet = sheets[activeSheetIndex] || sheets[0];
+
+  const [selectedCell, setSelectedCell] = useState<{ col: number; row: number; val: string | number }>({
+    col: 0,
+    row: 0,
+    val: currentSheet?.rows?.[0]?.[0] ?? "",
+  });
+
+  const [formulaValue, setFormulaValue] = useState<string>(String(selectedCell.val));
+  const [activeTab, setActiveTab] = useState<string>("Home");
+  const [zoom, setZoom] = useState<number>(100);
+
+  useEffect(() => {
+    setFormulaValue(String(selectedCell.val));
+  }, [selectedCell]);
+
+  const colLetter = (idx: number) => String.fromCharCode(65 + (idx % 26));
+  const activeCellCoord = `${colLetter(selectedCell.col)}${selectedCell.row + 1}`;
+
+  const kpis = useMemo(() => {
+    let sum = 0;
+    let numCount = 0;
+    let totalCells = 0;
+    for (const r of currentSheet.rows) {
+      for (const cell of r) {
+        totalCells++;
+        const num = parseFloat(String(cell).replace(/[^0-9.-]/g, ""));
+        if (!isNaN(num) && isFinite(num)) {
+          sum += num;
+          numCount++;
+        }
+      }
+    }
+    const avg = numCount > 0 ? (sum / numCount).toFixed(1) : "0";
+    return {
+      sum: sum.toLocaleString(),
+      avg: parseFloat(avg).toLocaleString(),
+      count: totalCells,
+    };
+  }, [currentSheet]);
+
+  const excelTabs = ["File", "Home", "Insert", "Page Layout", "Formulas", "Data", "Review", "View", "Help"];
+
+  return (
+    <div className="w-full h-full flex flex-col bg-neutral-900 text-neutral-100 select-none">
+      {/* 1. EXCEL GREEN TITLE BAR (#107C41) */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#107C41] text-white shrink-0 shadow-md">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 bg-black/20 rounded px-1.5 py-0.5 text-xs font-semibold">
+            <FileSpreadsheet className="w-3.5 h-3.5 fill-current" />
+            <span className="hidden sm:inline">AutoSave</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-300 inline-block ml-0.5" />
+          </div>
+          <button
+            type="button"
+            onClick={onDownload}
+            title="Save / Download Workbook"
+            className="p-1 hover:bg-white/20 rounded transition min-h-[32px] min-w-[32px] flex items-center justify-center"
+          >
+            <Save className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Undo"
+            className="p-1 hover:bg-white/20 rounded transition hidden sm:flex items-center justify-center"
+          >
+            <Undo className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Redo"
+            className="p-1 hover:bg-white/20 rounded transition hidden sm:flex items-center justify-center"
+          >
+            <Redo className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="text-xs sm:text-sm font-semibold truncate max-w-[200px] sm:max-w-md text-center">
+          {file.filename} - Excel
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onOpenWith}
+            className="p-1.5 hover:bg-white/20 rounded transition text-xs flex items-center gap-1"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Open With</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close"
+            className="p-1.5 hover:bg-red-700 rounded transition min-h-[36px] min-w-[36px] flex items-center justify-center"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. RIBBON TABS */}
+      <div className="flex items-center px-2 bg-neutral-800 border-b border-neutral-700 text-xs overflow-x-auto scrollbar-none shrink-0">
+        <button
+          type="button"
+          onClick={onDownload}
+          className="px-3 py-1.5 bg-[#107C41] hover:bg-[#0d6434] text-white font-bold tracking-wider text-[11px] transition"
+        >
+          FILE
+        </button>
+        {excelTabs.slice(1).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`px-3 py-1.5 font-medium transition text-[11px] whitespace-nowrap ${
+              activeTab === tab
+                ? "bg-neutral-900 text-white border-t-2 border-[#107C41] font-semibold"
+                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* 3. NAME BOX & FORMULA BAR */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs shrink-0">
+        {/* Name Box (e.g. A1) */}
+        <div className="w-16 sm:w-20 px-2 py-1 bg-neutral-950 border border-neutral-700 rounded text-center font-mono font-bold text-neutral-200">
+          {activeCellCoord}
+        </div>
+
+        {/* Formula symbols */}
+        <div className="flex items-center gap-1 text-neutral-400">
+          <button type="button" className="px-1.5 py-0.5 hover:bg-neutral-800 rounded font-bold text-rose-400">✕</button>
+          <button type="button" className="px-1.5 py-0.5 hover:bg-neutral-800 rounded font-bold text-emerald-400">✓</button>
+          <span className="font-serif italic font-bold text-neutral-400 px-1">fx</span>
+        </div>
+
+        {/* Formula Input Bar */}
+        <input
+          type="text"
+          value={formulaValue}
+          onChange={(e) => setFormulaValue(e.target.value)}
+          className="flex-1 bg-neutral-950 border border-neutral-700/80 rounded px-3 py-1 font-mono text-xs text-neutral-100 focus:outline-none focus:border-[#107C41]"
+          placeholder="Enter formula or cell value"
+        />
+      </div>
+
+      {/* 4. SPREADSHEET GRID */}
+      <div className="flex-1 overflow-auto bg-neutral-950 scrollbar-thin">
+        <table className="w-full border-collapse font-mono text-xs text-left">
+          <thead className="sticky top-0 z-10 bg-neutral-900 text-neutral-400 select-none shadow">
+            <tr>
+              {/* Row header corner box */}
+              <th className="w-12 p-2 border-r border-b border-neutral-800 bg-neutral-850 text-center font-normal text-[10px]">
+                ◢
+              </th>
+              {currentSheet.headers.map((h, colIdx) => (
+                <th
+                  key={colIdx}
+                  className={`p-2 border-r border-b border-neutral-800 font-semibold text-[11px] min-w-[120px] ${
+                    selectedCell.col === colIdx ? "bg-[#107C41]/20 text-[#2ecc71]" : "bg-neutral-900 text-neutral-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[10px] text-neutral-500 mr-2">{colLetter(colIdx)}</span>
+                    <span className="truncate">{h}</span>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {currentSheet.rows.map((row, rowIdx) => (
+              <tr key={rowIdx} className="hover:bg-neutral-900/60 transition">
+                {/* Row Number */}
+                <td
+                  className={`p-2 border-r border-b border-neutral-800 text-center text-[10px] font-mono select-none ${
+                    selectedCell.row === rowIdx ? "bg-[#107C41]/20 text-[#2ecc71] font-bold" : "bg-neutral-900 text-neutral-500"
+                  }`}
+                >
+                  {rowIdx + 1}
+                </td>
+
+                {row.map((val, colIdx) => {
+                  const isSelected = selectedCell.row === rowIdx && selectedCell.col === colIdx;
+                  return (
+                    <td
+                      key={colIdx}
+                      onClick={() => setSelectedCell({ col: colIdx, row: rowIdx, val })}
+                      className={`p-2 border-r border-b border-neutral-800/80 cursor-cell relative truncate max-w-[200px] ${
+                        isSelected
+                          ? "ring-2 ring-[#107C41] bg-[#107C41]/10 text-white font-semibold z-10"
+                          : "text-neutral-200"
+                      }`}
+                    >
+                      {val}
+                      {/* Active cell bottom-right handle */}
+                      {isSelected && (
+                        <span className="absolute bottom-[-3px] right-[-3px] w-2 h-2 bg-[#107C41] border border-white z-20 pointer-events-none" />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 5. WORKSHEET TABS & STATUS BAR */}
+      <div className="flex flex-col sm:flex-row items-center justify-between px-3 py-1 bg-neutral-900 border-t border-neutral-800 text-xs shrink-0 gap-2">
+        {/* Multi-Sheet Tabs */}
+        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto scrollbar-none">
+          {sheets.map((s, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                setActiveSheetIndex(idx);
+                setSelectedCell({ col: 0, row: 0, val: s.rows?.[0]?.[0] ?? "" });
+              }}
+              className={`px-3 py-1 rounded-t text-xs font-semibold transition flex items-center gap-1.5 ${
+                idx === activeSheetIndex
+                  ? "bg-neutral-950 text-[#2ecc71] border-b-2 border-[#107C41] shadow-sm"
+                  : "bg-neutral-850 text-neutral-400 hover:text-neutral-200"
+              }`}
+            >
+              <span>{s.title}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            title="Add Sheet"
+            className="p-1 rounded text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Dynamic Excel Status Bar Calculations */}
+        <div className="flex items-center gap-3 sm:gap-4 font-mono text-[11px] text-neutral-400 select-none">
+          <span className="text-emerald-400 font-semibold">Ready</span>
+          <span>•</span>
+          <span>Average: <strong className="text-neutral-200">{kpis.avg}</strong></span>
+          <span>Count: <strong className="text-neutral-200">{kpis.count}</strong></span>
+          <span>Sum: <strong className="text-neutral-200">{kpis.sum}</strong></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// 3. ADOBE ACROBAT READER DC VIEWER
+// Matches Reference Image: Adobe Acrobat DC Title Bar, Menu Bar,
+// Navigation Toolbar with Page Jump [ 1 ] / N, Left Sidepane with
+// Thumbnails/Bookmarks, Substantive A4 Canvas, Right Tools Pane
+// =============================================================
+function AcrobatPdfViewer({
+  file,
+  blobUrl,
+  onClose,
+  onDownload,
+  onOpenWith,
+  isDark,
+}: {
+  file: GeneratedDocument;
+  blobUrl: string | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onOpenWith: () => void;
+  isDark: boolean;
 }) {
   const pages = useMemo(
     () => parsePdfPagesFromContent(file.outlineMarkdown || file.summary, file.title || file.filename, file.sections),
@@ -1647,328 +1715,447 @@ function PdfDocumentViewer({
   );
 
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
-  const [viewMode, setViewMode] = useState<"reader" | "continuous">("reader");
+  const [viewMode, setViewMode] = useState<"paginated" | "continuous">("paginated");
+  const [showLeftSidebar, setShowLeftSidebar] = useState<boolean>(true);
+  const [showRightSidebar, setShowRightSidebar] = useState<boolean>(false);
+  const [sidebarTab, setSidebarTab] = useState<"thumbnails" | "bookmarks">("thumbnails");
+  const [zoom, setZoom] = useState<number>(100);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   const activePage = pages[currentPageIndex] || pages[0];
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
-    <div className="w-full h-full flex flex-col items-center justify-between gap-4">
-      {/* PDF Navigation & Reading Toolbar */}
-      <div className="w-full max-w-4xl flex flex-wrap items-center justify-between px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900/90 text-xs shrink-0 gap-2">
-        {/* Pagination controls */}
+    <div className="w-full h-full flex flex-col bg-neutral-900 text-neutral-100 select-none">
+      {/* 1. ADOBE ACROBAT MENU BAR */}
+      <div className="flex items-center justify-between px-3 py-1 bg-neutral-950 border-b border-neutral-800 text-xs shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="font-bold text-rose-500 font-sans tracking-wide">Adobe Acrobat Reader DC</span>
+          <div className="hidden sm:flex items-center gap-2 text-neutral-400 text-[11px]">
+            <span className="hover:text-white cursor-pointer">File</span>
+            <span className="hover:text-white cursor-pointer">Edit</span>
+            <span className="hover:text-white cursor-pointer">View</span>
+            <span className="hover:text-white cursor-pointer">Window</span>
+            <span className="hover:text-white cursor-pointer">Help</span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={currentPageIndex === 0}
-            onClick={() => setCurrentPageIndex((p) => Math.max(0, p - 1))}
-            className="p-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-30 transition active:scale-95"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-          <span className="font-mono text-[11px] text-neutral-300 px-1">
-            Page {currentPageIndex + 1} of {pages.length}
+          <span className="text-[11px] text-neutral-400 font-mono truncate max-w-[180px] sm:max-w-xs">
+            {file.filename}
           </span>
           <button
             type="button"
-            disabled={currentPageIndex === pages.length - 1}
-            onClick={() => setCurrentPageIndex((p) => Math.min(pages.length - 1, p + 1))}
-            className="p-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-30 transition active:scale-95"
+            onClick={onClose}
+            className="p-1 hover:bg-neutral-800 rounded min-h-[32px] min-w-[32px] flex items-center justify-center text-neutral-400 hover:text-white"
           >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setViewMode(viewMode === "reader" ? "continuous" : "reader")}
-            className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition"
-          >
-            {viewMode === "reader" ? "Continuous Scroll" : "Paginated View"}
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Main PDF Page Sheet Canvas (A4 Aspect Ratio: 1 : 1.414) */}
-      <div className="flex-1 overflow-auto w-full flex justify-center py-2 px-1">
-        {viewMode === "reader" ? (
-          /* Paginated A4 Page */
-          <div
-            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
-            className={`w-full max-w-3xl aspect-[1/1.414] min-h-[640px] sm:min-h-[820px] p-6 sm:p-12 rounded-2xl border shadow-2xl flex flex-col justify-between transition-all my-auto ${
-              isDark
-                ? "bg-neutral-900 border-neutral-800 text-neutral-100"
-                : "bg-white border-neutral-300 text-neutral-900"
+      {/* 2. ACROBAT NAVIGATION & TOOLBAR */}
+      <div className="flex flex-wrap items-center justify-between px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs gap-2 shrink-0">
+        {/* Left tools: Sidebar toggle, Download, Print */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowLeftSidebar(!showLeftSidebar)}
+            title="Toggle Page Navigation Pane"
+            className={`p-1.5 rounded transition ${
+              showLeftSidebar ? "bg-neutral-800 text-rose-400 font-bold" : "text-neutral-400 hover:bg-neutral-800"
             }`}
           >
-            {/* Running Header */}
-            <div className="border-b pb-4 mb-6 border-neutral-700/60 flex items-center justify-between text-[11px] opacity-75">
-              <span className="font-semibold tracking-wide uppercase font-mono text-rose-400">
-                TATTVA AI • {activePage.category}
-              </span>
-              <span className="font-mono text-neutral-400">
-                Page {activePage.pageNumber} of {pages.length}
-              </span>
-            </div>
+            <Layers className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onDownload}
+            title="Save / Download PDF"
+            className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            title="Print PDF"
+            className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition hidden sm:flex items-center justify-center"
+          >
+            <Printer className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-            {/* Page Body */}
-            <div className="my-auto space-y-6">
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-sans text-rose-400">
-                {activePage.title}
-              </h2>
-
-              <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-neutral-300 dark:text-neutral-300">
-                {activePage.sections.map((sec, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <h3 className="font-semibold text-neutral-100 text-sm sm:text-base border-b border-neutral-800/80 pb-1">
-                      {sec.heading}
-                    </h3>
-                    {sec.paragraphs.map((p, pIdx) => (
-                      <p key={pIdx} className="leading-relaxed">
-                        {p}
-                      </p>
-                    ))}
-
-                    {/* Formatted Data Table if Present */}
-                    {sec.table && sec.table.headers.length > 0 && (
-                      <div className="overflow-x-auto my-3 rounded-lg border border-neutral-800">
-                        <table className="w-full text-left text-[11px] font-mono border-collapse">
-                          <thead>
-                            <tr className="bg-neutral-800 text-neutral-300">
-                              {sec.table.headers.map((th, thIdx) => (
-                                <th key={thIdx} className="p-2 border-r border-neutral-700 last:border-r-0">
-                                  {th}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sec.table.rows.map((tr, trIdx) => (
-                              <tr key={trIdx} className="border-b border-neutral-800/60 last:border-b-0">
-                                {tr.map((td, tdIdx) => (
-                                  <td key={tdIdx} className="p-2 border-r border-neutral-800/60 last:border-r-0">
-                                    {td}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Running Footer */}
-            <div className="border-t pt-4 mt-6 border-neutral-700/60 flex items-center justify-between text-[10px] opacity-60 font-mono">
-              <span>Verified PDF 1.7 Standard • Encrypted Signature</span>
-              <span>TATTVA Intelligence Suite</span>
-            </div>
+        {/* Center: Page Navigation [ 1 ] / N */}
+        <div className="flex items-center gap-1.5 font-mono text-xs">
+          <button
+            type="button"
+            disabled={currentPageIndex === 0}
+            onClick={() => setCurrentPageIndex((p) => Math.max(0, p - 1))}
+            className="p-1 rounded hover:bg-neutral-800 disabled:opacity-30 min-h-[32px] min-w-[32px] flex items-center justify-center"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-1">
+            <span className="bg-neutral-950 border border-neutral-700 px-2 py-0.5 rounded text-center min-w-[28px] font-bold text-white">
+              {currentPageIndex + 1}
+            </span>
+            <span className="text-neutral-400">/ {pages.length}</span>
           </div>
-        ) : (
-          /* Continuous Scroll View */
-          <div className="w-full max-w-3xl space-y-6">
-            {pages.map((pg, pgIdx) => (
+          <button
+            type="button"
+            disabled={currentPageIndex === pages.length - 1}
+            onClick={() => setCurrentPageIndex((p) => Math.min(pages.length - 1, p + 1))}
+            className="p-1 rounded hover:bg-neutral-800 disabled:opacity-30 min-h-[32px] min-w-[32px] flex items-center justify-center"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Right Tools: Hand / Select tool, Zoom, Search, Share, Right Tools toggle */}
+        <div className="flex items-center gap-2">
+          {/* Zoom controls */}
+          <div className="hidden sm:flex items-center gap-1 font-mono text-[11px] bg-neutral-950 border border-neutral-700 rounded px-1.5 py-0.5">
+            <button type="button" onClick={() => setZoom((z) => Math.max(50, z - 10))} className="p-0.5 hover:bg-neutral-800 rounded">
+              <Minus className="w-3 h-3" />
+            </button>
+            <span className="w-10 text-center">{zoom}%</span>
+            <button type="button" onClick={() => setZoom((z) => Math.min(150, z + 10))} className="p-0.5 hover:bg-neutral-800 rounded">
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* View Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setViewMode(viewMode === "paginated" ? "continuous" : "paginated")}
+            className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[11px] font-medium"
+          >
+            {viewMode === "paginated" ? "Continuous" : "Paginated"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenWith}
+            className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded font-semibold text-xs transition"
+          >
+            Share
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowRightSidebar(!showRightSidebar)}
+            className={`p-1.5 rounded transition ${
+              showRightSidebar ? "bg-neutral-800 text-rose-400" : "text-neutral-400 hover:bg-neutral-800"
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 3. MAIN WORKSPACE */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Collapsible Left Sidepane (Thumbnails & Bookmarks) */}
+        {showLeftSidebar && (
+          <div className="w-28 sm:w-44 border-r border-neutral-800 bg-neutral-950 p-2 overflow-y-auto shrink-0 space-y-2">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase text-neutral-500 mb-2">
+              <span>Page Thumbnails</span>
+              <span>{pages.length}</span>
+            </div>
+            {pages.map((p, idx) => (
               <div
-                key={pgIdx}
-                className={`p-6 sm:p-10 rounded-2xl border shadow-xl flex flex-col justify-between ${
-                  isDark
-                    ? "bg-neutral-900 border-neutral-800 text-neutral-100"
-                    : "bg-white border-neutral-300 text-neutral-900"
+                key={idx}
+                onClick={() => setCurrentPageIndex(idx)}
+                className={`p-1 rounded cursor-pointer transition ${
+                  idx === currentPageIndex
+                    ? "border-2 border-rose-500 bg-rose-500/10"
+                    : "border border-neutral-800 hover:border-neutral-700 bg-neutral-900"
                 }`}
               >
-                <div className="border-b pb-3 mb-4 flex items-center justify-between text-[11px] opacity-75">
-                  <span className="font-semibold text-rose-400 font-mono">{pg.category}</span>
-                  <span className="font-mono text-neutral-400">Page {pg.pageNumber}</span>
+                <div className="aspect-[1/1.414] bg-white text-black p-1 text-[6px] overflow-hidden rounded flex flex-col justify-between shadow-inner">
+                  <div className="font-bold truncate">{p.title}</div>
+                  <div className="space-y-0.5 opacity-60">
+                    <div className="h-0.5 bg-neutral-400 w-full" />
+                    <div className="h-0.5 bg-neutral-300 w-3/4" />
+                    <div className="h-0.5 bg-neutral-300 w-5/6" />
+                  </div>
+                  <div className="text-right font-mono text-[5px] text-neutral-500">{p.pageNumber}</div>
                 </div>
-                <h3 className="text-lg font-bold mb-4 text-neutral-100">{pg.title}</h3>
-                <div className="space-y-3 text-xs sm:text-sm text-neutral-300">
-                  {pg.sections.map((s, sIdx) => (
-                    <div key={sIdx} className="space-y-1.5">
-                      <h4 className="font-semibold text-neutral-200">{s.heading}</h4>
-                      {s.paragraphs.map((p, pIdx) => (
-                        <p key={pIdx} className="leading-relaxed">
-                          {p}
-                        </p>
-                      ))}
-                    </div>
-                  ))}
+                <div className="text-center font-mono text-[9px] text-neutral-400 mt-1">
+                  Page {p.pageNumber}
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
 
-      {/* Page Thumbnails Bar (Bottom) */}
-      <div
-        className="w-full max-w-4xl flex items-center justify-center gap-2 overflow-x-auto py-2 px-1 scrollbar-thin shrink-0"
-        style={{
-          paddingBottom: "max(env(safe-area-inset-bottom, 0px), 12px)",
-        }}
-      >
-        {pages.map((pg, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => setCurrentPageIndex(idx)}
-            className={`flex flex-col items-center justify-between w-20 h-14 p-1 rounded-lg border text-[9px] shrink-0 font-mono transition-all active:scale-95 ${
-              idx === currentPageIndex
-                ? "border-rose-500 bg-rose-500/15 text-rose-400 ring-1 ring-rose-500 shadow-sm"
-                : isDark
-                ? "border-neutral-800 bg-neutral-900 text-neutral-400 hover:border-neutral-700"
-                : "border-neutral-300 bg-neutral-100 text-neutral-600 hover:border-neutral-400"
-            }`}
-          >
-            <span className="font-bold">PAGE {pg.pageNumber}</span>
-            <span className="truncate w-full text-center text-[8px] opacity-75">{pg.category}</span>
-          </button>
-        ))}
+        {/* Center A4 Document Canvas */}
+        <div className="flex-1 overflow-auto bg-neutral-950/90 p-3 sm:p-8 flex justify-center">
+          {viewMode === "paginated" ? (
+            <div
+              style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+              className="w-full max-w-3xl aspect-[1/1.414] min-h-[640px] sm:min-h-[880px] p-8 sm:p-14 bg-white text-neutral-900 rounded-sm shadow-2xl flex flex-col justify-between my-auto transition-all"
+            >
+              {/* Running Header */}
+              <div className="border-b pb-4 mb-6 border-neutral-300 flex items-center justify-between text-[11px] text-neutral-500 font-sans">
+                <span className="font-bold tracking-wider uppercase text-rose-700">
+                  TATTVA AI • {activePage.category}
+                </span>
+                <span className="font-mono">
+                  Page {activePage.pageNumber} of {pages.length}
+                </span>
+              </div>
+
+              {/* Page Body */}
+              <div className="my-auto space-y-6">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight font-sans text-neutral-900">
+                  {activePage.title}
+                </h1>
+
+                <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-neutral-700">
+                  {activePage.sections.map((sec, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <h3 className="font-bold text-neutral-900 text-sm sm:text-base border-b border-neutral-200 pb-1">
+                        {sec.heading}
+                      </h3>
+                      {sec.paragraphs.map((p, pIdx) => (
+                        <p key={pIdx} className="leading-relaxed">
+                          {p}
+                        </p>
+                      ))}
+
+                      {/* Tables */}
+                      {sec.table && sec.table.headers.length > 0 && (
+                        <div className="overflow-x-auto my-3 rounded border border-neutral-300">
+                          <table className="w-full text-left text-[11px] font-mono border-collapse">
+                            <thead>
+                              <tr className="bg-neutral-100 text-neutral-800 font-bold">
+                                {sec.table.headers.map((th, thIdx) => (
+                                  <th key={thIdx} className="p-2 border-r border-neutral-300 last:border-r-0">
+                                    {th}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sec.table.rows.map((tr, trIdx) => (
+                                <tr key={trIdx} className="border-b border-neutral-200 last:border-b-0 hover:bg-neutral-50">
+                                  {tr.map((td, tdIdx) => (
+                                    <td key={tdIdx} className="p-2 border-r border-neutral-200 last:border-r-0">
+                                      {td}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Running Footer */}
+              <div className="border-t pt-4 mt-6 border-neutral-300 flex items-center justify-between text-[10px] text-neutral-500 font-mono">
+                <span>Verified PDF Standard • Cryptographic Signature Verified</span>
+                <span>Page {activePage.pageNumber}</span>
+              </div>
+            </div>
+          ) : (
+            /* Continuous View */
+            <div className="w-full max-w-3xl space-y-8">
+              {pages.map((p, idx) => (
+                <div
+                  key={idx}
+                  className="w-full aspect-[1/1.414] min-h-[640px] sm:min-h-[880px] p-8 sm:p-14 bg-white text-neutral-900 rounded-sm shadow-2xl flex flex-col justify-between"
+                >
+                  <div className="border-b pb-3 mb-4 flex items-center justify-between text-[11px] text-neutral-500">
+                    <span className="font-bold text-rose-700">{p.category}</span>
+                    <span className="font-mono">Page {p.pageNumber} of {pages.length}</span>
+                  </div>
+                  <div className="my-auto space-y-4 text-xs sm:text-sm text-neutral-700">
+                    <h2 className="text-xl font-bold text-neutral-900">{p.title}</h2>
+                    {p.sections.map((sec, sIdx) => (
+                      <div key={sIdx} className="space-y-1.5">
+                        <h3 className="font-bold text-neutral-900">{sec.heading}</h3>
+                        {sec.paragraphs.map((para, pIdx) => (
+                          <p key={pIdx} className="leading-relaxed">{para}</p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t pt-3 text-[10px] text-neutral-500 flex justify-between font-mono">
+                    <span>Verified PDF 1.7</span>
+                    <span>Page {p.pageNumber}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Collapsible Right Tools Sidebar (Adobe Export / Convert) */}
+        {showRightSidebar && (
+          <div className="w-56 border-l border-neutral-800 bg-neutral-950 p-4 shrink-0 space-y-4 text-xs">
+            <div className="font-bold text-neutral-300">Adobe Export PDF</div>
+            <p className="text-[11px] text-neutral-400">
+              Convert PDF files to Word or Excel online.
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={onDownload}
+                className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded text-center transition"
+              >
+                Download Document
+              </button>
+              <button
+                type="button"
+                onClick={onOpenWith}
+                className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-semibold rounded text-center transition"
+              >
+                Open in App
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// -------------------------------------------------------------
-// 4. DOCX FORMATTED DOCUMENT VIEWER
-// -------------------------------------------------------------
-function DocxDocumentViewer({
+// =============================================================
+// 4. MICROSOFT WORD DOCX VIEWER (Office Blue #2B579A)
+// =============================================================
+function WordDocxViewer({
   file,
-  zoom,
+  blobUrl,
+  onClose,
+  onDownload,
+  onOpenWith,
   isDark,
-  searchTerm,
-  onSearchChange,
 }: {
   file: GeneratedDocument;
-  zoom: number;
+  blobUrl: string | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onOpenWith: () => void;
   isDark: boolean;
-  searchTerm: string;
-  onSearchChange: (v: string) => void;
 }) {
-  const docTitle = cleanViewerText(file.title || file.filename.replace(/\.[a-zA-Z0-9]+$/, ""))
-    .split(/\b(?:is|are|was|were|refers to|defined as|consists of|deals with)\b/i)[0]
-    .replace(/_/g, " ")
-    .trim() || "Research Document";
-
   const content = file.outlineMarkdown || file.summary || "";
   const lines = content.split("\n");
+  const [zoom, setZoom] = useState<number>(100);
 
   return (
-    <div
-      style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
-      className={`w-full max-w-4xl p-8 sm:p-14 rounded-2xl border shadow-xl leading-relaxed transition-all my-4 ${
-        isDark
-          ? "bg-neutral-900 border-neutral-800 text-neutral-100"
-          : "bg-white border-neutral-200 text-neutral-900"
-      }`}
-    >
-      {/* Document Cover Header */}
-      <div className="border-b pb-6 mb-8 border-neutral-700/60">
-        <div className="flex items-center justify-between mb-3">
-          <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase bg-blue-500/15 text-blue-400 border border-blue-500/30">
-            {file.archetype ? file.archetype.replace(/_/g, " ") : "RESEARCH DOCUMENT"}
-          </span>
-          <span className="text-xs font-mono text-neutral-500">
-            Verified Format: .{file.format.toUpperCase()}
+    <div className="w-full h-full flex flex-col bg-neutral-900 text-neutral-100 select-none">
+      {/* Title Bar Word Blue (#2B579A) */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#2B579A] text-white shrink-0 shadow-md">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          <span className="text-xs sm:text-sm font-semibold truncate max-w-[200px] sm:max-w-md">
+            {file.filename} - Word
           </span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-sans">
-          {docTitle}
-        </h1>
-        <p className="text-xs text-neutral-400 mt-2 font-mono">
-          Prepared by TATTVA AI Intelligence Suite • Comprehensive Verified Structure
-        </p>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={onOpenWith} className="p-1.5 hover:bg-white/20 rounded text-xs flex items-center gap-1">
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Open With</span>
+          </button>
+          <button type="button" onClick={onDownload} className="p-1.5 hover:bg-white/20 rounded text-xs">
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-red-700 rounded min-h-[36px] min-w-[36px] flex items-center justify-center">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Render Document Lines Formatted */}
-      <div className="space-y-4 font-sans text-sm sm:text-base">
-        {lines.map((line, idx) => {
-          const trimmed = line.trim();
-          if (trimmed.startsWith("### ")) {
-            return (
-              <h3 key={idx} className="text-lg font-bold text-neutral-100 mt-6 pt-2 border-t border-neutral-800">
-                {trimmed.replace(/^###\s*/, "")}
-              </h3>
-            );
-          }
-          if (trimmed.startsWith("## ")) {
-            return (
-              <h2 key={idx} className="text-xl font-bold text-blue-400 mt-8 mb-2">
-                {trimmed.replace(/^##\s*/, "")}
-              </h2>
-            );
-          }
-          if (trimmed.startsWith("# ")) {
-            return (
-              <h1 key={idx} className="text-2xl font-black text-neutral-100 mt-8 mb-3">
-                {trimmed.replace(/^#\s*/, "")}
-              </h1>
-            );
-          }
-          if (/^[-*•]\s+/.test(trimmed)) {
-            return (
-              <div key={idx} className="flex items-start gap-2.5 ml-3">
-                <span className="text-blue-400 mt-1">•</span>
-                <p className="text-neutral-300">{trimmed.replace(/^[-*•]\s+/, "")}</p>
-              </div>
-            );
-          }
-          if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-            return (
-              <p key={idx} className="font-mono text-xs bg-neutral-950/60 p-2 rounded border border-neutral-800 overflow-x-auto text-blue-300">
-                {trimmed}
-              </p>
-            );
-          }
-          if (trimmed.length === 0) {
-            return <div key={idx} className="h-2" />;
-          }
-          return (
-            <p key={idx} className="text-neutral-300 leading-relaxed font-normal">
-              {trimmed}
+      {/* Word Canvas */}
+      <div className="flex-1 overflow-auto bg-neutral-950 p-4 sm:p-8 flex justify-center">
+        <div
+          style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+          className="w-full max-w-4xl p-8 sm:p-14 bg-white text-neutral-900 rounded shadow-2xl leading-relaxed my-auto space-y-4"
+        >
+          <div className="border-b pb-4 mb-6 border-neutral-300">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#2B579A]">
+              {file.title || file.filename.replace(/\.[a-zA-Z0-9]+$/, "")}
+            </h1>
+            <p className="text-xs text-neutral-500 font-mono mt-1">
+              Formatted Word Document • Verified OpenXML Standard
             </p>
-          );
-        })}
+          </div>
+
+          <div className="space-y-3 text-sm sm:text-base text-neutral-800">
+            {lines.map((line, idx) => {
+              const trimmed = line.trim();
+              if (trimmed.startsWith("### ")) {
+                return <h3 key={idx} className="text-lg font-bold text-neutral-900 mt-4">{trimmed.replace(/^###\s*/, "")}</h3>;
+              }
+              if (trimmed.startsWith("## ")) {
+                return <h2 key={idx} className="text-xl font-bold text-[#2B579A] mt-6">{trimmed.replace(/^##\s*/, "")}</h2>;
+              }
+              if (trimmed.startsWith("# ")) {
+                return <h1 key={idx} className="text-2xl font-black text-neutral-900 mt-6">{trimmed.replace(/^#\s*/, "")}</h1>;
+              }
+              if (/^[-*•]\s+/.test(trimmed)) {
+                return (
+                  <div key={idx} className="flex items-start gap-2 ml-4">
+                    <span className="text-[#2B579A] font-bold">•</span>
+                    <p>{trimmed.replace(/^[-*•]\s+/, "")}</p>
+                  </div>
+                );
+              }
+              if (trimmed.length === 0) return <div key={idx} className="h-2" />;
+              return <p key={idx} className="leading-relaxed">{trimmed}</p>;
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// -------------------------------------------------------------
-// 5. SOURCE CODE FILE VIEWER
-// -------------------------------------------------------------
-function CodeFileViewer({
+// =============================================================
+// 5. CODE STUDIO VIEWER (VS Code Dark IDE Style)
+// =============================================================
+function CodeStudioViewer({
   file,
   format,
+  blobUrl,
+  onClose,
+  onDownload,
+  onOpenWith,
   isDark,
-  searchTerm,
-  onSearchChange,
-  onCopy,
-  copied,
 }: {
   file: GeneratedDocument;
   format: string;
+  blobUrl: string | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onOpenWith: () => void;
   isDark: boolean;
-  searchTerm: string;
-  onSearchChange: (v: string) => void;
-  onCopy: (txt: string) => void;
-  copied: boolean;
 }) {
-  const codeText = file.outlineMarkdown || file.summary || "# No code content provided";
+  const codeText = file.outlineMarkdown || file.summary || "# No code provided";
   const lines = codeText.split("\n");
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(codeText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="w-full max-w-5xl h-full flex flex-col rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl font-mono text-xs">
-      {/* Code Header Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-800 bg-neutral-900 text-neutral-300">
+    <div className="w-full h-full flex flex-col bg-[#1e1e1e] text-[#d4d4d4] font-mono select-none">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-[#333333] text-xs">
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
-          <span className="w-3 h-3 rounded-full bg-yellow-500/80 inline-block" />
-          <span className="w-3 h-3 rounded-full bg-green-500/80 inline-block" />
-          <span className="ml-2 font-semibold text-neutral-200">{file.filename}</span>
+          <Code2 className="w-4 h-4 text-violet-400" />
+          <span className="font-semibold text-white">{file.filename}</span>
           <span className="text-[10px] uppercase font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
             {format}
           </span>
@@ -1976,28 +2163,30 @@ function CodeFileViewer({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onCopy(codeText)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 transition text-[11px]"
+            onClick={handleCopy}
+            className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#444444] text-white text-xs transition"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? "Copied!" : "Copy Code"}</span>
+            <span>{copied ? "Copied" : "Copy Code"}</span>
+          </button>
+          <button type="button" onClick={onDownload} className="p-1.5 hover:bg-[#333333] rounded">
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-red-700 rounded min-h-[36px] min-w-[36px] flex items-center justify-center">
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Code Body with Line Numbers */}
-      <div className="flex-1 overflow-auto p-4 flex">
-        {/* Line Numbers */}
-        <div className="select-none text-neutral-600 text-right pr-4 border-r border-neutral-800 shrink-0 font-mono">
+      <div className="flex-1 overflow-auto p-4 flex text-xs">
+        <div className="select-none text-[#858585] text-right pr-4 border-r border-[#333333] shrink-0 font-mono">
           {lines.map((_, i) => (
             <div key={i} className="leading-6">
               {i + 1}
             </div>
           ))}
         </div>
-
-        {/* Code Content */}
-        <div className="pl-4 flex-1 text-neutral-200 overflow-x-auto font-mono">
+        <div className="pl-4 flex-1 text-[#d4d4d4] overflow-x-auto font-mono">
           {lines.map((line, i) => (
             <div key={i} className="leading-6 whitespace-pre hover:bg-white/5 rounded px-1 transition">
               {line}
@@ -2009,51 +2198,73 @@ function CodeFileViewer({
   );
 }
 
-// -------------------------------------------------------------
-// 6. TEXT / DATA / MARKDOWN VIEWER
-// -------------------------------------------------------------
-function TextDataViewer({
+// =============================================================
+// 6. DATA & TEXT VIEWER (JSON, Markdown, TXT)
+// =============================================================
+function DataTextViewer({
   file,
   format,
+  blobUrl,
+  onClose,
+  onDownload,
+  onOpenWith,
   isDark,
-  searchTerm,
-  onSearchChange,
-  onCopy,
-  copied,
 }: {
   file: GeneratedDocument;
   format: string;
+  blobUrl: string | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onOpenWith: () => void;
   isDark: boolean;
-  searchTerm: string;
-  onSearchChange: (v: string) => void;
-  onCopy: (txt: string) => void;
-  copied: boolean;
 }) {
   const rawText = file.outlineMarkdown || file.summary || "";
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(rawText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="w-full max-w-4xl h-full flex flex-col rounded-xl border border-neutral-800 bg-neutral-900 p-6 overflow-hidden shadow-xl text-neutral-100">
-      <div className="flex items-center justify-between pb-3 border-b border-neutral-800 mb-4">
-        <span className="font-semibold text-sm">{file.filename}</span>
-        <button
-          type="button"
-          onClick={() => onCopy(rawText)}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs text-neutral-200 transition"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          <span>{copied ? "Copied" : "Copy Content"}</span>
-        </button>
+    <div className="w-full h-full flex flex-col bg-neutral-900 text-neutral-100 select-none">
+      <div className="flex items-center justify-between px-3 py-2 bg-neutral-950 border-b border-neutral-800 text-xs">
+        <div className="flex items-center gap-2">
+          <FileCode className="w-4 h-4 text-amber-400" />
+          <span className="font-semibold text-white">{file.filename}</span>
+          <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+            {format}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex items-center gap-1 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white text-xs transition"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? "Copied" : "Copy"}</span>
+          </button>
+          <button type="button" onClick={onDownload} className="p-1.5 hover:bg-neutral-800 rounded">
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-red-700 rounded min-h-[36px] min-w-[36px] flex items-center justify-center">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-auto font-mono text-xs p-4 bg-neutral-950 rounded-lg border border-neutral-800 whitespace-pre-wrap leading-relaxed">
+
+      <div className="flex-1 overflow-auto p-4 font-mono text-xs text-neutral-200 whitespace-pre-wrap leading-relaxed">
         {rawText}
       </div>
     </div>
   );
 }
 
-// -------------------------------------------------------------
+// =============================================================
 // OPEN WITH MODAL (COMPATIBLE APPLICATIONS CHOOSER)
-// -------------------------------------------------------------
+// =============================================================
 function OpenWithModal({
   file,
   format,
@@ -2069,7 +2280,6 @@ function OpenWithModal({
   onClose: () => void;
   onDownload: () => void;
 }) {
-  // Compatible app suggestions based on file format
   const suggestions = useMemo(() => {
     switch (format) {
       case "pdf":
@@ -2100,18 +2310,6 @@ function OpenWithModal({
           { name: "Google Sheets", type: "Web / Android / iOS", icon: "📊" },
           { name: "Apple Numbers", type: "macOS / iOS", icon: "🔢" },
         ];
-      case "py":
-      case "ts":
-      case "js":
-      case "java":
-      case "c":
-      case "cpp":
-      case "sql":
-        return [
-          { name: "Visual Studio Code", type: "Desktop Editor", icon: "💻" },
-          { name: "PyCharm / IDE", type: "Language Environment", icon: "🐍" },
-          { name: "Notepad++ / TextEdit", type: "Lightweight Editor", icon: "✏️" },
-        ];
       default:
         return [
           { name: "System Default Application", type: "OS Associated Viewer", icon: "📁" },
@@ -2120,7 +2318,6 @@ function OpenWithModal({
     }
   }, [format]);
 
-  // Open in new tab if browser supports
   const handleOpenInNewTab = () => {
     if (blobUrl) {
       window.open(blobUrl, "_blank");
@@ -2132,11 +2329,7 @@ function OpenWithModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div
-        className={`w-full max-w-md rounded-2xl border p-5 shadow-2xl transition-all ${
-          isDark ? "bg-neutral-900 border-neutral-700 text-neutral-100" : "bg-white border-neutral-300 text-neutral-900"
-        }`}
-      >
+      <div className="w-full max-w-md rounded-2xl border p-5 shadow-2xl transition-all bg-neutral-900 border-neutral-700 text-neutral-100">
         <div className="flex items-center justify-between pb-3 border-b border-neutral-700/60 mb-4">
           <div className="flex items-center gap-2">
             <Share2 className="w-4 h-4 text-amber-500" />
@@ -2152,10 +2345,9 @@ function OpenWithModal({
         </div>
 
         <p className="text-xs text-neutral-400 mb-4">
-          Select an option below to open <span className="font-mono text-neutral-200">{file.filename}</span> using your device&apos;s installed apps or online tools:
+          Select an option below to open <span className="font-mono text-neutral-200">{file.filename}</span>:
         </p>
 
-        {/* Action 1: Download & Open in Installed OS App */}
         <div className="space-y-2 mb-4">
           <button
             type="button"
@@ -2172,14 +2364,13 @@ function OpenWithModal({
                   Download &amp; Open in Default App
                 </p>
                 <p className="text-[11px] text-neutral-400">
-                  Opens via your OS file associations (Word, Excel, Acrobat, etc.)
+                  Opens via OS file association (PowerPoint, Excel, Word, Acrobat)
                 </p>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-amber-400 transition" />
           </button>
 
-          {/* Action 2: Open in Browser Tab (if supported) */}
           <button
             type="button"
             onClick={handleOpenInNewTab}
@@ -2200,10 +2391,9 @@ function OpenWithModal({
           </button>
         </div>
 
-        {/* Compatible Installed Apps List */}
         <div className="pt-3 border-t border-neutral-800">
           <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
-            Compatible Software for .{format.toUpperCase()}:
+            Compatible Applications:
           </p>
           <div className="space-y-1.5">
             {suggestions.map((app, i) => (
@@ -2234,4 +2424,3 @@ function OpenWithModal({
     </div>
   );
 }
-

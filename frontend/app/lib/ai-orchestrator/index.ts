@@ -215,7 +215,12 @@ export class MasterAIOrchestrator {
 
     // 3.5 PIPELINE ROUTING: RESEARCH-TO-FILE GENERATION ENGINE
     const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
-      history: messages.map((m) => ({ role: m.role, content: m.content })),
+      history: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        generatedDocument: (m as any).generatedDocument,
+        attachments: m.attachments,
+      })),
       hasAttachments: hasAttachedFile,
       inChatConversation: true,
     });
@@ -264,7 +269,9 @@ export class MasterAIOrchestrator {
         } else if (["py", "java", "c", "cpp", "js", "ts", "html", "css", "sql"].includes(fmt)) {
           fileTypeLabel = "program file";
         }
-        const shortMessage = `Your ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`;
+        const shortMessage = docPkg.summary || (docIntent.isRevision
+          ? `Your revised ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`
+          : `Your ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`);
 
         return {
           role: "assistant",

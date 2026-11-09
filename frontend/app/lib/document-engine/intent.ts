@@ -42,8 +42,27 @@ export type DocumentArchetype =
 
 export type DocumentAudience = "academic" | "business" | "technical" | "financial" | "general";
 
+export interface RevisionDirectives {
+  targetSlide?: number;
+  targetSection?: number | string;
+  depth?: "technical" | "academic" | "business" | "general";
+  makeMoreTechnical?: boolean;
+  addExamplesAndDiagrams?: boolean;
+  targetAudience?: DocumentAudience;
+  specificCorrection?: string;
+  removeIrrelevantContent?: boolean;
+  preserveDesign?: boolean;
+  referenceDocName?: string;
+  previousTopic?: string;
+  previousFormat?: DocumentFormat;
+  previousArchetype?: DocumentArchetype;
+  previousDoc?: any;
+}
+
 export interface DocumentIntentResult {
   isDocumentRequest: boolean;
+  isRevision?: boolean;
+  revisionDirectives?: RevisionDirectives;
   confidence: number; // 0.0 to 1.0
   needsClarification: boolean;
   clarificationQuestion?: string;
@@ -65,11 +84,17 @@ export interface DocumentIntentResult {
 }
 
 export interface IntentContextOptions {
-  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  history?: Array<{
+    role: "user" | "assistant" | string;
+    content: string;
+    generatedDocument?: any;
+    attachments?: Array<{ name: string; type: string; url?: string; size?: number }>;
+  }>;
   preferences?: Record<string, any>;
   hasAttachments?: boolean;
   inChatConversation?: boolean;
   forceDocument?: boolean;
+  previousDocument?: any;
 }
 
 /**
@@ -188,6 +213,96 @@ export function detectDocumentIntent(
   const words = clean.split(/\s+/).filter(Boolean);
   const isShortTopic = words.length >= 1 && words.length <= 6 && !hasFileActionVerb && !isExplicitFileRequest;
 
+  // 6.5 Intelligent Document Revision & Regeneration Detection
+  const priorDocEntry = (options?.history || [])
+    .slice()
+    .reverse()
+    .find((h) =>
+      Boolean(
+        h.generatedDocument ||
+        (h.attachments && h.attachments.length > 0) ||
+        /\bYour (presentation|document|PDF|spreadsheet|file|program file) on (.+?) is ready\b/i.test(h.content) ||
+        /\b(presentation|document|pdf|pptx|docx|xlsx) (is ready|was generated)\b/i.test(h.content)
+      )
+    );
+
+  const priorDoc = priorDocEntry?.generatedDocument || options?.previousDocument;
+  const hasPriorDoc = Boolean(priorDoc || priorDocEntry);
+
+  const isRevisionPhrase =
+    /\b(the content is (incorrect|wrong|useless|bad|generic|irrelevant|incomplete|poor)|not what i wanted|fix the content|use more relevant|make it more technical|add more technical|remove irrelevant|remove generic|change only slide \d+|make it suitable for|add examples|add diagrams|preserve the existing design|recreate|regenerate|redo|rewrite|revise|revision|correct the content|update the file|recreate the file|regenerate the file|redo the document|revise this file|re-create)\b/i.test(lower) ||
+    /\b(change (the )?(topic|content|slides?)|update (slide \d+|the slide|the presentation|the document))\b/i.test(lower) ||
+    /\b(use the (uploaded|attached) (reference|file|document))\b/i.test(lower);
+
+  const isRevisionRequest = hasPriorDoc && isRevisionPhrase;
+
+  let isRevision = false;
+  let revisionDirectives: RevisionDirectives | undefined = undefined;
+
+  if (isRevisionRequest) {
+    let targetSlide: number | undefined = undefined;
+    const slideMatch = lower.match(/\b(?:slide|slide number|slide no\.?)\s*(\d{1,2})\b/i) || lower.match(/\bchange only slide\s*(\d{1,2})\b/i);
+    if (slideMatch && slideMatch[1]) {
+      targetSlide = parseInt(slideMatch[1], 10);
+    }
+
+    const makeMoreTechnical = /\b(more technical|relevant technical|deep technical|in-depth technical)\b/i.test(lower);
+    const addExamplesAndDiagrams = /\b(examples?|diagrams?|illustrations?|worked examples?)\b/i.test(lower);
+    const removeIrrelevantContent = /\b(remove irrelevant|remove generic|cut filler|no filler)\b/i.test(lower);
+    const preserveDesign = /\b(preserve (the )?existing design|keep (the )?design|keep (the )?layout)\b/i.test(lower);
+
+    let targetAudience: DocumentAudience | undefined = undefined;
+    if (/\b(college|university|academic|assignment|homework)\b/i.test(lower)) {
+      targetAudience = "academic";
+    } else if (/\b(technical|engineers?|developers?|architecture)\b/i.test(lower)) {
+      targetAudience = "technical";
+    } else if (/\b(executive|business|pitch|client)\b/i.test(lower)) {
+      targetAudience = "business";
+    }
+
+    // Extract previous topic from priorDoc or prior message
+    let prevTopic = priorDoc?.topic || priorDoc?.title;
+    if (!prevTopic && priorDocEntry?.content) {
+      const matchTopic = priorDocEntry.content.match(/\bYour (?:presentation|document|PDF|spreadsheet|file|program file) on (.+?) is ready\b/i);
+      if (matchTopic && matchTopic[1]) {
+        prevTopic = matchTopic[1].trim();
+      }
+    }
+
+    // Extract previous format
+    let prevFormat: DocumentFormat = "docx";
+    if (priorDoc?.format) {
+      prevFormat = priorDoc.format as DocumentFormat;
+    } else if (priorDocEntry) {
+      const lowerEntry = priorDocEntry.content.toLowerCase();
+      if (lowerEntry.includes("presentation") || lowerEntry.includes("pptx")) prevFormat = "pptx";
+      else if (lowerEntry.includes("spreadsheet") || lowerEntry.includes("xlsx")) prevFormat = "xlsx";
+      else if (lowerEntry.includes("pdf")) prevFormat = "pdf";
+      else if (lowerEntry.includes("document") || lowerEntry.includes("docx")) prevFormat = "docx";
+    }
+
+    const depth: "technical" | "academic" | "business" | "general" | undefined = makeMoreTechnical
+      ? "technical"
+      : targetAudience === "academic"
+      ? "academic"
+      : undefined;
+
+    revisionDirectives = {
+      targetSlide,
+      depth,
+      makeMoreTechnical,
+      addExamplesAndDiagrams,
+      targetAudience,
+      removeIrrelevantContent,
+      preserveDesign,
+      specificCorrection: clean,
+      previousTopic: prevTopic,
+      previousFormat: prevFormat,
+      previousArchetype: priorDoc?.archetype || (prevFormat === "pptx" ? "presentation" : prevFormat === "xlsx" ? "spreadsheet" : "research_report"),
+      previousDoc: priorDoc,
+    };
+  }
+
   // 7. Determine isDocumentRequest and Confidence
   let isDocumentRequest = false;
   let confidence = 0.5;
@@ -196,6 +311,11 @@ export function detectDocumentIntent(
     // Explicitly requested document generation (e.g., from /api/generate-document or document studio UI)
     isDocumentRequest = true;
     confidence = 1.0;
+  } else if (isRevisionRequest) {
+    // Context-aware file revision / regeneration requested
+    isDocumentRequest = true;
+    isRevision = true;
+    confidence = 0.99;
   } else if (isExplicitFileRequest) {
     // Explicit user request for a downloadable file (PDF, PPT, DOCX, Excel, code file, research report document, etc.)
     isDocumentRequest = true;
@@ -222,7 +342,27 @@ export function detectDocumentIntent(
   let archetype: DocumentArchetype = "research_report";
   let format: DocumentFormat = "docx";
 
-  if (isPptExplicit || requestedSlideCount || (isShortTopic && contextFavorsPpt && !options?.inChatConversation)) {
+  if (isRevisionRequest) {
+    if (isPptExplicit) {
+      archetype = "presentation";
+      format = "pptx";
+    } else if (isExcelExplicit) {
+      archetype = "spreadsheet";
+      format = lower.includes("csv") ? "csv" : "xlsx";
+    } else if (isPdfExplicit) {
+      archetype = revisionDirectives?.targetAudience === "academic" ? "assignment" : "research_report";
+      format = "pdf";
+    } else if (isDocxExplicit) {
+      archetype = revisionDirectives?.targetAudience === "academic" ? "assignment" : "research_report";
+      format = "docx";
+    } else {
+      format = revisionDirectives?.previousFormat || "docx";
+      archetype = revisionDirectives?.previousArchetype || (format === "pptx" ? "presentation" : format === "xlsx" ? "spreadsheet" : "research_report");
+      if (revisionDirectives?.targetAudience === "academic") {
+        archetype = "assignment";
+      }
+    }
+  } else if (isPptExplicit || requestedSlideCount || (isShortTopic && contextFavorsPpt && !options?.inChatConversation)) {
     archetype = "presentation";
     format = "pptx";
   } else if (isExcelExplicit || (isShortTopic && contextFavorsSpreadsheet && !options?.inChatConversation)) {
@@ -333,6 +473,12 @@ export function detectDocumentIntent(
     }
   }
 
+  if (isRevisionRequest && (!topic || topic.length < 3 || isGenericFillerTopic || /content is incorrect|recreate|regenerate|change only slide/i.test(topic))) {
+    if (revisionDirectives?.previousTopic) {
+      topic = revisionDirectives.previousTopic;
+    }
+  }
+
   if (!topic || topic.length < 2 || /^(it|this|that|now\s+it|as ppt|matter|of matter|slides? as)$/i.test(topic)) {
     topic = clean
       .replace(/\[\s*Mode:[^\]]+\]:?/gi, "")
@@ -362,7 +508,7 @@ export function detectDocumentIntent(
   // 10. Depth & Length Configuration
   const isComprehensive = /\b(comprehensive|detailed|in-depth|complete|full|exhaustive|deep dive)\b/i.test(lower);
   const isBrief = /\b(brief|short|quick|concise|summary|overview)\b/i.test(lower);
-  const depth: "brief" | "standard" | "comprehensive" = isBrief ? "brief" : isComprehensive ? "comprehensive" : "standard";
+  const depth: "brief" | "standard" | "comprehensive" = isBrief ? "brief" : (isComprehensive || revisionDirectives?.makeMoreTechnical) ? "comprehensive" : "standard";
 
   const slideCount = requestedSlideCount || (depth === "brief" ? 6 : depth === "comprehensive" ? 12 : 8);
   const sectionCount = depth === "brief" ? 4 : depth === "comprehensive" ? 8 : 6;
@@ -388,13 +534,15 @@ export function detectDocumentIntent(
 
   return {
     isDocumentRequest,
+    isRevision,
+    revisionDirectives,
     confidence,
     needsClarification,
     clarificationQuestion,
     topic,
     archetype,
     format,
-    audience,
+    audience: revisionDirectives?.targetAudience || audience,
     length: {
       slideCount: archetype === "presentation" ? slideCount : undefined,
       sectionCount,

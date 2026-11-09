@@ -1798,6 +1798,9 @@ export default function ChatPage() {
             dataUri: genData.document.dataUri,
             outlineMarkdown: genData.document.outlineMarkdown,
             summary: genData.document.summary,
+            sections: genData.document.sections,
+            slides: genData.document.slides,
+            sheets: genData.document.sheets,
           });
           return;
         }

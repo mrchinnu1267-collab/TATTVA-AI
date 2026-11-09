@@ -139,6 +139,9 @@ export interface GeneratedDocumentResult {
   dataUri: string;
   error?: string;
   sections?: any[];
+  sheets?: any[];
+  slides?: any[];
+  summary?: string;
 }
 
 const MIME_TYPES: Record<string, string> = {
