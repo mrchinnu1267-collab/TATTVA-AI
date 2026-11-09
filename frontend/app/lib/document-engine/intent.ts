@@ -100,16 +100,17 @@ export function detectDocumentIntent(
 
   // 3. Action keywords for explicit file creation
   const hasFileActionVerb =
-    /\b(create|generate|make|build|prepare|design|draft|write|export|produce|give me|download|save|send me|deliver)\b/i.test(lower) ||
+    /\b(create|generate|make|build|prepare|design|draft|write|export|produce|give me|download|save|send me|deliver|convert|turn|transform|compile)\b/i.test(lower) ||
     /\b(chey|cheyyi|cheyandi|cheyali|tayaru|kavali|ivvu)\b/i.test(lower) ||
     /చేయి|చేయ్|చెయ్యి|చేయండి|తయారు|కావాలి|ఇవ్వు/i.test(clean) ||
     /\b(banao|banaiye|banado|chahiye|dijiye|karo|bana)\b/i.test(lower) ||
     /बनाओ|बनाइए|बना दो|चाहिए|दीजिए|तैयार करो|बना/i.test(clean);
 
-  // 4. Explicit File Format Recognition
+  // 4. Explicit File Format & Document Type Recognition
   const isPptExplicit =
     (hasFileActionVerb && /\b(ppt|pptx|powerpoint|presentation|slide deck|slides?|pitch deck|deck|keynote)\b/i.test(lower)) ||
     /\b(as a (ppt|pptx|powerpoint|presentation|slide deck)|in (ppt|pptx|powerpoint) format)\b/i.test(lower) ||
+    /\b(convert|turn|transform|make|create|generate).*?\b(into|to|as)\s+(a\s+)?(ppt|pptx|powerpoint|presentation|slide deck)\b/i.test(lower) ||
     /\b\d+\s*[- ]*(slide|slides|sld)\b/i.test(lower) ||
     /పిపిటి|ప్రెజెంటేషన్/i.test(clean) ||
     /पीपीटी|प्रेजेंटेशन/i.test(clean);
@@ -117,6 +118,7 @@ export function detectDocumentIntent(
   const isExcelExplicit =
     (hasFileActionVerb && /\b(excel|xlsx|xls|spreadsheet|workbook|sheet|worksheet|csv|marks sheet|ledger|financial report|budget sheet)\b/i.test(lower)) ||
     /\b(as (an? )?(excel|xlsx|spreadsheet|workbook|csv)|in (excel|xlsx|csv) format)\b/i.test(lower) ||
+    /\b(convert|turn|transform|make|create|generate).*?\b(into|to|as)\s+(an?\s+)?(excel|xlsx|spreadsheet|workbook|sheet|csv)\b/i.test(lower) ||
     /\b(excel sheet|spreadsheet)\s+(for|about|on|of)\b/i.test(lower) ||
     /ఎక్సెల్|స్ప్రెడ్‌షీట్/i.test(clean) ||
     /एक्सेल|स्प्रेडशीट/i.test(clean);
@@ -124,12 +126,14 @@ export function detectDocumentIntent(
   const isPdfExplicit =
     (hasFileActionVerb && /\b(pdf|pdf document|pdf report|pdf file)\b/i.test(lower)) ||
     /\b(as a pdf|in pdf format|as pdf)\b/i.test(lower) ||
+    /\b(convert|turn|transform|export).*?\b(into|to|as)\s+(a\s+)?pdf\b/i.test(lower) ||
     /\bpdf\s+(on|about|for|regarding)\b/i.test(lower);
 
   const isDocxExplicit =
     (hasFileActionVerb && /\b(word doc|word document|docx|doc file|\.docx)\b/i.test(lower)) ||
     /\b(in docx format|as a docx|as a word doc|as docx)\b/i.test(lower) ||
-    (hasFileActionVerb && /\b(assignment|project report|research paper)\b/i.test(lower) && /\b(in docx|docx|format|file|as a document|download)\b/i.test(lower)) ||
+    /\b(convert|turn|transform|export).*?\b(into|to|as)\s+(a\s+)?(docx|word doc|word document)\b/i.test(lower) ||
+    (hasFileActionVerb && /\b(research report|project report|term paper|whitepaper|assignment|homework)\b/i.test(lower)) ||
     /\b(prepare|create|make|generate)\s+an?\s+assignment\b/i.test(lower);
 
   const isDataFileExplicit =
@@ -141,7 +145,8 @@ export function detectDocumentIntent(
     /\b(save as a file|save it as a file|save to file|as a code file|as a \.py file|as a \.js file|give me a downloadable .* file)\b/i.test(lower);
 
   const hasGenericFileDirective =
-    /\b(as a file|save as a file|save it as a file|give me the file|downloadable file|create a .* file|generate a .* file|write a .* file|make a .* file|in a file|download the file)\b/i.test(lower);
+    /\b(make|create|generate|produce|build|export|save|download|give me|send me)\s+(a\s+|an\s+|the\s+)?(\w+\s+)?(file|document)\b/i.test(lower) ||
+    /\b(as a file|save as a file|save it as a file|give me the file|downloadable file|in a file|download the file)\b/i.test(lower);
 
   const isExplicitFileRequest =
     isPptExplicit ||
@@ -188,26 +193,19 @@ export function detectDocumentIntent(
   let confidence = 0.5;
 
   if (options?.forceDocument) {
-    // Explicitly requested document generation
+    // Explicitly requested document generation (e.g., from /api/generate-document or document studio UI)
     isDocumentRequest = true;
     confidence = 1.0;
   } else if (isExplicitFileRequest) {
-    // Explicit user request for a downloadable file (PDF, PPT, DOCX, Excel, code file, etc.)
+    // Explicit user request for a downloadable file (PDF, PPT, DOCX, Excel, code file, research report document, etc.)
     isDocumentRequest = true;
     confidence = 0.98;
-  } else if (isQuestionOrInquiry) {
-    // Informational questions, explanations, or research queries are strictly answered in chat!
+  } else {
+    // Normal conversation, questions, inquiries, research queries, and single topic keywords
+    // (e.g. "What is India?", "Tell me about Amazon.", "amazon", "Games", "How does Transformer Architecture work?",
+    // "What are its advantages?", "Research the latest AI developments") are strictly answered conversationally in chat!
     isDocumentRequest = false;
-    confidence = 0.95;
-  } else if (options?.inChatConversation) {
-    // Inside a chat conversation, casual single topics (e.g. "amazon", "Games", "India")
-    // must be treated conversationally in chat, NOT as file generation requests!
-    isDocumentRequest = false;
-    confidence = 0.90;
-  } else if (isShortTopic && words.length >= 1 && !options?.inChatConversation) {
-    // Fallback for standalone document engine direct invocations without chat context
-    isDocumentRequest = true;
-    confidence = 0.75;
+    confidence = isQuestionOrInquiry ? 0.95 : 0.90;
   }
 
   // Ambiguity check
@@ -287,7 +285,9 @@ export function detectDocumentIntent(
     .replace(/\b(\d{1,2})\s*[- ]*(slide|slides|sld)\b/gi, "")
     .replace(/\b(and save it as a file|and give me the file|save as a file|give me the file|as a file|downloadable file|in a file|as file|to file)\b/gi, "")
     .replace(/\b(now|then|also|so|please|can you|could you|i want to|i need to|i want|i need|give me a|give me)\b/gi, "")
-    .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce)\b/gi, "")
+    .replace(/\b(create|generate|make|build|prepare|design|draft|write|export|produce|convert|turn|transform|compile)\b/gi, "")
+    .replace(/\b(that|this|the|my|our)\s+(research|investigation|findings|analysis|summary|discussion|topic)\b/gi, "")
+    .replace(/\b(into|to|as)\s+(a\s+|an\s+)?(pdf|ppt|pptx|powerpoint|word|docx|excel|spreadsheet|file|document)\b/gi, "")
     .replace(/\b(a|an|the)\s+(ppt|pptx|powerpoint|presentation|slides|deck|slide deck)\b/gi, "")
     .replace(/\b(a|an|the)\s+(word doc|word document|docx|doc|document|assignment|project report|research paper|notes)\b/gi, "")
     .replace(/\b(a|an|the)\s+(excel sheet|excel workbook|excel|xlsx|spreadsheet|sheet|budget|csv file|csv|pdf report|pdf document|pdf)\b/gi, "")
@@ -302,13 +302,13 @@ export function detectDocumentIntent(
     .replace(/[?!.,;:"']/g, " ")
     .trim();
 
-  // If topic is empty, a pronoun ("it", "this", "that", "same"), or too short:
+  // If topic is empty, a pronoun ("it", "this", "that", "same"), or generic reference ("this topic", "that research"):
   // inspect history for the substantive topic!
   const isPronounTopic =
     !topic ||
-    /^(it|this|that|above|same|the same|them|its|now|so|topic)$/i.test(topic) ||
+    /^(it|this|that|above|same|the same|them|its|now|so|topic|this topic|that topic|the topic|research|that research|this research)$/i.test(topic) ||
     /^(now\s+)?(it|this|that)$/i.test(topic) ||
-    /\b(about|on|for|of)\s+(it|this|that)\b/i.test(clean) ||
+    /\b(about|on|for|of)\s+(it|this|that|this topic|that research)\b/i.test(clean) ||
     topic.length < 2;
 
   if (isPronounTopic && options?.history && options.history.length > 0) {
@@ -317,7 +317,8 @@ export function detectDocumentIntent(
       if (msg.role === "user") {
         const cleanedPrev = msg.content
           .replace(/^\[\s*Mode:[^\]]+\]:?\s*/i, "")
-          .replace(/\b(what (is|are|was|were)|tell me about|explain|describe|how does|how do|research|advantages of|applications of|benefits of|features of|use cases of|pros and cons of|can you explain|create|generate|make|prepare)\b/gi, "")
+          .replace(/\b(what (is|are|was|were)|tell me about|explain|describe|how does|how do|how to|research|advantages of|applications of|benefits of|features of|use cases of|pros and cons of|can you explain|create|generate|make|prepare|convert)\b/gi, "")
+          .replace(/\b(the latest|latest|recent|work|works|working|in detail|detail)\b/gi, "")
           .replace(/\b(a|an|the|about|on|for|its|it|this|that|now|more|so|also|please)\b/gi, " ")
           .replace(/[?!.,;:"']/g, " ")
           .trim();

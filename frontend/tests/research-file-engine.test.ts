@@ -13,10 +13,10 @@ import {
 } from "../app/lib/document-engine";
 
 describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
-  // TEST 1: Intent Understanding from Brief Topic Name
+  // TEST 1: Intent Understanding from Brief Topic Name (in Document Studio / forced generation)
   it("TEST 1: Understands topic intention from a short topic name alone", () => {
     const prompt = "Artificial Intelligence";
-    const intent = detectDocumentIntent(prompt);
+    const intent = detectDocumentIntent(prompt, { forceDocument: true });
 
     assert.equal(intent.isDocumentRequest, true);
     assert.ok(intent.confidence >= 0.7);
@@ -369,7 +369,7 @@ describe("TATTVA AI – Research-to-File Generation Engine Test Suite", () => {
     assert.ok(!research.definition.toLowerCase().includes("multidisciplinary domain focusing on systematic principles"));
     assert.ok(research.coreMechanisms.some((m) => m.name.toLowerCase().includes("flywheel") || m.name.toLowerCase().includes("aws") || m.name.toLowerCase().includes("fulfillment") || m.name.toLowerCase().includes("enterprise")));
 
-    const intent = detectDocumentIntent("amazon");
+    const intent = detectDocumentIntent("Prepare a research report about Amazon.");
     const pkg = await synthesizeResearchToFile(intent);
     assert.equal(pkg.success, true);
     assert.equal(pkg.document.format, "docx");
