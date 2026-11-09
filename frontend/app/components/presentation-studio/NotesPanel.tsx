@@ -57,3 +57,4 @@ export function NotesPanel({
     </div>
   );
 }
+

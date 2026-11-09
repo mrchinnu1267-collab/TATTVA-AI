@@ -44,10 +44,31 @@ export interface PythonOfficeResult {
   success: boolean;
   format?: string;
   buffer?: Buffer;
+  base64?: string;
   slideCount?: number;
   paragraphCount?: number;
   sizeBytes?: number;
   error?: string;
+}
+
+export function generateDocxWithPython(payload: any): PythonOfficeResult {
+  const res = executePythonOffice("generate_docx", payload);
+  return res || { success: false, error: "Python unavailable" };
+}
+
+export function generateXlsxWithPython(payload: any): PythonOfficeResult {
+  const res = executePythonOffice("generate_xlsx", payload);
+  return res || { success: false, error: "Python unavailable" };
+}
+
+export function generatePptxWithPython(payload: any): PythonOfficeResult {
+  const res = executePythonOffice("generate_pptx", payload);
+  return res || { success: false, error: "Python unavailable" };
+}
+
+export function generatePdfWithPython(payload: any): PythonOfficeResult {
+  const res = executePythonOffice("generate_pdf", payload);
+  return res || { success: false, error: "Python unavailable" };
 }
 
 /**
@@ -84,6 +105,7 @@ export function executePythonOffice(action: string, payload: any): PythonOfficeR
       success: true,
       format: output.format,
       buffer,
+      base64: output.base64,
       slideCount: output.slideCount,
       paragraphCount: output.paragraphCount,
       sizeBytes: buffer.length,

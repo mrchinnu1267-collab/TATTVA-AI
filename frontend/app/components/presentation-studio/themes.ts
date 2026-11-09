@@ -86,3 +86,4 @@ export const PRESENTATION_THEMES: PresentationTheme[] = [
     gradient: "from-white via-slate-50 to-slate-100",
   },
 ];
+

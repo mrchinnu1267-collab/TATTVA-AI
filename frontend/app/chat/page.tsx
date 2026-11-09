@@ -73,6 +73,7 @@ import {
   Languages,
   AlignLeft,
   AlertTriangle,
+  Briefcase,
   Layers,
   Lock,
   LogIn,
@@ -3759,6 +3760,29 @@ export default function ChatPage() {
               <span className="text-xs font-mono opacity-80">✦</span>
             </button>
 
+            {/* My Workspace Button */}
+            <Link
+              href="/workspace"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
+                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
+                }`}
+              title="Open TATTVA AI My Workspace (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access)"
+            >
+              <div className="flex items-center gap-2.5">
+                <Briefcase className="w-4.5 h-4.5 text-blue-500" />
+                <span>My Workspace</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-bold border border-blue-500/20">
+                7 Apps ✨
+              </span>
+            </Link>
+
             {/* Maps Button matching Image 2 */}
             <Link
               href="/maps"
@@ -5573,6 +5597,23 @@ export default function ChatPage() {
                             <MapPin className="w-5 h-5 stroke-[2]" />
                           </div>
                           <span className="font-semibold text-[15px] tracking-tight">Satellite Maps</span>
+                        </Link>
+
+                        {/* 7. My Workspace */}
+                        <Link
+                          href="/workspace"
+                          onClick={() => {
+                            setIsAttachmentMenuOpen(false);
+                          }}
+                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                        >
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600/30 text-blue-400 shadow-2xs border border-blue-500/30">
+                            <Briefcase className="w-5 h-5 stroke-[2]" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-[15px] tracking-tight text-white">My Workspace</span>
+                            <span className="text-[11px] text-blue-300">Word, Excel, PowerPoint & 4 more</span>
+                          </div>
                         </Link>
                       </div>
                     )}
