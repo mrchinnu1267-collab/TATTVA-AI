@@ -199,35 +199,35 @@ export function UniversalAIAssistant({
 
   return (
     <div
-      className={`fixed right-3 bottom-14 z-50 w-84 sm:w-96 rounded-2xl bg-[#111827]/95 border border-indigo-500/30 backdrop-blur-xl shadow-2xl flex flex-col transition-all duration-200 select-none ${
+      className={`fixed right-3 bottom-14 z-50 w-84 sm:w-96 rounded-2xl bg-white border border-[#E5E5E5] shadow-2xl flex flex-col transition-all duration-200 select-none text-[#111111] ${
         isMinimized ? "h-14 overflow-hidden" : "h-[580px] max-h-[85vh]"
       }`}
     >
       {/* Top Header */}
-      <div className="h-12 px-4 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-indigo-950/80 via-slate-900 to-indigo-950/80 rounded-t-2xl">
+      <div className="h-12 px-4 border-b border-[#E5E5E5] flex items-center justify-between bg-[#F9FAFB] rounded-t-2xl">
         <div className="flex items-center space-x-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-sm">
+          <div className="w-6 h-6 rounded-lg bg-black flex items-center justify-center text-white shadow-xs">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-white tracking-wide">
+            <span className="text-xs font-bold text-[#111111] tracking-wide">
               AI Workspace Assistant
             </span>
-            <span className="text-[10px] text-purple-400 font-mono ml-1.5">(Gemini)</span>
+            <span className="text-[10px] text-neutral-500 font-mono ml-1.5">(Gemini)</span>
           </div>
         </div>
 
         <div className="flex items-center space-x-1">
           <button
             onClick={() => setIsMinimized(!isMinimized)}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-1 rounded text-neutral-500 hover:text-black hover:bg-neutral-100 transition"
             title={isMinimized ? "Expand" : "Minimize"}
           >
             {isMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
           </button>
           <button
             onClick={onClose}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-1 rounded text-neutral-500 hover:text-black hover:bg-neutral-100 transition"
             title="Close Assistant"
           >
             <X className="w-3.5 h-3.5" />
@@ -238,63 +238,63 @@ export function UniversalAIAssistant({
       {!isMinimized && (
         <>
           {/* Subtitle Banner matching screenshot */}
-          <div className="px-4 py-2.5 bg-indigo-950/40 border-b border-indigo-900/30 text-[11px] text-slate-300 leading-snug">
+          <div className="px-4 py-2.5 bg-neutral-50 border-b border-[#E5E5E5] text-[11px] text-neutral-600 leading-snug">
             Work with your {activeApp === "powerpoint" ? "presentation" : activeApp} using natural language. I can create, edit, design, analyze, and automate tasks for you.
           </div>
 
           {/* Quick Context Prompt Chips matching screenshot */}
-          <div className="p-3 border-b border-slate-800/80 bg-slate-900/50 flex flex-col space-y-1.5 max-h-40 overflow-y-auto">
+          <div className="p-3 border-b border-[#E5E5E5] bg-neutral-50/50 flex flex-col space-y-1.5 max-h-40 overflow-y-auto">
             {getPromptChips().map((chip, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSendMessage(chip.text)}
-                className="w-full text-left flex items-center space-x-2 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-indigo-900/40 border border-slate-700/60 hover:border-indigo-500/50 text-[11px] text-slate-200 hover:text-white transition group"
+                className="w-full text-left flex items-center space-x-2 px-2.5 py-1.5 rounded-lg bg-white hover:bg-neutral-100 border border-[#E5E5E5] text-[11px] text-[#111111] transition group shadow-xs"
               >
                 <span className="text-xs">{chip.icon}</span>
-                <span className="truncate flex-1">{chip.text}</span>
-                <ArrowRight className="w-3 h-3 text-slate-500 group-hover:text-indigo-400 transition" />
+                <span className="truncate flex-1 font-medium">{chip.text}</span>
+                <ArrowRight className="w-3 h-3 text-neutral-400 group-hover:text-black transition" />
               </button>
             ))}
           </div>
 
           {/* Messages Log */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 text-xs bg-white">
             {messages.map((m) => (
               <div
                 key={m.id}
                 className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 leading-relaxed shadow-sm ${
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 leading-relaxed shadow-xs ${
                     m.sender === "user"
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-br-xs"
-                      : "bg-slate-800/90 border border-slate-700/80 text-slate-200 rounded-bl-xs"
+                      ? "bg-black text-white rounded-br-xs"
+                      : "bg-neutral-100 border border-[#E5E5E5] text-[#111111] rounded-bl-xs"
                   }`}
                 >
                   <p>{m.text}</p>
 
                   {/* Render Visual Action Pill if payload exists */}
                   {m.actionType && m.actionType !== "none" && (
-                    <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center space-x-1.5 text-[10px] text-emerald-400 font-medium">
+                    <div className="mt-2 pt-2 border-t border-[#E5E5E5] flex items-center space-x-1.5 text-[10px] text-emerald-600 font-medium">
                       <CheckCircle2 className="w-3 h-3" />
                       <span className="capitalize">{m.actionType.replace("_", " ")} applied</span>
                     </div>
                   )}
                 </div>
-                <span className="text-[9px] text-slate-500 mt-1 px-1">{m.timestamp}</span>
+                <span className="text-[9px] text-neutral-400 mt-1 px-1">{m.timestamp}</span>
               </div>
             ))}
 
             {isLoading && (
-              <div className="flex items-center space-x-2 text-indigo-400 bg-slate-800/60 px-3 py-2 rounded-xl w-fit">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span className="text-[11px]">Executing workspace intelligence...</span>
+              <div className="flex items-center space-x-2 text-neutral-600 bg-neutral-100 border border-[#E5E5E5] px-3 py-2 rounded-xl w-fit">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                <span className="text-[11px] font-medium">Executing workspace intelligence...</span>
               </div>
             )}
           </div>
 
           {/* Bottom Input Area */}
-          <div className="p-3 border-t border-slate-800 bg-slate-900/90 rounded-b-2xl">
+          <div className="p-3 border-t border-[#E5E5E5] bg-[#F9FAFB] rounded-b-2xl">
             <div className="relative flex items-center">
               <input
                 type="text"
@@ -302,7 +302,7 @@ export function UniversalAIAssistant({
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                 placeholder={`Tell me what to do with this ${activeApp === "powerpoint" ? "presentation" : activeApp}...`}
-                className="w-full bg-slate-800/90 border border-slate-700 rounded-xl pl-3 pr-16 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-white border border-[#E5E5E5] rounded-xl pl-3 pr-16 py-2 text-xs text-[#111111] placeholder-neutral-400 focus:outline-none focus:border-black shadow-xs"
               />
 
               <div className="absolute right-1.5 flex items-center space-x-1">
@@ -311,7 +311,7 @@ export function UniversalAIAssistant({
                   className={`p-1.5 rounded-lg transition ${
                     isListening
                       ? "bg-rose-600 text-white animate-pulse"
-                      : "text-slate-400 hover:text-white hover:bg-slate-700"
+                      : "text-neutral-500 hover:text-black hover:bg-neutral-100"
                   }`}
                   title={isListening ? "Listening..." : "Dictate (Voice)"}
                 >
@@ -321,7 +321,7 @@ export function UniversalAIAssistant({
                 <button
                   onClick={() => handleSendMessage()}
                   disabled={!inputValue.trim() || isLoading}
-                  className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white transition shadow-sm"
+                  className="p-1.5 rounded-lg bg-black hover:bg-neutral-800 disabled:opacity-40 text-white transition shadow-xs"
                   title="Send message"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -329,11 +329,11 @@ export function UniversalAIAssistant({
               </div>
             </div>
 
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 px-1">
+            <div className="mt-2 flex items-center justify-between text-[10px] text-neutral-400 px-1">
               <span>Press Enter to send</span>
               <span className="flex items-center space-x-1">
                 <span>Powered by</span>
-                <span className="text-purple-400 font-semibold">Google Gemini</span>
+                <span className="text-black font-semibold">Google Gemini</span>
               </span>
             </div>
           </div>

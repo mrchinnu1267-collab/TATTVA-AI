@@ -271,17 +271,17 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
 
   if (!isLoaded) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#0B0F19] text-white">
+      <div className="h-full w-full flex items-center justify-center bg-white text-[#111111]">
         <div className="flex flex-col items-center space-y-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-medium tracking-wide">Loading TATTVA AI Workspace...</span>
+          <div className="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm font-medium tracking-wide text-neutral-600">Loading TATTVA AI Workspace...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0B0F19] text-slate-200 select-none font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-[#111111] select-none font-sans">
       {/* 1. Left Sidebar Navigation matching Reference Screenshot */}
       <WorkspaceSidebar
         currentView={currentView}
@@ -305,7 +305,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
       />
 
       {/* 2. Main Work Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0B0F19]">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
         {/* Render View Depending on currentView state */}
         {currentView === "automation_center" ? (
           <AutomationCenterView />
@@ -329,14 +329,14 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
           <KnowledgeGraphView />
         ) : (
           /* Normal Dashboard View matching Reference Screenshot */
-          <div className="flex-1 flex flex-col h-full overflow-y-auto px-6 py-4 space-y-4">
+          <div className="flex-1 flex flex-col h-full overflow-y-auto px-6 py-4 space-y-4 bg-white text-[#111111]">
             {/* 2A. Top Header Bar matching Screenshot */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
               <div>
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center space-x-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-[#111111] tracking-tight flex items-center space-x-2">
                   <span>My Workspace</span>
                 </h1>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-neutral-500 mt-0.5">
                   Your all-in-one, AI-powered productivity suite
                 </p>
               </div>
@@ -345,11 +345,11 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                 {/* Search Bar matching screenshot */}
                 <div
                   onClick={() => setIsSearchModalOpen(true)}
-                  className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 text-xs text-slate-400 cursor-pointer w-full sm:w-80 shadow-xs transition"
+                  className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-white border border-[#E5E5E5] hover:border-neutral-400 text-xs text-neutral-500 cursor-pointer w-full sm:w-80 shadow-xs transition"
                 >
-                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                  <Search className="w-4 h-4 text-black shrink-0" />
                   <span className="flex-1 truncate">Search files, apps, or ask TATTVA AI...</span>
-                  <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700 rounded">
+                  <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-neutral-100 text-neutral-600 border border-[#E5E5E5] rounded">
                     ⌘ K
                   </kbd>
                 </div>
@@ -357,14 +357,14 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                 {/* Notifications & User Profile matching screenshot */}
                 <button
                   onClick={() => {}}
-                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition shrink-0"
+                  className="p-2 rounded-xl bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-black transition shrink-0"
                   title="Notifications"
                 >
-                  <Bell className="w-4 h-4" />
+                  <Bell className="w-4 h-4 text-black" />
                 </button>
 
                 <div
-                  className="w-8 h-8 rounded-full bg-[#107C41] flex items-center justify-center font-bold text-white text-xs shadow-sm shrink-0 cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-black flex items-center justify-center font-bold text-white text-xs shadow-xs shrink-0 cursor-pointer"
                   title="Kotapati Gowtham Chowdary (Verified Account)"
                 >
                   MK
@@ -384,20 +384,20 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                       setActiveApp(app.id);
                       setActiveItem(null);
                     }}
-                    className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl text-left border transition shrink-0 ${
+                    className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl text-left border transition shrink-0 shadow-xs ${
                       isActive
-                        ? "bg-slate-800/90 border-indigo-500 shadow-md shadow-indigo-500/10 text-white"
-                        : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700 text-slate-300"
+                        ? "bg-neutral-100 border-black font-semibold text-black"
+                        : "bg-white border-[#E5E5E5] hover:border-neutral-400 hover:bg-neutral-50 text-neutral-800"
                     }`}
                   >
                     <div
-                      className={`w-7 h-7 rounded-lg ${meta.bg} flex items-center justify-center font-black text-white text-xs shadow-sm`}
+                      className="w-7 h-7 rounded-lg bg-neutral-100 border border-[#E5E5E5] flex items-center justify-center font-black text-black text-xs shadow-xs"
                     >
                       {meta.letter}
                     </div>
                     <div>
-                      <div className="font-bold text-xs text-white leading-tight">{meta.name}</div>
-                      <div className="text-[10px] text-slate-400 leading-tight">{meta.sub}</div>
+                      <div className="font-bold text-xs text-[#111111] leading-tight">{meta.name}</div>
+                      <div className="text-[10px] text-neutral-500 leading-tight">{meta.sub}</div>
                     </div>
                   </button>
                 );
@@ -405,18 +405,18 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
 
               <button
                 onClick={() => handleNewItem(activeApp || "word")}
-                className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-xs text-slate-400 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-xs text-neutral-700 hover:text-black transition shrink-0 shadow-xs"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 text-black" />
                 <span>Add App</span>
               </button>
 
-              {/* Glowing Purple TATTVA AI Workspace Agent Button matching Screenshot */}
+              {/* Minimalist Black TATTVA AI Workspace Agent Button matching Screenshot */}
               <button
                 onClick={() => setIsAgentModalOpen(true)}
-                className="ml-auto flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 border border-purple-400/40 transition shrink-0 animate-pulse"
+                className="ml-auto flex items-center space-x-2 px-4 py-2 rounded-xl bg-black hover:bg-neutral-800 text-white font-bold text-xs shadow-sm border border-black transition shrink-0"
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-4 h-4 text-white" />
                 <span>TATTVA AI Workspace Agent</span>
               </button>
             </div>
@@ -425,57 +425,57 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
             <div className="flex items-center space-x-2 overflow-x-auto pb-1 shrink-0 text-xs scrollbar-none">
               <button
                 onClick={() => {}}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500 text-indigo-300 font-semibold shadow-xs shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 font-semibold shadow-xs shrink-0"
               >
-                <Rocket className="w-3.5 h-3.5 text-indigo-400" />
+                <Rocket className="w-3.5 h-3.5 text-black" />
                 <span>Advanced Features</span>
               </button>
 
               <button
                 onClick={() => setIsCollabModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 transition shrink-0 shadow-xs"
               >
-                <Users className="w-3.5 h-3.5 text-blue-400" />
+                <Users className="w-3.5 h-3.5 text-black" />
                 <span>Real-Time Collaboration</span>
               </button>
 
               <button
                 onClick={() => setIsDocIntelModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 transition shrink-0 shadow-xs"
               >
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <Clock className="w-3.5 h-3.5 text-black" />
                 <span>Version History</span>
               </button>
 
               <button
                 onClick={() => setIsTemplatesModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 transition shrink-0 shadow-xs"
               >
-                <FileText className="w-3.5 h-3.5 text-purple-400" />
+                <FileText className="w-3.5 h-3.5 text-black" />
                 <span>Smart Templates</span>
               </button>
 
               <button
                 onClick={() => setIsDocIntelModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 transition shrink-0 shadow-xs"
               >
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                <Layers className="w-3.5 h-3.5 text-black" />
                 <span>Document Intelligence</span>
               </button>
 
               <button
                 onClick={() => setIsSearchModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 transition shrink-0 shadow-xs"
               >
-                <Search className="w-3.5 h-3.5 text-orange-400" />
+                <Search className="w-3.5 h-3.5 text-black" />
                 <span>Universal Search</span>
               </button>
 
               <button
                 onClick={() => setIsInsightsModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shrink-0"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 transition shrink-0 shadow-xs"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+                <BarChart3 className="w-3.5 h-3.5 text-black" />
                 <span>Workspace Insights</span>
               </button>
             </div>
@@ -506,30 +506,45 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                   setItems(WorkspaceStorageManager.getAllItems());
                 }}
                 onExportItem={(item) => {}}
+                onOpenAssistant={() => setIsAIAssistantOpen(true)}
+                onOpenModal={(type) => {
+                  if (type === "collab") setIsCollabModalOpen(true);
+                  else if (type === "doc-intel") setIsDocIntelModalOpen(true);
+                  else if (type === "search") setIsSearchModalOpen(true);
+                  else if (type === "insights") setIsInsightsModalOpen(true);
+                  else if (type === "templates") setIsTemplatesModalOpen(true);
+                  else if (type === "focus") setIsFocusModalOpen(true);
+                  else if (type === "history") setIsDocIntelModalOpen(true);
+                  else if (type === "market") setIsMarketplaceModalOpen(true);
+                  else if (type === "memory") setIsMemoryModalOpen(true);
+                  else if (type === "board") setCurrentView("projects");
+                  else if (type === "canvas") setCurrentView("canvas");
+                  else if (type === "research") setCurrentView("research");
+                }}
               />
             ) : (
-              <div className="relative rounded-2xl border border-slate-800/80 bg-[#141414] shadow-2xl overflow-hidden min-h-[500px] flex flex-col">
+              <div className="relative rounded-2xl border border-[#E5E5E5] bg-white shadow-sm overflow-hidden min-h-[500px] flex flex-col">
                 {/* Active Studio Top Bar */}
-                <div className="flex items-center justify-between px-3 py-2 bg-slate-950 border-b border-slate-800 text-xs shrink-0">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-[#F9FAFB] border-b border-[#E5E5E5] text-xs shrink-0">
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => {
                         setActiveApp(null);
                         setActiveItem(null);
                       }}
-                      className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition"
+                      className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white border border-[#E5E5E5] text-neutral-700 hover:text-black hover:border-neutral-400 transition shadow-xs"
                       title="Back to My Workspace Dashboard"
                     >
                       <span>← Dashboard</span>
                     </button>
-                    <span className="text-slate-600">•</span>
-                    <span className="font-bold text-white capitalize">{getAppMeta(activeApp).name} Studio</span>
+                    <span className="text-neutral-400">•</span>
+                    <span className="font-bold text-black capitalize">{getAppMeta(activeApp).name} Studio</span>
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleNewItem(activeApp)}
-                      className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition"
+                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white font-semibold transition shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>New {getAppMeta(activeApp).name} File</span>
@@ -590,20 +605,20 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
             )}
 
             {/* 2E. Bottom Ecosystem Feature Cards matching Screenshot */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 pt-2">
               {/* Card 1: AI Agent Automation */}
               <div
                 onClick={() => setIsAgentModalOpen(true)}
-                className="p-4 rounded-xl bg-slate-900/60 hover:bg-indigo-950/40 border border-slate-800 hover:border-indigo-500/50 cursor-pointer transition flex flex-col justify-between group"
+                className="p-4 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] cursor-pointer transition-all duration-150 flex flex-col justify-between group shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400 mb-2">
-                    <Sparkles className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-lg bg-[#5B21B6] flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform">
+                    <Sparkles className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-xs text-white group-hover:text-indigo-300 transition">
+                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug">
                     AI Agent Automation
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  <p className="text-[11px] text-neutral-500 leading-snug">
                     Automate multi-step tasks (e.g., report → analysis → presentation)
                   </p>
                 </div>
@@ -612,16 +627,16 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
               {/* Card 2: Real-Time Collaboration */}
               <div
                 onClick={() => setIsCollabModalOpen(true)}
-                className="p-4 rounded-xl bg-slate-900/60 hover:bg-blue-950/40 border border-slate-800 hover:border-blue-500/50 cursor-pointer transition flex flex-col justify-between group"
+                className="p-4 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] cursor-pointer transition-all duration-150 flex flex-col justify-between group shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400 mb-2">
-                    <Users className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-lg bg-[#2563EB] flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform">
+                    <Users className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-xs text-white group-hover:text-blue-300 transition">
+                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug">
                     Real-Time Collaboration
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  <p className="text-[11px] text-neutral-500 leading-snug">
                     Edit together, comment, and track changes live
                   </p>
                 </div>
@@ -630,16 +645,16 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
               {/* Card 3: Document Intelligence */}
               <div
                 onClick={() => setIsDocIntelModalOpen(true)}
-                className="p-4 rounded-xl bg-slate-900/60 hover:bg-emerald-950/40 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition flex flex-col justify-between group"
+                className="p-4 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] cursor-pointer transition-all duration-150 flex flex-col justify-between group shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-2">
-                    <FileText className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-lg bg-[#059669] flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform">
+                    <FileText className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-xs text-white group-hover:text-emerald-300 transition">
+                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug">
                     Document Intelligence
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  <p className="text-[11px] text-neutral-500 leading-snug">
                     Summarize, extract, compare, OCR, and analyze documents
                   </p>
                 </div>
@@ -648,16 +663,16 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
               {/* Card 4: Universal Search */}
               <div
                 onClick={() => setIsSearchModalOpen(true)}
-                className="p-4 rounded-xl bg-slate-900/60 hover:bg-amber-950/40 border border-slate-800 hover:border-amber-500/50 cursor-pointer transition flex flex-col justify-between group"
+                className="p-4 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] cursor-pointer transition-all duration-150 flex flex-col justify-between group shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-amber-600/30 border border-amber-500/40 flex items-center justify-center text-amber-400 mb-2">
-                    <Search className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-lg bg-[#D97706] flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform">
+                    <Search className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-xs text-white group-hover:text-amber-300 transition">
+                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug">
                     Universal Search
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  <p className="text-[11px] text-neutral-500 leading-snug">
                     Find anything across all workspace apps and files
                   </p>
                 </div>
@@ -666,16 +681,16 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
               {/* Card 5: Workspace Insights */}
               <div
                 onClick={() => setIsInsightsModalOpen(true)}
-                className="p-4 rounded-xl bg-slate-900/60 hover:bg-cyan-950/40 border border-slate-800 hover:border-cyan-500/50 cursor-pointer transition flex flex-col justify-between group"
+                className="p-4 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] cursor-pointer transition-all duration-150 flex flex-col justify-between group shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center text-cyan-400 mb-2">
-                    <BarChart3 className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-lg bg-[#0891B2] flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform">
+                    <BarChart3 className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-xs text-white group-hover:text-cyan-300 transition">
+                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug">
                     Workspace Insights
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  <p className="text-[11px] text-neutral-500 leading-snug">
                     Usage, activity, AI operations and productivity analytics
                   </p>
                 </div>
@@ -684,16 +699,16 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
               {/* Card 6: Smart Templates */}
               <div
                 onClick={() => setIsTemplatesModalOpen(true)}
-                className="p-4 rounded-xl bg-slate-900/60 hover:bg-pink-950/40 border border-slate-800 hover:border-pink-500/50 cursor-pointer transition flex flex-col justify-between group"
+                className="p-4 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] cursor-pointer transition-all duration-150 flex flex-col justify-between group shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-pink-600/30 border border-pink-500/40 flex items-center justify-center text-pink-400 mb-2">
-                    <Zap className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-lg bg-[#DB2777] flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform">
+                    <Zap className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-xs text-white group-hover:text-pink-300 transition">
+                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug">
                     Smart Templates
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  <p className="text-[11px] text-neutral-500 leading-snug">
                     Professional, ready-to-use templates for every need
                   </p>
                 </div>
@@ -702,81 +717,81 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
 
             {/* 2F. Additional Advanced Features matching Reference Images */}
             <div className="pt-2">
-              <div className="flex items-center space-x-2 mb-2 text-xs font-semibold text-slate-400">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <div className="flex items-center space-x-1.5 mb-3 text-xs font-semibold text-neutral-800">
+                <Sparkles className="w-3.5 h-3.5 text-neutral-700" />
                 <span>Additional Advanced Features</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-xs">
                 <button
                   onClick={() => setIsVoiceModalOpen(true)}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Mic className="w-4 h-4 text-purple-400" />
-                  <span className="font-semibold text-white text-[11px]">Voice Workspace</span>
-                  <span className="text-[9px] text-slate-500">Dictation & Commands</span>
+                  <Mic className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Voice Workspace</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Dictation & Commands</span>
                 </button>
 
                 <button
                   onClick={() => setIsFocusModalOpen(true)}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Target className="w-4 h-4 text-rose-400" />
-                  <span className="font-semibold text-white text-[11px]">Focus Mode</span>
-                  <span className="text-[9px] text-slate-500">Deep Work Timer</span>
+                  <Target className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Focus Mode</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Deep Work Timer</span>
                 </button>
 
                 <button
                   onClick={() => setIsDocIntelModalOpen(true)}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Clock className="w-4 h-4 text-amber-400" />
-                  <span className="font-semibold text-white text-[11px]">Version History</span>
-                  <span className="text-[9px] text-slate-500">Track & Restore</span>
+                  <Clock className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Version History</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Track & Restore</span>
                 </button>
 
                 <button
                   onClick={() => setIsMarketplaceModalOpen(true)}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Store className="w-4 h-4 text-orange-400" />
-                  <span className="font-semibold text-white text-[11px]">Workflow Market</span>
-                  <span className="text-[9px] text-slate-500">Automation Hub</span>
+                  <Store className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Workflow Market</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Automation Hub</span>
                 </button>
 
                 <button
                   onClick={() => setIsMemoryModalOpen(true)}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Brain className="w-4 h-4 text-pink-400" />
-                  <span className="font-semibold text-white text-[11px]">Project Memory</span>
-                  <span className="text-[9px] text-slate-500">Persistent Context</span>
+                  <Brain className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Project Memory</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Persistent Context</span>
                 </button>
 
                 <button
                   onClick={() => setCurrentView("projects")}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Layout className="w-4 h-4 text-blue-400" />
-                  <span className="font-semibold text-white text-[11px]">Project Board</span>
-                  <span className="text-[9px] text-slate-500">Kanban & Timeline</span>
+                  <Layout className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Project Board</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Kanban & Timeline</span>
                 </button>
 
                 <button
                   onClick={() => setCurrentView("canvas")}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
-                  <span className="font-semibold text-white text-[11px]">Smart Canvas</span>
-                  <span className="text-[9px] text-slate-500">Visual Mindmap</span>
+                  <Sparkles className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Smart Canvas</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Visual Mindmap</span>
                 </button>
 
                 <button
                   onClick={() => setCurrentView("research")}
-                  className="p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-center transition flex flex-col items-center justify-center space-y-1"
+                  className="p-3 rounded-xl bg-white hover:border-neutral-400 border border-[#E5E5E5] text-center transition flex flex-col items-center justify-center cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <BookOpen className="w-4 h-4 text-emerald-400" />
-                  <span className="font-semibold text-white text-[11px]">Research Lab</span>
-                  <span className="text-[9px] text-slate-500">Sources & Citations</span>
+                  <BookOpen className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-[#111111] text-[11px] leading-tight">Research Lab</span>
+                  <span className="text-[9.5px] text-neutral-500 leading-tight mt-0.5">Sources & Citations</span>
                 </button>
               </div>
             </div>
