@@ -5,7 +5,7 @@ import { WorkspaceMainContent } from "../page";
 
 export default function OutlookWorkspacePage() {
   return (
-    <Suspense fallback={<div className="h-full w-full bg-[#0B0F19] text-white flex items-center justify-center">Loading Outlook...</div>}>
+    <Suspense fallback={<div className="h-full w-full bg-white text-black flex items-center justify-center font-medium text-xs">Loading Outlook Studio...</div>}>
       <WorkspaceMainContent initialApp="outlook" />
     </Suspense>
   );

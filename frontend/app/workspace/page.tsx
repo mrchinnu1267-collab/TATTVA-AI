@@ -64,6 +64,7 @@ import { OutlookApp } from "../components/workspace/apps/outlook/OutlookApp";
 import { OneNoteApp } from "../components/workspace/apps/onenote/OneNoteApp";
 import { PublisherStudio } from "../components/workspace/apps/publisher/PublisherStudio";
 import { AccessStudio } from "../components/workspace/apps/access/AccessStudio";
+import { triggerDownload } from "../lib/download-helper";
 
 export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceAppId }) {
   const searchParams = useSearchParams();
@@ -76,6 +77,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
   const [currentView, setCurrentView] = useState<string>("dashboard");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Active Modals state
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(true);
@@ -140,6 +142,85 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
     setActiveItem(newItem);
     setActiveApp(targetApp);
     setCurrentView("dashboard");
+  };
+
+  const handleExportItem = async (item: WorkspaceItem) => {
+    try {
+      const res = await fetch("/api/workspace/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: item.format,
+          title: item.name,
+          content: item.content,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.dataUri) {
+          await triggerDownload(data.dataUri, data.filename || `${item.name}.${item.format}`, data.mimeType);
+          return;
+        }
+      }
+      throw new Error("Export returned invalid response");
+    } catch (err) {
+      console.warn("[Workspace Export] Falling back to direct JSON export:", err);
+      const contentStr = typeof item.content === "string" ? item.content : JSON.stringify(item.content, null, 2);
+      const blob = new Blob([contentStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      await triggerDownload(url, `${item.name.replace(/\.[^/.]+$/, "")}.json`, "application/json");
+    }
+  };
+
+  const handleExecuteVoiceCommand = (cmd: string) => {
+    const lower = cmd.toLowerCase();
+    if (lower.includes("presentation") || lower.includes("powerpoint") || lower.includes("slide")) {
+      handleNewItem("powerpoint");
+    } else if (lower.includes("spreadsheet") || lower.includes("excel") || lower.includes("sheet") || lower.includes("budget")) {
+      handleNewItem("excel");
+    } else if (lower.includes("document") || lower.includes("word") || lower.includes("report")) {
+      handleNewItem("word");
+    } else if (lower.includes("email") || lower.includes("outlook") || lower.includes("mail")) {
+      handleNewItem("outlook");
+    } else if (lower.includes("note") || lower.includes("onenote")) {
+      handleNewItem("onenote");
+    } else if (lower.includes("poster") || lower.includes("publisher") || lower.includes("flyer")) {
+      handleNewItem("publisher");
+    } else if (lower.includes("database") || lower.includes("access") || lower.includes("table")) {
+      handleNewItem("access");
+    } else if (lower.includes("search") || lower.includes("find")) {
+      setIsSearchModalOpen(true);
+    } else {
+      setIsAIAssistantOpen(true);
+    }
+    setIsVoiceModalOpen(false);
+  };
+
+  const handleRunWorkflow = (workflowName: string) => {
+    if (workflowName.includes("Presentation")) {
+      const generated = WorkspaceStorageManager.createBlankItem("powerpoint");
+      generated.name = "Synthesized Project Presentation.pptx";
+      generated.description = "Generated via Workflow Marketplace: Report → Presentation";
+      generated.content = {
+        title: "Synthesized Project Presentation",
+        theme: "modern_dark",
+        slides: [
+          { id: "s1", title: "Synthesized Executive Presentation", bullets: ["Key insight from source report", "Automated architecture overview", "Action items & roadmap"] },
+          { id: "s2", title: "Core Data & Metrics", bullets: ["P95 Latency: 420ms", "Throughput: 1,800 ops/sec", "Verification accuracy: 99.4%"] },
+        ],
+      };
+      WorkspaceStorageManager.saveItem(generated);
+      setItems(WorkspaceStorageManager.getAllItems());
+      setActiveItem(generated);
+      setActiveApp("powerpoint");
+    } else if (workflowName.includes("Dashboard")) {
+      handleNewItem("excel");
+    } else if (workflowName.includes("Notes")) {
+      handleNewItem("onenote");
+    } else {
+      handleNewItem("outlook");
+    }
+    setIsMarketplaceModalOpen(false);
   };
 
   // Mock initial Agentic AI project review slides matching reference screenshot
@@ -355,13 +436,37 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                 </div>
 
                 {/* Notifications & User Profile matching screenshot */}
-                <button
-                  onClick={() => {}}
-                  className="p-2 rounded-xl bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-black transition shrink-0"
-                  title="Notifications"
-                >
-                  <Bell className="w-4 h-4 text-black" />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 rounded-xl bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-black transition shrink-0 relative shadow-xs"
+                    title="Notifications"
+                  >
+                    <Bell className="w-4 h-4 text-black" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5" />
+                  </button>
+
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white border border-[#E5E5E5] rounded-2xl shadow-xl p-4 z-50 text-xs space-y-3 text-[#111111]">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#E5E5E5]">
+                        <span className="font-bold">Workspace Notifications</span>
+                        <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Live Sync
+                        </span>
+                      </div>
+                      <div className="space-y-2 text-[11px] text-neutral-600">
+                        <div className="p-2 rounded-lg bg-neutral-50 border border-[#E5E5E5]">
+                          <span className="font-semibold text-black block">Zero-Trust Vault Active</span>
+                          <span>Local offline encrypted state synchronized with verified cloud storage.</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-neutral-50 border border-[#E5E5E5]">
+                          <span className="font-semibold text-black block">AutoSave Configured</span>
+                          <span>Changes across all 7 applications persist in real time.</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div
                   className="w-8 h-8 rounded-full bg-black flex items-center justify-center font-bold text-white text-xs shadow-xs shrink-0 cursor-pointer"
@@ -505,7 +610,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                   WorkspaceStorageManager.trashItem(id);
                   setItems(WorkspaceStorageManager.getAllItems());
                 }}
-                onExportItem={(item) => {}}
+                onExportItem={handleExportItem}
                 onOpenAssistant={() => setIsAIAssistantOpen(true)}
                 onOpenModal={(type) => {
                   if (type === "collab") setIsCollabModalOpen(true);
@@ -598,7 +703,11 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                   <AccessStudio
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
-                    onExport={() => {}}
+                    onExport={(fmt) => {
+                      if (currentDisplayItem) {
+                        handleExportItem({ ...currentDisplayItem, format: (fmt as any) || "json" });
+                      }
+                    }}
                   />
                 )}
               </div>
@@ -816,6 +925,11 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
           onClose={() => setIsAgentModalOpen(false)}
           onTaskCompleted={(newItem) => {
             setIsAgentModalOpen(false);
+            if (newItem) {
+              setItems(WorkspaceStorageManager.getAllItems());
+              setActiveItem(newItem);
+              setActiveApp(newItem.app || "powerpoint");
+            }
           }}
         />
 
@@ -866,17 +980,13 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
         <VoiceWorkspaceModal
           isOpen={isVoiceModalOpen}
           onClose={() => setIsVoiceModalOpen(false)}
-          onExecuteVoiceCommand={(cmd) => {
-            console.log("Voice Command:", cmd);
-          }}
+          onExecuteVoiceCommand={handleExecuteVoiceCommand}
         />
 
         <WorkflowMarketplaceModal
           isOpen={isMarketplaceModalOpen}
           onClose={() => setIsMarketplaceModalOpen(false)}
-          onRunWorkflow={(wf) => {
-            console.log("Run Workflow:", wf);
-          }}
+          onRunWorkflow={handleRunWorkflow}
         />
 
         <ProjectMemoryModal
@@ -892,8 +1002,8 @@ export default function WorkspacePage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-screen flex items-center justify-center bg-[#0B0F19] text-white">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="h-screen w-screen flex items-center justify-center bg-white text-black">
+          <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >
