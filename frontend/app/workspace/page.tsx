@@ -60,7 +60,7 @@ import { ProjectMemoryModal } from "../components/workspace/ProjectMemoryModal";
 import { WordEditor } from "../components/workspace/apps/word/WordEditor";
 import { ExcelEditor } from "../components/workspace/apps/excel/ExcelEditor";
 import { PowerPointApp } from "../components/workspace/apps/powerpoint/PowerPointApp";
-import { OutlookApp } from "../components/workspace/apps/outlook/OutlookApp";
+import { OutlookApp, OutlookComposeInitial } from "../components/workspace/apps/outlook/OutlookApp";
 import { OneNoteApp } from "../components/workspace/apps/onenote/OneNoteApp";
 import { PublisherStudio } from "../components/workspace/apps/publisher/PublisherStudio";
 import { AccessStudio } from "../components/workspace/apps/access/AccessStudio";
@@ -78,6 +78,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [outlookComposeInitial, setOutlookComposeInitial] = useState<OutlookComposeInitial | null>(null);
 
   // Active Modals state
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(true);
@@ -169,6 +170,53 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
       const blob = new Blob([contentStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       await triggerDownload(url, `${item.name.replace(/\.[^/.]+$/, "")}.json`, "application/json");
+    }
+  };
+
+  const handleSendItemViaEmail = async (doc: WorkspaceItem) => {
+    try {
+      const res = await fetch("/api/workspace/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: doc.format,
+          title: doc.name,
+          content: doc.content,
+        }),
+      });
+
+      let b64 = "";
+      if (res.ok) {
+        const data = await res.json();
+        if (data.dataUri) {
+          b64 = data.dataUri.includes(",") ? data.dataUri.split(",")[1] : data.dataUri;
+        }
+      }
+
+      if (!b64) {
+        const raw = JSON.stringify(doc.content, null, 2);
+        b64 = btoa(unescape(encodeURIComponent(raw)));
+      }
+
+      const ext = doc.format || "bin";
+      const filename = `${doc.name.replace(/[^a-zA-Z0-9_\- ]/g, "").replace(/\s+/g, "_")}.${ext}`;
+
+      setOutlookComposeInitial({
+        subject: `${doc.name} (${ext.toUpperCase()}) - TATTVA AI Workspace`,
+        body: `Hello,\n\nPlease find attached the document "${doc.name}" created and verified in TATTVA AI My Workspace.\n\nBest regards,\nKotapati Gowtham Chowdary`,
+        attachments: [
+          {
+            filename,
+            content: b64,
+            contentType: "application/octet-stream",
+            sizeBytes: Math.round((b64.length * 3) / 4),
+          },
+        ],
+      });
+      setActiveApp("outlook");
+      setCurrentView("dashboard");
+    } catch (err) {
+      console.error("[Workspace] Failed to share file via email:", err);
     }
   };
 
@@ -611,6 +659,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                   setItems(WorkspaceStorageManager.getAllItems());
                 }}
                 onExportItem={handleExportItem}
+                onSendViaEmail={handleSendItemViaEmail}
                 onOpenAssistant={() => setIsAIAssistantOpen(true)}
                 onOpenModal={(type) => {
                   if (type === "collab") setIsCollabModalOpen(true);
@@ -669,6 +718,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
                     onBack={() => setActiveApp(null)}
+                    onSendViaEmail={handleSendItemViaEmail}
                   />
                 )}
                 {activeApp === "excel" && (
@@ -676,6 +726,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
                     onBack={() => setActiveApp(null)}
+                    onSendViaEmail={handleSendItemViaEmail}
                   />
                 )}
                 {activeApp === "outlook" && (
@@ -683,6 +734,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
                     onBack={() => setActiveApp(null)}
+                    initialCompose={outlookComposeInitial}
                   />
                 )}
                 {activeApp === "onenote" && (
@@ -690,6 +742,7 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
                     onBack={() => setActiveApp(null)}
+                    onSendViaEmail={handleSendItemViaEmail}
                   />
                 )}
                 {activeApp === "publisher" && (
@@ -697,12 +750,14 @@ export function WorkspaceMainContent({ initialApp }: { initialApp?: WorkspaceApp
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
                     onBack={() => setActiveApp(null)}
+                    onSendViaEmail={handleSendItemViaEmail}
                   />
                 )}
                 {activeApp === "access" && (
                   <AccessStudio
                     item={currentDisplayItem as any}
                     onSave={handleSaveItem as any}
+                    onSendViaEmail={handleSendItemViaEmail}
                     onExport={(fmt) => {
                       if (currentDisplayItem) {
                         handleExportItem({ ...currentDisplayItem, format: (fmt as any) || "json" });

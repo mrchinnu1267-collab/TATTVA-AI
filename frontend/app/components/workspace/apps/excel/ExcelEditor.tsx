@@ -25,6 +25,7 @@ import {
   Search,
   Check,
   FileDown,
+  Mail,
 } from "lucide-react";
 import { SpreadsheetContent, SpreadsheetSheet, WorkspaceItem, CellValue } from "../../types";
 import { saveWorkspaceItem } from "../../storage";
@@ -34,12 +35,13 @@ interface ExcelEditorProps {
   item?: WorkspaceItem<SpreadsheetContent>;
   onSave?: (item: WorkspaceItem<SpreadsheetContent>) => void;
   onBack?: () => void;
+  onSendViaEmail?: (item: WorkspaceItem<SpreadsheetContent>) => void;
 }
 
 const DEFAULT_ROWS = 30;
 const DEFAULT_COLS = 12;
 
-export function ExcelEditor({ item, onSave, onBack }: ExcelEditorProps) {
+export function ExcelEditor({ item, onSave, onBack, onSendViaEmail }: ExcelEditorProps) {
   const [title, setTitle] = useState(item?.name || "Financial Model.xlsx");
   const [activeTab, setActiveTab] = useState<"FILE" | "HOME" | "INSERT" | "FORMULAS" | "VIEW">("HOME");
   const [sheets, setSheets] = useState<SpreadsheetSheet[]>(
@@ -335,6 +337,18 @@ export function ExcelEditor({ item, onSave, onBack }: ExcelEditorProps) {
             <BarChart2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Chart</span>
           </button>
+
+          {onSendViaEmail && item && (
+            <button
+              type="button"
+              onClick={() => onSendViaEmail(item)}
+              className="px-2.5 py-1 rounded bg-black/20 hover:bg-black/35 text-white text-xs font-semibold transition flex items-center gap-1 active:scale-95"
+              title="Share spreadsheet via Outlook Email"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Email</span>
+            </button>
+          )}
         </div>
       </header>
 

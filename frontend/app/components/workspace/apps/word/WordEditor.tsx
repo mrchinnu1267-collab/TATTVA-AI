@@ -33,6 +33,7 @@ import {
   Columns,
   Maximize2,
   Type,
+  Mail,
 } from "lucide-react";
 import { WordDocumentContent, WorkspaceItem } from "../../types";
 import { saveWorkspaceItem } from "../../storage";
@@ -41,9 +42,10 @@ interface WordEditorProps {
   item?: WorkspaceItem<WordDocumentContent>;
   onSave?: (item: WorkspaceItem<WordDocumentContent>) => void;
   onBack?: () => void;
+  onSendViaEmail?: (item: WorkspaceItem<WordDocumentContent>) => void;
 }
 
-export function WordEditor({ item, onSave, onBack }: WordEditorProps) {
+export function WordEditor({ item, onSave, onBack, onSendViaEmail }: WordEditorProps) {
   const [title, setTitle] = useState(item?.name || "Untitled Document");
   const [author, setAuthor] = useState(item?.content?.author || "TATTVA Author");
   const [htmlContent, setHtmlContent] = useState(
@@ -263,6 +265,18 @@ export function WordEditor({ item, onSave, onBack }: WordEditorProps) {
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">PDF</span>
           </button>
+
+          {onSendViaEmail && item && (
+            <button
+              type="button"
+              onClick={() => onSendViaEmail(item)}
+              className="px-2.5 py-1 rounded bg-black/20 hover:bg-black/35 text-white text-xs font-semibold transition flex items-center gap-1 active:scale-95"
+              title="Share and send document via Outlook Email"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Email</span>
+            </button>
+          )}
 
           <button
             type="button"

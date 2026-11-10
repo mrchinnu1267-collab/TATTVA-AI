@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Mail,
 } from "lucide-react";
 import {
   AccessDatabase,
@@ -41,6 +42,7 @@ interface AccessStudioProps {
   item: WorkspaceItem<AccessDatabase>;
   onSave?: (updatedItem: WorkspaceItem<AccessDatabase>) => void;
   onExport?: (format: string) => void;
+  onSendViaEmail?: (item: WorkspaceItem<AccessDatabase>) => void;
 }
 
 type AccessViewMode = "datasheet" | "design" | "relationships" | "sql" | "form" | "report";
@@ -49,6 +51,7 @@ export const AccessStudio: React.FC<AccessStudioProps> = ({
   item,
   onSave,
   onExport,
+  onSendViaEmail,
 }) => {
   const [database, setDatabase] = useState<AccessDatabase>(() => {
     return (
@@ -528,6 +531,16 @@ export const AccessStudio: React.FC<AccessStudioProps> = ({
             <Save className="w-3.5 h-3.5" />
             <span>Save</span>
           </button>
+          {onSendViaEmail && item && (
+            <button
+              onClick={() => onSendViaEmail(item)}
+              title="Share Database via Outlook Email"
+              className="flex items-center space-x-1 px-2.5 py-1 text-xs bg-white/10 hover:bg-white/20 rounded text-rose-100 hover:text-white transition"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Email</span>
+            </button>
+          )}
         </div>
       </header>
 

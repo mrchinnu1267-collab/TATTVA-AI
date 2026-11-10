@@ -129,14 +129,26 @@ export interface OutlookEmail {
   subject: string;
   from: { name: string; email: string };
   to: Array<{ name: string; email: string }>;
+  cc?: Array<{ name: string; email: string }>;
+  bcc?: Array<{ name: string; email: string }>;
   body: string;
   html?: string;
   isRead: boolean;
   isStarred: boolean;
   timestamp: string;
-  attachments?: Array<{ name: string; sizeBytes: number; type: string; url?: string }>;
+  attachments?: Array<{
+    name: string;
+    filename?: string;
+    sizeBytes: number;
+    type: string;
+    url?: string;
+    content?: string;
+    contentType?: string;
+  }>;
   status: "draft" | "delivered" | "scheduled";
   tags?: string[];
+  provider?: string;
+  messageId?: string | null;
 }
 
 export interface OutlookEvent {

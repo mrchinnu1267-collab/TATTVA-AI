@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Mail,
   Calendar as CalendarIcon,
@@ -13,6 +13,8 @@ import {
   Search,
   Plus,
   Reply,
+  ReplyAll,
+  Forward,
   Sparkles,
   Clock,
   MapPin,
@@ -22,19 +24,58 @@ import {
   Paperclip,
   Tag,
   ShieldCheck,
-  ChevronLeft,
-  ChevronRight,
+  Download,
+  X,
+  FileSpreadsheet,
+  Presentation,
+  FileCode,
+  Image as ImageIcon,
+  ChevronDown,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { OutlookEmail, OutlookEvent, OutlookContact, WorkspaceItem } from "../../types";
-import { saveWorkspaceItem } from "../../storage";
+import { WorkspaceStorageManager, saveWorkspaceItem } from "../../storage";
+import { triggerDownload } from "../../../../lib/download-helper";
+
+export interface OutlookComposeInitial {
+  to?: string;
+  cc?: string;
+  bcc?: string;
+  subject?: string;
+  body?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string; // base64 encoded or data url
+    contentType?: string;
+    sizeBytes?: number;
+  }>;
+}
 
 interface OutlookAppProps {
   item?: WorkspaceItem<any>;
   onSave?: (item: WorkspaceItem<any>) => void;
   onBack?: () => void;
+  initialCompose?: OutlookComposeInitial | null;
 }
 
-export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
+const RFC_5322_EMAIL_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+function validateEmailAddress(email: string): boolean {
+  if (!email) return false;
+  return RFC_5322_EMAIL_REGEX.test(email.trim());
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppProps) {
   const [activeSection, setActiveSection] = useState<"mail" | "calendar" | "contacts">("mail");
   const [activeFolder, setActiveFolder] = useState<"inbox" | "sent" | "drafts" | "archive" | "trash">("inbox");
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,22 +87,31 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
         id: "mail_1",
         folder: "inbox",
         subject: "Q4 Product Strategy & Workspace Rollout",
-        from: { name: "Kotapati Gowtham Chowdary", email: "gowtham@tattva.ai" },
-        to: [{ name: "Product Engineering", email: "team@tattva.ai" }],
+        from: { name: "Kotapati Gowtham Chowdary", email: "gowtham@tattva-ai.com" },
+        to: [{ name: "Product Engineering", email: "team@tattva-ai.com" }],
         body: "Hello Team,\n\nThe full TATTVA AI My Workspace suite is now live. All seven applications (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access) have been deployed. Please review the integrated workflows and verify file compatibility.\n\nKey Milestones:\n1. Verify OpenXML export in Word, Excel, and PowerPoint.\n2. Confirm calendar reminders and contact directory.\n3. Test Access database relational schemas.\n\nBest regards,\nGowtham Chowdary",
         isRead: false,
         isStarred: true,
         timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
         status: "delivered",
         tags: ["Strategy", "Workspace"],
+        attachments: [
+          {
+            name: "Q4_Product_Strategy.pdf",
+            filename: "Q4_Product_Strategy.pdf",
+            sizeBytes: 245000,
+            type: "pdf",
+            content: "JVBERi0xLjQKJeLjz9MKMSAwIG9iaiA8PC9UeXBlIC9DYXRhbG9nIC9QYWdlcyAyIDAgUj4+IGVuZG9iagoyIDAgb2JqIDw8L1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDE+PiBlbmRvYmoKMyAwIG9iaiA8PC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL0NvbnRlbnRzIDQgMCBSPj4gZW5kb2JqCjQgMCBvYmogPDwvTGVuZ3RoIDQ0Pj4gc3RyZWFtCkJUCi9GMSAxMiBUZgoxMDAgNzAwIFRECihUQVRUVkEgQUkgUVQgU3RyYXRlZ3kpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDUKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAwNjggMDAwMDAgbiAKMDAwMDAwMDEyNSAwMDAwMCBuIAowMDAwMDAwMjE2IDAwMDAwIG4gCnRyYWlsZXIgPDwvU2l6ZSA1IC9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjMxMAolJUVPRg==",
+          },
+        ],
       },
       {
         id: "mail_2",
         folder: "inbox",
         subject: "PostgreSQL Row-Level Security Passed",
-        from: { name: "Security Auditor", email: "security@tattva.ai" },
-        to: [{ name: "Core Engineering", email: "dev@tattva.ai" }],
-        body: "Automated test suites confirm zero unauthorized table leaks. All workspace items, events, and notebooks adhere to zero-trust tenant isolation.",
+        from: { name: "Security Auditor", email: "security@tattva-ai.com" },
+        to: [{ name: "Core Engineering", email: "dev@tattva-ai.com" }],
+        body: "Automated test suites confirm zero unauthorized table leaks. All workspace items, events, and notebooks adhere to zero-trust tenant isolation with full cryptographic encryption.",
         isRead: true,
         isStarred: false,
         timestamp: new Date(Date.now() - 86400000).toISOString(),
@@ -72,12 +122,83 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
   );
 
   const [selectedEmailId, setSelectedEmailId] = useState<string>(emails[0]?.id || "");
+
+  // Composition modal state
   const [isComposing, setIsComposing] = useState(false);
   const [composeTo, setComposeTo] = useState("");
+  const [composeCc, setComposeCc] = useState("");
+  const [composeBcc, setComposeBcc] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
-  const [aiGenerating, setAiGenerating] = useState(false);
+  const [attachments, setAttachments] = useState<
+    Array<{
+      filename: string;
+      content: string; // base64
+      contentType?: string;
+      sizeBytes: number;
+    }>
+  >([]);
+
+  // Sending status
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+
+  // File input ref for native file uploads
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Synchronize state back to parent storage when emails or events change
+  const persistChanges = (updatedEmails: OutlookEmail[], updatedEvents = events, updatedContacts = contacts) => {
+    if (!item) return;
+    const updatedItem: WorkspaceItem = {
+      ...item,
+      updatedAt: new Date().toISOString(),
+      content: {
+        ...item.content,
+        emails: updatedEmails,
+        events: updatedEvents,
+        contacts: updatedContacts,
+      },
+    };
+    if (onSave) {
+      onSave(updatedItem);
+    } else {
+      WorkspaceStorageManager.saveItem(updatedItem);
+    }
+  };
+
+  // Support pre-filling compose modal via initialCompose prop
+  useEffect(() => {
+    if (initialCompose) {
+      if (initialCompose.to) setComposeTo(initialCompose.to);
+      if (initialCompose.cc) {
+        setComposeCc(initialCompose.cc);
+        setShowCcBcc(true);
+      }
+      if (initialCompose.bcc) {
+        setComposeBcc(initialCompose.bcc);
+        setShowCcBcc(true);
+      }
+      if (initialCompose.subject) setComposeSubject(initialCompose.subject);
+      if (initialCompose.body) setComposeBody(initialCompose.body);
+      if (initialCompose.attachments && initialCompose.attachments.length > 0) {
+        setAttachments(
+          initialCompose.attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content.includes(",") ? a.content.split(",")[1] : a.content,
+            contentType: a.contentType || "application/octet-stream",
+            sizeBytes: a.sizeBytes || 0,
+          }))
+        );
+      }
+      setIsComposing(true);
+      setActiveSection("mail");
+    }
+  }, [initialCompose]);
 
   // Calendar State
   const [events, setEvents] = useState<OutlookEvent[]>(
@@ -92,7 +213,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
         isAllDay: false,
         recurring: "weekly",
         reminderMinutes: 15,
-        attendees: ["gowtham@tattva.ai", "team@tattva.ai"],
+        attendees: ["gowtham@tattva-ai.com", "team@tattva-ai.com"],
         color: "#0078D4",
       },
       {
@@ -105,7 +226,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
         isAllDay: false,
         recurring: "none",
         reminderMinutes: 30,
-        attendees: ["security@tattva.ai"],
+        attendees: ["security@tattva-ai.com"],
         color: "#107C41",
       },
     ]
@@ -117,7 +238,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
       {
         id: "cnt_1",
         name: "Kotapati Gowtham Chowdary",
-        email: "gowtham@tattva.ai",
+        email: "gowtham@tattva-ai.com",
         phone: "+91 98765 43210",
         organization: "TATTVA AI",
         jobTitle: "Founder & Lead Architect",
@@ -127,7 +248,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
       {
         id: "cnt_2",
         name: "DevOps Operations",
-        email: "devops@tattva.ai",
+        email: "devops@tattva-ai.com",
         phone: "+91 98765 43211",
         organization: "TATTVA AI",
         jobTitle: "Infrastructure Engineering",
@@ -139,32 +260,243 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
 
   const selectedEmail = emails.find((e) => e.id === selectedEmailId);
 
-  // Send Email Handler
-  const handleSendEmail = () => {
-    if (!composeTo.trim() || !composeSubject.trim()) {
-      setStatusMessage("Recipient email and subject are required.");
+  // Native file upload handler
+  const handleNativeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setSendError(null);
+    for (const file of Array.from(files)) {
+      if (file.size > 25 * 1024 * 1024) {
+        setSendError(`File "${file.name}" exceeds the maximum 25 MB limit.`);
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (loadEvent) => {
+        const result = (loadEvent.target?.result as string) || "";
+        const base64Data = result.includes(",") ? result.split(",")[1] : result;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            filename: file.name,
+            content: base64Data,
+            contentType: file.type || "application/octet-stream",
+            sizeBytes: file.size,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = "";
+  };
+
+  // Attach an existing workspace document
+  const handleAttachWorkspaceDoc = async (wsItem: WorkspaceItem) => {
+    try {
+      setShowAttachMenu(false);
+      setStatusMessage(`Attaching "${wsItem.name}"...`);
+
+      // Attempt to export or serialize file content
+      const res = await fetch("/api/workspace/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: wsItem.format,
+          title: wsItem.name,
+          content: wsItem.content,
+        }),
+      });
+
+      let base64Content = "";
+      if (res.ok) {
+        const data = await res.json();
+        if (data.dataUri) {
+          base64Content = data.dataUri.includes(",") ? data.dataUri.split(",")[1] : data.dataUri;
+        }
+      }
+
+      if (!base64Content) {
+        const rawJson = JSON.stringify(wsItem.content, null, 2);
+        base64Content = btoa(unescape(encodeURIComponent(rawJson)));
+      }
+
+      const ext = wsItem.format || "bin";
+      const cleanFilename = `${wsItem.name.replace(/[^a-zA-Z0-9_\- ]/g, "").replace(/\s+/g, "_")}.${ext}`;
+      const sizeBytes = Math.round((base64Content.length * 3) / 4);
+
+      setAttachments((prev) => [
+        ...prev,
+        {
+          filename: cleanFilename,
+          content: base64Content,
+          contentType: "application/octet-stream",
+          sizeBytes,
+        },
+      ]);
+
+      setStatusMessage(`Attached "${cleanFilename}" (${formatBytes(sizeBytes)}) ✓`);
+      setTimeout(() => setStatusMessage(null), 3500);
+    } catch (err: any) {
+      setSendError(`Failed to attach workspace file: ${err.message}`);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Real Email Sending Handler
+  const handleSendEmail = async () => {
+    setSendError(null);
+    setSendSuccess(null);
+
+    // 1. Validation
+    if (!composeTo.trim()) {
+      setSendError("Recipient email address ('To') is required.");
       return;
     }
 
-    const newMail: OutlookEmail = {
-      id: `mail_${Date.now()}`,
-      folder: "sent",
-      subject: composeSubject,
-      from: { name: "Current User", email: "user@tattva.ai" },
-      to: [{ name: composeTo.split("@")[0], email: composeTo }],
+    const recipientList = composeTo.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+    const invalidRecipients = recipientList.filter((e) => !validateEmailAddress(e));
+    if (invalidRecipients.length > 0) {
+      setSendError(`Invalid recipient email address: ${invalidRecipients.join(", ")}`);
+      return;
+    }
+
+    if (!composeSubject.trim()) {
+      setSendError("Please enter a subject line for your email.");
+      return;
+    }
+
+    if (!composeBody.trim()) {
+      setSendError("Please provide an email message body.");
+      return;
+    }
+
+    // Check total attachment size
+    const totalBytes = attachments.reduce((sum, a) => sum + (a.sizeBytes || 0), 0);
+    if (totalBytes > 25 * 1024 * 1024) {
+      setSendError(`Total attachment size (${formatBytes(totalBytes)}) exceeds 25 MB limit.`);
+      return;
+    }
+
+    setIsSending(true);
+
+    try {
+      const response = await fetch("/api/workspace/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: recipientList,
+          cc: composeCc ? composeCc.split(/[,;]+/).map((s) => s.trim()).filter(Boolean) : [],
+          bcc: composeBcc ? composeBcc.split(/[,;]+/).map((s) => s.trim()).filter(Boolean) : [],
+          subject: composeSubject.trim(),
+          body: composeBody.trim(),
+          attachments,
+          senderName: "Kotapati Gowtham Chowdary",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `HTTP ${response.status}: Failed to send email.`);
+      }
+
+      // Construct sent record with attachments
+      const sentEmail: OutlookEmail = {
+        id: result.email?.id || `mail_${Date.now()}`,
+        folder: "sent",
+        subject: composeSubject.trim(),
+        from: result.email?.from || {
+          name: "Kotapati Gowtham Chowdary",
+          email: "gowtham@tattva-ai.com",
+        },
+        to: recipientList.map((e) => ({ name: e.split("@")[0], email: e })),
+        cc: composeCc ? composeCc.split(/[,;]+/).map((e) => ({ name: e.split("@")[0], email: e.trim() })) : undefined,
+        bcc: composeBcc ? composeBcc.split(/[,;]+/).map((e) => ({ name: e.split("@")[0], email: e.trim() })) : undefined,
+        body: composeBody.trim(),
+        html: result.email?.html,
+        isRead: true,
+        isStarred: false,
+        timestamp: new Date().toISOString(),
+        status: "delivered",
+        provider: result.provider,
+        messageId: result.messageId,
+        attachments: attachments.map((a) => ({
+          name: a.filename,
+          filename: a.filename,
+          sizeBytes: a.sizeBytes,
+          type: (a.filename.split(".").pop() || "bin").toLowerCase(),
+          content: a.content,
+          contentType: a.contentType,
+        })),
+      };
+
+      const updatedEmails = [sentEmail, ...emails];
+      setEmails(updatedEmails);
+      persistChanges(updatedEmails);
+
+      setSelectedEmailId(sentEmail.id);
+      setActiveFolder("sent");
+
+      // Reset form and close modal
+      setIsComposing(false);
+      setComposeTo("");
+      setComposeCc("");
+      setComposeBcc("");
+      setShowCcBcc(false);
+      setComposeSubject("");
+      setComposeBody("");
+      setAttachments([]);
+
+      setStatusMessage(result.message || "Email delivered successfully! ✓");
+      setTimeout(() => setStatusMessage(null), 5000);
+    } catch (err: any) {
+      console.error("[Outlook] Send error:", err);
+      setSendError(err.message || "Failed to transmit email.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Save as Draft
+  const handleSaveDraft = () => {
+    if (!composeSubject.trim() && !composeBody.trim() && !composeTo.trim()) {
+      setIsComposing(false);
+      return;
+    }
+
+    const draftEmail: OutlookEmail = {
+      id: `draft_${Date.now()}`,
+      folder: "drafts",
+      subject: composeSubject.trim() || "(Untitled Draft)",
+      from: { name: "Current User", email: "gowtham@tattva-ai.com" },
+      to: composeTo ? [{ name: composeTo.split("@")[0], email: composeTo }] : [],
       body: composeBody,
       isRead: true,
       isStarred: false,
       timestamp: new Date().toISOString(),
-      status: "delivered",
+      status: "draft",
+      attachments: attachments.map((a) => ({
+        name: a.filename,
+        filename: a.filename,
+        sizeBytes: a.sizeBytes,
+        type: (a.filename.split(".").pop() || "bin").toLowerCase(),
+        content: a.content,
+        contentType: a.contentType,
+      })),
     };
 
-    setEmails((prev) => [newMail, ...prev]);
+    const updatedEmails = [draftEmail, ...emails];
+    setEmails(updatedEmails);
+    persistChanges(updatedEmails);
+
     setIsComposing(false);
-    setComposeTo("");
-    setComposeSubject("");
-    setComposeBody("");
-    setStatusMessage("Email sent and recorded in workspace sent items! ✓");
+    setActiveFolder("drafts");
+    setSelectedEmailId(draftEmail.id);
+    setStatusMessage("Draft saved to workspace mailbox! ✓");
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
@@ -172,28 +504,108 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
   const handleAiDraft = () => {
     setAiGenerating(true);
     setTimeout(() => {
-      setComposeSubject("Follow-up: Workspace Architecture & Milestones");
+      setComposeSubject("Product Roadmap & Workspace Verification Sign-off");
       setComposeBody(
-        `Dear Team,\n\nFollowing our review of the TATTVA AI Workspace platform, I would like to confirm that the seven productivity applications have been verified for full functionality. Please find the action items below:\n\n1. Review the generated Word, Excel, and PowerPoint files.\n2. Verify the calendar events and confirm your availability for tomorrow's sprint review.\n\nLooking forward to your feedback.\n\nWarm regards,\nTATTVA User`
+        `Dear Team,\n\nFollowing our deployment review of the TATTVA AI My Workspace ecosystem, I would like to confirm that the seven core productivity suites (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access) have completed integration and security testing.\n\nPlease find the attached files and verify the following action items:\n\n1. Review the attached project strategy document.\n2. Verify real-time collaborative editing and encrypted local vault sync.\n3. Confirm attendance for tomorrow's architecture review.\n\nLooking forward to your feedback.\n\nWarm regards,\nKotapati Gowtham Chowdary\nTATTVA AI Lead Architect`
       );
       setAiGenerating(false);
-      setStatusMessage("AI generated a clear, professional draft! ✦");
+      setStatusMessage("AI generated a clear, executive-grade draft! ✦");
       setTimeout(() => setStatusMessage(null), 3000);
-    }, 600);
+    }, 500);
   };
 
   // AI Summarize Thread
   const handleAiSummarizeThread = () => {
     if (!selectedEmail) return;
-    setStatusMessage(`AI Summary: ${selectedEmail.from.name} confirms rollout of 7 workspace applications with zero-trust validation and requests milestone verification.`);
+    setStatusMessage(
+      `AI Summary: ${selectedEmail.from.name} sent "${selectedEmail.subject}" regarding workspace deployment, requesting review of attachments and system verification.`
+    );
     setTimeout(() => setStatusMessage(null), 6000);
   };
 
   // AI Extract Action Items
   const handleAiExtractActionItems = () => {
-    setStatusMessage("Action Items Extracted: [1] Verify OpenXML file exports [2] Attend sprint review tomorrow [3] Test Access relational tables.");
+    setStatusMessage(
+      "Action Items Extracted: [1] Review attached document [2] Verify OpenXML export across applications [3] Confirm tomorrow's sprint review attendance."
+    );
     setTimeout(() => setStatusMessage(null), 6000);
   };
+
+  // Download an attachment from selected email
+  const handleDownloadAttachment = (att: { name: string; sizeBytes: number; type: string; content?: string; url?: string }) => {
+    const filename = att.name || `attachment.${att.type}`;
+    if (att.content) {
+      const dataUri = att.content.startsWith("data:")
+        ? att.content
+        : `data:application/octet-stream;base64,${att.content}`;
+      triggerDownload(dataUri, filename);
+    } else if (att.url) {
+      triggerDownload(att.url, filename);
+    } else {
+      // Fallback sample content
+      const dummyContent = btoa(`TATTVA AI Email Attachment: ${filename}\nGenerated for offline inspection.`);
+      triggerDownload(`data:application/octet-stream;base64,${dummyContent}`, filename);
+    }
+  };
+
+  // Reply handler
+  const handleReply = (isAll = false) => {
+    if (!selectedEmail) return;
+    setComposeTo(selectedEmail.from.email);
+    if (isAll && selectedEmail.to.length > 0) {
+      setComposeCc(selectedEmail.to.map((t) => t.email).filter((e) => e !== selectedEmail.from.email).join(", "));
+      setShowCcBcc(true);
+    }
+    setComposeSubject(selectedEmail.subject.startsWith("Re:") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`);
+    setComposeBody(
+      `\n\n--- Original Message ---\nFrom: ${selectedEmail.from.name} <${selectedEmail.from.email}>\nDate: ${new Date(
+        selectedEmail.timestamp
+      ).toLocaleString()}\n\n${selectedEmail.body}`
+    );
+    setIsComposing(true);
+  };
+
+  // Forward handler
+  const handleForward = () => {
+    if (!selectedEmail) return;
+    setComposeTo("");
+    setComposeSubject(selectedEmail.subject.startsWith("Fwd:") ? selectedEmail.subject : `Fwd: ${selectedEmail.subject}`);
+    setComposeBody(
+      `\n\n--- Forwarded Message ---\nFrom: ${selectedEmail.from.name} <${selectedEmail.from.email}>\nDate: ${new Date(
+        selectedEmail.timestamp
+      ).toLocaleString()}\nSubject: ${selectedEmail.subject}\n\n${selectedEmail.body}`
+    );
+    if (selectedEmail.attachments && selectedEmail.attachments.length > 0) {
+      setAttachments(
+        selectedEmail.attachments.map((a) => ({
+          filename: a.name,
+          content: a.content || "",
+          contentType: a.type ? `application/${a.type}` : "application/octet-stream",
+          sizeBytes: a.sizeBytes || 0,
+        }))
+      );
+    }
+    setIsComposing(true);
+  };
+
+  // Delete email (move to trash)
+  const handleDeleteEmail = (id: string) => {
+    const updated = emails.map((e) => (e.id === id ? { ...e, folder: "trash" as const } : e));
+    setEmails(updated);
+    persistChanges(updated);
+    setStatusMessage("Email moved to Recycle Bin.");
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  // Star toggle
+  const handleToggleStar = (id: string) => {
+    const updated = emails.map((e) => (e.id === id ? { ...e, isStarred: !e.isStarred } : e));
+    setEmails(updated);
+    persistChanges(updated);
+  };
+
+  // Available workspace documents for attachment
+  const workspaceItems = typeof window !== "undefined" ? WorkspaceStorageManager.getAllItems().filter((i) => !i.isTrashed) : [];
 
   return (
     <div className="flex flex-col h-full bg-[#FFFFFF] text-neutral-900 select-none font-sans overflow-hidden">
@@ -204,7 +616,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
             type="button"
             onClick={onBack}
             className="p-1 rounded hover:bg-black/20 text-white transition active:scale-95"
-            title="Back to Workspace"
+            title="Back to Workspace Dashboard"
           >
             ←
           </button>
@@ -213,7 +625,11 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
             <span>Outlook</span>
           </div>
           <span className="text-xs sm:text-sm font-semibold truncate">
-            {activeSection === "mail" ? "Mailbox" : activeSection === "calendar" ? "Calendar & Events" : "Contacts Directory"}
+            {activeSection === "mail"
+              ? "Mailbox"
+              : activeSection === "calendar"
+              ? "Calendar & Events"
+              : "Contacts Directory"}
           </span>
         </div>
 
@@ -254,7 +670,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
 
       {/* 2. NOTIFICATION TOAST */}
       {statusMessage && (
-        <div className="bg-sky-50 border-b border-sky-200 px-4 py-2 text-xs text-sky-800 flex items-center justify-between shrink-0 font-medium">
+        <div className="bg-sky-50 border-b border-sky-200 px-4 py-2 text-xs text-sky-800 flex items-center justify-between shrink-0 font-medium animate-fadeIn">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-[#0078D4]" />
             <span>{statusMessage}</span>
@@ -273,7 +689,17 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
             <div className="space-y-1">
               <button
                 type="button"
-                onClick={() => setIsComposing(true)}
+                onClick={() => {
+                  setComposeTo("");
+                  setComposeCc("");
+                  setComposeBcc("");
+                  setShowCcBcc(false);
+                  setComposeSubject("");
+                  setComposeBody("");
+                  setAttachments([]);
+                  setSendError(null);
+                  setIsComposing(true);
+                }}
                 className="w-full mb-3 py-2 px-3 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs active:scale-95"
               >
                 <Plus className="w-4 h-4" />
@@ -307,7 +733,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                   <Send className="w-4 h-4" />
                   <span>Sent</span>
                 </div>
-                <span className="text-[10px] text-neutral-400 font-mono">
+                <span className="text-[10px] text-neutral-500 font-mono">
                   {emails.filter((e) => e.folder === "sent").length}
                 </span>
               </button>
@@ -323,7 +749,7 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                   <FileText className="w-4 h-4" />
                   <span>Drafts</span>
                 </div>
-                <span className="text-[10px] text-neutral-400 font-mono">
+                <span className="text-[10px] text-neutral-500 font-mono">
                   {emails.filter((e) => e.folder === "drafts").length}
                 </span>
               </button>
@@ -339,6 +765,25 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                   <Archive className="w-4 h-4" />
                   <span>Archive</span>
                 </div>
+                <span className="text-[10px] text-neutral-500 font-mono">
+                  {emails.filter((e) => e.folder === "archive").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFolder("trash")}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                  activeFolder === "trash" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Trash2 className="w-4 h-4" />
+                  <span>Recycle Bin</span>
+                </div>
+                <span className="text-[10px] text-neutral-500 font-mono">
+                  {emails.filter((e) => e.folder === "trash").length}
+                </span>
               </button>
             </div>
 
@@ -366,27 +811,63 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
             <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
               {emails
                 .filter((e) => e.folder === activeFolder)
+                .filter((e) => {
+                  if (!searchQuery.trim()) return true;
+                  const q = searchQuery.toLowerCase();
+                  return (
+                    e.subject.toLowerCase().includes(q) ||
+                    e.body.toLowerCase().includes(q) ||
+                    e.from.name.toLowerCase().includes(q) ||
+                    e.from.email.toLowerCase().includes(q)
+                  );
+                })
                 .map((m) => {
                   const isSelected = m.id === selectedEmailId;
                   return (
                     <div
                       key={m.id}
-                      onClick={() => setSelectedEmailId(m.id)}
+                      onClick={() => {
+                        setSelectedEmailId(m.id);
+                        if (!m.isRead) {
+                          const updated = emails.map((item) =>
+                            item.id === m.id ? { ...item, isRead: true } : item
+                          );
+                          setEmails(updated);
+                          persistChanges(updated);
+                        }
+                      }}
                       className={`p-3 cursor-pointer transition ${
                         isSelected ? "bg-sky-50/80 border-l-4 border-[#0078D4]" : "hover:bg-neutral-50"
                       }`}
                     >
                       <div className="flex items-center justify-between text-xs font-semibold text-neutral-900 mb-1">
-                        <span className="truncate">{m.from.name}</span>
-                        <span className="text-[10px] font-mono text-neutral-400">
+                        <div className="flex items-center gap-1.5 truncate">
+                          {!m.isRead && <span className="w-2 h-2 rounded-full bg-[#0078D4] shrink-0" />}
+                          <span className="truncate">
+                            {activeFolder === "sent" ? (m.to[0]?.email || "Recipient") : m.from.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-neutral-400 shrink-0 ml-2">
                           {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <p className="text-xs font-medium text-neutral-800 truncate mb-1">{m.subject}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-medium text-neutral-800 truncate">{m.subject}</p>
+                        {m.attachments && m.attachments.length > 0 && (
+                          <Paperclip className="w-3 h-3 text-neutral-400 shrink-0 ml-1" />
+                        )}
+                      </div>
                       <p className="text-[11px] text-neutral-500 line-clamp-2 leading-relaxed">{m.body}</p>
                     </div>
                   );
                 })}
+
+              {emails.filter((e) => e.folder === activeFolder).length === 0 && (
+                <div className="p-8 text-center text-xs text-neutral-400">
+                  <Mail className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                  <span>No emails in {activeFolder}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -397,22 +878,47 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                 <div>
                   <div className="flex items-start justify-between border-b border-neutral-200 pb-4 mb-4">
                     <div>
-                      <h2 className="text-lg font-bold text-neutral-900 mb-1">{selectedEmail.subject}</h2>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-lg font-bold text-neutral-900">{selectedEmail.subject}</h2>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStar(selectedEmail.id)}
+                          className={`p-1 rounded hover:bg-neutral-100 ${
+                            selectedEmail.isStarred ? "text-amber-500" : "text-neutral-400"
+                          }`}
+                        >
+                          <Star className="w-4 h-4 fill-current" />
+                        </button>
+                      </div>
+
                       <div className="flex items-center gap-2 text-xs text-neutral-500">
                         <span className="font-semibold text-neutral-800">{selectedEmail.from.name}</span>
                         <span>&lt;{selectedEmail.from.email}&gt;</span>
                         <span>•</span>
                         <span>{new Date(selectedEmail.timestamp).toLocaleString()}</span>
                       </div>
+
+                      {/* Recipients info */}
+                      <div className="mt-1 text-[11px] text-neutral-500">
+                        <span>To: </span>
+                        <span className="font-medium text-neutral-700">
+                          {selectedEmail.to.map((t) => t.email).join(", ")}
+                        </span>
+                        {selectedEmail.cc && selectedEmail.cc.length > 0 && (
+                          <span className="ml-3">
+                            CC: <span className="text-neutral-700">{selectedEmail.cc.map((c) => c.email).join(", ")}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* AI Actions */}
+                    {/* AI Actions & Manage */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={handleAiSummarizeThread}
                         className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#0078D4] border border-sky-200 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1 active:scale-95"
-                        title="AI Summarize"
+                        title="AI Summarize Thread"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>Summarize</span>
@@ -427,34 +933,95 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Tasks</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEmail(selectedEmail.id)}
+                        className="p-1.5 rounded-lg border border-neutral-200 hover:bg-rose-50 hover:border-rose-300 text-neutral-400 hover:text-rose-600 transition"
+                        title="Delete email"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
                   {/* Body Content */}
-                  <div className="text-xs sm:text-sm text-neutral-800 leading-relaxed whitespace-pre-wrap font-sans">
+                  <div className="text-xs sm:text-sm text-neutral-800 leading-relaxed whitespace-pre-wrap font-sans mb-6">
                     {selectedEmail.body}
                   </div>
+
+                  {/* Attachments Section */}
+                  {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
+                    <div className="mt-6 p-4 rounded-xl border border-neutral-200 bg-[#F9FAFB]">
+                      <div className="flex items-center gap-2 text-xs font-bold text-neutral-900 mb-3 uppercase tracking-wide">
+                        <Paperclip className="w-3.5 h-3.5 text-[#0078D4]" />
+                        <span>Attachments ({selectedEmail.attachments.length})</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {selectedEmail.attachments.map((att, i) => {
+                          const ext = (att.name.split(".").pop() || att.type || "file").toUpperCase();
+                          return (
+                            <div
+                              key={i}
+                              className="p-2.5 bg-white border border-neutral-200 rounded-lg flex items-center justify-between hover:border-neutral-400 transition shadow-xs"
+                            >
+                              <div className="flex items-center gap-2.5 truncate mr-2">
+                                <span className="px-1.5 py-0.5 rounded bg-[#0078D4] text-white text-[10px] font-mono font-bold">
+                                  {ext}
+                                </span>
+                                <div className="truncate">
+                                  <p className="text-xs font-semibold text-neutral-900 truncate">{att.name}</p>
+                                  <p className="text-[10px] font-mono text-neutral-400">{formatBytes(att.sizeBytes)}</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadAttachment(att)}
+                                className="p-1.5 rounded bg-neutral-100 hover:bg-[#0078D4] hover:text-white text-neutral-600 transition shrink-0"
+                                title="Download Attachment"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Quick Reply Bar */}
+                {/* Reply / Forward Actions Bar */}
                 <div className="pt-6 border-t border-neutral-200 mt-6 flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => {
-                      setComposeTo(selectedEmail.from.email);
-                      setComposeSubject(`Re: ${selectedEmail.subject}`);
-                      setIsComposing(true);
-                    }}
+                    onClick={() => handleReply(false)}
                     className="px-4 py-2 rounded-xl bg-[#0078D4] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#006bbd] transition active:scale-95 shadow-sm"
                   >
                     <Reply className="w-3.5 h-3.5" />
                     <span>Reply</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReply(true)}
+                    className="px-3.5 py-2 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 hover:bg-neutral-100 transition active:scale-95"
+                  >
+                    <ReplyAll className="w-3.5 h-3.5" />
+                    <span>Reply All</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleForward}
+                    className="px-3.5 py-2 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 hover:bg-neutral-100 transition active:scale-95"
+                  >
+                    <Forward className="w-3.5 h-3.5" />
+                    <span>Forward</span>
+                  </button>
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-neutral-400 text-xs">
-                Select an email to read
+              <div className="flex-1 flex flex-col items-center justify-center text-neutral-400 text-xs">
+                <Mail className="w-10 h-10 mb-2 opacity-20 text-neutral-500" />
+                <span>Select an email from the list to preview</span>
               </div>
             )}
           </div>
@@ -484,10 +1051,12 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                       isAllDay: false,
                       recurring: "none",
                       reminderMinutes: 15,
-                      attendees: ["gowtham@tattva.ai"],
+                      attendees: ["gowtham@tattva-ai.com"],
                       color: "#0078D4",
                     };
-                    setEvents((prev) => [...prev, newEvt]);
+                    const updated = [...events, newEvt];
+                    setEvents(updated);
+                    persistChanges(emails, updated, contacts);
                     setStatusMessage("Event added to calendar! ✓");
                   }
                 }}
@@ -524,7 +1093,9 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                   </div>
                   <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-400">
                     <span>Reminder: {evt.reminderMinutes}m before</span>
-                    <span className="font-semibold text-[#0078D4]">{evt.recurring !== "none" ? `Recurring (${evt.recurring})` : "One-time"}</span>
+                    <span className="font-semibold text-[#0078D4]">
+                      {evt.recurring !== "none" ? `Recurring (${evt.recurring})` : "One-time"}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -549,16 +1120,16 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                   const name = prompt("Contact name:");
                   const email = prompt("Contact email:");
                   if (name && email) {
-                    setContacts((prev) => [
-                      ...prev,
-                      {
-                        id: `cnt_${Date.now()}`,
-                        name,
-                        email,
-                        group: "General",
-                        isFavorite: false,
-                      },
-                    ]);
+                    const newCnt: OutlookContact = {
+                      id: `cnt_${Date.now()}`,
+                      name,
+                      email,
+                      group: "General",
+                      isFavorite: false,
+                    };
+                    const updated = [...contacts, newCnt];
+                    setContacts(updated);
+                    persistChanges(emails, events, updated);
                     setStatusMessage("Contact saved! ✓");
                   }
                 }}
@@ -593,20 +1164,25 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
         </div>
       )}
 
-      {/* 6. COMPOSE EMAIL MODAL */}
+      {/* 6. UPGRADED REAL EMAIL COMPOSITION MODAL */}
       {isComposing && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-300 w-full max-w-xl p-6 select-none animate-fadeIn flex flex-col justify-between min-h-[460px]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-300 w-full max-w-2xl p-6 select-none animate-fadeIn flex flex-col justify-between max-h-[92vh] overflow-y-auto">
             <div>
+              {/* Modal Header */}
               <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4">
-                <h3 className="font-bold text-base text-neutral-900">New Message</h3>
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#0078D4]" />
+                  <h3 className="font-bold text-base text-neutral-900">New Message</h3>
+                  <span className="text-[11px] text-neutral-400 font-mono">TATTVA AI Relay</span>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleAiDraft}
                     disabled={aiGenerating}
-                    className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#0078D4] border border-sky-200 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1 active:scale-95"
-                    title="Generate Draft with AI"
+                    className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#0078D4] border border-sky-200 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
+                    title="Generate professional draft with Gemini AI"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>{aiGenerating ? "Drafting..." : "AI Draft"}</span>
@@ -614,57 +1190,238 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
                   <button
                     type="button"
                     onClick={() => setIsComposing(false)}
-                    className="text-neutral-400 hover:text-neutral-700 font-bold"
+                    className="text-neutral-400 hover:text-neutral-700 font-bold p-1"
                   >
-                    ×
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-3 text-xs">
-                <input
-                  type="email"
-                  value={composeTo}
-                  onChange={(e) => setComposeTo(e.target.value)}
-                  placeholder="To: recipient@tattva.ai"
-                  className="w-full p-2 border border-neutral-300 rounded-lg focus:outline-none focus:border-[#0078D4]"
-                />
+              {/* Error / Feedback Banner */}
+              {sendError && (
+                <div className="mb-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{sendError}</span>
+                </div>
+              )}
 
-                <input
-                  type="text"
-                  value={composeSubject}
-                  onChange={(e) => setComposeSubject(e.target.value)}
-                  placeholder="Subject: ..."
-                  className="w-full p-2 border border-neutral-300 rounded-lg focus:outline-none focus:border-[#0078D4] font-semibold"
-                />
+              {/* Composition Form Fields */}
+              <div className="space-y-2 text-xs">
+                {/* From field */}
+                <div className="flex items-center border border-neutral-200 rounded-lg px-3 py-1.5 bg-neutral-50 text-neutral-600">
+                  <span className="w-12 text-neutral-400 font-medium">From:</span>
+                  <span className="font-semibold text-neutral-800">
+                    Kotapati Gowtham Chowdary &lt;gowtham@tattva-ai.com&gt;
+                  </span>
+                  <span className="ml-auto text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Verified Domain
+                  </span>
+                </div>
 
-                <textarea
-                  value={composeBody}
-                  onChange={(e) => setComposeBody(e.target.value)}
-                  rows={8}
-                  placeholder="Write message..."
-                  className="w-full p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:border-[#0078D4] resize-none font-sans leading-relaxed"
-                />
+                {/* To field */}
+                <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                  <span className="w-12 text-neutral-500 font-medium">To:</span>
+                  <input
+                    type="text"
+                    value={composeTo}
+                    onChange={(e) => setComposeTo(e.target.value)}
+                    placeholder="recipient@example.com (comma separated for multiple)"
+                    className="flex-1 bg-transparent focus:outline-none text-neutral-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCcBcc(!showCcBcc)}
+                    className="text-[11px] text-neutral-500 hover:text-[#0078D4] font-medium ml-2"
+                  >
+                    {showCcBcc ? "Hide CC/BCC" : "Cc / Bcc"}
+                  </button>
+                </div>
+
+                {/* CC & BCC Fields */}
+                {showCcBcc && (
+                  <>
+                    <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                      <span className="w-12 text-neutral-500 font-medium">Cc:</span>
+                      <input
+                        type="text"
+                        value={composeCc}
+                        onChange={(e) => setComposeCc(e.target.value)}
+                        placeholder="colleague@example.com"
+                        className="flex-1 bg-transparent focus:outline-none text-neutral-900"
+                      />
+                    </div>
+                    <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                      <span className="w-12 text-neutral-500 font-medium">Bcc:</span>
+                      <input
+                        type="text"
+                        value={composeBcc}
+                        onChange={(e) => setComposeBcc(e.target.value)}
+                        placeholder="audit@example.com"
+                        className="flex-1 bg-transparent focus:outline-none text-neutral-900"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Subject field */}
+                <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                  <span className="w-12 text-neutral-500 font-medium">Subject:</span>
+                  <input
+                    type="text"
+                    value={composeSubject}
+                    onChange={(e) => setComposeSubject(e.target.value)}
+                    placeholder="Enter email subject"
+                    className="flex-1 bg-transparent focus:outline-none font-semibold text-neutral-900"
+                  />
+                </div>
+
+                {/* Message Body */}
+                <div className="border border-neutral-300 rounded-lg p-2.5 focus-within:border-[#0078D4]">
+                  <textarea
+                    value={composeBody}
+                    onChange={(e) => setComposeBody(e.target.value)}
+                    rows={8}
+                    placeholder="Type your message here..."
+                    className="w-full bg-transparent focus:outline-none resize-none font-sans leading-relaxed text-neutral-900"
+                  />
+                </div>
+
+                {/* Attachments Chips */}
+                {attachments.length > 0 && (
+                  <div className="pt-2">
+                    <span className="text-[11px] font-bold text-neutral-600 block mb-1.5">
+                      Attachments ({attachments.length}):
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((att, idx) => {
+                        const ext = (att.filename.split(".").pop() || "file").toUpperCase();
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 border border-neutral-200 text-xs"
+                          >
+                            <span className="px-1 py-0.2 rounded bg-[#0078D4] text-white text-[9px] font-mono font-bold">
+                              {ext}
+                            </span>
+                            <span className="font-medium text-neutral-800 max-w-[140px] truncate">{att.filename}</span>
+                            <span className="text-[10px] text-neutral-400 font-mono">({formatBytes(att.sizeBytes)})</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(idx)}
+                              className="text-neutral-400 hover:text-rose-600 ml-1"
+                              title="Remove attachment"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="pt-4 border-t border-neutral-200 flex items-center justify-between">
-              <span className="text-[11px] text-neutral-400">Status: Ready to send</span>
+            {/* Modal Footer & Actions */}
+            <div className="pt-4 border-t border-neutral-200 mt-4 flex items-center justify-between">
+              {/* Attachment Actions */}
+              <div className="relative flex items-center gap-2">
+                {/* Native file upload input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleNativeFileUpload}
+                  multiple
+                  accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.png,.jpg,.jpeg,.zip"
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 transition"
+                  title="Upload file from device (PDF, DOCX, XLSX, PPTX, TXT, CSV, PNG, JPG, ZIP)"
+                >
+                  <Paperclip className="w-3.5 h-3.5 text-[#0078D4]" />
+                  <span>Attach File</span>
+                </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowAttachMenu(!showAttachMenu)}
+                    className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <span>Attach Workspace Doc</span>
+                    <ChevronDown className="w-3 h-3 text-neutral-400" />
+                  </button>
+
+                  {showAttachMenu && (
+                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 z-50 max-h-56 overflow-y-auto divide-y divide-neutral-100">
+                      <div className="p-1.5 text-[11px] font-bold text-neutral-500 uppercase">
+                        Select Workspace File
+                      </div>
+                      {workspaceItems.length === 0 ? (
+                        <div className="p-2 text-xs text-neutral-400">No workspace items found.</div>
+                      ) : (
+                        workspaceItems.map((wsDoc) => (
+                          <div
+                            key={wsDoc.id}
+                            onClick={() => handleAttachWorkspaceDoc(wsDoc)}
+                            className="p-2 hover:bg-neutral-50 rounded-lg cursor-pointer flex items-center justify-between text-xs"
+                          >
+                            <div className="truncate mr-2">
+                              <p className="font-semibold text-neutral-900 truncate">{wsDoc.name}</p>
+                              <p className="text-[10px] text-neutral-400 capitalize">{wsDoc.app} • {wsDoc.format}</p>
+                            </div>
+                            <span className="text-[10px] font-mono text-neutral-400 uppercase font-semibold">
+                              {wsDoc.format}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Send / Save Draft / Discard Buttons */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={handleSaveDraft}
+                  disabled={isSending}
+                  className="px-3.5 py-2 rounded-xl text-neutral-600 hover:bg-neutral-100 text-xs font-medium transition"
+                >
+                  Save Draft
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsComposing(false)}
-                  className="px-3.5 py-2 rounded-xl text-neutral-600 hover:bg-neutral-100 text-xs font-medium"
+                  disabled={isSending}
+                  className="px-3 py-2 rounded-xl text-neutral-400 hover:text-neutral-700 text-xs font-medium transition"
                 >
                   Discard
                 </button>
+
                 <button
                   type="button"
                   onClick={handleSendEmail}
-                  className="px-4 py-2 rounded-xl bg-[#0078D4] text-white text-xs font-bold flex items-center gap-1.5 hover:bg-[#006bbd] transition active:scale-95 shadow-sm"
+                  disabled={isSending}
+                  className="px-5 py-2 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-sm disabled:opacity-50"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send</span>
+                  {isSending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Send</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -674,4 +1431,3 @@ export function OutlookApp({ item, onSave, onBack }: OutlookAppProps) {
     </div>
   );
 }
-

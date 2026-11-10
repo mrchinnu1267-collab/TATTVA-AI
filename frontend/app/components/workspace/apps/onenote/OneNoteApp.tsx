@@ -19,6 +19,7 @@ import {
   Pin,
   Tag,
   Highlighter,
+  Mail,
 } from "lucide-react";
 import { OneNoteNotebook, OneNoteSection, OneNotePage, WorkspaceItem } from "../../types";
 import { saveWorkspaceItem } from "../../storage";
@@ -27,9 +28,10 @@ interface OneNoteAppProps {
   item?: WorkspaceItem<any>;
   onSave?: (item: WorkspaceItem<any>) => void;
   onBack?: () => void;
+  onSendViaEmail?: (item: WorkspaceItem<any>) => void;
 }
 
-export function OneNoteApp({ item, onSave, onBack }: OneNoteAppProps) {
+export function OneNoteApp({ item, onSave, onBack, onSendViaEmail }: OneNoteAppProps) {
   const [notebooks, setNotebooks] = useState<OneNoteNotebook[]>(
     item?.content?.notebooks || [
       {
@@ -289,6 +291,18 @@ export function OneNoteApp({ item, onSave, onBack }: OneNoteAppProps) {
             <Save className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Save</span>
           </button>
+
+          {onSendViaEmail && item && (
+            <button
+              type="button"
+              onClick={() => onSendViaEmail(item)}
+              className="px-2.5 py-1 rounded bg-black/20 hover:bg-black/35 text-white text-xs font-semibold transition flex items-center gap-1 active:scale-95"
+              title="Share notebook via Outlook Email"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Email</span>
+            </button>
+          )}
         </div>
       </header>
 

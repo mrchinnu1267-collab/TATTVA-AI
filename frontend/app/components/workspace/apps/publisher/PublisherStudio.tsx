@@ -20,6 +20,7 @@ import {
   Layout,
   Printer,
   Sparkles,
+  Mail,
 } from "lucide-react";
 import { PublisherPublication, PublisherElement, PublisherTemplateType, WorkspaceItem } from "../../types";
 import { saveWorkspaceItem } from "../../storage";
@@ -28,9 +29,10 @@ interface PublisherStudioProps {
   item?: WorkspaceItem<any>;
   onSave?: (item: WorkspaceItem<any>) => void;
   onBack?: () => void;
+  onSendViaEmail?: (item: WorkspaceItem<any>) => void;
 }
 
-export function PublisherStudio({ item, onSave, onBack }: PublisherStudioProps) {
+export function PublisherStudio({ item, onSave, onBack, onSendViaEmail }: PublisherStudioProps) {
   const [title, setTitle] = useState(item?.name || "AI Summit Event Flyer.pub");
   const [templateType, setTemplateType] = useState<PublisherTemplateType>(
     item?.content?.templateType || "poster_a4"
@@ -268,6 +270,18 @@ export function PublisherStudio({ item, onSave, onBack }: PublisherStudioProps) 
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Export</span>
           </button>
+
+          {onSendViaEmail && item && (
+            <button
+              type="button"
+              onClick={() => onSendViaEmail(item)}
+              className="px-2.5 py-1 rounded bg-black/20 hover:bg-black/35 text-white text-xs font-semibold transition flex items-center gap-1 active:scale-95"
+              title="Share publication via Outlook Email"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Email</span>
+            </button>
+          )}
         </div>
       </header>
 

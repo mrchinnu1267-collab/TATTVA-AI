@@ -28,6 +28,7 @@ import {
   PenTool,
   BookOpen,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import { WORKSPACE_APPS, WORKSPACE_APPS_LIST } from "./constants";
 import { WorkspaceAppId, WorkspaceItem } from "./types";
@@ -41,6 +42,7 @@ interface DashboardViewProps {
   onTogglePin: (itemId: string) => void;
   onTrashItem: (itemId: string) => void;
   onExportItem: (item: WorkspaceItem) => void;
+  onSendViaEmail?: (item: WorkspaceItem) => void;
   searchFilter?: string;
   onOpenAssistant?: () => void;
   onOpenModal?: (modalType: string) => void;
@@ -55,6 +57,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onTogglePin,
   onTrashItem,
   onExportItem,
+  onSendViaEmail,
   searchFilter = "",
   onOpenAssistant,
   onOpenModal,
@@ -500,6 +503,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             >
                               <Download className="w-3.5 h-3.5" />
                             </button>
+
+                            {onSendViaEmail && (
+                              <button
+                                onClick={() => onSendViaEmail(doc)}
+                                className="p-1.5 rounded hover:bg-neutral-100 text-neutral-500 hover:text-[#0078D4] transition"
+                                title="Send via Email (Outlook Studio)"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
                             <button
                               onClick={() => onTrashItem(doc.id)}

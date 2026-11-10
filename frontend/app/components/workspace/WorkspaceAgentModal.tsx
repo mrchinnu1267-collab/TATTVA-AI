@@ -127,11 +127,10 @@ export function WorkspaceAgentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 onClick={() => setSelectedTask("prepare_project_review")}
-                className={`p-3.5 rounded-xl border text-left transition shadow-xs ${
-                  selectedTask === "prepare_project_review"
+                className={`p-3.5 rounded-xl border text-left transition shadow-xs ${selectedTask === "prepare_project_review"
                     ? "border-black bg-neutral-50 text-black font-semibold"
                     : "border-[#E5E5E5] bg-white hover:border-neutral-400 text-neutral-600"
-                }`}
+                  }`}
               >
                 <div className="font-bold text-xs text-[#111111] mb-1">Project Review Presentation</div>
                 <div className="text-[11px] text-neutral-500 font-normal leading-relaxed">
@@ -141,11 +140,10 @@ export function WorkspaceAgentModal({
 
               <button
                 onClick={() => setSelectedTask("convert_data_to_presentation")}
-                className={`p-3.5 rounded-xl border text-left transition shadow-xs ${
-                  selectedTask === "convert_data_to_presentation"
+                className={`p-3.5 rounded-xl border text-left transition shadow-xs ${selectedTask === "convert_data_to_presentation"
                     ? "border-black bg-neutral-50 text-black font-semibold"
                     : "border-[#E5E5E5] bg-white hover:border-neutral-400 text-neutral-600"
-                }`}
+                  }`}
               >
                 <div className="font-bold text-xs text-[#111111] mb-1">Spreadsheet to Deck</div>
                 <div className="text-[11px] text-neutral-500 font-normal leading-relaxed">
@@ -168,13 +166,12 @@ export function WorkspaceAgentModal({
               {steps.map((st) => (
                 <div
                   key={st.step}
-                  className={`p-2.5 rounded-xl border flex items-center justify-between transition ${
-                    st.status === "completed"
+                  className={`p-2.5 rounded-xl border flex items-center justify-between transition ${st.status === "completed"
                       ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                       : st.status === "running"
-                      ? "border-black bg-neutral-50 text-[#111111] ring-1 ring-black"
-                      : "border-[#E5E5E5] bg-white text-neutral-500"
-                  }`}
+                        ? "border-black bg-neutral-50 text-[#111111] ring-1 ring-black"
+                        : "border-[#E5E5E5] bg-white text-neutral-500"
+                    }`}
                 >
                   <div className="flex items-center space-x-2.5">
                     <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-neutral-100 border border-[#E5E5E5] text-neutral-700">
