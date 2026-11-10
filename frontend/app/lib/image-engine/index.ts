@@ -4,3 +4,4 @@ export { compileImagePrompt, extractRequirements, STYLE_PRESETS, normalizeStyle 
 export { getProviderStatuses, getCooldownRemaining, resolveProviderOrder } from "./providers";
 export { verifyImage } from "./verifier";
 export { getGeminiApiKey, GEMINI_IMAGE_MODELS, GEMINI_TEXT_MODELS } from "./gemini";
+export * from "./multimodal-rag";

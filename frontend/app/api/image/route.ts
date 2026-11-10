@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   generateImage,
+  generateImageWithMultimodalRAG,
   getProviderStatuses,
   publicAttempts,
 } from "../../lib/image-engine";
@@ -133,27 +134,48 @@ export async function POST(request: Request) {
         ? (body.quality as ImageQuality)
         : "balanced";
 
-    const result = await generateImage({
-      prompt,
-      style: typeof body.style === "string" ? body.style : undefined,
-      aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio : undefined,
-      width: toNumber(body.width),
-      height: toNumber(body.height),
-      seed: toNumber(body.seed),
-      customNegative: typeof body.customNegative === "string" ? body.customNegative : undefined,
-      referenceImage,
-      provider,
-      quality,
-      maxAttempts: toNumber(body.maxAttempts),
-      verify: body.verify === undefined ? true : Boolean(body.verify),
-      targetScore: toNumber(body.targetScore),
-      userId: session.userId,
-    });
+    const enableRAG = body.enableRAG !== false; // Enabled by default for all generation
+    let result: any;
+
+    if (enableRAG) {
+      result = await generateImageWithMultimodalRAG({
+        prompt,
+        style: typeof body.style === "string" ? body.style : undefined,
+        aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio : undefined,
+        width: toNumber(body.width),
+        height: toNumber(body.height),
+        seed: toNumber(body.seed),
+        customNegative: typeof body.customNegative === "string" ? body.customNegative : undefined,
+        referenceImage,
+        conditioningMethod: typeof body.conditioningMethod === "string" ? (body.conditioningMethod as any) : undefined,
+        provider,
+        quality,
+        maxAttempts: toNumber(body.maxAttempts),
+        userId: session.userId,
+      });
+    } else {
+      result = await generateImage({
+        prompt,
+        style: typeof body.style === "string" ? body.style : undefined,
+        aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio : undefined,
+        width: toNumber(body.width),
+        height: toNumber(body.height),
+        seed: toNumber(body.seed),
+        customNegative: typeof body.customNegative === "string" ? body.customNegative : undefined,
+        referenceImage,
+        provider,
+        quality,
+        maxAttempts: toNumber(body.maxAttempts),
+        verify: body.verify === undefined ? true : Boolean(body.verify),
+        targetScore: toNumber(body.targetScore),
+        userId: session.userId,
+      });
+    }
 
     // Stage 3: Post-Generation Image Output Verification
     if (result.image) {
       const outputModeration = await moderateVisualImage(result.image);
-      const issuesHasNsfw = result.verification?.issues?.some((issue) =>
+      const issuesHasNsfw = result.verification?.issues?.some((issue: string) =>
         /prohibited adult|nudity|nude content|explicit sexual|harmful/i.test(issue)
       );
 
@@ -180,6 +202,7 @@ export async function POST(request: Request) {
       metadata: result.metadata,
       verification: result.verification,
       accuracy: result.accuracy,
+      rag: result.rag || null,
       compiler: {
         version: result.compiled.compilerVersion,
         positive: result.compiled.positive,

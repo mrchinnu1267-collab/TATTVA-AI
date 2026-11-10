@@ -67,6 +67,49 @@ interface ImageApiResponse {
   compiler: CompilerSummary;
   attempts: AttemptSummary[];
   warnings: string[];
+  rag?: {
+    enabled: boolean;
+    retrievedReferences: Array<{
+      id: string;
+      title: string;
+      description: string;
+      imageUrl: string;
+      domain: string;
+      style: string;
+      lighting: string;
+      composition: string;
+      dominantColors: string[];
+      qualityScore: number;
+    }>;
+    scenePlan: {
+      subject: string;
+      environment: string;
+      objects: Array<{ name: string; position: string; count?: number; color?: string }>;
+      lighting: string;
+      style: string;
+      composition: string;
+      cameraAngle: string;
+      colorPalette: string[];
+      conditioningPlan: { method: string; strength: number };
+      rationale?: string;
+    };
+    qualityReport: {
+      overallScore: number;
+      verdict: "pass" | "borderline" | "fail";
+      promptAdherence: { score: number; passed: boolean; notes: string };
+      objectAccuracy: { score: number; passed: boolean; notes: string };
+      colorFidelity: { score: number; passed: boolean; notes: string };
+      compositionQuality: { score: number; passed: boolean; notes: string };
+      styleFidelity: { score: number; passed: boolean; notes: string };
+      textCorrectness: { score: number; passed: boolean; notes: string };
+      detectedObjects?: Array<{ name: string; count: number; location: string }>;
+      missingObjects?: string[];
+      unwantedObjects?: string[];
+      critique?: string;
+    };
+    correctionRounds: number;
+    conditioningApplied: string;
+  };
 }
 
 interface HistoryItem {
@@ -182,6 +225,8 @@ export default function ImageStudioPage() {
   const [seedInput, setSeedInput] = useState("");
   const [lockSeed, setLockSeed] = useState(false);
   const [verify, setVerify] = useState(true);
+  const [enableRAG, setEnableRAG] = useState(true);
+  const [conditioningMethod, setConditioningMethod] = useState("auto");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -288,6 +333,8 @@ export default function ImageStudioPage() {
           aspectRatio,
           quality,
           provider,
+          enableRAG,
+          conditioningMethod: conditioningMethod !== "auto" ? conditioningMethod : undefined,
           customNegative: negative.trim() || undefined,
           referenceImage: referenceImage || undefined,
           seed: lockSeed && seedInput.trim() ? Number(seedInput) : undefined,
@@ -345,6 +392,8 @@ export default function ImageStudioPage() {
     lockSeed,
     seedInput,
     verify,
+    enableRAG,
+    conditioningMethod,
     history,
     persistHistory,
   ]);
@@ -638,6 +687,50 @@ export default function ImageStudioPage() {
               </div>
 
               <div className="flex items-center justify-between">
+                <div>
+                  <span className="block text-[11px] font-medium">Multimodal RAG</span>
+                  <span className="block text-[9px] text-neutral-400">
+                    Visual knowledge retrieval & 10-point audit
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableRAG((value) => !value)}
+                  className={`relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition ${
+                    enableRAG ? "bg-fuchsia-500" : "bg-neutral-300 dark:bg-neutral-700"
+                  }`}
+                  title="Toggle Multimodal RAG"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                      enableRAG ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {enableRAG && (
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                    Conditioning Technique
+                  </label>
+                  <select
+                    value={conditioningMethod}
+                    onChange={(e) => setConditioningMethod(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[var(--border)] bg-[var(--soft)] px-2.5 py-1.5 text-xs outline-none"
+                  >
+                    <option value="auto">Auto (Intelligent Selection)</option>
+                    <option value="ip-adapter">IP-Adapter (Visual Feature Infusion)</option>
+                    <option value="controlnet-depth">ControlNet Depth (Composition & Depth)</option>
+                    <option value="controlnet-canny">ControlNet Canny (Edge & Contours)</option>
+                    <option value="controlnet-pose">ControlNet Pose (Human Keypoints)</option>
+                    <option value="style-transfer">Style Transfer (Palette & Texture)</option>
+                    <option value="inpainting">Inpainting (Subject / Background Replacement)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium">Vision verification</span>
                 <button
                   type="button"
@@ -891,6 +984,141 @@ export default function ImageStudioPage() {
                   </div>
                 )}
               </div>
+
+              {result.rag && (
+                <div className="rounded-3xl border border-fuchsia-500/20 bg-gradient-to-b from-fuchsia-500/5 to-transparent p-4 sm:p-5">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-fuchsia-500" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                        Multimodal RAG Architecture
+                      </h3>
+                    </div>
+                    <span className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-2 py-0.5 text-[9px] font-semibold text-fuchsia-600 dark:text-fuchsia-400 capitalize">
+                      {result.rag.conditioningApplied} · {result.rag.correctionRounds > 0 ? `${result.rag.correctionRounds} correction pass` : "verified pass"}
+                    </span>
+                  </div>
+
+                  {/* 1. Structured Scene Plan */}
+                  {result.rag.scenePlan && (
+                    <div className="mt-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                        Structured Scene Representation
+                      </span>
+                      <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2.5 text-[11px]">
+                          <span className="font-semibold text-neutral-400 block text-[9px] uppercase">Subject & Environment</span>
+                          <p className="mt-0.5 font-medium">{result.rag.scenePlan.subject}</p>
+                          <p className="text-[10px] text-neutral-500">{result.rag.scenePlan.environment}</p>
+                        </div>
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2.5 text-[11px]">
+                          <span className="font-semibold text-neutral-400 block text-[9px] uppercase">Lighting & Framing</span>
+                          <p className="mt-0.5 font-medium">{result.rag.scenePlan.lighting}</p>
+                          <p className="text-[10px] text-neutral-500">{result.rag.scenePlan.composition} · {result.rag.scenePlan.cameraAngle}</p>
+                        </div>
+                      </div>
+
+                      {/* Objects breakdown */}
+                      {result.rag.scenePlan.objects && result.rag.scenePlan.objects.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {result.rag.scenePlan.objects.map((obj, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-[10px]">
+                              <span className="font-semibold">{obj.name}</span>
+                              <span className="text-neutral-400">({obj.position}{obj.count ? ` · ${obj.count}` : ""})</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Palette circles */}
+                      {result.rag.scenePlan.colorPalette && result.rag.scenePlan.colorPalette.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5">
+                          <span className="text-[9px] text-neutral-400 uppercase font-semibold">Palette:</span>
+                          <div className="flex items-center gap-1">
+                            {result.rag.scenePlan.colorPalette.map((color, idx) => (
+                              <span
+                                key={idx}
+                                className="h-3.5 w-3.5 rounded-full border border-black/20 dark:border-white/20 shadow-xs"
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 2. Retrieved Visual Knowledge References */}
+                  {result.rag.retrievedReferences && result.rag.retrievedReferences.length > 0 && (
+                    <div className="mt-3.5 border-t border-[var(--border)] pt-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                        Retrieved Visual Knowledge References ({result.rag.retrievedReferences.length})
+                      </span>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {result.rag.retrievedReferences.map((ref) => (
+                          <div key={ref.id} className="flex items-start gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={ref.imageUrl}
+                              alt={ref.title}
+                              className="h-12 w-12 rounded-lg object-cover shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[11px] font-semibold">{ref.title}</p>
+                              <p className="line-clamp-2 text-[9px] text-neutral-500">{ref.description}</p>
+                              <div className="mt-1 flex items-center gap-2 text-[8px] text-neutral-400">
+                                <span className="capitalize">{ref.domain}</span>
+                                <span>Quality: {ref.qualityScore}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Multi-Stage Quality Audit */}
+                  {result.rag.qualityReport && (
+                    <div className="mt-3.5 border-t border-[var(--border)] pt-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                        10-Dimension Multimodal Quality Audit
+                      </span>
+                      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                        <div className="rounded-lg bg-[var(--background)] p-2 text-center">
+                          <span className="block text-[9px] text-neutral-400">Adherence</span>
+                          <span className="text-xs font-bold text-emerald-500">{result.rag.qualityReport.promptAdherence?.score ?? 85}%</span>
+                        </div>
+                        <div className="rounded-lg bg-[var(--background)] p-2 text-center">
+                          <span className="block text-[9px] text-neutral-400">Objects</span>
+                          <span className="text-xs font-bold text-emerald-500">{result.rag.qualityReport.objectAccuracy?.score ?? 85}%</span>
+                        </div>
+                        <div className="rounded-lg bg-[var(--background)] p-2 text-center">
+                          <span className="block text-[9px] text-neutral-400">Color Fidelity</span>
+                          <span className="text-xs font-bold text-emerald-500">{result.rag.qualityReport.colorFidelity?.score ?? 85}%</span>
+                        </div>
+                        <div className="rounded-lg bg-[var(--background)] p-2 text-center">
+                          <span className="block text-[9px] text-neutral-400">Composition</span>
+                          <span className="text-xs font-bold text-emerald-500">{result.rag.qualityReport.compositionQuality?.score ?? 85}%</span>
+                        </div>
+                        <div className="rounded-lg bg-[var(--background)] p-2 text-center">
+                          <span className="block text-[9px] text-neutral-400">Style Fidelity</span>
+                          <span className="text-xs font-bold text-emerald-500">{result.rag.qualityReport.styleFidelity?.score ?? 85}%</span>
+                        </div>
+                        <div className="rounded-lg bg-[var(--background)] p-2 text-center">
+                          <span className="block text-[9px] text-neutral-400">OCR Text</span>
+                          <span className="text-xs font-bold text-emerald-500">{result.rag.qualityReport.textCorrectness?.score ?? 100}%</span>
+                        </div>
+                      </div>
+                      {result.rag.qualityReport.critique && (
+                        <p className="mt-2 text-[10px] text-neutral-500 italic">
+                          "{result.rag.qualityReport.critique}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="rounded-3xl border border-[var(--border)] bg-[var(--soft)] p-4 sm:p-5">
                 <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">

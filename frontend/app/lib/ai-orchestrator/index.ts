@@ -33,7 +33,7 @@ import {
   moderateVisualImage,
   SAFETY_REJECTION_MESSAGE,
 } from "../content-moderation";
-import { generateImage } from "../image-engine";
+import { generateImage, generateImageWithMultimodalRAG } from "../image-engine";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
 
@@ -303,11 +303,10 @@ export class MasterAIOrchestrator {
       }
 
       try {
-        const imageResult = await generateImage({
+        const imageResult = await generateImageWithMultimodalRAG({
           prompt: candidatePrompt,
           referenceImage: imageToModerate,
           quality: "balanced",
-          verify: true,
           userId: context.userId,
         });
 
