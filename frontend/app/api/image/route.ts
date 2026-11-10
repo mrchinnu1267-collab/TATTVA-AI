@@ -6,10 +6,14 @@ import {
 } from "../../lib/image-engine";
 import {
   checkRateLimit,
-  isNsfwContent,
   logSecurityEvent,
   verifyUserSession,
 } from "../../lib/security";
+import {
+  moderateTextPrompt,
+  moderateVisualImage,
+  SAFETY_REJECTION_MESSAGE,
+} from "../../lib/content-moderation";
 import type { ImageQuality } from "../../lib/image-engine";
 
 export const runtime = "nodejs";
@@ -26,7 +30,7 @@ function toNumber(value: unknown): number | undefined {
 }
 
 export async function GET() {
-    const providers = await getProviderStatuses();
+  const providers = await getProviderStatuses();
   return NextResponse.json({
     status: "ok",
     providers,
@@ -69,35 +73,54 @@ export async function POST(request: Request) {
       );
     }
 
-    // 18+ / Adult / Nudity Safety Restriction
-    const nsfwCheck = isNsfwContent(prompt);
-    if (nsfwCheck.isBlocked) {
+    // Stage 1: Strict Pre-Generation Prompt Moderation
+    const promptModeration = moderateTextPrompt(prompt);
+    if (!promptModeration.isSafe) {
       logSecurityEvent("NSFW_PROMPT_BLOCKED", {
         userId: session.userId,
         ip: clientIp,
         endpoint: "/api/image",
-        details: { matched: nsfwCheck.matchedPattern },
+        details: { matched: promptModeration.matched, category: promptModeration.category },
       });
       return NextResponse.json(
         {
-          error:
-            "This request violates TATTVA AI Safety Policy. Generation of 18+, adult, nude, or sexually explicit content is strictly restricted.",
-          hint: "Please rephrase your request without adult, nudity, or sexually explicit terms.",
+          error: SAFETY_REJECTION_MESSAGE,
+          safetyViolation: true,
         },
         { status: 400 }
       );
     }
 
+    // Stage 2: Reference Image Upload Verification (if provided)
     const referenceImage =
       typeof body.referenceImage === "string" && body.referenceImage.startsWith("data:image/")
         ? body.referenceImage
         : undefined;
 
-    if (referenceImage && referenceImage.length > 12_000_000) {
-      return NextResponse.json(
-        { error: "Reference image is too large. Use an image under 9 MB." },
-        { status: 400 }
-      );
+    if (referenceImage) {
+      if (referenceImage.length > 12_000_000) {
+        return NextResponse.json(
+          { error: "Reference image is too large. Use an image under 9 MB." },
+          { status: 400 }
+        );
+      }
+
+      const visualModeration = await moderateVisualImage(referenceImage);
+      if (!visualModeration.isSafe) {
+        logSecurityEvent("NSFW_PROMPT_BLOCKED", {
+          userId: session.userId,
+          ip: clientIp,
+          endpoint: "/api/image",
+          details: { reason: "Uploaded reference image violated content safety guidelines", category: visualModeration.category },
+        });
+        return NextResponse.json(
+          {
+            error: SAFETY_REJECTION_MESSAGE,
+            safetyViolation: true,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const provider =
@@ -127,6 +150,31 @@ export async function POST(request: Request) {
       userId: session.userId,
     });
 
+    // Stage 3: Post-Generation Image Output Verification
+    if (result.image) {
+      const outputModeration = await moderateVisualImage(result.image);
+      const issuesHasNsfw = result.verification?.issues?.some((issue) =>
+        /prohibited adult|nudity|nude content|explicit sexual|harmful/i.test(issue)
+      );
+
+      if (!outputModeration.isSafe || issuesHasNsfw) {
+        logSecurityEvent("NSFW_PROMPT_BLOCKED", {
+          userId: session.userId,
+          ip: clientIp,
+          endpoint: "/api/image",
+          details: { reason: "Post-generation output verification failed safety guidelines" },
+        });
+        // Discard generated image completely — never deliver to client
+        return NextResponse.json(
+          {
+            error: SAFETY_REJECTION_MESSAGE,
+            safetyViolation: true,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     return NextResponse.json({
       image: result.image,
       metadata: result.metadata,
@@ -148,6 +196,18 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
+    // If internal engine or provider caught content safety violation
+    if (message.includes("content safety guidelines") || message.includes("violates our content safety")) {
+      return NextResponse.json(
+        {
+          error: SAFETY_REJECTION_MESSAGE,
+          safetyViolation: true,
+        },
+        { status: 400 }
+      );
+    }
+
     const unavailable = /no image provider|cooling down|offline|credits|quota|not configured/i.test(
       message
     );

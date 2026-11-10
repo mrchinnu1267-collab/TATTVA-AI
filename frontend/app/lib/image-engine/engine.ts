@@ -11,7 +11,11 @@ import {
   resolveProviderOrder,
 } from "./providers";
 import { verifyImage } from "./verifier";
-import { isNsfwContent } from "../security";
+import {
+  moderateTextPrompt,
+  moderateVisualImage,
+  SAFETY_REJECTION_MESSAGE,
+} from "../content-moderation";
 import type {
   CompiledImagePrompt,
   ImageAttempt,
@@ -58,12 +62,24 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   const prompt = options.prompt?.trim();
   if (!prompt) throw new Error("A prompt is required.");
 
-  const nsfwCheck = isNsfwContent(prompt);
-  if (nsfwCheck.isBlocked) {
+  // 1. Mandatory Pre-Generation Content Moderation
+  const moderationCheck = moderateTextPrompt(prompt);
+  if (!moderationCheck.isSafe) {
     throw new ImageProviderError(
-      "This request violates TATTVA AI Safety Policy. Generation of 18+, adult, nude, or sexually explicit content is strictly restricted.",
+      SAFETY_REJECTION_MESSAGE,
       { retryable: false }
     );
+  }
+
+  // 2. Reference Image Moderation (if supplied)
+  if (options.referenceImage) {
+    const refModeration = await moderateVisualImage(options.referenceImage);
+    if (!refModeration.isSafe) {
+      throw new ImageProviderError(
+        SAFETY_REJECTION_MESSAGE,
+        { retryable: false }
+      );
+    }
   }
 
   const started = Date.now();
@@ -127,11 +143,11 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         });
 
         const hasNsfw = verification.issues.some((issue) =>
-          /prohibited adult|nudity|nude content/i.test(issue)
+          /prohibited adult|nudity|nude content|explicit sexual|harmful/i.test(issue)
         );
         if (hasNsfw) {
           throw new ImageProviderError(
-            "Generated image violated safety policies (prohibited adult or nude content detected). Generation was aborted.",
+            SAFETY_REJECTION_MESSAGE,
             { retryable: false }
           );
         }
@@ -154,6 +170,9 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
           error: lastError,
         });
         warnings.push(`${provider}: ${lastError}`);
+        if (lastError.includes(SAFETY_REJECTION_MESSAGE)) {
+          throw error;
+        }
         // Try the next provider in the preference order.
       }
     }
@@ -166,6 +185,15 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     throw new Error(
       lastError ||
         "No image provider could generate this image. Configure Gemini image access, Hugging Face credits, or start the local engine."
+    );
+  }
+
+  // 3. Post-Generation Output Visual Verification
+  const outputCheck = await moderateVisualImage(best.result.image);
+  if (!outputCheck.isSafe) {
+    throw new ImageProviderError(
+      SAFETY_REJECTION_MESSAGE,
+      { retryable: false }
     );
   }
 

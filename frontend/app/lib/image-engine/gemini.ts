@@ -13,7 +13,7 @@ export const GEMINI_IMAGE_MODELS = [
 
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
-const GEMINI_SAFETY_SETTINGS = [
+export const GEMINI_SAFETY_SETTINGS = [
   {
     category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
     threshold: "BLOCK_LOW_AND_ABOVE",
@@ -73,6 +73,7 @@ async function callGemini(
         temperature: options.temperature ?? 0.4,
         ...(options.json ? { responseMimeType: "application/json" } : {}),
       },
+      safetySettings: GEMINI_SAFETY_SETTINGS,
     }),
     cache: "no-store",
     signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),

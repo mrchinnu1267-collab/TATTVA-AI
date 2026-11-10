@@ -6,6 +6,7 @@
 
 import crypto from "crypto";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { moderateTextPrompt, SAFETY_REJECTION_MESSAGE } from "./content-moderation";
 
 // =============================================================================
 // 1. APPLICATION-LEVEL ENCRYPTION (AES-256-GCM)
@@ -633,32 +634,20 @@ export type NsfwCheckResult = {
 
 /**
  * Inspects prompt or text for 18+, adult, nude, or sexually explicit content
+ * Backed by the centralized TATTVA AI Content Moderation System
  */
 export function isNsfwContent(text: string): NsfwCheckResult {
   if (!text || typeof text !== "string") {
     return { isBlocked: false };
   }
 
-  const normalized = text.toLowerCase().replace(/[\r\n\t_]/g, " ");
-
-  // Safe exemptions for medical / culinary contexts
-  if (
-    /(?:chicken|turkey|duck|goose)\s+breast/i.test(normalized) ||
-    /breast\s*(?:cancer|feeding|pump|exam)/i.test(normalized)
-  ) {
-    return { isBlocked: false };
-  }
-
-  for (const pattern of NSFW_EXPLICIT_PATTERNS) {
-    const match = pattern.exec(normalized);
-    if (match) {
-      return {
-        isBlocked: true,
-        reason:
-          "This request violates TATTVA AI Safety Policy. Generation and display of 18+, adult, nude, or sexually explicit content is strictly restricted.",
-        matchedPattern: match[0],
-      };
-    }
+  const result = moderateTextPrompt(text);
+  if (!result.isSafe) {
+    return {
+      isBlocked: true,
+      reason: SAFETY_REJECTION_MESSAGE,
+      matchedPattern: result.matched,
+    };
   }
 
   return { isBlocked: false };

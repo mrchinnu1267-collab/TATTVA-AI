@@ -18,7 +18,8 @@ export const COMPILER_VERSION = "tattva-image-compiler/2.0";
 
 const BASE_NEGATIVE =
   "low quality, worst quality, blurry, out of focus, jpeg artifacts, compression artifacts, watermark, signature, logo, cut off, cropped, deformed, disfigured, extra limbs, extra fingers, malformed hands, duplicate subject, unfinished, " +
-  "nude, nudity, naked, topless, bare breasts, exposed nipples, exposed genitals, cleavage, provocative, erotic, sexual, pornographic, lewd, uncensored, adult 18+, nsfw, revealing clothes, bare skin, suggestive, unclad, stripped, striptease, see-through clothes, transparent clothing";
+  "nude, nudity, naked, topless, bare breasts, exposed nipples, exposed genitals, cleavage, provocative, erotic, sexual, pornographic, lewd, uncensored, adult 18+, nsfw, revealing clothes, bare skin, suggestive, unclad, stripped, striptease, see-through clothes, transparent clothing, " +
+  "graphic violence, gruesome gore, decapitation, severed limbs, mutilated body, bloodbath, open wounds, self-harm, suicide, sexualized minors, child exploitation";
 
 interface StylePreset {
   id: ImageStyle;

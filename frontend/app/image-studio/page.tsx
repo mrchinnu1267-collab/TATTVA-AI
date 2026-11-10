@@ -297,7 +297,12 @@ export default function ImageStudioPage() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(data.error || "Image generation failed.");
+        setResult(null);
+        const errorMessage =
+          data.safetyViolation || data.error?.includes("safety guidelines")
+            ? "Sorry, TATTVA AI cannot generate this image because it violates our content safety guidelines. Please try a different prompt."
+            : data.error || "Image generation failed.";
+        setError(errorMessage);
         setErrorHint(data.hint || "");
         return;
       }
@@ -315,9 +320,16 @@ export default function ImageStudioPage() {
       };
       persistHistory([item, ...history].slice(0, 8));
     } catch (requestError) {
-      setError(
-        requestError instanceof Error ? requestError.message : "Image generation failed."
-      );
+      setResult(null);
+      const rawMsg =
+        requestError instanceof Error ? requestError.message : "Image generation failed.";
+      if (rawMsg.includes("safety guidelines") || rawMsg.includes("content safety")) {
+        setError(
+          "Sorry, TATTVA AI cannot generate this image because it violates our content safety guidelines. Please try a different prompt."
+        );
+      } else {
+        setError(rawMsg);
+      }
     } finally {
       setLoading(false);
     }

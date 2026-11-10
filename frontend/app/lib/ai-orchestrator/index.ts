@@ -28,6 +28,11 @@ import {
   guardAIOutput,
   isNsfwContent,
 } from "../security";
+import {
+  moderateTextPrompt,
+  moderateVisualImage,
+  SAFETY_REJECTION_MESSAGE,
+} from "../content-moderation";
 import { generateImage } from "../image-engine";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
@@ -262,28 +267,66 @@ export class MasterAIOrchestrator {
     // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
     if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
       const candidatePrompt = classification.diffusionPrompt || cleanUserPrompt;
-      const nsfwCheck = isNsfwContent(candidatePrompt);
-      if (nsfwCheck.isBlocked) {
+
+      // Stage 1: Strict Content Moderation on User Prompt
+      const promptModeration = moderateTextPrompt(candidatePrompt);
+      if (!promptModeration.isSafe) {
         return {
           role: "assistant",
-          content: "I cannot generate or edit images containing 18+, adult, nude, or sexually explicit content. TATTVA AI strictly restricts adult imagery to maintain a safe and family-friendly experience.",
+          content: SAFETY_REJECTION_MESSAGE,
           kind: "text",
           intent: effectiveIntent,
-          modelUsed: "tattva-guardrail",
+          modelUsed: "tattva-content-guardrail",
           provider: "local",
           latencyMs: Date.now() - startTime,
-          warnings: [nsfwCheck.reason || "NSFW content restricted"],
+          warnings: ["Content safety violation: request rejected"],
         };
       }
+
+      // Stage 2: Moderate source or reference image
+      const imageToModerate =
+        effectiveIntent === "image_editing" ? sourceImageForEdit : userAttachedImage;
+      if (imageToModerate) {
+        const visualCheck = await moderateVisualImage(imageToModerate);
+        if (!visualCheck.isSafe) {
+          return {
+            role: "assistant",
+            content: SAFETY_REJECTION_MESSAGE,
+            kind: "text",
+            intent: effectiveIntent,
+            modelUsed: "tattva-content-guardrail",
+            provider: "local",
+            latencyMs: Date.now() - startTime,
+            warnings: ["Reference image safety violation: request rejected"],
+          };
+        }
+      }
+
       try {
         const imageResult = await generateImage({
-          prompt: classification.diffusionPrompt || cleanUserPrompt,
-          referenceImage:
-            effectiveIntent === "image_editing" ? sourceImageForEdit : userAttachedImage,
+          prompt: candidatePrompt,
+          referenceImage: imageToModerate,
           quality: "balanced",
           verify: true,
           userId: context.userId,
         });
+
+        // Stage 3: Post-generation image output verification
+        if (imageResult.image) {
+          const outputModeration = await moderateVisualImage(imageResult.image);
+          if (!outputModeration.isSafe) {
+            return {
+              role: "assistant",
+              content: SAFETY_REJECTION_MESSAGE,
+              kind: "text",
+              intent: effectiveIntent,
+              modelUsed: "tattva-content-guardrail",
+              provider: "local",
+              latencyMs: Date.now() - startTime,
+              warnings: ["Generated output safety violation: image discarded"],
+            };
+          }
+        }
 
         const failed = imageResult.verification.requirements.filter(
           (item) => item.met === false
@@ -321,6 +364,24 @@ export class MasterAIOrchestrator {
       } catch (imageError) {
         const message =
           imageError instanceof Error ? imageError.message : String(imageError);
+
+        if (
+          message.includes(SAFETY_REJECTION_MESSAGE) ||
+          message.includes("content safety guidelines") ||
+          message.includes("safety policies")
+        ) {
+          return {
+            role: "assistant",
+            content: SAFETY_REJECTION_MESSAGE,
+            kind: "text",
+            intent: effectiveIntent,
+            modelUsed: "tattva-content-guardrail",
+            provider: "local",
+            latencyMs: Date.now() - startTime,
+            warnings: ["Content safety violation: request rejected"],
+          };
+        }
+
         console.error("[TATTVA Image] Orchestrator generation failed:", message);
         return {
           role: "assistant",
