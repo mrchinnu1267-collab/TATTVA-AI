@@ -196,3 +196,4 @@ export interface MultimodalRAGResult extends ImageEngineResult {
     conditioningApplied: ConditioningMethod;
   };
 }
+

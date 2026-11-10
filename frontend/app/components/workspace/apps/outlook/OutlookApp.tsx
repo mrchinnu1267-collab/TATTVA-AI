@@ -77,16 +77,9 @@ export interface OutlookAccountConfig {
 }
 
 const DEFAULT_ACCOUNT: OutlookAccountConfig = {
-  provider: "outlook",
+  provider: "relay",
   email: "gowtham@tattva-ai.com",
   name: "Kotapati Gowtham Chowdary",
-  smtp: {
-    host: "smtp-mail.outlook.com",
-    port: 587,
-    secure: false,
-    user: "gowtham@tattva-ai.com",
-    pass: "",
-  },
   status: "connected",
 };
 
@@ -762,31 +755,36 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
 
   return (
     <div className="flex flex-col h-full bg-[#FFFFFF] text-neutral-900 select-none font-sans overflow-hidden">
-      {/* 1. TOP BLUE TITLE BAR (Outlook #0078D4) */}
-      <header className="bg-[#0078D4] text-white px-3 py-1.5 flex items-center justify-between shadow-sm shrink-0">
+      {/* 1. TOP MINIMALIST MONOCHROME TITLE BAR */}
+      <header className="bg-white text-[#111111] px-4 py-2 flex items-center justify-between border-b border-[#E5E5E5] shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="p-1 rounded hover:bg-black/20 text-white transition active:scale-95"
+            className="p-1.5 rounded-lg border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-700 hover:text-black transition active:scale-95"
             title="Back to Workspace Dashboard"
           >
             ←
           </button>
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/20 text-[11px] font-bold">
-            <span className="w-2 h-2 rounded-full bg-sky-300 animate-pulse" />
-            <span>Outlook</span>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-[#111111] text-white flex items-center justify-center font-bold text-xs">
+              O
+            </div>
+            <span className="font-bold text-xs sm:text-sm text-[#111111]">
+              Outlook Studio
+            </span>
+            <span className="text-neutral-300">•</span>
+            <span className="text-xs text-neutral-500 font-medium">
+              {activeSection === "mail"
+                ? "Mailbox"
+                : activeSection === "calendar"
+                ? "Calendar & Events"
+                : "Contacts Directory"}
+            </span>
           </div>
-          <span className="text-xs sm:text-sm font-semibold truncate">
-            {activeSection === "mail"
-              ? "Mailbox"
-              : activeSection === "calendar"
-              ? "Calendar & Events"
-              : "Contacts Directory"}
-          </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Account Indicator / Settings Button */}
           <button
             type="button"
@@ -795,21 +793,34 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
               setAccountTestResult(null);
               setIsAccountModalOpen(true);
             }}
-            className="px-2.5 py-1 rounded-lg bg-black/20 hover:bg-black/35 text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-neutral-50 border border-[#E5E5E5] text-[#111111] text-xs font-semibold flex items-center gap-2 transition active:scale-95 shadow-xs"
             title="Configure Outlook & SMTP Email Account"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="hidden md:inline max-w-[140px] truncate">{account.email}</span>
-            <Settings className="w-3.5 h-3.5" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="hidden md:inline max-w-[150px] truncate">{account.email}</span>
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded">
+              {account.provider === "outlook"
+                ? "Outlook / 365"
+                : account.provider === "gmail"
+                ? "Gmail"
+                : account.provider === "resend"
+                ? "Resend"
+                : account.provider === "smtp"
+                ? "SMTP"
+                : "Cloud Relay"}
+            </span>
+            <Settings className="w-3.5 h-3.5 text-neutral-500 hover:text-black" />
           </button>
 
           {/* Navigation Toggles (Mail, Calendar, Contacts) */}
-          <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded-lg text-xs font-semibold">
+          <div className="flex items-center bg-neutral-100 p-0.5 rounded-xl border border-[#E5E5E5] text-xs font-semibold">
             <button
               type="button"
               onClick={() => setActiveSection("mail")}
-              className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
-                activeSection === "mail" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeSection === "mail"
+                  ? "bg-black text-white shadow-xs"
+                  : "text-neutral-600 hover:text-black hover:bg-white/60"
               }`}
             >
               <Mail className="w-3.5 h-3.5" />
@@ -818,8 +829,10 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
             <button
               type="button"
               onClick={() => setActiveSection("calendar")}
-              className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
-                activeSection === "calendar" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeSection === "calendar"
+                  ? "bg-black text-white shadow-xs"
+                  : "text-neutral-600 hover:text-black hover:bg-white/60"
               }`}
             >
               <CalendarIcon className="w-3.5 h-3.5" />
@@ -828,8 +841,10 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
             <button
               type="button"
               onClick={() => setActiveSection("contacts")}
-              className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
-                activeSection === "contacts" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeSection === "contacts"
+                  ? "bg-black text-white shadow-xs"
+                  : "text-neutral-600 hover:text-black hover:bg-white/60"
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -841,12 +856,12 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
 
       {/* 2. NOTIFICATION TOAST */}
       {statusMessage && (
-        <div className="bg-sky-50 border-b border-sky-200 px-4 py-2 text-xs text-sky-800 flex items-center justify-between shrink-0 font-medium animate-fadeIn">
+        <div className="bg-neutral-50 border-b border-[#E5E5E5] px-4 py-2 text-xs text-[#111111] flex items-center justify-between shrink-0 font-medium animate-fadeIn">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-[#0078D4]" />
+            <Sparkles className="w-3.5 h-3.5 text-black" />
             <span>{statusMessage}</span>
           </div>
-          <button onClick={() => setStatusMessage(null)} className="text-sky-600 hover:text-sky-900 font-bold">
+          <button onClick={() => setStatusMessage(null)} className="text-neutral-500 hover:text-black font-bold">
             ×
           </button>
         </div>
@@ -856,13 +871,13 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
       {activeSection === "mail" && (
         <div className="flex-1 flex overflow-hidden">
           {/* Folders Sidebar */}
-          <aside className="w-56 border-r border-neutral-200 bg-[#F9FAFB] p-3 flex flex-col justify-between shrink-0">
+          <aside className="w-56 border-r border-[#E5E5E5] bg-[#FBFBFB] p-3 flex flex-col justify-between shrink-0">
             <div className="space-y-2">
               {/* Connected Outlook Account Card */}
-              <div className="p-2.5 rounded-xl bg-white border border-neutral-200 shadow-xs">
+              <div className="p-2.5 rounded-xl bg-white border border-[#E5E5E5] shadow-xs">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2 truncate">
-                    <div className="w-7 h-7 rounded-lg bg-[#0078D4] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                    <div className="w-7 h-7 rounded-lg bg-black text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                       {account.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="truncate">
@@ -877,7 +892,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       setAccountTestResult(null);
                       setIsAccountModalOpen(true);
                     }}
-                    className="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-[#0078D4] transition"
+                    className="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-black transition"
                     title="Account Settings"
                   >
                     <Settings className="w-3.5 h-3.5" />
@@ -903,7 +918,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       setAccountTestResult(null);
                       setIsAccountModalOpen(true);
                     }}
-                    className="text-[#0078D4] hover:underline font-bold"
+                    className="text-black hover:underline font-bold"
                   >
                     Configure
                   </button>
@@ -924,7 +939,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   setSendError(null);
                   setIsComposing(true);
                 }}
-                className="w-full py-2 px-3 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs active:scale-95"
+                className="w-full py-2 px-3 rounded-xl bg-black hover:bg-neutral-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Mail</span>
@@ -936,7 +951,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   type="button"
                   onClick={() => setActiveFolder("inbox")}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                    activeFolder === "inbox" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                    activeFolder === "inbox"
+                      ? "bg-neutral-100 text-black border border-[#E5E5E5] shadow-xs"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -952,7 +969,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   type="button"
                   onClick={() => setActiveFolder("sent")}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                    activeFolder === "sent" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                    activeFolder === "sent"
+                      ? "bg-neutral-100 text-black border border-[#E5E5E5] shadow-xs"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -968,7 +987,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   type="button"
                   onClick={() => setActiveFolder("drafts")}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                    activeFolder === "drafts" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                    activeFolder === "drafts"
+                      ? "bg-neutral-100 text-black border border-[#E5E5E5] shadow-xs"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -984,7 +1005,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   type="button"
                   onClick={() => setActiveFolder("archive")}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                    activeFolder === "archive" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                    activeFolder === "archive"
+                      ? "bg-neutral-100 text-black border border-[#E5E5E5] shadow-xs"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -1000,7 +1023,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   type="button"
                   onClick={() => setActiveFolder("trash")}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                    activeFolder === "trash" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                    activeFolder === "trash"
+                      ? "bg-neutral-100 text-black border border-[#E5E5E5] shadow-xs"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -1021,8 +1046,8 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
           </aside>
 
           {/* Email List Column */}
-          <div className="w-80 border-r border-neutral-200 flex flex-col bg-white shrink-0">
-            <div className="p-2.5 border-b border-neutral-200">
+          <div className="w-80 border-r border-[#E5E5E5] flex flex-col bg-white shrink-0">
+            <div className="p-2.5 border-b border-[#E5E5E5]">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-neutral-400" />
                 <input
@@ -1030,7 +1055,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search emails..."
-                  className="w-full pl-8 pr-3 py-1.5 bg-neutral-100 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#0078D4]"
+                  className="w-full pl-8 pr-3 py-1.5 bg-neutral-100 border border-[#E5E5E5] rounded-lg text-xs text-[#111111] focus:outline-none focus:border-black"
                 />
               </div>
             </div>
@@ -1064,12 +1089,12 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                         }
                       }}
                       className={`p-3 cursor-pointer transition ${
-                        isSelected ? "bg-sky-50/80 border-l-4 border-[#0078D4]" : "hover:bg-neutral-50"
+                        isSelected ? "bg-neutral-100 border-l-4 border-black" : "hover:bg-neutral-50"
                       }`}
                     >
                       <div className="flex items-center justify-between text-xs font-semibold text-neutral-900 mb-1">
                         <div className="flex items-center gap-1.5 truncate">
-                          {!m.isRead && <span className="w-2 h-2 rounded-full bg-[#0078D4] shrink-0" />}
+                          {!m.isRead && <span className="w-2 h-2 rounded-full bg-black shrink-0" />}
                           <span className="truncate">
                             {activeFolder === "sent" ? (m.to[0]?.email || "Recipient") : m.from.name}
                           </span>
@@ -1103,7 +1128,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
             {selectedEmail ? (
               <div className="p-6 flex flex-col h-full justify-between">
                 <div>
-                  <div className="flex items-start justify-between border-b border-neutral-200 pb-4 mb-4">
+                  <div className="flex items-start justify-between border-b border-[#E5E5E5] pb-4 mb-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <h2 className="text-lg font-bold text-neutral-900">{selectedEmail.subject}</h2>
@@ -1144,27 +1169,27 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       <button
                         type="button"
                         onClick={handleAiSummarizeThread}
-                        className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#0078D4] border border-sky-200 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1 active:scale-95"
+                        className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-black text-xs font-semibold flex items-center gap-1 active:scale-95 shadow-xs"
                         title="AI Summarize Thread"
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Sparkles className="w-3.5 h-3.5 text-black" />
                         <span>Summarize</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={handleAiExtractActionItems}
-                        className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#0078D4] border border-sky-200 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1 active:scale-95"
-                        title="Extract Action Items"
+                        className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E5E5] hover:bg-neutral-100 text-black text-xs font-semibold flex items-center gap-1 active:scale-95 shadow-xs"
+                        title="Extract Action Items & Tasks"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-black" />
                         <span>Tasks</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleDeleteEmail(selectedEmail.id)}
-                        className="p-1.5 rounded-lg border border-neutral-200 hover:bg-rose-50 hover:border-rose-300 text-neutral-400 hover:text-rose-600 transition"
+                        className="p-1.5 rounded-lg border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-400 hover:text-black transition"
                         title="Delete email"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1181,7 +1206,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
                     <div className="mt-6 p-4 rounded-xl border border-neutral-200 bg-[#F9FAFB]">
                       <div className="flex items-center gap-2 text-xs font-bold text-neutral-900 mb-3 uppercase tracking-wide">
-                        <Paperclip className="w-3.5 h-3.5 text-[#0078D4]" />
+                        <Paperclip className="w-3.5 h-3.5 text-black" />
                         <span>Attachments ({selectedEmail.attachments.length})</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1190,10 +1215,10 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                           return (
                             <div
                               key={i}
-                              className="p-2.5 bg-white border border-neutral-200 rounded-lg flex items-center justify-between hover:border-neutral-400 transition shadow-xs"
+                              className="p-2.5 bg-white border border-[#E5E5E5] rounded-lg flex items-center justify-between hover:border-black transition shadow-xs"
                             >
                               <div className="flex items-center gap-2.5 truncate mr-2">
-                                <span className="px-1.5 py-0.5 rounded bg-[#0078D4] text-white text-[10px] font-mono font-bold">
+                                <span className="px-1.5 py-0.5 rounded bg-black text-white text-[10px] font-mono font-bold">
                                   {ext}
                                 </span>
                                 <div className="truncate">
@@ -1204,7 +1229,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                               <button
                                 type="button"
                                 onClick={() => handleDownloadAttachment(att)}
-                                className="p-1.5 rounded bg-neutral-100 hover:bg-[#0078D4] hover:text-white text-neutral-600 transition shrink-0"
+                                className="p-1.5 rounded bg-neutral-100 hover:bg-black hover:text-white text-neutral-600 transition shrink-0"
                                 title="Download Attachment"
                               >
                                 <Download className="w-3.5 h-3.5" />
@@ -1218,11 +1243,11 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 </div>
 
                 {/* Reply / Forward Actions Bar */}
-                <div className="pt-6 border-t border-neutral-200 mt-6 flex items-center gap-3">
+                <div className="pt-6 border-t border-[#E5E5E5] mt-6 flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => handleReply(false)}
-                    className="px-4 py-2 rounded-xl bg-[#0078D4] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#006bbd] transition active:scale-95 shadow-sm"
+                    className="px-4 py-2 rounded-xl bg-black text-white text-xs font-bold flex items-center gap-2 hover:bg-neutral-800 transition active:scale-95 shadow-xs"
                   >
                     <Reply className="w-3.5 h-3.5" />
                     <span>Reply</span>
@@ -1287,7 +1312,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                     setStatusMessage("Event added to calendar! ✓");
                   }
                 }}
-                className="px-3.5 py-2 rounded-xl bg-[#0078D4] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#006bbd] transition active:scale-95"
+                className="px-3.5 py-2 rounded-xl bg-black text-white text-xs font-bold flex items-center gap-2 hover:bg-neutral-800 transition active:scale-95 shadow-xs"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Event</span>
@@ -1299,15 +1324,15 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
               {events.map((evt) => (
                 <div
                   key={evt.id}
-                  className="p-4 rounded-2xl bg-white border border-neutral-200 shadow-xs flex flex-col justify-between"
-                  style={{ borderLeftWidth: "6px", borderLeftColor: evt.color }}
+                  className="p-4 rounded-2xl bg-white border border-[#E5E5E5] shadow-xs flex flex-col justify-between"
+                  style={{ borderLeftWidth: "4px", borderLeftColor: evt.color || "#111111" }}
                 >
                   <div>
                     <h3 className="font-bold text-sm text-neutral-900 mb-1">{evt.title}</h3>
                     <p className="text-xs text-neutral-500 mb-2">{evt.description || "No description provided."}</p>
                     <div className="flex items-center gap-3 text-[11px] text-neutral-400 font-mono">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-[#0078D4]" />
+                        <Clock className="w-3 h-3 text-black" />
                         {new Date(evt.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
                       {evt.location && (
@@ -1320,7 +1345,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   </div>
                   <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-400">
                     <span>Reminder: {evt.reminderMinutes}m before</span>
-                    <span className="font-semibold text-[#0078D4]">
+                    <span className="font-semibold text-black">
                       {evt.recurring !== "none" ? `Recurring (${evt.recurring})` : "One-time"}
                     </span>
                   </div>
@@ -1333,7 +1358,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
 
       {/* 5. CONTACTS SECTION */}
       {activeSection === "contacts" && (
-        <div className="flex-1 p-6 overflow-y-auto bg-[#F8FAFC]">
+        <div className="flex-1 p-6 overflow-y-auto bg-[#FBFBFB]">
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -1360,7 +1385,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                     setStatusMessage("Contact saved! ✓");
                   }
                 }}
-                className="px-3.5 py-2 rounded-xl bg-[#0078D4] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#006bbd] transition active:scale-95"
+                className="px-3.5 py-2 rounded-xl bg-black text-white text-xs font-bold flex items-center gap-2 hover:bg-neutral-800 transition active:scale-95 shadow-xs"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Contact</span>
@@ -1369,10 +1394,10 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {contacts.map((cnt) => (
-                <div key={cnt.id} className="p-4 rounded-2xl bg-white border border-neutral-200 shadow-xs flex flex-col justify-between">
+                <div key={cnt.id} className="p-4 rounded-2xl bg-white border border-[#E5E5E5] shadow-xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <div className="w-10 h-10 rounded-full bg-[#0078D4]/15 text-[#0078D4] font-bold flex items-center justify-center text-sm">
+                      <div className="w-10 h-10 rounded-full bg-neutral-100 text-black border border-[#E5E5E5] font-bold flex items-center justify-center text-sm">
                         {cnt.name.charAt(0)}
                       </div>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
@@ -1381,7 +1406,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                     </div>
                     <h3 className="font-bold text-sm text-neutral-900">{cnt.name}</h3>
                     <p className="text-xs text-neutral-500 font-medium">{cnt.jobTitle || "Team Member"}</p>
-                    <p className="text-xs text-sky-600 font-mono mt-2 truncate">{cnt.email}</p>
+                    <p className="text-xs text-black font-mono mt-2 truncate font-medium">{cnt.email}</p>
                     {cnt.phone && <p className="text-[11px] text-neutral-400 font-mono">{cnt.phone}</p>}
                   </div>
                 </div>
@@ -1397,9 +1422,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
           <div className="bg-white rounded-2xl shadow-2xl border border-neutral-300 w-full max-w-xl p-6 select-none animate-fadeIn flex flex-col justify-between max-h-[92vh] overflow-y-auto">
             <div className="space-y-4">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
+              <div className="flex items-center justify-between border-b border-[#E5E5E5] pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#0078D4] text-white flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center">
                     <Mail className="w-4 h-4" />
                   </div>
                   <div>
@@ -1421,8 +1446,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wide">
                   Account Type / Provider:
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                   {[
+                    { id: "relay", label: "TATTVA Relay", sub: "Instant • Zero-Config" },
                     { id: "outlook", label: "Microsoft Outlook", sub: "smtp-mail.outlook.com" },
                     { id: "gmail", label: "Google Mail", sub: "smtp.gmail.com" },
                     { id: "resend", label: "Resend API", sub: "Verified API Key" },
@@ -1434,19 +1460,19 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       onClick={() => handleSelectProvider(p.id as any)}
                       className={`p-2.5 rounded-xl border text-left transition ${
                         tempAccount.provider === p.id
-                          ? "border-[#0078D4] bg-sky-50/70 text-[#0078D4] font-bold shadow-xs ring-1 ring-[#0078D4]"
-                          : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+                          ? "border-black bg-neutral-100 text-black font-bold shadow-xs ring-1 ring-black"
+                          : "border-[#E5E5E5] bg-white text-neutral-700 hover:bg-neutral-50"
                       }`}
                     >
                       <div className="font-semibold">{p.label}</div>
-                      <div className="text-[10px] text-neutral-400 font-mono mt-0.5 truncate">{p.sub}</div>
+                      <div className="text-[10px] text-neutral-500 font-mono mt-0.5 truncate">{p.sub}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Account Details Form */}
-              <div className="space-y-3 text-xs bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+              <div className="space-y-3 text-xs bg-neutral-50 p-4 rounded-xl border border-[#E5E5E5]">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-neutral-700 mb-1">Your Full Name:</label>
@@ -1455,7 +1481,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       value={tempAccount.name}
                       onChange={(e) => setTempAccount({ ...tempAccount, name: e.target.value })}
                       placeholder="e.g. John Doe"
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                      className="w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg text-neutral-900 focus:outline-none focus:border-black"
                     />
                   </div>
                   <div>
@@ -1471,10 +1497,23 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                         })
                       }
                       placeholder="yourname@outlook.com"
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono focus:outline-none focus:border-[#0078D4]"
+                      className="w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg text-neutral-900 font-mono focus:outline-none focus:border-black"
                     />
                   </div>
                 </div>
+
+                {/* Cloud Relay Info Box */}
+                {tempAccount.provider === "relay" && (
+                  <div className="p-3 bg-white border border-[#E5E5E5] rounded-xl text-neutral-700 text-xs leading-relaxed space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-black">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Zero-Configuration Mail Relay Active</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500">
+                      Emails are dispatched through official authenticated TATTVA cloud endpoints with DKIM and SPF compliance. No third-party password or server setup is required.
+                    </p>
+                  </div>
+                )}
 
                 {/* Resend API Key Field */}
                 {tempAccount.provider === "resend" && (
@@ -1485,7 +1524,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       value={tempAccount.resendApiKey || ""}
                       onChange={(e) => setTempAccount({ ...tempAccount, resendApiKey: e.target.value })}
                       placeholder="re_123456789..."
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                      className="w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-black"
                     />
                     <p className="text-[11px] text-neutral-500 mt-1">
                       Obtain an API key at resend.com. Emails will be sent from your verified sending domain.
@@ -1515,7 +1554,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                             })
                           }
                           placeholder={tempAccount.provider === "outlook" ? "smtp-mail.outlook.com" : "smtp.server.com"}
-                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                          className="w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-black"
                         />
                       </div>
                       <div>
@@ -1535,7 +1574,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                               },
                             })
                           }
-                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                          className="w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-black"
                         />
                       </div>
                     </div>
@@ -1548,7 +1587,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="text-[10px] text-neutral-500 hover:text-[#0078D4] flex items-center gap-1"
+                          className="text-[10px] text-neutral-500 hover:text-black flex items-center gap-1"
                         >
                           {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                           <span>{showPassword ? "Hide" : "Show"}</span>
@@ -1570,9 +1609,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                           })
                         }
                         placeholder="Enter your Outlook or app password"
-                        className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                        className="w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-black"
                       />
-                      <div className="mt-1.5 p-2 bg-sky-50/70 border border-sky-200 rounded-lg text-[11px] text-sky-800 leading-normal">
+                      <div className="mt-1.5 p-2 bg-white border border-[#E5E5E5] rounded-lg text-[11px] text-neutral-600 leading-normal">
                         <strong>Security Note:</strong> Microsoft Outlook (personal & 365) and Gmail with 2-Factor Authentication require an <em>App Password</em> (created in your Microsoft or Google Account security settings).
                       </div>
                     </div>
@@ -1600,21 +1639,21 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
             </div>
 
             {/* Modal Actions */}
-            <div className="pt-4 border-t border-neutral-200 mt-4 flex items-center justify-between">
+            <div className="pt-4 border-t border-[#E5E5E5] mt-4 flex items-center justify-between">
               <button
                 type="button"
                 onClick={handleTestConnection}
                 disabled={isTestingAccount}
-                className="px-3 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+                className="px-3.5 py-2 rounded-xl border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-800 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50 shadow-xs"
               >
                 {isTestingAccount ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0078D4]" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
                     <span>Verifying Handshake...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 text-[#0078D4]" />
+                    <RefreshCw className="w-3.5 h-3.5 text-black" />
                     <span>Test Connection</span>
                   </>
                 )}
@@ -1631,7 +1670,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 <button
                   type="button"
                   onClick={handleSaveAccount}
-                  className="px-4 py-2 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold transition active:scale-95 shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-black hover:bg-neutral-800 text-white text-xs font-bold transition active:scale-95 shadow-xs"
                 >
                   Save Account
                 </button>
@@ -1649,7 +1688,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
               {/* Modal Header */}
               <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#0078D4]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-black" />
                   <h3 className="font-bold text-base text-neutral-900">New Message</h3>
                   <span className="text-[11px] text-neutral-400 font-mono">
                     via {account.provider === "outlook" ? "Outlook / 365" : account.provider.toUpperCase()}
@@ -1660,16 +1699,16 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                     type="button"
                     onClick={handleAiDraft}
                     disabled={aiGenerating}
-                    className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#0078D4] border border-sky-200 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
+                    className="px-2.5 py-1 rounded-lg bg-neutral-100 text-black border border-[#E5E5E5] hover:bg-neutral-200 text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
                     title="Generate professional draft with Gemini AI"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Sparkles className="w-3.5 h-3.5 text-black" />
                     <span>{aiGenerating ? "Drafting..." : "AI Draft"}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsComposing(false)}
-                    className="text-neutral-400 hover:text-neutral-700 font-bold p-1"
+                    className="text-neutral-400 hover:text-black font-bold p-1"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1687,7 +1726,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
               {/* Composition Form Fields */}
               <div className="space-y-2 text-xs">
                 {/* Dynamic From field reflecting active account */}
-                <div className="flex items-center border border-neutral-200 rounded-lg px-3 py-1.5 bg-neutral-50 text-neutral-600">
+                <div className="flex items-center border border-[#E5E5E5] rounded-lg px-3 py-1.5 bg-neutral-50 text-neutral-600">
                   <span className="w-12 text-neutral-400 font-medium">From:</span>
                   <span className="font-semibold text-neutral-800">
                     {account.name} &lt;{account.email}&gt;
@@ -1698,7 +1737,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       setTempAccount(account);
                       setIsAccountModalOpen(true);
                     }}
-                    className="ml-auto text-[10px] text-[#0078D4] hover:underline font-semibold flex items-center gap-1"
+                    className="ml-auto text-[10px] text-neutral-700 hover:text-black hover:underline font-semibold flex items-center gap-1"
                   >
                     <Settings className="w-3 h-3" />
                     <span>Change Account</span>
@@ -1706,7 +1745,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 </div>
 
                 {/* To field */}
-                <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                <div className="flex items-center border border-[#E5E5E5] rounded-lg px-3 py-1.5 focus-within:border-black">
                   <span className="w-12 text-neutral-500 font-medium">To:</span>
                   <input
                     type="text"
@@ -1718,7 +1757,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   <button
                     type="button"
                     onClick={() => setShowCcBcc(!showCcBcc)}
-                    className="text-[11px] text-neutral-500 hover:text-[#0078D4] font-medium ml-2"
+                    className="text-[11px] text-neutral-500 hover:text-black font-medium ml-2"
                   >
                     {showCcBcc ? "Hide CC/BCC" : "Cc / Bcc"}
                   </button>
@@ -1727,7 +1766,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 {/* CC & BCC Fields */}
                 {showCcBcc && (
                   <>
-                    <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                    <div className="flex items-center border border-[#E5E5E5] rounded-lg px-3 py-1.5 focus-within:border-black">
                       <span className="w-12 text-neutral-500 font-medium">Cc:</span>
                       <input
                         type="text"
@@ -1737,7 +1776,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                         className="flex-1 bg-transparent focus:outline-none text-neutral-900"
                       />
                     </div>
-                    <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                    <div className="flex items-center border border-[#E5E5E5] rounded-lg px-3 py-1.5 focus-within:border-black">
                       <span className="w-12 text-neutral-500 font-medium">Bcc:</span>
                       <input
                         type="text"
@@ -1751,7 +1790,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 )}
 
                 {/* Subject field */}
-                <div className="flex items-center border border-neutral-300 rounded-lg px-3 py-1.5 focus-within:border-[#0078D4]">
+                <div className="flex items-center border border-[#E5E5E5] rounded-lg px-3 py-1.5 focus-within:border-black">
                   <span className="w-12 text-neutral-500 font-medium">Subject:</span>
                   <input
                     type="text"
@@ -1763,7 +1802,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 </div>
 
                 {/* Message Body */}
-                <div className="border border-neutral-300 rounded-lg p-2.5 focus-within:border-[#0078D4]">
+                <div className="border border-[#E5E5E5] rounded-lg p-2.5 focus-within:border-black">
                   <textarea
                     value={composeBody}
                     onChange={(e) => setComposeBody(e.target.value)}
@@ -1785,9 +1824,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                         return (
                           <div
                             key={idx}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 border border-neutral-200 text-xs"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 border border-[#E5E5E5] text-xs"
                           >
-                            <span className="px-1 py-0.2 rounded bg-[#0078D4] text-white text-[9px] font-mono font-bold">
+                            <span className="px-1 py-0.2 rounded bg-black text-white text-[9px] font-mono font-bold">
                               {ext}
                             </span>
                             <span className="font-medium text-neutral-800 max-w-[140px] truncate">{att.filename}</span>
@@ -1810,7 +1849,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
             </div>
 
             {/* Modal Footer & Actions */}
-            <div className="pt-4 border-t border-neutral-200 mt-4 flex items-center justify-between">
+            <div className="pt-4 border-t border-[#E5E5E5] mt-4 flex items-center justify-between">
               {/* Attachment Actions */}
               <div className="relative flex items-center gap-2">
                 <input
@@ -1825,10 +1864,10 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 rounded-lg border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-700 hover:text-black text-xs font-semibold flex items-center gap-1.5 transition"
                   title="Upload file from device (PDF, DOCX, XLSX, PPTX, TXT, CSV, PNG, JPG, ZIP)"
                 >
-                  <Paperclip className="w-3.5 h-3.5 text-[#0078D4]" />
+                  <Paperclip className="w-3.5 h-3.5 text-black" />
                   <span>Attach File</span>
                 </button>
 
@@ -1836,14 +1875,14 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   <button
                     type="button"
                     onClick={() => setShowAttachMenu(!showAttachMenu)}
-                    className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 transition"
+                    className="px-3 py-1.5 rounded-lg border border-[#E5E5E5] hover:bg-neutral-100 text-neutral-700 hover:text-black text-xs font-semibold flex items-center gap-1.5 transition"
                   >
                     <span>Attach Workspace Doc</span>
                     <ChevronDown className="w-3 h-3 text-neutral-400" />
                   </button>
 
                   {showAttachMenu && (
-                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 z-50 max-h-56 overflow-y-auto divide-y divide-neutral-100">
+                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-[#E5E5E5] rounded-xl shadow-xl p-2 z-50 max-h-56 overflow-y-auto divide-y divide-[#E5E5E5]">
                       <div className="p-1.5 text-[11px] font-bold text-neutral-500 uppercase">
                         Select Workspace File
                       </div>
@@ -1895,7 +1934,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   type="button"
                   onClick={handleSendEmail}
                   disabled={isSending}
-                  className="px-5 py-2 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-black hover:bg-neutral-800 text-white text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-xs disabled:opacity-50"
                 >
                   {isSending ? (
                     <>

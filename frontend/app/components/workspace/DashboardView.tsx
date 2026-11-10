@@ -292,33 +292,155 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </button>
       </div>
 
-      {/* 3. Applications Section (Section 8 colorful icons with minimalist white cards) */}
-      <div>
-        <div className="flex items-center space-x-2 mb-3">
-          <h2 className="text-base font-bold text-[#111111] tracking-tight">Applications</h2>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-neutral-100 border border-[#E5E5E5] text-neutral-600 font-mono font-medium">
-            7 Available
+      {/* 3. The Seven Core Office Productivity Applications Grid */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-base font-bold text-[#111111] tracking-tight">Applications</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-neutral-100 border border-[#E5E5E5] text-neutral-600 font-mono font-medium">
+              7 Available
+            </span>
+          </div>
+          <span className="text-[11px] text-neutral-500 hidden sm:inline">
+            Verified Office Open XML &bull; Zero-Trust Local Vault &bull; Instant AI Generation
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        {/* 7 Applications Grid: Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {WORKSPACE_APPS_LIST.map((app) => {
+            const appItems = activeItems.filter((i) => i.app === app.id);
+            const recentAppFiles = [...appItems]
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+              .slice(0, 2);
+
+            return (
+              <div
+                key={app.id}
+                className="bg-white border border-[#E5E5E5] hover:border-black rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
+              >
+                <div>
+                  {/* Top card header */}
+                  <div className="flex items-start justify-between gap-2 mb-2.5">
+                    <div className="flex items-center space-x-3">
+                      <div
+                        style={{ backgroundColor: app.color }}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shadow-xs group-hover:scale-105 transition-transform shrink-0"
+                      >
+                        {app.letter}
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-1.5">
+                          <h3 className="font-bold text-sm text-[#111111] leading-tight group-hover:text-black">
+                            {app.name}
+                          </h3>
+                          <span className="text-[9.5px] uppercase font-mono px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded border border-[#E5E5E5]">
+                            {app.defaultFormat}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 font-medium leading-tight mt-0.5">
+                          {app.tagline}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-medium shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Ready</span>
+                    </span>
+                  </div>
+
+                  {/* App Description */}
+                  <p className="text-[11.5px] text-neutral-600 leading-relaxed mb-3 line-clamp-2">
+                    {app.description}
+                  </p>
+
+                  {/* Recent Files for this App */}
+                  <div className="bg-neutral-50 rounded-xl border border-[#E5E5E5] p-2.5 mb-3 text-xs">
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-neutral-500 mb-1">
+                      <span>Recent Files</span>
+                      <span className="font-mono text-neutral-400">
+                        {appItems.length} {appItems.length === 1 ? "document" : "documents"}
+                      </span>
+                    </div>
+
+                    {recentAppFiles.length === 0 ? (
+                      <div className="text-[11px] text-neutral-400 italic py-0.5">
+                        No files yet. Click &quot;New&quot; to create one.
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {recentAppFiles.map((rf) => (
+                          <div
+                            key={rf.id}
+                            onClick={() => onOpenItem(rf)}
+                            className="flex items-center justify-between p-1 rounded-md hover:bg-white text-neutral-800 hover:text-black cursor-pointer transition text-[11px] border border-transparent hover:border-[#E5E5E5]"
+                            title={`Open ${rf.name}`}
+                          >
+                            <span className="truncate max-w-[180px] font-medium">{rf.name}</span>
+                            <span className="text-[10px] text-neutral-400 font-mono shrink-0 ml-1">
+                              {new Date(rf.updatedAt).toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Actions */}
+                <div className="flex items-center space-x-2 pt-2 border-t border-[#E5E5E5]">
+                  <button
+                    onClick={() => onOpenApp(app.id)}
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded-xl bg-black hover:bg-neutral-800 text-white font-semibold text-xs transition shadow-xs"
+                  >
+                    <span>Open {app.name}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onNewItemForApp(app.id)}
+                    className="flex items-center justify-center space-x-1 py-1.5 px-3 rounded-xl bg-white hover:bg-neutral-100 border border-[#E5E5E5] text-neutral-800 hover:text-black font-semibold text-xs transition shadow-xs"
+                    title={`Create a new ${app.name} file`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>New</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. Workspace Ecosystem Capabilities */}
+      <div>
+        <div className="flex items-center space-x-2 mb-3">
+          <h3 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
+            Workspace Ecosystem Capabilities
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {ecosystemAppCards.map((card) => {
             const Icon = card.icon;
             return (
               <div
                 key={card.id}
                 onClick={card.action}
-                className="bg-white border border-[#E5E5E5] hover:border-neutral-400 rounded-xl p-4 shadow-xs hover:shadow-sm transition-all duration-150 flex flex-col justify-between cursor-pointer group"
+                className="bg-white border border-[#E5E5E5] hover:border-black rounded-xl p-3.5 shadow-xs hover:shadow-sm transition-all duration-150 flex flex-col justify-between cursor-pointer group"
               >
                 <div>
                   <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-white mb-3 shadow-xs group-hover:scale-105 transition-transform ${card.iconBg}`}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-white mb-2.5 shadow-xs group-hover:scale-105 transition-transform ${card.iconBg}`}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <h3 className="font-bold text-xs text-[#111111] mb-1 leading-snug group-hover:text-black">
+                  <h4 className="font-bold text-xs text-[#111111] mb-1 leading-snug group-hover:text-black">
                     {card.title}
-                  </h3>
+                  </h4>
                   <p className="text-[11px] text-neutral-500 leading-snug">
                     {card.description}
                   </p>
@@ -329,9 +451,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* 4. Additional Advanced Features Section (8 Minimalist Cards) */}
+      {/* 5. Additional Advanced Features Section (8 Minimalist Cards) */}
       <div>
-        <div className="flex items-center space-x-1.5 text-xs font-semibold text-neutral-800 mb-3">
+        <div className="flex items-center space-x-1.5 text-xs font-semibold text-neutral-800 mb-2.5">
           <Sparkles className="w-3.5 h-3.5 text-neutral-700" />
           <span>Additional Advanced Features</span>
         </div>
@@ -343,7 +465,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div
                 key={feat.id}
                 onClick={feat.action}
-                className="bg-white border border-[#E5E5E5] hover:border-neutral-400 rounded-xl p-3 shadow-xs hover:shadow-sm transition-all text-center flex flex-col items-center justify-center cursor-pointer group"
+                className="bg-white border border-[#E5E5E5] hover:border-black rounded-xl p-3 shadow-xs hover:shadow-sm transition-all text-center flex flex-col items-center justify-center cursor-pointer group"
               >
                 <Icon className="w-4 h-4 text-neutral-800 mb-1.5 group-hover:scale-110 transition-transform" />
                 <span className="text-[11px] font-bold text-[#111111] block leading-tight">

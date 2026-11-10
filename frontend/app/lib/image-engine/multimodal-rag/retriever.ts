@@ -246,3 +246,4 @@ export async function retrieveVisualContext(params: {
     primaryReference: reranked[0]?.item,
   };
 }
+

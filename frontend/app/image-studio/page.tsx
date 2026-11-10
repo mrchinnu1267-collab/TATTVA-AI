@@ -145,10 +145,11 @@ const ASPECT_OPTIONS: Array<{ id: AspectRatio; label: string }> = [
 ];
 
 const PROVIDER_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: "auto", label: "Auto (best available)" },
-  { id: "gemini", label: "Google Gemini" },
-  { id: "huggingface", label: "Hugging Face FLUX" },
-  { id: "local", label: "Local CUDA engine" },
+  { id: "auto", label: "Auto (Intelligent Model Router)" },
+  { id: "gemini", label: "Google Gemini Image" },
+  { id: "huggingface", label: "Hugging Face FLUX.1" },
+  { id: "openai", label: "OpenAI DALL-E 3" },
+  { id: "local", label: "Local CUDA / ComfyUI engine" },
 ];
 
 const QUALITY_OPTIONS: Array<{ id: ImageQuality; label: string; hint: string }> = [

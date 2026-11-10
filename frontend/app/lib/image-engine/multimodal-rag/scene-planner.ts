@@ -273,3 +273,4 @@ function parseSceneDeterministically(
     rationale: "Parsed from prompt and aligned with TATTVA visual reference architecture.",
   };
 }
+

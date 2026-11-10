@@ -549,3 +549,4 @@ class VisualKnowledgeDatabase {
 }
 
 export const visualKnowledgeDB = new VisualKnowledgeDatabase();
+

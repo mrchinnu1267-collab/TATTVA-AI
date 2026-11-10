@@ -141,3 +141,4 @@ function generateHeuristicQualityReport(
     critique: "Heuristic validation completed without live vision verifier.",
   };
 }
+

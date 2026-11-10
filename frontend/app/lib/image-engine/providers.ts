@@ -283,6 +283,65 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
   }
 }
 
+// ------------------------------------------------------------------ OpenAI
+
+async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult> {
+  const token = (process.env.OPENAI_API_KEY || "").trim();
+  if (!token) throw new ImageProviderError("OPENAI_API_KEY is not configured.", { retryable: false });
+
+  const remaining = getCooldownRemaining("openai");
+  if (remaining > 0) {
+    throw new ImageProviderError(
+      `OpenAI is cooling down for ${Math.ceil(remaining / 1000)}s.`,
+      { retryable: false, cooldownMs: remaining }
+    );
+  }
+
+  const started = Date.now();
+  try {
+    const size = req.aspectRatio === "16:9" ? "1792x1024" : "1024x1024";
+    const res = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt: req.prompt,
+        n: 1,
+        size,
+        response_format: "b64_json",
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${truncate(body, 240)}`);
+    }
+
+    const data = await res.json();
+    const b64 = data?.data?.[0]?.b64_json;
+    if (!b64) throw new Error("OpenAI returned no image data.");
+
+    return {
+      image: `data:image/png;base64,${b64}`,
+      provider: "openai",
+      model: "dall-e-3",
+      seed: req.seed,
+      width: req.aspectRatio === "16:9" ? 1792 : 1024,
+      height: 1024,
+      latencyMs: Date.now() - started,
+      revisedPrompt: data?.data?.[0]?.revised_prompt,
+    };
+  } catch (error) {
+    const classified = classifyProviderError("OpenAI DALL-E 3", error);
+    if (classified.cooldownMs) setCooldown("openai", classified.cooldownMs, classified.message);
+    throw classified;
+  }
+}
+
 export function resolveProviderOrder(
   requested: ImageProviderChoice | undefined,
   quality: "fast" | "balanced" | "max"
@@ -290,8 +349,8 @@ export function resolveProviderOrder(
   if (requested && requested !== "auto") return [requested];
   // Quality-first when max, latency-first when fast.
   return quality === "max"
-    ? ["gemini", "huggingface", "local"]
-    : ["gemini", "huggingface", "local"];
+    ? ["gemini", "huggingface", "openai", "local"]
+    : ["gemini", "huggingface", "openai", "local"];
 }
 
 export async function generateWithProvider(
@@ -303,6 +362,8 @@ export async function generateWithProvider(
       return generateWithGemini(req);
     case "huggingface":
       return generateWithHuggingFace(req);
+    case "openai":
+      return generateWithOpenAI(req);
     case "local":
       return generateWithLocal(req);
     default:
@@ -313,6 +374,7 @@ export async function generateWithProvider(
 export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
   const geminiKey = Boolean((process.env.GEMINI_API_KEY || "").trim());
   const hfKey = Boolean((process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim());
+  const openAiKey = Boolean((process.env.OPENAI_API_KEY || "").trim());
   const localOnline = await isLocalEngineHealthy();
 
   const status = (
@@ -357,6 +419,14 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       HF_IMAGE_MODELS[0].model,
       true,
       "Hugging Face needs inference credits."
+    ),
+    status(
+      "openai",
+      "OpenAI DALL-E 3",
+      openAiKey,
+      "dall-e-3",
+      true,
+      "OpenAI API key needed for DALL-E 3."
     ),
     status(
       "local",

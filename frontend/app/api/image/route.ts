@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const VALID_QUALITIES: ImageQuality[] = ["fast", "balanced", "max"];
-const VALID_PROVIDERS = ["auto", "gemini", "huggingface", "local"];
+const VALID_PROVIDERS = ["auto", "gemini", "huggingface", "openai", "local"];
 
 function toNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 
     const provider =
       typeof body.provider === "string" && VALID_PROVIDERS.includes(body.provider)
-        ? (body.provider as "auto" | "gemini" | "huggingface" | "local")
+        ? (body.provider as "auto" | "gemini" | "huggingface" | "openai" | "local")
         : "auto";
 
     const quality =
