@@ -33,6 +33,14 @@ import {
   ChevronDown,
   Loader2,
   Check,
+  Settings,
+  KeyRound,
+  Server,
+  Globe,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  UserCheck,
 } from "lucide-react";
 import { OutlookEmail, OutlookEvent, OutlookContact, WorkspaceItem } from "../../types";
 import { WorkspaceStorageManager, saveWorkspaceItem } from "../../storage";
@@ -51,6 +59,36 @@ export interface OutlookComposeInitial {
     sizeBytes?: number;
   }>;
 }
+
+export interface OutlookAccountConfig {
+  provider: "outlook" | "gmail" | "smtp" | "resend" | "relay";
+  email: string;
+  name: string;
+  resendApiKey?: string;
+  smtp?: {
+    host: string;
+    port: number;
+    secure?: boolean;
+    user: string;
+    pass: string;
+  };
+  status?: "connected" | "disconnected" | "testing" | "error";
+  lastTested?: string;
+}
+
+const DEFAULT_ACCOUNT: OutlookAccountConfig = {
+  provider: "outlook",
+  email: "gowtham@tattva-ai.com",
+  name: "Kotapati Gowtham Chowdary",
+  smtp: {
+    host: "smtp-mail.outlook.com",
+    port: 587,
+    secure: false,
+    user: "gowtham@tattva-ai.com",
+    pass: "",
+  },
+  status: "connected",
+};
 
 interface OutlookAppProps {
   item?: WorkspaceItem<any>;
@@ -79,6 +117,23 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
   const [activeSection, setActiveSection] = useState<"mail" | "calendar" | "contacts">("mail");
   const [activeFolder, setActiveFolder] = useState<"inbox" | "sent" | "drafts" | "archive" | "trash">("inbox");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Account State
+  const [account, setAccount] = useState<OutlookAccountConfig>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("tattva_outlook_account_config");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_ACCOUNT;
+  });
+
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [tempAccount, setTempAccount] = useState<OutlookAccountConfig>(account);
+  const [isTestingAccount, setIsTestingAccount] = useState(false);
+  const [accountTestResult, setAccountTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Emails State
   const [emails, setEmails] = useState<OutlookEmail[]>(
@@ -143,7 +198,6 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
   // Sending status
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -213,7 +267,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
         isAllDay: false,
         recurring: "weekly",
         reminderMinutes: 15,
-        attendees: ["gowtham@tattva-ai.com", "team@tattva-ai.com"],
+        attendees: [account.email, "team@tattva-ai.com"],
         color: "#0078D4",
       },
       {
@@ -260,6 +314,107 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
 
   const selectedEmail = emails.find((e) => e.id === selectedEmailId);
 
+  // Account Settings: Test Connection
+  const handleTestConnection = async () => {
+    setIsTestingAccount(true);
+    setAccountTestResult(null);
+
+    try {
+      const res = await fetch("/api/workspace/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          testConnection: true,
+          accountConfig: tempAccount,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAccountTestResult({
+          success: true,
+          message: data.message || "Connected successfully!",
+        });
+      } else {
+        setAccountTestResult({
+          success: false,
+          message: data.error || "Connection check failed.",
+        });
+      }
+    } catch (err: any) {
+      setAccountTestResult({
+        success: false,
+        message: err.message || "Unable to reach mail diagnostics service.",
+      });
+    } finally {
+      setIsTestingAccount(false);
+    }
+  };
+
+  // Account Settings: Save
+  const handleSaveAccount = () => {
+    setAccount(tempAccount);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tattva_outlook_account_config", JSON.stringify(tempAccount));
+    }
+    setIsAccountModalOpen(false);
+    setStatusMessage(`Outlook account "${tempAccount.email}" saved and active! ✓`);
+    setTimeout(() => setStatusMessage(null), 4000);
+  };
+
+  // Switch Provider Preset in Account Settings
+  const handleSelectProvider = (prov: OutlookAccountConfig["provider"]) => {
+    if (prov === "outlook") {
+      setTempAccount((prev) => ({
+        ...prev,
+        provider: "outlook",
+        smtp: {
+          host: "smtp-mail.outlook.com",
+          port: 587,
+          secure: false,
+          user: prev.email || "",
+          pass: prev.smtp?.pass || "",
+        },
+      }));
+    } else if (prov === "gmail") {
+      setTempAccount((prev) => ({
+        ...prev,
+        provider: "gmail",
+        smtp: {
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          user: prev.email || "",
+          pass: prev.smtp?.pass || "",
+        },
+      }));
+    } else if (prov === "resend") {
+      setTempAccount((prev) => ({
+        ...prev,
+        provider: "resend",
+        resendApiKey: prev.resendApiKey || "",
+      }));
+    } else if (prov === "smtp") {
+      setTempAccount((prev) => ({
+        ...prev,
+        provider: "smtp",
+        smtp: {
+          host: prev.smtp?.host || "mail.yourserver.com",
+          port: prev.smtp?.port || 587,
+          secure: prev.smtp?.secure ?? false,
+          user: prev.smtp?.user || prev.email || "",
+          pass: prev.smtp?.pass || "",
+        },
+      }));
+    } else {
+      setTempAccount((prev) => ({
+        ...prev,
+        provider: "relay",
+      }));
+    }
+    setAccountTestResult(null);
+  };
+
   // Native file upload handler
   const handleNativeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -297,7 +452,6 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
       setShowAttachMenu(false);
       setStatusMessage(`Attaching "${wsItem.name}"...`);
 
-      // Attempt to export or serialize file content
       const res = await fetch("/api/workspace/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -349,7 +503,6 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
   // Real Email Sending Handler
   const handleSendEmail = async () => {
     setSendError(null);
-    setSendSuccess(null);
 
     // 1. Validation
     if (!composeTo.trim()) {
@@ -374,7 +527,6 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
       return;
     }
 
-    // Check total attachment size
     const totalBytes = attachments.reduce((sum, a) => sum + (a.sizeBytes || 0), 0);
     if (totalBytes > 25 * 1024 * 1024) {
       setSendError(`Total attachment size (${formatBytes(totalBytes)}) exceeds 25 MB limit.`);
@@ -394,7 +546,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
           subject: composeSubject.trim(),
           body: composeBody.trim(),
           attachments,
-          senderName: "Kotapati Gowtham Chowdary",
+          from: account.email,
+          senderName: account.name,
+          accountConfig: account,
         }),
       });
 
@@ -409,9 +563,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
         id: result.email?.id || `mail_${Date.now()}`,
         folder: "sent",
         subject: composeSubject.trim(),
-        from: result.email?.from || {
-          name: "Kotapati Gowtham Chowdary",
-          email: "gowtham@tattva-ai.com",
+        from: {
+          name: account.name,
+          email: account.email,
         },
         to: recipientList.map((e) => ({ name: e.split("@")[0], email: e })),
         cc: composeCc ? composeCc.split(/[,;]+/).map((e) => ({ name: e.split("@")[0], email: e.trim() })) : undefined,
@@ -472,7 +626,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
       id: `draft_${Date.now()}`,
       folder: "drafts",
       subject: composeSubject.trim() || "(Untitled Draft)",
-      from: { name: "Current User", email: "gowtham@tattva-ai.com" },
+      from: { name: account.name, email: account.email },
       to: composeTo ? [{ name: composeTo.split("@")[0], email: composeTo }] : [],
       body: composeBody,
       isRead: true,
@@ -506,7 +660,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
     setTimeout(() => {
       setComposeSubject("Product Roadmap & Workspace Verification Sign-off");
       setComposeBody(
-        `Dear Team,\n\nFollowing our deployment review of the TATTVA AI My Workspace ecosystem, I would like to confirm that the seven core productivity suites (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access) have completed integration and security testing.\n\nPlease find the attached files and verify the following action items:\n\n1. Review the attached project strategy document.\n2. Verify real-time collaborative editing and encrypted local vault sync.\n3. Confirm attendance for tomorrow's architecture review.\n\nLooking forward to your feedback.\n\nWarm regards,\nKotapati Gowtham Chowdary\nTATTVA AI Lead Architect`
+        `Dear Team,\n\nFollowing our deployment review of the TATTVA AI My Workspace ecosystem, I would like to confirm that the seven core productivity suites (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access) have completed integration and security testing.\n\nPlease find the attached files and verify the following action items:\n\n1. Review the attached project strategy document.\n2. Verify real-time collaborative editing and encrypted local vault sync.\n3. Confirm attendance for tomorrow's architecture review.\n\nLooking forward to your feedback.\n\nWarm regards,\n${account.name}\nTATTVA AI Lead Architect`
       );
       setAiGenerating(false);
       setStatusMessage("AI generated a clear, executive-grade draft! ✦");
@@ -542,7 +696,6 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
     } else if (att.url) {
       triggerDownload(att.url, filename);
     } else {
-      // Fallback sample content
       const dummyContent = btoa(`TATTVA AI Email Attachment: ${filename}\nGenerated for offline inspection.`);
       triggerDownload(`data:application/octet-stream;base64,${dummyContent}`, filename);
     }
@@ -588,7 +741,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
     setIsComposing(true);
   };
 
-  // Delete email (move to trash)
+  // Delete email
   const handleDeleteEmail = (id: string) => {
     const updated = emails.map((e) => (e.id === id ? { ...e, folder: "trash" as const } : e));
     setEmails(updated);
@@ -633,38 +786,56 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
           </span>
         </div>
 
-        {/* Navigation Toggles (Mail, Calendar, Contacts) */}
-        <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded-lg text-xs font-semibold">
+        <div className="flex items-center gap-2">
+          {/* Account Indicator / Settings Button */}
           <button
             type="button"
-            onClick={() => setActiveSection("mail")}
-            className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
-              activeSection === "mail" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
-            }`}
+            onClick={() => {
+              setTempAccount(account);
+              setAccountTestResult(null);
+              setIsAccountModalOpen(true);
+            }}
+            className="px-2.5 py-1 rounded-lg bg-black/20 hover:bg-black/35 text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+            title="Configure Outlook & SMTP Email Account"
           >
-            <Mail className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Mail</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="hidden md:inline max-w-[140px] truncate">{account.email}</span>
+            <Settings className="w-3.5 h-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveSection("calendar")}
-            className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
-              activeSection === "calendar" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
-            }`}
-          >
-            <CalendarIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Calendar</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSection("contacts")}
-            className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
-              activeSection === "contacts" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Contacts</span>
-          </button>
+
+          {/* Navigation Toggles (Mail, Calendar, Contacts) */}
+          <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded-lg text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveSection("mail")}
+              className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
+                activeSection === "mail" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mail</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection("calendar")}
+              className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
+                activeSection === "calendar" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
+              }`}
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Calendar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection("contacts")}
+              className={`px-3 py-1 rounded transition flex items-center gap-1.5 ${
+                activeSection === "contacts" ? "bg-white text-[#0078D4] shadow-xs" : "text-white hover:bg-white/10"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Contacts</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -685,8 +856,61 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
       {activeSection === "mail" && (
         <div className="flex-1 flex overflow-hidden">
           {/* Folders Sidebar */}
-          <aside className="w-48 border-r border-neutral-200 bg-[#F9FAFB] p-3 flex flex-col justify-between shrink-0">
-            <div className="space-y-1">
+          <aside className="w-56 border-r border-neutral-200 bg-[#F9FAFB] p-3 flex flex-col justify-between shrink-0">
+            <div className="space-y-2">
+              {/* Connected Outlook Account Card */}
+              <div className="p-2.5 rounded-xl bg-white border border-neutral-200 shadow-xs">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2 truncate">
+                    <div className="w-7 h-7 rounded-lg bg-[#0078D4] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                      {account.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="truncate">
+                      <p className="text-xs font-bold text-neutral-900 truncate leading-tight">{account.name}</p>
+                      <p className="text-[10px] text-neutral-500 truncate font-mono">{account.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempAccount(account);
+                      setAccountTestResult(null);
+                      setIsAccountModalOpen(true);
+                    }}
+                    className="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-[#0078D4] transition"
+                    title="Account Settings"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="pt-1.5 border-t border-neutral-100 flex items-center justify-between text-[10px]">
+                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {account.provider === "outlook"
+                      ? "Outlook / 365"
+                      : account.provider === "gmail"
+                      ? "Gmail"
+                      : account.provider === "resend"
+                      ? "Resend API"
+                      : account.provider === "smtp"
+                      ? "Custom SMTP"
+                      : "Cloud Relay"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempAccount(account);
+                      setAccountTestResult(null);
+                      setIsAccountModalOpen(true);
+                    }}
+                    className="text-[#0078D4] hover:underline font-bold"
+                  >
+                    Configure
+                  </button>
+                </div>
+              </div>
+
+              {/* New Mail Button */}
               <button
                 type="button"
                 onClick={() => {
@@ -700,91 +924,94 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                   setSendError(null);
                   setIsComposing(true);
                 }}
-                className="w-full mb-3 py-2 px-3 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs active:scale-95"
+                className="w-full py-2 px-3 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Mail</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveFolder("inbox")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                  activeFolder === "inbox" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Inbox className="w-4 h-4" />
-                  <span>Inbox</span>
-                </div>
-                <span className="text-[10px] bg-neutral-200 px-1.5 py-0.2 rounded-full font-bold">
-                  {emails.filter((e) => e.folder === "inbox").length}
-                </span>
-              </button>
+              {/* Folders List */}
+              <div className="space-y-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveFolder("inbox")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                    activeFolder === "inbox" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Inbox className="w-4 h-4" />
+                    <span>Inbox</span>
+                  </div>
+                  <span className="text-[10px] bg-neutral-200 px-1.5 py-0.2 rounded-full font-bold">
+                    {emails.filter((e) => e.folder === "inbox").length}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveFolder("sent")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                  activeFolder === "sent" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4" />
-                  <span>Sent</span>
-                </div>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  {emails.filter((e) => e.folder === "sent").length}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFolder("sent")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                    activeFolder === "sent" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Send className="w-4 h-4" />
+                    <span>Sent</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-500 font-mono">
+                    {emails.filter((e) => e.folder === "sent").length}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveFolder("drafts")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                  activeFolder === "drafts" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  <span>Drafts</span>
-                </div>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  {emails.filter((e) => e.folder === "drafts").length}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFolder("drafts")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                    activeFolder === "drafts" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    <span>Drafts</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-500 font-mono">
+                    {emails.filter((e) => e.folder === "drafts").length}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveFolder("archive")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                  activeFolder === "archive" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Archive className="w-4 h-4" />
-                  <span>Archive</span>
-                </div>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  {emails.filter((e) => e.folder === "archive").length}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFolder("archive")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                    activeFolder === "archive" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Archive className="w-4 h-4" />
+                    <span>Archive</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-500 font-mono">
+                    {emails.filter((e) => e.folder === "archive").length}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveFolder("trash")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                  activeFolder === "trash" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Trash2 className="w-4 h-4" />
-                  <span>Recycle Bin</span>
-                </div>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  {emails.filter((e) => e.folder === "trash").length}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFolder("trash")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                    activeFolder === "trash" ? "bg-[#0078D4]/15 text-[#0078D4]" : "text-neutral-600 hover:bg-neutral-200/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    <span>Recycle Bin</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-500 font-mono">
+                    {emails.filter((e) => e.folder === "trash").length}
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="pt-3 border-t border-neutral-200 text-[10px] text-neutral-500 flex items-center gap-1.5">
@@ -1051,7 +1278,7 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                       isAllDay: false,
                       recurring: "none",
                       reminderMinutes: 15,
-                      attendees: ["gowtham@tattva-ai.com"],
+                      attendees: [account.email],
                       color: "#0078D4",
                     };
                     const updated = [...events, newEvt];
@@ -1164,7 +1391,257 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
         </div>
       )}
 
-      {/* 6. UPGRADED REAL EMAIL COMPOSITION MODAL */}
+      {/* 6. OUTLOOK ACCOUNT SETTINGS & DIAGNOSTICS MODAL */}
+      {isAccountModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-300 w-full max-w-xl p-6 select-none animate-fadeIn flex flex-col justify-between max-h-[92vh] overflow-y-auto">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#0078D4] text-white flex items-center justify-center">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-neutral-900">Outlook Account Configuration</h3>
+                    <p className="text-[11px] text-neutral-500">Connect your actual Microsoft Outlook, Office 365, or SMTP account</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  className="p-1 rounded text-neutral-400 hover:text-neutral-700 font-bold"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Provider Selection */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wide">
+                  Account Type / Provider:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  {[
+                    { id: "outlook", label: "Microsoft Outlook", sub: "smtp-mail.outlook.com" },
+                    { id: "gmail", label: "Google Mail", sub: "smtp.gmail.com" },
+                    { id: "resend", label: "Resend API", sub: "Verified API Key" },
+                    { id: "smtp", label: "Custom SMTP", sub: "Any server" },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelectProvider(p.id as any)}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        tempAccount.provider === p.id
+                          ? "border-[#0078D4] bg-sky-50/70 text-[#0078D4] font-bold shadow-xs ring-1 ring-[#0078D4]"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+                      }`}
+                    >
+                      <div className="font-semibold">{p.label}</div>
+                      <div className="text-[10px] text-neutral-400 font-mono mt-0.5 truncate">{p.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Account Details Form */}
+              <div className="space-y-3 text-xs bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-neutral-700 mb-1">Your Full Name:</label>
+                    <input
+                      type="text"
+                      value={tempAccount.name}
+                      onChange={(e) => setTempAccount({ ...tempAccount, name: e.target.value })}
+                      placeholder="e.g. John Doe"
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-neutral-700 mb-1">Email Address:</label>
+                    <input
+                      type="email"
+                      value={tempAccount.email}
+                      onChange={(e) =>
+                        setTempAccount({
+                          ...tempAccount,
+                          email: e.target.value,
+                          smtp: tempAccount.smtp ? { ...tempAccount.smtp, user: e.target.value } : undefined,
+                        })
+                      }
+                      placeholder="yourname@outlook.com"
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono focus:outline-none focus:border-[#0078D4]"
+                    />
+                  </div>
+                </div>
+
+                {/* Resend API Key Field */}
+                {tempAccount.provider === "resend" && (
+                  <div>
+                    <label className="block font-semibold text-neutral-700 mb-1">Resend API Key:</label>
+                    <input
+                      type="password"
+                      value={tempAccount.resendApiKey || ""}
+                      onChange={(e) => setTempAccount({ ...tempAccount, resendApiKey: e.target.value })}
+                      placeholder="re_123456789..."
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                    />
+                    <p className="text-[11px] text-neutral-500 mt-1">
+                      Obtain an API key at resend.com. Emails will be sent from your verified sending domain.
+                    </p>
+                  </div>
+                )}
+
+                {/* SMTP Credentials (Outlook / Gmail / Custom SMTP) */}
+                {tempAccount.provider !== "resend" && tempAccount.provider !== "relay" && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="block font-semibold text-neutral-700 mb-1">SMTP Server Host:</label>
+                        <input
+                          type="text"
+                          value={tempAccount.smtp?.host || ""}
+                          onChange={(e) =>
+                            setTempAccount({
+                              ...tempAccount,
+                              smtp: {
+                                host: e.target.value,
+                                port: tempAccount.smtp?.port || 587,
+                                secure: tempAccount.smtp?.secure ?? false,
+                                user: tempAccount.smtp?.user || tempAccount.email,
+                                pass: tempAccount.smtp?.pass || "",
+                              },
+                            })
+                          }
+                          placeholder={tempAccount.provider === "outlook" ? "smtp-mail.outlook.com" : "smtp.server.com"}
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-neutral-700 mb-1">Port:</label>
+                        <input
+                          type="number"
+                          value={tempAccount.smtp?.port || 587}
+                          onChange={(e) =>
+                            setTempAccount({
+                              ...tempAccount,
+                              smtp: {
+                                host: tempAccount.smtp?.host || "smtp-mail.outlook.com",
+                                port: Number(e.target.value) || 587,
+                                secure: tempAccount.smtp?.secure ?? false,
+                                user: tempAccount.smtp?.user || tempAccount.email,
+                                pass: tempAccount.smtp?.pass || "",
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-neutral-700">
+                          Password / App Password:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-[10px] text-neutral-500 hover:text-[#0078D4] flex items-center gap-1"
+                        >
+                          {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          <span>{showPassword ? "Hide" : "Show"}</span>
+                        </button>
+                      </div>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={tempAccount.smtp?.pass || ""}
+                        onChange={(e) =>
+                          setTempAccount({
+                            ...tempAccount,
+                            smtp: {
+                              host: tempAccount.smtp?.host || "smtp-mail.outlook.com",
+                              port: tempAccount.smtp?.port || 587,
+                              secure: tempAccount.smtp?.secure ?? false,
+                              user: tempAccount.smtp?.user || tempAccount.email,
+                              pass: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Enter your Outlook or app password"
+                        className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-neutral-900 focus:outline-none focus:border-[#0078D4]"
+                      />
+                      <div className="mt-1.5 p-2 bg-sky-50/70 border border-sky-200 rounded-lg text-[11px] text-sky-800 leading-normal">
+                        <strong>Security Note:</strong> Microsoft Outlook (personal & 365) and Gmail with 2-Factor Authentication require an <em>App Password</em> (created in your Microsoft or Google Account security settings).
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Test Diagnostics Result */}
+              {accountTestResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                    accountTestResult.success
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      : "bg-rose-50 border-rose-200 text-rose-800"
+                  }`}
+                >
+                  {accountTestResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{accountTestResult.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-neutral-200 mt-4 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={isTestingAccount}
+                className="px-3 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+              >
+                {isTestingAccount ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0078D4]" />
+                    <span>Verifying Handshake...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 text-[#0078D4]" />
+                    <span>Test Connection</span>
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  className="px-3.5 py-2 rounded-xl text-neutral-500 hover:bg-neutral-100 text-xs font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAccount}
+                  className="px-4 py-2 rounded-xl bg-[#0078D4] hover:bg-[#006bbd] text-white text-xs font-bold transition active:scale-95 shadow-sm"
+                >
+                  Save Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. UPGRADED REAL EMAIL COMPOSITION MODAL */}
       {isComposing && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-neutral-300 w-full max-w-2xl p-6 select-none animate-fadeIn flex flex-col justify-between max-h-[92vh] overflow-y-auto">
@@ -1174,7 +1651,9 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#0078D4]" />
                   <h3 className="font-bold text-base text-neutral-900">New Message</h3>
-                  <span className="text-[11px] text-neutral-400 font-mono">TATTVA AI Relay</span>
+                  <span className="text-[11px] text-neutral-400 font-mono">
+                    via {account.provider === "outlook" ? "Outlook / 365" : account.provider.toUpperCase()}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1207,15 +1686,23 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
 
               {/* Composition Form Fields */}
               <div className="space-y-2 text-xs">
-                {/* From field */}
+                {/* Dynamic From field reflecting active account */}
                 <div className="flex items-center border border-neutral-200 rounded-lg px-3 py-1.5 bg-neutral-50 text-neutral-600">
                   <span className="w-12 text-neutral-400 font-medium">From:</span>
                   <span className="font-semibold text-neutral-800">
-                    Kotapati Gowtham Chowdary &lt;gowtham@tattva-ai.com&gt;
+                    {account.name} &lt;{account.email}&gt;
                   </span>
-                  <span className="ml-auto text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Verified Domain
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempAccount(account);
+                      setIsAccountModalOpen(true);
+                    }}
+                    className="ml-auto text-[10px] text-[#0078D4] hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>Change Account</span>
+                  </button>
                 </div>
 
                 {/* To field */}
@@ -1326,7 +1813,6 @@ export function OutlookApp({ item, onSave, onBack, initialCompose }: OutlookAppP
             <div className="pt-4 border-t border-neutral-200 mt-4 flex items-center justify-between">
               {/* Attachment Actions */}
               <div className="relative flex items-center gap-2">
-                {/* Native file upload input */}
                 <input
                   type="file"
                   ref={fileInputRef}

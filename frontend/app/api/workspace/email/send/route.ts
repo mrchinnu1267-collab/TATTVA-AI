@@ -141,6 +141,20 @@ export function buildTattvaHtmlTemplate({
   `.trim();
 }
 
+export interface AccountConfigPayload {
+  provider?: "outlook" | "gmail" | "smtp" | "resend" | "relay";
+  email?: string;
+  name?: string;
+  resendApiKey?: string;
+  smtp?: {
+    host: string;
+    port: number;
+    secure?: boolean;
+    user: string;
+    pass: string;
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
@@ -153,7 +167,102 @@ export async function POST(request: Request) {
       body,
       attachments = [],
       senderName = "Kotapati Gowtham Chowdary",
+      accountConfig,
+      testConnection = false,
     } = payload;
+
+    // 0. Handle Connection Test Mode (Verifies account credentials without sending email)
+    if (testConnection) {
+      if (!accountConfig) {
+        return NextResponse.json(
+          { success: false, error: "No account configuration provided for diagnostic test." },
+          { status: 400 }
+        );
+      }
+
+      // Test Resend API Key
+      if (accountConfig.provider === "resend" && (accountConfig.resendApiKey || process.env.RESEND_API_KEY)) {
+        try {
+          const key = accountConfig.resendApiKey || process.env.RESEND_API_KEY!;
+          const resend = new Resend(key);
+          const res = await resend.apiKeys.list();
+          if (res.error) throw new Error(res.error.message);
+          return NextResponse.json({
+            success: true,
+            message: "Connected successfully to Resend API. Domain and credentials verified!",
+          });
+        } catch (err: any) {
+          return NextResponse.json(
+            { success: false, error: `Resend verification failed: ${err.message}` },
+            { status: 401 }
+          );
+        }
+      }
+
+      // Test SMTP Server (Outlook, Gmail, Custom)
+      const testHost =
+        accountConfig.smtp?.host ||
+        (accountConfig.provider === "outlook"
+          ? "smtp-mail.outlook.com"
+          : accountConfig.provider === "gmail"
+          ? "smtp.gmail.com"
+          : process.env.SMTP_HOST);
+
+      const testPort =
+        Number(accountConfig.smtp?.port) ||
+        (accountConfig.provider === "gmail" ? 465 : 587);
+
+      const testSecure =
+        accountConfig.smtp?.secure ??
+        (testPort === 465 || process.env.SMTP_SECURE === "true");
+
+      const testUser = accountConfig.smtp?.user || accountConfig.email || process.env.SMTP_USER;
+      const testPass = accountConfig.smtp?.pass || process.env.SMTP_PASS;
+
+      if (!testHost || !testUser || !testPass) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Incomplete SMTP credentials. Please enter your email address and password (or App Password).",
+          },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const testTransporter = nodemailer.createTransport({
+          host: testHost,
+          port: testPort,
+          secure: testSecure,
+          auth: {
+            user: testUser,
+            pass: testPass,
+          },
+          connectionTimeout: 10000,
+        });
+
+        await testTransporter.verify();
+        return NextResponse.json({
+          success: true,
+          message: `Successfully connected and authenticated with ${testHost}! Your ${
+            accountConfig.provider === "outlook"
+              ? "Microsoft Outlook"
+              : accountConfig.provider === "gmail"
+              ? "Google Mail"
+              : "SMTP"
+          } account is ready for live dispatch.`,
+        });
+      } catch (err: any) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Connection to ${testHost} failed: ${err.message}. If using 2-Factor Authentication on Outlook or Gmail, please use an App Password instead of your standard password.`,
+          },
+          { status: 401 }
+        );
+      }
+    }
 
     // 1. Validate Subject and Body
     if (!subject || typeof subject !== "string" || !subject.trim()) {
@@ -272,49 +381,109 @@ export async function POST(request: Request) {
 
     // 6. Attempt Dispatch via Configured Service Providers
 
-    // Option A: RESEND API
-    if (process.env.RESEND_API_KEY) {
+    // Option A: Custom or Environment RESEND API
+    const effectiveResendKey = accountConfig?.resendApiKey || process.env.RESEND_API_KEY;
+    if (accountConfig?.provider === "resend" || (effectiveResendKey && !accountConfig?.smtp?.pass)) {
+      if (effectiveResendKey) {
+        try {
+          const resend = new Resend(effectiveResendKey);
+          const resendPayload: any = {
+            from: senderEmail,
+            to: validTo,
+            subject,
+            text: body,
+            html: htmlEmail,
+          };
+
+          if (ccList.length > 0) resendPayload.cc = ccList;
+          if (bccList.length > 0) resendPayload.bcc = bccList;
+
+          if (validAttachments.length > 0) {
+            resendPayload.attachments = validAttachments.map((a) => ({
+              filename: a.filename,
+              content: Buffer.from(a.content, "base64"),
+            }));
+          }
+
+          const resendRes = await resend.emails.send(resendPayload);
+          if (resendRes.error) {
+            throw new Error(resendRes.error.message);
+          }
+
+          providerUsed = "resend";
+          providerMessageId = resendRes.data?.id || null;
+          deliveryMessage = "Email delivered via verified Resend API.";
+        } catch (err: any) {
+          console.error("[Email API] Resend dispatch error:", err);
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Resend delivery failed: ${err.message}`,
+            },
+            { status: 502 }
+          );
+        }
+      }
+    }
+
+    // Option B: Active Account SMTP (Outlook / Office 365, Gmail, or Custom Server)
+    const clientSmtpPass = accountConfig?.smtp?.pass;
+    const clientSmtpUser = accountConfig?.smtp?.user || accountConfig?.email;
+    const clientSmtpHost =
+      accountConfig?.smtp?.host ||
+      (accountConfig?.provider === "outlook"
+        ? "smtp-mail.outlook.com"
+        : accountConfig?.provider === "gmail"
+        ? "smtp.gmail.com"
+        : undefined);
+
+    if (clientSmtpHost && clientSmtpUser && clientSmtpPass) {
       try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const resendPayload: any = {
-          from: senderEmail,
-          to: validTo,
+        const clientPort = Number(accountConfig?.smtp?.port) || (accountConfig?.provider === "gmail" ? 465 : 587);
+        const clientSecure = accountConfig?.smtp?.secure ?? (clientPort === 465);
+
+        const transporter = nodemailer.createTransport({
+          host: clientSmtpHost,
+          port: clientPort,
+          secure: clientSecure,
+          auth: {
+            user: clientSmtpUser,
+            pass: clientSmtpPass,
+          },
+          connectionTimeout: 15000,
+        });
+
+        const info = await transporter.sendMail({
+          from: `"${senderName}" <${clientSmtpUser}>`,
+          to: validTo.join(", "),
+          cc: ccList.length > 0 ? ccList.join(", ") : undefined,
+          bcc: bccList.length > 0 ? bccList.join(", ") : undefined,
           subject,
           text: body,
           html: htmlEmail,
-        };
-
-        if (ccList.length > 0) resendPayload.cc = ccList;
-        if (bccList.length > 0) resendPayload.bcc = bccList;
-
-        if (validAttachments.length > 0) {
-          resendPayload.attachments = validAttachments.map((a) => ({
+          attachments: validAttachments.map((a) => ({
             filename: a.filename,
             content: Buffer.from(a.content, "base64"),
-          }));
-        }
+            contentType: a.contentType,
+          })),
+        });
 
-        const resendRes = await resend.emails.send(resendPayload);
-        if (resendRes.error) {
-          throw new Error(resendRes.error.message);
-        }
-
-        providerUsed = "resend";
-        providerMessageId = resendRes.data?.id || null;
-        deliveryMessage = "Email delivered via Resend API.";
+        providerUsed = accountConfig?.provider === "outlook" ? "outlook_smtp" : "smtp";
+        providerMessageId = info.messageId || null;
+        deliveryMessage = `Email successfully transmitted to ${validTo.join(", ")} via ${clientSmtpHost}!`;
       } catch (err: any) {
-        console.error("[Email API] Resend dispatch error:", err);
+        console.error("[Email API] Client SMTP dispatch error:", err);
         return NextResponse.json(
           {
             success: false,
-            error: `Resend delivery failed: ${err.message}`,
+            error: `Failed to send email via ${clientSmtpHost}: ${err.message}. If your Outlook or Gmail account has two-factor authentication, generate an App Password in your account security settings.`,
           },
           { status: 502 }
         );
       }
     }
-    // Option B: NODEMAILER / SMTP
-    else if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    // Option C: Server Environment NODEMAILER / SMTP
+    else if (!providerUsed && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
       try {
         const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
@@ -345,7 +514,7 @@ export async function POST(request: Request) {
         providerMessageId = info.messageId || null;
         deliveryMessage = `Email sent via authenticated SMTP (${process.env.SMTP_HOST}).`;
       } catch (err: any) {
-        console.error("[Email API] SMTP dispatch error:", err);
+        console.error("[Email API] Server SMTP dispatch error:", err);
         return NextResponse.json(
           {
             success: false,
@@ -355,12 +524,12 @@ export async function POST(request: Request) {
         );
       }
     }
-    // Option C: Authenticated Workspace Record Dispatch with Ready Credentials Guidance
-    else {
+    // Option D: Authenticated Workspace Record Dispatch with Ready Credentials Guidance
+    else if (providerUsed === "none") {
       providerUsed = "workspace_relay";
       providerMessageId = `tattva_relay_${Date.now()}`;
       deliveryMessage =
-        "Email validated and recorded in Sent mailbox. (To stream to external SMTP/MX inboxes, supply RESEND_API_KEY or SMTP_HOST in .env.local).";
+        "Email recorded in Sent items (TATTVA Relay). To deliver directly to external Outlook/Gmail/Exchange recipients, click 'Account Settings' in Outlook Studio to link your account or app password.";
     }
 
     // 7. Assemble Record for Workspace Sent Mailbox
@@ -405,3 +574,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

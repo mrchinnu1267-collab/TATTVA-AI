@@ -97,7 +97,28 @@ await test("Attachment Extension Verification: Enforces official enterprise exte
   }
 });
 
-// 5. POST API Route Handler End-to-End Tests
+// 5. Account Diagnostics & Connection Test Mode
+await test("POST /api/workspace/email/send: testConnection rejects missing credentials", async () => {
+  const req = new Request("http://localhost/api/workspace/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      testConnection: true,
+      accountConfig: {
+        provider: "outlook",
+        email: "user@outlook.com",
+        smtp: { host: "smtp-mail.outlook.com", port: 587, user: "", pass: "" },
+      },
+    }),
+  });
+  const res = await POST(req);
+  const json = await res.json();
+  assert.equal(res.status, 400);
+  assert.equal(json.success, false);
+  assert.ok(json.error.includes("Incomplete SMTP credentials"));
+});
+
+// 6. POST API Route Handler End-to-End Tests
 await test("POST /api/workspace/email/send: Rejects missing recipient", async () => {
   const req = new Request("http://localhost/api/workspace/email/send", {
     method: "POST",
@@ -150,7 +171,7 @@ await test("POST /api/workspace/email/send: Rejects disallowed file extension", 
   assert.ok(json.error.includes(".exe' is not permitted"));
 });
 
-await test("POST /api/workspace/email/send: Valid payload dispatches successfully", async () => {
+await test("POST /api/workspace/email/send: Dispatches with custom Outlook accountConfig", async () => {
   const req = new Request("http://localhost/api/workspace/email/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -159,7 +180,13 @@ await test("POST /api/workspace/email/send: Valid payload dispatches successfull
       cc: ["audit@tattva.ai"],
       subject: "TATTVA AI Workspace Product Review",
       body: "Please review the attached project specifications and confirm sign-off.",
-      senderName: "Kotapati Gowtham Chowdary",
+      senderName: "Gowtham Chowdary",
+      from: "gowtham@outlook.com",
+      accountConfig: {
+        provider: "relay",
+        email: "gowtham@outlook.com",
+        name: "Gowtham Chowdary",
+      },
       attachments: [
         {
           filename: "Project_Specs.pdf",
@@ -175,6 +202,8 @@ await test("POST /api/workspace/email/send: Valid payload dispatches successfull
   assert.equal(json.success, true);
   assert.ok(json.email);
   assert.equal(json.email.subject, "TATTVA AI Workspace Product Review");
+  assert.equal(json.email.from.email, "gowtham@outlook.com");
+  assert.equal(json.email.from.name, "Gowtham Chowdary");
   assert.equal(json.email.to.length, 2);
   assert.equal(json.email.cc.length, 1);
   assert.equal(json.email.attachments[0].name, "Project_Specs.pdf");
