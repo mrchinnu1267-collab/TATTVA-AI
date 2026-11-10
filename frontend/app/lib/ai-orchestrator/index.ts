@@ -117,7 +117,20 @@ export class MasterAIOrchestrator {
     const lastAssistantImage = [...messages].reverse().find((m) => m.role === "assistant" && m.image)?.image;
     const sourceImageForEdit = userAttachedImage || lastAssistantImage;
     const hasImageToEdit = Boolean(sourceImageForEdit);
-    const hasAttachedFile = Boolean(latestMessage.attachments?.some((a) => !a.type?.startsWith("image/")));
+
+    // Scan backwards through all conversation turns to find uploaded document attachments
+    let attachmentBuf: Buffer | undefined;
+    let attachmentName: string | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const fileAtt = messages[i].attachments?.find((a) => !a.type?.startsWith("image/"));
+      if (fileAtt?.data) {
+        const comma = fileAtt.data.indexOf(",");
+        attachmentBuf = Buffer.from(comma > 0 ? fileAtt.data.slice(comma + 1) : fileAtt.data, "base64");
+        attachmentName = fileAtt.name;
+        break;
+      }
+    }
+    const hasAttachedFile = Boolean(attachmentBuf);
     const apiKey = process.env.GEMINI_API_KEY;
 
     // 2. EARLY ROUTING: RESEARCH-TO-FILE GENERATION ENGINE (Bypasses redundant 3-5s classification LLM call)
@@ -146,15 +159,6 @@ export class MasterAIOrchestrator {
       }
 
       try {
-        let attachmentBuf: Buffer | undefined;
-        let attachmentName: string | undefined;
-        const fileAtt = latestMessage.attachments?.find((a) => !a.type?.startsWith("image/"));
-        if (fileAtt?.data) {
-          const comma = fileAtt.data.indexOf(",");
-          attachmentBuf = Buffer.from(comma > 0 ? fileAtt.data.slice(comma + 1) : fileAtt.data, "base64");
-          attachmentName = fileAtt.name;
-        }
-
         const docPkg = await synthesizeResearchToFile(docIntent, {
           apiKey,
           userId: context.userId || "user_workspace",
@@ -169,6 +173,14 @@ export class MasterAIOrchestrator {
           fileTypeLabel = "presentation";
         } else if (fmt === "xlsx" || fmt === "csv" || docPkg.intent.archetype === "spreadsheet") {
           fileTypeLabel = "spreadsheet";
+        } else if (docPkg.intent.archetype === "resume") {
+          fileTypeLabel = "resume";
+        } else if (docPkg.intent.archetype === "poster") {
+          fileTypeLabel = "poster";
+        } else if (docPkg.intent.archetype === "project_documentation") {
+          fileTypeLabel = "project documentation";
+        } else if (docPkg.intent.archetype === "chart_diagram") {
+          fileTypeLabel = "diagram";
         } else if (fmt === "pdf") {
           fileTypeLabel = "PDF";
         } else if (fmt === "docx") {

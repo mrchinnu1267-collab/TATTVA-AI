@@ -460,6 +460,161 @@ Return ONLY pure JSON array conforming to this exact schema:
         ],
       },
     ];
+  } else if (archetype === "resume") {
+    return [
+      {
+        heading: "Professional Profile & Contact",
+        content: `Senior Technical Lead & Specialist: ${topic}\nLocation: San Francisco, CA | Email: contact@professional.dev | Phone: +1 (555) 019-2834\nPortfolio & GitHub: github.com/lead-architect | LinkedIn: linkedin.com/in/lead-specialist`,
+      },
+      {
+        heading: "Executive Summary",
+        content: `Results-driven Senior Engineer and Technical Architect specializing in ${topic}. Proven track record designing, building, and deploying mission-critical systems that scale to millions of users. Recognized for driving architectural best practices, reducing operational latency, and leading cross-functional teams to deliver enterprise-grade software.`,
+      },
+      {
+        heading: "Core Technical Competencies",
+        content: `Core capabilities aligned with ${topic} and modern engineering standards:`,
+        bullets: [
+          `Specialized Domain Knowledge: ${topic}, System Architecture, High-Throughput Pipelines`,
+          `Programming Languages: TypeScript, Python, Go, Rust, Java, SQL`,
+          `Frameworks & Cloud: Next.js, Node.js, FastAPI, Kubernetes, AWS, Google Cloud Platform`,
+          `Data Architecture: PostgreSQL, Redis, Kafka, Zero-Trust Boundary Controls, Vector Stores`,
+          `Operational Leadership: Technical Roadmapping, CI/CD Automation, Observability, Agile Delivery`,
+        ],
+      },
+      {
+        heading: "Professional Work Experience",
+        content: `Principal Architect | Enterprise Tech Systems (2022 - Present)\n• Spearheaded high-scale platform architecture centered on ${topic}, increasing overall system throughput by 42%.\n• Designed and delivered zero-downtime microservices infrastructure serving over 15M daily requests.\n• Mentored a 14-member engineering team across systems engineering and production resilience.\n\nSenior Software Engineer | Cloud Innovations Lab (2019 - 2022)\n• Built distributed state synchronization engines with sub-50ms p99 latency SLAs.\n• Led automated testing and formal validation initiatives, decreasing production regressions by 68%.`,
+      },
+      {
+        heading: "Key Projects & Deliverables",
+        content: `Key technical deliverables and open-source contributions:`,
+        bullets: [
+          `Production ${topic} Framework: High-performance open-source module achieving 10k+ stars.`,
+          `Distributed Real-Time Sync: Offline-first state sync protocol featuring automated conflict resolution.`,
+          `Enterprise Security Suite: End-to-end cryptographic audit pipeline with automated compliance gates.`,
+        ],
+      },
+      {
+        heading: "Education & Certifications",
+        content: `Bachelor of Science in Computer Science & Engineering | Top Tier University\nCertifications: AWS Certified Solutions Architect (Professional), Google Cloud Certified Professional Cloud Architect, Certified Kubernetes Administrator (CKA).`,
+      },
+    ];
+  } else if (archetype === "poster") {
+    return [
+      {
+        heading: `HEADLINE: ${topic.toUpperCase()} INNOVATION SUMMIT 2026`,
+        content: `The Definitive Visual Showcase & Technical Breakthroughs in ${topic}\nPresented by TATTVA AI Research Labs & Global Technology Consortium`,
+      },
+      {
+        heading: "Mission & Problem Statement",
+        content: `${research.definition}\n\n${research.backgroundAndMotivation}`,
+      },
+      {
+        heading: "Key Highlights & Industry Metrics",
+        content: "High-impact performance indicators and transformation benchmarks:",
+        bullets: [
+          "99.4% End-to-End Reliability across enterprise validation workloads",
+          "4.2x Faster Iteration Velocity compared to legacy manual workflows",
+          "100% Standards Compliance with full regulatory and zero-trust auditability",
+          "Sub-second verification feedback latency via client-side neural validation",
+        ],
+      },
+      {
+        heading: "Core Strategic Pillars",
+        content: `Three foundational pillars powering ${topic}:`,
+        bullets: research.coreMechanisms.slice(0, 3).map((m) => `${m.name}: ${m.details}`),
+      },
+      {
+        heading: "Event Details & Participation",
+        content: `Date: November 2026 | Location: Innovation Center & Live Global Streaming\nAccess Portal: https://tattva-ai.org/summit\nScan QR on display to access full whitepaper, speaker notes, and interactive live demonstrations.`,
+      },
+    ];
+  } else if (archetype === "project_documentation") {
+    return [
+      {
+        heading: `1. Project Control & Scope: ${topic}`,
+        content: `Project: ${topic} Production Suite\nVersion: 1.0.0-RELEASE | Status: Approved\nScope: This document provides formal technical architecture, subsystem design, data contracts, and operational guidelines for ${topic}.`,
+      },
+      {
+        heading: "2. System Architecture & High-Level Topology",
+        content: `${research.definition}\n\nThe system utilizes a decoupled, asynchronous microservices topology designed for zero data loss, strict schema validation, and high concurrent throughput. Ingress gateways validate tokens, route payloads through intelligent load balancers, and execute distributed transactions with automated rollback capabilities.`,
+      },
+      {
+        heading: "3. Component & Subsystem Specifications",
+        content: "Detailed specifications of the primary architectural subsystems:",
+        bullets: research.coreMechanisms.map(
+          (m) => `${m.name}: ${m.details} Formally defined by: ${m.formulaOrStructure || "Standard Specification"}.`
+        ),
+      },
+      {
+        heading: "4. Data Models & Persistent Storage",
+        content: "Data persistence architecture follows strict ACID guarantees with secondary search indices:",
+        bullets: [
+          "Primary Storage: Relational schema with foreign-key constraints and automated migrations.",
+          "Cache Layer: In-memory distributed cache with cache-aside invalidation and TTL guarantees.",
+          "Audit Trail: Append-only immutable transaction log ensuring complete regulatory traceability.",
+        ],
+      },
+      {
+        heading: "5. Interface Specifications & Security Controls",
+        content: "Interfaces expose type-safe contracts with comprehensive Zero-Trust defenses:",
+        bullets: [
+          "Authentication: Ed25519 signed JWTs with short expiry and automated rotation.",
+          "Validation: Strict runtime boundary validation rejecting non-compliant payloads.",
+          "Rate Limiting: Token-bucket rate limiter enforcing 60 requests/min per client entity.",
+        ],
+      },
+      {
+        heading: "6. Deployment Strategy & Operational Runbook",
+        content: "Deployment follows an automated Blue-Green progression managed via CI/CD pipelines. Real-time observability tracks p50, p95, and p99 latency alongside system error budgets.",
+      },
+    ];
+  } else if (archetype === "chart_diagram") {
+    return [
+      {
+        heading: `1. System Overview: ${topic}`,
+        content: `Architecture and visual workflow model for ${topic}.\n\n${research.definition}`,
+      },
+      {
+        heading: "2. Visual Architecture Diagram",
+        content: `\`\`\`mermaid
+graph TD
+    Client["User / Client Ingress"] --> Gateway["API Gateway / Zero-Trust Guard"]
+    Gateway --> Orchestrator["Core Orchestrator (${topic})"]
+    Orchestrator --> EngineA["Neural Processing Engine"]
+    Orchestrator --> EngineB["Validation & Synthesis Engine"]
+    EngineA --> Storage[("Encrypted Persistent Store")]
+    EngineB --> Storage
+    Storage --> Delivery["Verified Delivery Service"]
+    Delivery --> Client
+\`\`\``,
+      },
+      {
+        heading: "3. Component Interaction Matrix",
+        content: "Topological node connections and interface protocols:",
+        bullets: [
+          "Client Ingress -> API Gateway: HTTPS / TLS 1.3 with JWT authentication.",
+          "API Gateway -> Core Orchestrator: Internal gRPC with mTLS encryption.",
+          "Core Orchestrator -> Synthesis Engine: Event-driven pub/sub messaging queue.",
+          "Synthesis Engine -> Persistent Store: Connection-pooled PostgreSQL with SSL.",
+        ],
+      },
+      {
+        heading: "4. Step-by-Step Data Flow Sequence",
+        content: "The complete operational execution sequence:",
+        bullets: [
+          "Step 1: Client submits request payload with contextual parameters.",
+          "Step 2: API Gateway validates schema and enforces rate limits.",
+          "Step 3: Core Orchestrator decomposes query into task execution graph.",
+          "Step 4: Specialized worker nodes execute processing and verify output integrity.",
+          "Step 5: Output artifact is stored securely and signed URL is returned to client.",
+        ],
+      },
+      {
+        heading: "5. State Transitions & Error Recovery",
+        content: "State machine handles transient faults through exponential backoff retries with circuit-breaker protection at 5 consecutive failures.",
+      },
+    ];
   } else {
     return [
       {
@@ -1129,6 +1284,39 @@ export async function synthesizeResearchToFile(
     );
   }
 
+  // Stage 3.2: Contextual Multi-Turn Revision Directives
+  if (intent.isRevision && intent.revisionDirectives) {
+    const rev = intent.revisionDirectives;
+
+    // A. "Change only the first page" / "change only slide 1"
+    if (rev.changeOnlyFirstPage && rev.previousDoc) {
+      if (archetype === "presentation" && rev.previousDoc.slides && rev.previousDoc.slides.length > 1) {
+        slides = [slides[0], ...rev.previousDoc.slides.slice(1)];
+      } else if (rev.previousDoc.sections && rev.previousDoc.sections.length > 1) {
+        sections = [sections[0], ...rev.previousDoc.sections.slice(1)];
+      }
+    }
+
+    // B. "Don't remove any content" / "preserve all content"
+    if (rev.preserveAllContent && rev.previousDoc) {
+      if (archetype === "presentation" && rev.previousDoc.slides) {
+        const existingTitles = new Set(slides.map((s) => s.title.toLowerCase().trim()));
+        for (const prevSlide of rev.previousDoc.slides) {
+          if (!existingTitles.has(prevSlide.title.toLowerCase().trim())) {
+            slides.push(prevSlide);
+          }
+        }
+      } else if (rev.previousDoc.sections) {
+        const existingHeadings = new Set(sections.map((s) => s.heading.toLowerCase().trim()));
+        for (const prevSec of rev.previousDoc.sections) {
+          if (!existingHeadings.has(prevSec.heading.toLowerCase().trim())) {
+            sections.push(prevSec);
+          }
+        }
+      }
+    }
+  }
+
   // Format Markdown or Text documents
   if (format === "md" || format === "txt") {
     rawContent = synthesizeMarkdownDocument(topic, research, sections);
@@ -1207,6 +1395,11 @@ export async function synthesizeResearchToFile(
 
   if (!generatedDoc.success || !generatedDoc.buffer) {
     throw new Error(generatedDoc.error || "Document binary compilation failed.");
+  }
+
+  // Verify maximum file size constraint if requested
+  if (intent.revisionDirectives?.maxSizeBytes && generatedDoc.buffer.length > intent.revisionDirectives.maxSizeBytes) {
+    throw new Error(`Generated file size (${generatedDoc.buffer.length} bytes) exceeds maximum requested constraint of ${intent.revisionDirectives.maxSizeBytes} bytes.`);
   }
 
   // Stage 5: File Validation & Integrity Inspection
