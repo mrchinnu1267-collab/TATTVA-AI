@@ -10,6 +10,12 @@ const jiti = require("../node_modules/jiti/lib/jiti.cjs")(__filename);
 console.log("\n🚀 Running TATTVA AI Test Suite...\n");
 
 try {
+  await jiti("./main-chat.test.ts");
+  await jiti("./image-generation-multimodel.test.ts");
+  await jiti("./prompt-accuracy-50.test.ts");
+  await jiti("./multimodal-rag-vision.test.ts");
+  await jiti("./safety-input-validation.test.ts");
+  await jiti("./workspace-applications.test.ts");
   await jiti("./auth-redirect.test.ts");
   await jiti("./claude-connectors.test.ts");
   await jiti("./connectors-e2e.test.ts");
