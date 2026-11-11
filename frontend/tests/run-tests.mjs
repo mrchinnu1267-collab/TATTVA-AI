@@ -22,6 +22,10 @@ try {
   if (infraRepair?.runInfrastructureRepairTests) {
     await infraRepair.runInfrastructureRepairTests();
   }
+  const phaseF = await jiti("./super-resolution-enhancement.test.ts");
+  if (phaseF?.runSuperResolutionEnhancementTests) {
+    await phaseF.runSuperResolutionEnhancementTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

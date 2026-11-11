@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { upscaleImage } from "../../../lib/image-engine/upscaler/super-resolution";
+import { enhanceImage, upscaleImage } from "../../../lib/image-engine/upscaler/super-resolution";
 import { moderateVisualImage, SAFETY_REJECTION_MESSAGE } from "../../../lib/content-moderation";
 import { checkRateLimit, logSecurityEvent, verifyUserSession } from "../../../lib/security";
 
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const session = await verifyUserSession(request);
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
 
-    const rateCheck = checkRateLimit(`upscale_${session.userId}_${clientIp}`, 10, 60_000);
+    const rateCheck = checkRateLimit(`upscale_${session.userId}_${clientIp}`, 15, 60_000);
     if (!rateCheck.allowed) {
       logSecurityEvent("RATE_LIMIT_EXCEEDED", {
         userId: session.userId,
@@ -41,14 +41,28 @@ export async function POST(request: Request) {
 
     const scale = body.scale === 4 ? 4 : 2;
 
-    const result = await upscaleImage({
+    const result = await enhanceImage({
       image: body.image,
       scale,
-      enhanceDetails: body.enhanceDetails !== false,
-      denoise: body.denoise !== false,
+      operations: Array.isArray(body.operations) && body.operations.length > 0
+        ? body.operations
+        : [
+            scale === 4 ? "upscale_4x" : "upscale_2x",
+            ...(body.enhanceDetails !== false ? ["detail_enhance" as const] : []),
+            ...(body.denoise !== false ? ["noise_reduction" as const] : []),
+          ],
+      model: body.model || "auto",
+      preserveFaces: body.preserveFaces !== false,
+      preserveColors: body.preserveColors !== false,
+      preserveText: body.preserveText !== false,
+      userId: session.userId,
+      workspaceId: body.workspaceId,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      upscaledImage: result.enhancedImage, // legacy compatibility
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[TATTVA Image Upscaler] Error:", message);
