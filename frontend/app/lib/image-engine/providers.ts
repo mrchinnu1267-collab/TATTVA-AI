@@ -7,6 +7,7 @@ import { InferenceClient } from "@huggingface/inference";
 import { Client as GradioClient } from "@gradio/client";
 import { geminiImage, GEMINI_IMAGE_MODELS } from "./gemini";
 import { bufferToDataUri, fitWithinArea, truncate } from "./image-utils";
+import { filterCompatibleReferenceProviders } from "./reference-conditioning";
 import type {
   ImageProviderChoice,
   ImageProviderId,
@@ -352,6 +353,7 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
         cfg_scale: req.guidance,
         seed: req.seed,
         reference_image: req.referenceImage,
+        strength: req.strength,
       }),
       signal: AbortSignal.timeout(300_000),
     });
@@ -389,6 +391,13 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
 // ------------------------------------------------------------------ OpenAI
 
 async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult> {
+  if (req.referenceImage) {
+    throw new ImageProviderError(
+      "OpenAI DALL-E 3 does not support reference-image conditioning. Reference images are never silently discarded.",
+      { retryable: false }
+    );
+  }
+
   const token = (process.env.OPENAI_API_KEY || "").trim();
   if (!token) throw new ImageProviderError("OPENAI_API_KEY is not configured.", { retryable: false });
 
@@ -447,12 +456,25 @@ async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult>
 
 export function resolveProviderOrder(
   requested: ImageProviderChoice | undefined,
-  quality: "fast" | "balanced" | "max"
+  quality: "fast" | "balanced" | "max",
+  hasReferenceImage = false
 ): ImageProviderId[] {
-  if (requested && requested !== "auto") return [requested];
-  // Prioritize Hugging Face FLUX.1-schnell (unwatermarked, fast, high visual fidelity)
-  // Fall back to Gemini, OpenAI, then local engine
-  return ["huggingface", "gemini", "openai", "local"];
+  let baseOrder: ImageProviderId[];
+  if (requested && requested !== "auto") {
+    baseOrder = [requested];
+  } else if (hasReferenceImage) {
+    // When reference image is present, prioritize multimodal native and img2img-capable engines
+    baseOrder = ["gemini", "huggingface", "local"];
+  } else {
+    baseOrder = ["huggingface", "gemini", "openai", "local"];
+  }
+
+  if (hasReferenceImage) {
+    const { compatibleProviders } = filterCompatibleReferenceProviders(baseOrder, true);
+    return compatibleProviders.length > 0 ? compatibleProviders : baseOrder;
+  }
+
+  return baseOrder;
 }
 
 export async function generateWithProvider(

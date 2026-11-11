@@ -47,6 +47,7 @@ export interface ImageGenerationOptions {
   seed?: number;
   customNegative?: string;
   referenceImage?: string;
+  strength?: number;
   provider?: ImageProviderChoice;
   quality?: ImageQuality;
   maxAttempts?: number;
@@ -70,6 +71,8 @@ export interface CompiledImagePrompt {
   quality: ImageQuality;
   requirements: ImageRequirement[];
   referenceImage?: string;
+  strength?: number;
+  referencePlan?: any;
   structured?: any;
   promptsByProvider?: Record<ImageProviderId, string>;
   warnings?: string[];
@@ -86,6 +89,7 @@ export interface ProviderRequest {
   aspectRatio: AspectRatio;
   quality: ImageQuality;
   referenceImage?: string;
+  strength?: number;
 }
 
 export interface ProviderResult {

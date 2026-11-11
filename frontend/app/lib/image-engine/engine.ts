@@ -11,6 +11,7 @@ import {
   resolveProviderOrder,
 } from "./providers";
 import { verifyImage } from "./verifier";
+import { validateReferenceImage } from "./reference-conditioning";
 import {
   moderateTextPrompt,
   moderateVisualImage,
@@ -57,6 +58,7 @@ function requestFor(
     aspectRatio: compiled.aspectRatio,
     quality: compiled.quality,
     referenceImage: compiled.referenceImage,
+    strength: compiled.strength,
   };
 }
 
@@ -77,8 +79,15 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     );
   }
 
-  // 2. Reference Image Moderation (if supplied)
+  // 2. Reference Image Moderation & Validation (if supplied)
   if (options.referenceImage) {
+    const validation = validateReferenceImage(options.referenceImage);
+    if (!validation.isValid) {
+      throw new ImageProviderError(
+        `Reference image validation failed: ${validation.error}`,
+        { retryable: false }
+      );
+    }
     const refModeration = await moderateVisualImage(options.referenceImage);
     if (!refModeration.isSafe) {
       throw new ImageProviderError(
@@ -97,7 +106,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     Math.min(100, options.targetScore ?? (compiled.quality === "max" ? 92 : 86))
   );
 
-  const order = resolveProviderOrder(options.provider, compiled.quality);
+  const order = resolveProviderOrder(options.provider, compiled.quality, Boolean(options.referenceImage));
   const attempts: ImageAttempt[] = [];
   const warnings: string[] = [];
   let best: {

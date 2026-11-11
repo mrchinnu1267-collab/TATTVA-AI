@@ -372,6 +372,7 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
     quality,
     requirements,
     referenceImage: options.referenceImage,
+    strength: options.strength,
     structured,
     promptsByProvider,
     warnings: compilerWarnings,

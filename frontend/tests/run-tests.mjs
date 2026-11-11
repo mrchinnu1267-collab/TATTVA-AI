@@ -11,6 +11,7 @@ console.log("\n🚀 Running TATTVA AI Test Suite...\n");
 
 try {
   await jiti("./prompt-compiler-phase-a.test.ts");
+  await jiti("./reference-conditioning-phase-b.test.ts");
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
