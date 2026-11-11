@@ -12,6 +12,7 @@ import {
 } from "./providers";
 import { verifyImage } from "./verifier";
 import { validateReferenceImage } from "./reference-conditioning";
+import { routeImageRequest, recordGenerationOutcome } from "./multi-model-router";
 import {
   moderateTextPrompt,
   moderateVisualImage,
@@ -106,9 +107,20 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     Math.min(100, options.targetScore ?? (compiled.quality === "max" ? 92 : 86))
   );
 
-  const order = resolveProviderOrder(options.provider, compiled.quality, Boolean(options.referenceImage));
+  const routingDecision = routeImageRequest({
+    prompt,
+    referenceImage: options.referenceImage,
+    quality: compiled.quality,
+    aspectRatio: compiled.aspectRatio,
+    preferredProvider: options.provider && options.provider !== "auto" ? options.provider : undefined,
+  });
+
+  const warnings: string[] = [...(routingDecision.warnings || [])];
+  const order =
+    routingDecision.fallbackChain.length > 0
+      ? routingDecision.fallbackChain
+      : resolveProviderOrder(options.provider, compiled.quality, Boolean(options.referenceImage));
   const attempts: ImageAttempt[] = [];
-  const warnings: string[] = [];
   let best: {
     result: ProviderResult;
     verification: ImageVerification;
@@ -216,6 +228,15 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   const accuracy = best.verification.score;
   const successfulAttempts = attempts.filter((item) => !item.error).length;
 
+  recordGenerationOutcome({
+    modelId: best.result.model,
+    providerId: best.result.provider,
+    category: routingDecision.workflow,
+    success: true,
+    latencyMs,
+    accuracyScore: accuracy,
+  });
+
   return {
     image: best.result.image,
     provider: best.result.provider,
@@ -245,6 +266,10 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       prompt,
       negative_prompt: compiled.negative,
       requirements: compiled.requirements,
+      workflow: routingDecision.workflow,
+      routing_rationale: routingDecision.selectionRationale,
+      estimated_cost_usd: routingDecision.estimatedCostUsd,
+      primary_model: routingDecision.primaryModel.name,
       warnings: [...new Set(warnings)],
     },
   };

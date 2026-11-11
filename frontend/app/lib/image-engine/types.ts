@@ -162,6 +162,10 @@ export interface ImageMetadata {
   negative_prompt: string;
   requirements: ImageRequirement[];
   warnings: string[];
+  workflow?: string;
+  routing_rationale?: string;
+  estimated_cost_usd?: number;
+  primary_model?: string;
 }
 
 export interface ImageEngineResult {

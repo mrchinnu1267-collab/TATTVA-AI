@@ -125,3 +125,4 @@ export function validateReferenceImage(imageDataUri: string): ReferenceImageVali
     fileSizeBytes,
   };
 }
+

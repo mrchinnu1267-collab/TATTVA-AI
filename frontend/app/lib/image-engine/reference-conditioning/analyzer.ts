@@ -246,3 +246,4 @@ Respond with strict JSON ONLY:
 
   return analyzeReferenceDeterministically(userInstruction);
 }
+

@@ -109,7 +109,7 @@ export class MultiAgentImageSystem {
     // AGENT 5: GENERATION AGENT
     // =========================================================================
     onAgentUpdate?.({ agent: "Generation Agent", action: `Executing generation via ${routingDecision.primaryModel.providerId}`, status: "running" });
-    const mappedProvider = (routingDecision.primaryModel.providerId === "comfyui" ? "local" : routingDecision.primaryModel.providerId) as any;
+    const mappedProvider = ((routingDecision.primaryModel.providerId as string) === "comfyui" ? "local" : routingDecision.primaryModel.providerId) as any;
     let generationResult = await generateImage({
       prompt,
       style: options.style,

@@ -1,121 +1,270 @@
 /**
- * TATTVA AI - Intelligent Model & Workflow Router
- * Automatically maps user prompts to the premier generative pipeline,
- * evaluating quality, latency, hardware constraints, and mode requirements.
+ * TATTVA AI - Intelligent Model & Workflow Router (Phase C)
+ * Automatically evaluates prompt complexity, visual domain, reference conditioning,
+ * provider quotas, latency expectations, and cost to select the optimal model pipeline.
  */
 
 import {
-  ExecutionMode,
   ImageWorkflowType,
   RouterSelectionDecision,
+  RoutingAnalysisParams,
+  ModelSpecification,
 } from "./types";
-import { SUPPORTED_MODELS } from "./model-registry";
+import {
+  SUPPORTED_MODELS,
+  getModelById,
+  listAvailableModels,
+} from "./model-registry";
+import { rankModelsByCategory, getBenchmarkMetric } from "./benchmark-system";
+import { getCooldownRemaining } from "../providers";
+import { checkProviderReferenceSupport } from "../reference-conditioning/capabilities";
+import { classifyConditioningIntent } from "../reference-conditioning/analyzer";
+import { ImageProviderChoice, ImageProviderId } from "../types";
 
-export interface RoutingAnalysisParams {
-  prompt: string;
-  referenceImage?: string;
-  preferredMode?: ExecutionMode;
-  isOffline?: boolean;
-  requestedWorkflow?: ImageWorkflowType;
-}
+/**
+ * Checks whether a given provider is currently healthy and not in cooldown.
+ */
+function isProviderAvailable(providerId: ImageProviderId): boolean {
+  if (getCooldownRemaining(providerId) > 0) return false;
 
-export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectionDecision {
-  const { prompt, referenceImage, isOffline = false } = params;
-  const p = prompt.toLowerCase().trim();
-
-  // 1. Determine Execution Mode
-  let executionMode: ExecutionMode = params.preferredMode || "advanced_hybrid";
-  if (isOffline) {
-    executionMode = "offline";
+  // Check credential configuration
+  if (providerId === "openai" && !Boolean((process.env.OPENAI_API_KEY || "").trim())) {
+    return false;
+  }
+  if (providerId === "gemini" && !Boolean((process.env.GEMINI_API_KEY || "").trim())) {
+    return false;
+  }
+  if (providerId === "huggingface" && !Boolean((process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim())) {
+    return false;
   }
 
-  // 2. Classify Workflow Type
+  return true;
+}
+
+/**
+ * Routes an incoming image generation request to the premier model pipeline.
+ */
+export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectionDecision {
+  const { prompt, referenceImage, quality = "balanced", isOffline = false, preferredProvider } = params;
+  const p = prompt.toLowerCase().trim();
+  const warnings: string[] = [];
+
+  // ===========================================================================
+  // 1. WORKFLOW & INTENT CLASSIFICATION
+  // ===========================================================================
   let workflow: ImageWorkflowType = "text_to_image";
-  let controlMethod: any = "none";
+  let confidence = 0.85;
   let typographyOverlayNeeded = false;
-  let upscaleTargetMultiplier: 2 | 4 | undefined = undefined;
+  let controlMethod: string | undefined = undefined;
 
   if (params.requestedWorkflow) {
     workflow = params.requestedWorkflow;
+    confidence = 0.95;
   } else if (referenceImage) {
-    if (/change\s+the\s+background|replace\s+the\s+background|remove\s+background/i.test(p)) {
-      workflow = "background_replacement";
-      controlMethod = "inpaint";
-    } else if (/inpaint|edit\s+this|remove\s+object|fix\s+this\s+part/i.test(p)) {
-      workflow = "inpainting";
-      controlMethod = "inpaint";
-    } else if (/outpaint|extend\s+canvas|expand\s+image|un-crop/i.test(p)) {
-      workflow = "outpainting";
-      controlMethod = "inpaint";
-    } else if (/in\s+the\s+style\s+of|style\s+transfer|make\s+it\s+look\s+like/i.test(p)) {
-      workflow = "style_transfer";
-      controlMethod = "ip-adapter";
-    } else if (/variation|similar\s+to\s+this|different\s+version/i.test(p)) {
-      workflow = "image_variations";
-      controlMethod = "ip-adapter";
-    } else if (/restore|enhance|clean\s+up|denoise|fix\s+scratch/i.test(p)) {
-      workflow = "image_restoration";
-    } else if (/upscale|high\s+res|4k|super\s+resolution/i.test(p)) {
-      workflow = "super_resolution";
-      upscaleTargetMultiplier = 4;
-    } else {
-      workflow = "image_to_image";
-      controlMethod = "ip-adapter";
+    const intent = classifyConditioningIntent(prompt);
+    switch (intent.intentType) {
+      case "keep_character":
+        workflow = "character_preservation";
+        controlMethod = "reference-character-lock";
+        confidence = 0.94;
+        break;
+      case "change_background":
+        workflow = "background_replacement";
+        controlMethod = "background-inpaint";
+        confidence = 0.92;
+        break;
+      case "preserve_composition":
+        workflow = "composition_transfer";
+        controlMethod = "controlnet-depth";
+        confidence = 0.90;
+        break;
+      case "change_color":
+      case "add_object":
+        workflow = "inpainting";
+        controlMethod = "localized-edit";
+        confidence = 0.88;
+        break;
+      case "style_transfer":
+        workflow = "style_transfer";
+        controlMethod = "style-adapter";
+        confidence = 0.89;
+        break;
+      default:
+        workflow = "image_to_image";
+        controlMethod = "img2img";
+        confidence = 0.85;
+        break;
     }
   } else {
     // Text-to-Image Domain Specializations
-    if (/poster|banner|flyer|typography|headline|logo|badge/i.test(p) || /"([^"]+)"/.test(prompt)) {
-      workflow = "poster_creation";
-      typographyOverlayNeeded = /"([^"]+)"/.test(prompt);
-    } else if (/product|commercial|bottle|sneaker|watch|packaging|cosmetic|studio\s+shot/i.test(p)) {
+    const hasQuotedText = /"([^"]+)"/.test(prompt);
+    const isPoster = /poster|banner|flyer|typography|headline|logo|badge/i.test(p);
+    const isAnime = /anime|manga|ghibli|cel\s+shaded|vtuber|kawaii|studio\s+ghibli|makoto\s+shinkai/i.test(p);
+    const isProduct = /product|commercial|bottle|sneaker|watch|packaging|cosmetic|studio\s+shot|luxury\s+brand/i.test(p);
+    const isPortrait = /portrait|close-up\s+face|headshot|avatar|human\s+face|elderly\s+man|young\s+woman/i.test(p);
+    const isPhotoreal = /photorealistic|national\s+geographic|photo|photograph|35mm\s+lens|nikon|canon|dslr|raw\s+photo/i.test(p);
+    const isComplex = /(?:bustling|crowded|grand|ballroom|temple|harbor|market|orbital|snowfall).{50,}/i.test(p) || p.length > 200;
+    const isFastRequested = quality === "fast" || /quick|fast|draft|speed/i.test(p);
+
+    if (hasQuotedText || isPoster) {
+      workflow = "poster_typography";
+      typographyOverlayNeeded = hasQuotedText;
+      confidence = 0.95;
+    } else if (isAnime) {
+      workflow = "anime_illustration";
+      confidence = 0.93;
+    } else if (isProduct) {
       workflow = "product_photography";
-      controlMethod = "controlnet-depth";
-    } else if (/portrait|close-up\s+face|headshot|avatar|human\s+face/i.test(p)) {
+      confidence = 0.91;
+    } else if (isPortrait) {
       workflow = "portrait_generation";
-      controlMethod = "controlnet-pose";
-    } else if (/anime|manga|ghibli|cel\s+shaded|vtuber|kawaii/i.test(p)) {
-      workflow = "anime_artwork";
-    } else if (/transparent\s+background|cutout|isolated\s+on\s+white|png\s+icon/i.test(p)) {
-      workflow = "transparent_background";
+      confidence = 0.89;
+    } else if (isPhotoreal) {
+      workflow = "photorealism";
+      confidence = 0.92;
+    } else if (isFastRequested) {
+      workflow = "fast_generation";
+      confidence = 0.88;
+    } else if (isComplex) {
+      workflow = "high_complexity_scene";
+      confidence = 0.90;
     }
   }
 
-  // 3. Model Selection based on Mode and Workflow
-  let primaryModel = SUPPORTED_MODELS["flux-1-dev"];
-  const fallbackModels = [
-    SUPPORTED_MODELS["gemini-3.1-flash-image"],
-    SUPPORTED_MODELS["local-cuda-diffusion"],
-  ];
+  // ===========================================================================
+  // 2. MODEL CANDIDATE POOL FILTERING
+  // ===========================================================================
+  let candidateModels: ModelSpecification[] = listAvailableModels();
 
-  if (executionMode === "offline") {
-    primaryModel = SUPPORTED_MODELS["local-cuda-diffusion"];
-  } else if (executionMode === "independent_free") {
-    primaryModel = SUPPORTED_MODELS["local-cuda-diffusion"];
-  } else {
-    // Advanced Hybrid Mode - Pick best model for workflow
-    if (workflow === "poster_creation" || workflow === "product_photography") {
-      primaryModel = SUPPORTED_MODELS["flux-1-dev"];
-    } else if (workflow === "anime_artwork") {
-      primaryModel = SUPPORTED_MODELS["flux-1-dev"];
-    } else if (workflow === "background_replacement" || workflow === "inpainting") {
-      primaryModel = SUPPORTED_MODELS["gemini-3.1-flash-image"];
+  // If user requested offline execution, restrict strictly to local engine
+  if (isOffline) {
+    candidateModels = candidateModels.filter((m) => m.offlineCapable && m.providerId === "local");
+  }
+
+  // CRITICAL: If reference image is present, eliminate models that do not support reference conditioning!
+  // Never silently discard reference images!
+  if (referenceImage) {
+    candidateModels = candidateModels.filter((m) => {
+      const cap = checkProviderReferenceSupport(m.providerId);
+      return cap.supportsReferenceImage && m.supportsReferenceImage;
+    });
+
+    if (preferredProvider === "openai") {
+      warnings.push(
+        "OpenAI DALL-E 3 does not accept reference images. Routed to reference-compatible multimodal provider."
+      );
+    }
+  }
+
+  // Respect user's explicit provider choice if compatible
+  if (preferredProvider && preferredProvider !== "auto") {
+    const userMatches = candidateModels.filter((m) => m.providerId === preferredProvider);
+    if (userMatches.length > 0) {
+      candidateModels = userMatches;
     } else {
-      primaryModel = SUPPORTED_MODELS["gemini-3.1-flash-image"];
+      warnings.push(
+        `Preferred provider '${preferredProvider}' is incompatible with request requirements. Selecting best compatible model.`
+      );
     }
   }
 
-  const rationale = `Selected workflow "${workflow}" conditioned via "${controlMethod}". Primary model "${primaryModel.name}" chosen for premier ${primaryModel.strengths.slice(0, 2).join(" & ")}.`;
+  // ===========================================================================
+  // 3. QUALITY BENCHMARK RANKING & SELECTION
+  // ===========================================================================
+  const ranked = rankModelsByCategory(workflow);
+  let primaryModel: ModelSpecification | undefined = undefined;
+
+  // Find highest ranked candidate that is currently available (not in cooldown)
+  for (const rankItem of ranked) {
+    const matched = candidateModels.find((m) => m.id === rankItem.modelId);
+    if (matched && isProviderAvailable(matched.providerId)) {
+      primaryModel = matched;
+      break;
+    }
+  }
+
+  // Fallback: If no benchmark match was healthy, pick from candidates based on domain
+  if (!primaryModel) {
+    if (referenceImage) {
+      primaryModel =
+        candidateModels.find((m) => m.providerId === "gemini" && isProviderAvailable("gemini")) ||
+        candidateModels.find((m) => m.providerId === "huggingface" && isProviderAvailable("huggingface")) ||
+        candidateModels.find((m) => m.providerId === "local") ||
+        candidateModels[0];
+    } else if (workflow === "poster_typography" || workflow === "photorealism") {
+      primaryModel =
+        candidateModels.find((m) => m.id === "flux-1-dev" && isProviderAvailable("huggingface")) ||
+        candidateModels.find((m) => m.id === "flux-1-schnell" && isProviderAvailable("huggingface")) ||
+        candidateModels.find((m) => m.providerId === "gemini" && isProviderAvailable("gemini")) ||
+        candidateModels[0];
+    } else if (workflow === "anime_illustration") {
+      primaryModel =
+        candidateModels.find((m) => m.id === "animagine-xl-3.1" && isProviderAvailable("huggingface")) ||
+        candidateModels.find((m) => m.id === "flux-1-schnell" && isProviderAvailable("huggingface")) ||
+        candidateModels[0];
+    } else if (quality === "fast") {
+      primaryModel =
+        candidateModels.find((m) => m.id === "ap123-sdxl-lightning" && isProviderAvailable("huggingface")) ||
+        candidateModels.find((m) => m.id === "flux-1-schnell" && isProviderAvailable("huggingface")) ||
+        candidateModels[0];
+    } else {
+      primaryModel =
+        candidateModels.find((m) => isProviderAvailable(m.providerId)) ||
+        candidateModels[0];
+    }
+  }
+
+  // Guarantee valid primary model fallback
+  if (!primaryModel) {
+    primaryModel = SUPPORTED_MODELS["flux-1-schnell"] || Object.values(SUPPORTED_MODELS)[0];
+  }
+
+  // ===========================================================================
+  // 4. FALLBACK CHAIN ASSEMBLY
+  // ===========================================================================
+  // Filter remaining candidate models to build ordered fallback chain
+  const fallbackModels = candidateModels.filter((m) => m.id !== primaryModel!.id);
+  const providerChainSet = new Set<ImageProviderId>();
+  providerChainSet.add(primaryModel.providerId);
+
+  for (const fb of fallbackModels) {
+    providerChainSet.add(fb.providerId);
+  }
+
+  const fallbackChain: ImageProviderId[] = Array.from(providerChainSet);
+
+  // ===========================================================================
+  // 5. RATIONALE & METRIC SYNTHESIS
+  // ===========================================================================
+  const metric = getBenchmarkMetric(primaryModel.id, workflow);
+  const estimatedCost = primaryModel.pricingUsdPerMegapixel;
+  const estimatedLatency = metric?.averageLatencyMs || primaryModel.averageLatencyMs;
+
+  const rationale = [
+    `Workflow: "${workflow}" (confidence: ${Math.round(confidence * 100)}%).`,
+    `Selected: "${primaryModel.name}" via ${primaryModel.providerId.toUpperCase()}.`,
+    `Strengths: ${primaryModel.strengths.slice(0, 2).join(", ")}.`,
+    referenceImage ? `Reference image preserved for ${primaryModel.providerId} conditioning.` : "",
+    estimatedCost === 0 ? "Cost: Free tier / local execution." : `Estimated cost: $${estimatedCost.toFixed(4)}/MP.`,
+    `Estimated latency: ${(estimatedLatency / 1000).toFixed(1)}s.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return {
     workflow,
+    confidence,
     primaryModel,
     fallbackModels,
-    executionMode,
+    fallbackChain,
+    executionMode: isOffline ? "local" : primaryModel.hosting === "local_offline" ? "local" : "cloud",
     controlMethod,
     typographyOverlayNeeded,
-    upscaleTargetMultiplier,
     selectionRationale: rationale,
-    estimatedCostUsd: primaryModel.costPerMegapixelUsd,
+    estimatedCostUsd: estimatedCost,
+    estimatedLatencyMs: estimatedLatency,
+    referenceSafe: Boolean(referenceImage),
+    quotaAware: true,
+    warnings: warnings.length > 0 ? warnings : undefined,
   };
 }
-
