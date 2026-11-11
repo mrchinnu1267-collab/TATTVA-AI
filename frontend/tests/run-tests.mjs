@@ -66,6 +66,10 @@ try {
   if (phaseO?.runPhaseORegressionTestingTests) {
     await phaseO.runPhaseORegressionTestingTests();
   }
+  const phaseP = await jiti("./phase-p-production-release.test.ts");
+  if (phaseP?.runPhasePProductionReleaseTests) {
+    await phaseP.runPhasePProductionReleaseTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

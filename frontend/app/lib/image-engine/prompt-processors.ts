@@ -559,12 +559,14 @@ export function formatPromptForLocal(
  * Validates prompt integrity for the chosen provider before dispatching to generation.
  */
 export function validatePromptForProvider(
-  structured: StructuredPromptInfo,
+  input: StructuredPromptInfo | string,
   provider: ImageProviderId,
   options: { aspectRatio?: string; quality?: ImageQuality; customNegative?: string } = {}
 ): PromptValidationResult {
+  const structured: StructuredPromptInfo =
+    typeof input === "string" ? parseStructuredPrompt(input) : input;
   const errors: string[] = [];
-  const warnings: string[] = [...structured.warnings];
+  const warnings: string[] = Array.isArray(structured?.warnings) ? [...structured.warnings] : [];
 
   // 1. Validate Main Subject
   const mainSubjectFound = Boolean(structured.mainSubject && structured.mainSubject.trim().length > 1);
