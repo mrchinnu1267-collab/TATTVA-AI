@@ -30,6 +30,10 @@ try {
   if (phaseG?.runModelCustomizationLoRATests) {
     await phaseG.runModelCustomizationLoRATests();
   }
+  const phaseH = await jiti("./image-editing-manipulation.test.ts");
+  if (phaseH?.runImageEditingManipulationTests) {
+    await phaseH.runImageEditingManipulationTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

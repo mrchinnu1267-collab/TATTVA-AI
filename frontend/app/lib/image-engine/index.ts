@@ -15,3 +15,5 @@ export * from "./reference-conditioning";
 export * from "./multi-model-router";
 export * from "./spatial-control";
 export * from "./visual-evaluation";
+export * from "./customization";
+export * from "./editing";

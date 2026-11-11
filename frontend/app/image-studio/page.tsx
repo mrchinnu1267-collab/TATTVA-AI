@@ -30,6 +30,7 @@ import {
 import { SpatialEditingSuite } from "../components/image-studio/SpatialEditingSuite";
 import { EnhancementSuite } from "../components/image-studio/EnhancementSuite";
 import { CustomizationSuite } from "../components/image-studio/CustomizationSuite";
+import { EditingSuite } from "../components/image-studio/EditingSuite";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -268,7 +269,7 @@ export default function ImageStudioPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const [loading, setLoading] = useState(false);
-  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization">("none");
+  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization" | "edit">("none");
   const [activeAdapterId, setActiveAdapterId] = useState<string | undefined>(undefined);
   const [adapterScale, setAdapterScale] = useState<number>(0.8);
   const [error, setError] = useState("");
@@ -1004,6 +1005,18 @@ export default function ImageStudioPage() {
                   <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block ml-0.5" />
                 )}
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "edit" ? "none" : "edit"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "edit"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <Wand2 className="h-3.5 w-3.5 text-amber-500" />
+                AI Editing & Manipulation
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1057,6 +1070,26 @@ export default function ImageStudioPage() {
                 }
               }}
               onUpdateScale={setAdapterScale}
+            />
+          )}
+
+          {suiteMode === "edit" && (
+            <EditingSuite
+              baseImage={result?.image || referenceImage}
+              onImageEdited={(editRes) => {
+                if (result) {
+                  setResult({
+                    ...result,
+                    image: editRes.editedImage,
+                    metadata: {
+                      ...result.metadata,
+                      width: editRes.dimensions.width,
+                      height: editRes.dimensions.height,
+                    },
+                  });
+                }
+              }}
+              isLoading={loading}
             />
           )}
 
