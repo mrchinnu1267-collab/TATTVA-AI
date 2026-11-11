@@ -524,3 +524,4 @@ export function ModelIntelligenceDashboard({ onSelectModel }: ModelIntelligenceD
     </div>
   );
 }
+

@@ -37,6 +37,7 @@ import { EditingSuite } from "../components/image-studio/EditingSuite";
 import { SubjectLibrary } from "../components/image-studio/SubjectLibrary";
 import { AccuracyAuditSuite } from "../components/image-studio/AccuracyAuditSuite";
 import { ModelIntelligenceDashboard } from "../components/image-studio/ModelIntelligenceDashboard";
+import { ProductionReliabilityDashboard } from "../components/image-studio/ProductionReliabilityDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -275,7 +276,7 @@ export default function ImageStudioPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const [loading, setLoading] = useState(false);
-  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization" | "edit" | "subject" | "accuracy" | "intelligence">("none");
+  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization" | "edit" | "subject" | "accuracy" | "intelligence" | "reliability">("none");
   const [activeAdapterId, setActiveAdapterId] = useState<string | undefined>(undefined);
   const [adapterScale, setAdapterScale] = useState<number>(0.8);
   const [error, setError] = useState("");
@@ -1059,6 +1060,18 @@ export default function ImageStudioPage() {
                 <Trophy className="h-3.5 w-3.5 text-amber-500" />
                 Model Intelligence & Benchmark
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "reliability" ? "none" : "reliability"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "reliability"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                Production Operations & Reliability
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1161,6 +1174,10 @@ export default function ImageStudioPage() {
                 setSuiteMode("none");
               }}
             />
+          )}
+
+          {suiteMode === "reliability" && (
+            <ProductionReliabilityDashboard />
           )}
 
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">

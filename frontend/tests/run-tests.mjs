@@ -46,6 +46,10 @@ try {
   if (phaseJ?.runModelBenchmarkingIntelligenceTests) {
     await phaseJ.runModelBenchmarkingIntelligenceTests();
   }
+  const phaseK = await jiti("./production-reliability-engineering.test.ts");
+  if (phaseK?.runProductionReliabilityTests) {
+    await phaseK.runProductionReliabilityTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

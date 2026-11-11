@@ -236,3 +236,4 @@ export function getHistoricalBenchmarkRuns(): HistoricalBenchmarkRun[] {
 export function getFailedBenchmarkCases(): FailedBenchmarkCase[] {
   return [...FAILED_CASES_REPOSITORY];
 }
+

@@ -718,3 +718,4 @@ registerPrompts("visual_generation", "landscapes", "text_to_image", [
 if (BENCHMARK_500_PROMPTS.length !== 500) {
   console.warn(`[Benchmark 500] Dataset contains ${BENCHMARK_500_PROMPTS.length} prompts (target: 500).`);
 }
+
