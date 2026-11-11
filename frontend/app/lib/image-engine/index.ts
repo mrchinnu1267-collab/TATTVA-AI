@@ -18,3 +18,4 @@ export * from "./visual-evaluation";
 export * from "./customization";
 export * from "./editing";
 export * from "./consistency";
+export * from "./accuracy";

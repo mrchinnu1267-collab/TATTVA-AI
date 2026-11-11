@@ -184,3 +184,4 @@ export interface TargetedCorrectionPlan {
   recommendedTechnique: "inpainting" | "reference_reconditioning" | "targeted_reprompting";
   maskAreaTarget?: "face" | "clothing" | "accessories" | "general";
 }
+

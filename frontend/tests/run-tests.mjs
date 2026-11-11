@@ -38,6 +38,10 @@ try {
   if (phaseI?.runSubjectConsistencyTests) {
     await phaseI.runSubjectConsistencyTests();
   }
+  const promptAccuracy = await jiti("./prompt-accuracy-system.test.ts");
+  if (promptAccuracy?.runPromptAccuracySystemTests) {
+    await promptAccuracy.runPromptAccuracySystemTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
