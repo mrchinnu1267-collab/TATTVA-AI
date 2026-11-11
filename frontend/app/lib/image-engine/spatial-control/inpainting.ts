@@ -74,3 +74,4 @@ export function estimateMaskCoverage(maskDataUri: string): number {
   if (maskDataUri.length < 50) return 0;
   return 0.25; // 25% default regional edit
 }
+

@@ -13,6 +13,7 @@ import {
 import { verifyImage } from "./verifier";
 import { validateReferenceImage } from "./reference-conditioning";
 import { routeImageRequest, recordGenerationOutcome } from "./multi-model-router";
+import { evaluateVisualQuality } from "./visual-evaluation";
 import {
   moderateTextPrompt,
   moderateVisualImage,
@@ -225,8 +226,26 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   }
 
   const latencyMs = Date.now() - started;
-  const accuracy = best.verification.score;
+  let accuracy = best.verification.score;
   const successfulAttempts = attempts.filter((item) => !item.error).length;
+
+  // 4. Advanced Visual Evaluation & Intelligent Refinement (Phase E)
+  let evaluationResult: any = null;
+  if (verify) {
+    try {
+      evaluationResult = await evaluateVisualQuality({
+        image: best.result.image,
+        prompt,
+        referenceImage: options.referenceImage,
+        useVision: verify,
+      });
+      if (evaluationResult?.scorecard?.overallScore) {
+        accuracy = evaluationResult.scorecard.overallScore;
+      }
+    } catch (evalErr) {
+      console.warn("[Engine] Visual evaluation service non-fatal warning:", evalErr);
+    }
+  }
 
   recordGenerationOutcome({
     modelId: best.result.model,
@@ -270,8 +289,11 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       routing_rationale: routingDecision.selectionRationale,
       estimated_cost_usd: routingDecision.estimatedCostUsd,
       primary_model: routingDecision.primaryModel.name,
+      scorecard: evaluationResult?.scorecard,
+      refinement_action: evaluationResult?.refinementRecommendation?.type,
       warnings: [...new Set(warnings)],
     },
+    evaluation: evaluationResult,
   };
 }
 

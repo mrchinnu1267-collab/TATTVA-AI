@@ -14,6 +14,10 @@ try {
   await jiti("./reference-conditioning-phase-b.test.ts");
   await jiti("./multi-model-router-phase-c.test.ts");
   await jiti("./spatial-control-phase-d.test.ts");
+  const phaseE = await jiti("./visual-evaluation-phase-e.test.ts");
+  if (phaseE?.runVisualEvaluationPhaseETests) {
+    await phaseE.runVisualEvaluationPhaseETests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

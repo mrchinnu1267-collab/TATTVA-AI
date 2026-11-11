@@ -112,6 +112,37 @@ interface ImageApiResponse {
     correctionRounds: number;
     conditioningApplied: string;
   };
+  evaluation?: {
+    scorecard: {
+      overallScore: number;
+      verdict: "pass" | "borderline" | "fail";
+      confidenceScore: number;
+      promptAdherence: number;
+      objectPresence: number;
+      attributeAccuracy: number;
+      spatialAccuracy: number;
+      referenceFidelity: number;
+      textAccuracy: number;
+      visualQuality: number;
+      unwantedObjectFreedom: number;
+      metricsSummary?: {
+        totalRequirementsCount: number;
+        passedRequirementsCount: number;
+        missingObjectsCount: number;
+        unrequestedObjectsCount: number;
+      };
+    };
+    detectedObjects: Array<{ label: string; confidence: number; layer: string }>;
+    missingObjects: string[];
+    unrequestedObjects: string[];
+    refinementRecommendation?: {
+      type: string;
+      rationale: string;
+      targetObject?: string;
+      inpaintBoundingBox?: { x: number; y: number; width: number; height: number };
+      revisedPrompt?: string;
+    };
+  };
 }
 
 interface HistoryItem {
@@ -1065,6 +1096,78 @@ export default function ImageStudioPage() {
                   </div>
                 )}
               </div>
+
+              {/* PHASE E: 8-DIMENSION TRANSPARENT QUALITY SCORECARD */}
+              {result.evaluation?.scorecard && (
+                <div className="rounded-3xl border border-emerald-500/20 bg-gradient-to-b from-emerald-500/5 to-transparent p-4 sm:p-5">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                        8-Dimension Quality Scorecard
+                      </h3>
+                    </div>
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 capitalize">
+                      Verdict: {result.evaluation.scorecard.verdict} · Confidence: {result.evaluation.scorecard.confidenceScore}%
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Adherence</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.promptAdherence}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Objects</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.objectPresence}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Attributes</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.attributeAccuracy}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Spatial</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.spatialAccuracy}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Reference</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.referenceFidelity}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Typography</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.textAccuracy}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Visual Quality</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.visualQuality}%</span>
+                    </div>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
+                      <span className="block text-[9px] text-neutral-400 uppercase">Cleanliness</span>
+                      <span className="text-xs font-extrabold text-emerald-500">{result.evaluation.scorecard.unwantedObjectFreedom}%</span>
+                    </div>
+                  </div>
+
+                  {/* Intelligent Refinement Recommendation */}
+                  {result.evaluation.refinementRecommendation && result.evaluation.refinementRecommendation.type !== "accept_as_is" && (
+                    <div className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                          <Wand2 className="h-3.5 w-3.5" />
+                          Recommended Refinement: {result.evaluation.refinementRecommendation.type.replace(/_/g, " ")}
+                        </span>
+                        {result.evaluation.refinementRecommendation.type === "inpaint_region" && (
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-600 dark:text-amber-400">
+                            Localized Edit
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                        {result.evaluation.refinementRecommendation.rationale}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {result.rag && (
                 <div className="rounded-3xl border border-fuchsia-500/20 bg-gradient-to-b from-fuchsia-500/5 to-transparent p-4 sm:p-5">

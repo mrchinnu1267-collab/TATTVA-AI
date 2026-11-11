@@ -152,3 +152,4 @@ export function generateSyntheticCannyMap(layout: SceneSpatialLayout): string {
   svg += `</svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
+

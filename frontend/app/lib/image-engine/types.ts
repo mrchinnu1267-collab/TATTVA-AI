@@ -166,6 +166,8 @@ export interface ImageMetadata {
   routing_rationale?: string;
   estimated_cost_usd?: number;
   primary_model?: string;
+  scorecard?: any;
+  refinement_action?: string;
 }
 
 export interface ImageEngineResult {
@@ -182,4 +184,5 @@ export interface ImageEngineResult {
   attempts: ImageAttempt[];
   warnings: string[];
   metadata: ImageMetadata;
+  evaluation?: any;
 }

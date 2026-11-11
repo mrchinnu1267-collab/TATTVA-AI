@@ -278,6 +278,7 @@ export async function POST(request: Request) {
       verification: result.verification,
       accuracy: result.accuracy,
       rag: result.rag || null,
+      evaluation: result.evaluation || null,
       compiler: {
         version: result.compiled.compilerVersion,
         positive: result.compiled.positive,
