@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Cpu,
+  BrainCircuit,
   Copy,
   Download,
   History,
@@ -43,6 +44,7 @@ import { ProductionReliabilityDashboard } from "../components/image-studio/Produ
 import { WorkspaceHistorySuite } from "../components/image-studio/WorkspaceHistorySuite";
 import { AccuracyReportCard } from "../components/image-studio/AccuracyReportCard";
 import { ValidationDashboard } from "../components/image-studio/ValidationDashboard";
+import { ContinuousLearningDashboard } from "../components/image-studio/ContinuousLearningDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -293,6 +295,7 @@ export default function ImageStudioPage() {
     | "reliability"
     | "history"
     | "validation"
+    | "learning"
   >("none");
   const [savingToWorkspace, setSavingToWorkspace] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -1192,6 +1195,18 @@ export default function ImageStudioPage() {
                 <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
                 Accuracy Validation & Ground Truth (Phase M)
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "learning" ? "none" : "learning"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "learning"
+                    ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <BrainCircuit className="h-3.5 w-3.5 text-purple-500" />
+                Continuous Learning & Improvement (Phase N)
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1312,6 +1327,10 @@ export default function ImageStudioPage() {
 
           {suiteMode === "validation" && (
             <ValidationDashboard onClose={() => setSuiteMode("none")} />
+          )}
+
+          {suiteMode === "learning" && (
+            <ContinuousLearningDashboard onClose={() => setSuiteMode("none")} />
           )}
 
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">

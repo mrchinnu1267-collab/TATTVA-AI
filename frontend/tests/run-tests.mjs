@@ -58,6 +58,10 @@ try {
   if (phaseM?.runPhaseMAccuracyValidationTests) {
     await phaseM.runPhaseMAccuracyValidationTests();
   }
+  const phaseN = await jiti("./phase-n-continuous-learning.test.ts");
+  if (phaseN?.runPhaseNContinuousLearningTests) {
+    await phaseN.runPhaseNContinuousLearningTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

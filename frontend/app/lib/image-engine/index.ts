@@ -23,3 +23,4 @@ export * from "./model-benchmarking";
 export * from "./reliability";
 export * from "./services";
 export * from "./validation";
+export * from "./continuous-learning";
