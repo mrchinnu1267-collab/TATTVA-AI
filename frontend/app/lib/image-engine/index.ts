@@ -24,3 +24,4 @@ export * from "./reliability";
 export * from "./services";
 export * from "./validation";
 export * from "./continuous-learning";
+export * from "./regression-testing";

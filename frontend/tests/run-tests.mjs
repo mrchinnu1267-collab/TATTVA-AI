@@ -62,6 +62,10 @@ try {
   if (phaseN?.runPhaseNContinuousLearningTests) {
     await phaseN.runPhaseNContinuousLearningTests();
   }
+  const phaseO = await jiti("./phase-o-regression-testing.test.ts");
+  if (phaseO?.runPhaseORegressionTestingTests) {
+    await phaseO.runPhaseORegressionTestingTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
