@@ -313,3 +313,4 @@ export function recordGenerationOutcome(outcome: {
     existing.visualQuality = Math.round((existing.visualQuality * n + outcome.accuracyScore) / (n + 1));
   }
 }
+

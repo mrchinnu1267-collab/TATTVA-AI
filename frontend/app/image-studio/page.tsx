@@ -26,6 +26,8 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
+import { SpatialEditingSuite } from "../components/image-studio/SpatialEditingSuite";
+import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
 import type {
@@ -236,6 +238,7 @@ export default function ImageStudioPage() {
   const [errorHint, setErrorHint] = useState("");
   const [result, setResult] = useState<ImageApiResponse | null>(null);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [spatialBoxes, setSpatialBoxes] = useState<SpatialBoundingBox[]>([]);
   const [providers, setProviders] = useState<ProviderRuntimeStatus[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [copied, setCopied] = useState(false);
@@ -338,6 +341,7 @@ export default function ImageStudioPage() {
           conditioningMethod: conditioningMethod !== "auto" ? conditioningMethod : undefined,
           customNegative: negative.trim() || undefined,
           referenceImage: referenceImage || undefined,
+          spatialBoxes: spatialBoxes.length > 0 ? spatialBoxes : undefined,
           seed: lockSeed && seedInput.trim() ? Number(seedInput) : undefined,
           verify,
         }),
@@ -397,7 +401,75 @@ export default function ImageStudioPage() {
     conditioningMethod,
     history,
     persistHistory,
+    spatialBoxes,
   ]);
+
+  const handleApplyInpaint = useCallback(
+    async (maskDataUri: string, inpaintPrompt: string) => {
+      const targetImage = result?.image || referenceImage;
+      if (!targetImage) return;
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch("/api/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: inpaintPrompt,
+            operation: "inpaint",
+            image: targetImage,
+            referenceImage: targetImage,
+            mask: maskDataUri,
+            quality,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Inpainting failed.");
+        setResult(data as ImageApiResponse);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [result, referenceImage, quality]
+  );
+
+  const handleApplyOutpaint = useCallback(
+    async (
+      expand: { top: number; bottom: number; left: number; right: number },
+      outpaintPrompt: string
+    ) => {
+      const targetImage = result?.image || referenceImage;
+      if (!targetImage) return;
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch("/api/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: outpaintPrompt,
+            operation: "outpaint",
+            image: targetImage,
+            referenceImage: targetImage,
+            expand,
+            quality,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Outpainting failed.");
+        setResult(data as ImageApiResponse);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [result, referenceImage, quality]
+  );
 
   const copyPrompt = useCallback(async () => {
     if (!result) return;
@@ -850,8 +922,16 @@ export default function ImageStudioPage() {
           </div>
         </section>
 
-        {/* ------------------------------------------------------------ result */}
+        {/* ------------------------------------------------------------ result & editing suite */}
         <section className="min-w-0 space-y-4">
+          <SpatialEditingSuite
+            baseImage={result?.image || referenceImage}
+            onApplyInpaint={handleApplyInpaint}
+            onApplyOutpaint={handleApplyOutpaint}
+            onUpdateSpatialBoxes={setSpatialBoxes}
+            isLoading={loading}
+          />
+
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">
             <div className="relative flex min-h-[280px] items-center justify-center bg-[var(--background)] p-3 sm:min-h-[420px]">
               {loading && (

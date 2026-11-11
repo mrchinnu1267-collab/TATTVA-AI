@@ -156,6 +156,14 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
     }
   }
 
+  // Filter for inpainting-capable models if inpainting workflow requested
+  if (workflow === "inpainting") {
+    const inpaintCapable = candidateModels.filter((m) => m.supportsInpainting);
+    if (inpaintCapable.length > 0) {
+      candidateModels = inpaintCapable;
+    }
+  }
+
   // Respect user's explicit provider choice if compatible
   if (preferredProvider && preferredProvider !== "auto") {
     const userMatches = candidateModels.filter((m) => m.providerId === preferredProvider);

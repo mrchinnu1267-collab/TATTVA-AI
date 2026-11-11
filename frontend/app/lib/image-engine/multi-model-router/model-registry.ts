@@ -22,7 +22,7 @@ export const SUPPORTED_MODELS: Record<string, ModelSpecification> = {
     supportsImageToImage: true,
     supportsReferenceImage: true,
     supportsInpainting: true,
-    supportsOutpainting: false,
+    supportsOutpainting: true,
     supportsControlNet: true,
     supportsNegativePrompt: false, // T5-XXL operates on natural prompt descriptions
     supportsStrengthControl: true,
@@ -134,7 +134,7 @@ export const SUPPORTED_MODELS: Record<string, ModelSpecification> = {
     supportsImageToImage: true,
     supportsReferenceImage: true,
     supportsInpainting: true,
-    supportsOutpainting: false,
+    supportsOutpainting: true,
     supportsControlNet: true,
     supportsNegativePrompt: false, // Uses natural language instruction framing
     supportsStrengthControl: false, // Multimodal prompt-conditioned
@@ -190,7 +190,7 @@ export const SUPPORTED_MODELS: Record<string, ModelSpecification> = {
     supportsImageToImage: true,
     supportsReferenceImage: true,
     supportsInpainting: true,
-    supportsOutpainting: false,
+    supportsOutpainting: true,
     supportsControlNet: true,
     supportsNegativePrompt: true,
     supportsStrengthControl: true,
@@ -218,7 +218,7 @@ export const SUPPORTED_MODELS: Record<string, ModelSpecification> = {
     supportsImageToImage: true,
     supportsReferenceImage: true,
     supportsInpainting: true,
-    supportsOutpainting: false,
+    supportsOutpainting: true,
     supportsControlNet: true,
     supportsNegativePrompt: true,
     supportsStrengthControl: true,

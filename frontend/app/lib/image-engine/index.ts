@@ -5,3 +5,6 @@ export { getProviderStatuses, getCooldownRemaining, resolveProviderOrder } from 
 export { verifyImage } from "./verifier";
 export { getGeminiApiKey, GEMINI_IMAGE_MODELS, GEMINI_TEXT_MODELS } from "./gemini";
 export * from "./multimodal-rag";
+export * from "./reference-conditioning";
+export * from "./multi-model-router";
+export * from "./spatial-control";
