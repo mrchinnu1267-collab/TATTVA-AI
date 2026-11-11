@@ -70,6 +70,9 @@ export interface CompiledImagePrompt {
   quality: ImageQuality;
   requirements: ImageRequirement[];
   referenceImage?: string;
+  structured?: any;
+  promptsByProvider?: Record<ImageProviderId, string>;
+  warnings?: string[];
 }
 
 export interface ProviderRequest {

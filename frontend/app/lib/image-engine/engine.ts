@@ -21,6 +21,7 @@ import type {
   ImageAttempt,
   ImageEngineResult,
   ImageGenerationOptions,
+  ImageProviderId,
   ImageVerification,
   ProviderRequest,
   ProviderResult,
@@ -37,10 +38,15 @@ function resolveMaxAttempts(options: ImageGenerationOptions): number {
 function requestFor(
   compiled: CompiledImagePrompt,
   prompt: string,
-  attempt: number
+  attempt: number,
+  provider?: ImageProviderId
 ): ProviderRequest {
+  const providerPrompt =
+    attempt === 0 && provider && compiled.promptsByProvider?.[provider]
+      ? compiled.promptsByProvider[provider]
+      : prompt;
   return {
-    prompt,
+    prompt: providerPrompt,
     negativePrompt: compiled.negative,
     width: compiled.width,
     height: compiled.height,
@@ -117,7 +123,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     for (const provider of order) {
       if (getCooldownRemaining(provider) > 0) continue;
 
-      const request = requestFor(compiled, attemptPrompt, attempt);
+      const request = requestFor(compiled, attemptPrompt, attempt, provider);
       const providerStarted = Date.now();
 
       try {

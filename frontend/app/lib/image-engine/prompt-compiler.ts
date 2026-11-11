@@ -4,10 +4,21 @@
  */
 
 import { normalizeAspectRatio, sizeForAspect } from "./image-utils";
+import {
+  parseStructuredPrompt,
+  formatPromptForGemini,
+  formatPromptForDallE,
+  formatPromptForSDXL,
+  formatPromptForFlux,
+  formatPromptForLocal,
+  validatePromptForProvider,
+  type StructuredPromptInfo,
+} from "./prompt-processors";
 import type {
   AspectRatio,
   CompiledImagePrompt,
   ImageGenerationOptions,
+  ImageProviderId,
   ImageQuality,
   ImageRequirement,
   ImageStyle,
@@ -331,6 +342,21 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
   const steps = quality === "fast" ? 20 : quality === "max" ? 40 : 28;
   const guidance = quality === "max" ? 8 : 7;
 
+  // Phase A: Architecture-specific prompt compilation
+  const structured = parseStructuredPrompt(original, style, options.customNegative);
+  const sdxlFormatted = formatPromptForSDXL(structured);
+  const localFormatted = formatPromptForLocal(structured);
+  const promptsByProvider: Record<ImageProviderId, string> = {
+    gemini: formatPromptForGemini(structured, { aspectRatio, quality }),
+    openai: formatPromptForDallE(structured, { aspectRatio }),
+    huggingface: sdxlFormatted.positive,
+    local: localFormatted.positive,
+  };
+  const compilerWarnings: string[] = [...structured.warnings];
+  if (structured.contradictions.length > 0) {
+    compilerWarnings.push(`Contradictory instructions detected: ${structured.contradictions.join("; ")}`);
+  }
+
   return {
     compilerVersion: COMPILER_VERSION,
     prompt: original,
@@ -346,6 +372,9 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
     quality,
     requirements,
     referenceImage: options.referenceImage,
+    structured,
+    promptsByProvider,
+    warnings: compilerWarnings,
   };
 }
 
@@ -370,3 +399,6 @@ export function refinePrompt(
 
   return `${compiled.positive}${corrections}${fix}\n\nRe-check every mandatory detail above before finishing the image.`;
 }
+
+
+export const compilePrompt = compileImagePrompt;

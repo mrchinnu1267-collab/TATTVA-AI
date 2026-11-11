@@ -166,10 +166,13 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
   const { width, height } = resolveDimensions(req);
   const started = Date.now();
   const seed = typeof req.seed === "number" && req.seed >= 0 ? req.seed : Math.floor(Math.random() * 1_000_000);
+  const hfToken = (process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim();
+  const clientOptions = hfToken ? ({ hf_token: hfToken, token: hfToken } as any) : undefined;
+  const authHeaders: Record<string, string> = hfToken ? { Authorization: `Bearer ${hfToken}` } : {};
 
-  // Strategy 1: SDXL-Lightning via AP123/SDXL-Lightning (Ultra-fast 4-step SDXL, 1024x1024, unwatermarked, no ZeroGPU quota blocks)
+  // Strategy 1: SDXL-Lightning via AP123/SDXL-Lightning (Ultra-fast 4-step SDXL, 1024x1024, unwatermarked)
   try {
-    const client = await GradioClient.connect("AP123/SDXL-Lightning");
+    const client = await GradioClient.connect("AP123/SDXL-Lightning", clientOptions);
     const predictPromise = client.predict("/generate_image", [
       req.prompt,
       "4-Step",
@@ -182,7 +185,10 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
     const fileData = result.data?.[0];
     if (!fileData?.url) throw new Error("SDXL-Lightning returned no image URL.");
 
-    const imgRes = await fetch(fileData.url, { signal: AbortSignal.timeout(35_000) });
+    const imgRes = await fetch(fileData.url, {
+      headers: authHeaders,
+      signal: AbortSignal.timeout(35_000),
+    });
     if (!imgRes.ok) throw new Error(`Failed to download SDXL image: HTTP ${imgRes.status}`);
 
     const buffer = Buffer.from(await imgRes.arrayBuffer());
@@ -201,9 +207,9 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
     const sdxlMsg = sdxlErr instanceof Error ? sdxlErr.message : String(sdxlErr);
     console.warn("[Hugging Face] SDXL-Lightning fallback triggered:", sdxlMsg);
 
-    // Strategy 2: FLUX.1-schnell Space (Anonymous connection, unwatermarked)
+    // Strategy 2: FLUX.1-schnell Space (Fast 4-step diffusion, unwatermarked)
     try {
-      const client = await GradioClient.connect("black-forest-labs/FLUX.1-schnell");
+      const client = await GradioClient.connect("black-forest-labs/FLUX.1-schnell", clientOptions);
       const predictPromise = client.predict("/infer", {
         prompt: req.prompt,
         seed,
@@ -224,7 +230,10 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
         throw new Error("FLUX space returned no image URL.");
       }
 
-      const imgRes = await fetch(fileData.url, { signal: AbortSignal.timeout(35_000) });
+      const imgRes = await fetch(fileData.url, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(35_000),
+      });
       if (!imgRes.ok) {
         throw new Error(`Failed to retrieve generated image from space: HTTP ${imgRes.status}`);
       }
@@ -247,7 +256,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
 
       // Strategy 3: Animagine XL 3.1
       try {
-        const animeClient = await GradioClient.connect("cagliostrolab/animagine-xl-3.1");
+        const animeClient = await GradioClient.connect("cagliostrolab/animagine-xl-3.1", clientOptions);
         const animeRes = (await animeClient.predict("/run", [
           req.prompt,
           req.negativePrompt || "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
@@ -270,7 +279,10 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
         const fileUrl = fileObj?.url;
         if (!fileUrl) throw new Error("Animagine returned no image URL.");
 
-        const imgRes = await fetch(fileUrl, { signal: AbortSignal.timeout(35_000) });
+        const imgRes = await fetch(fileUrl, {
+          headers: authHeaders,
+          signal: AbortSignal.timeout(35_000),
+        });
         if (!imgRes.ok) throw new Error(`Animagine download failed: HTTP ${imgRes.status}`);
 
         const buffer = Buffer.from(await imgRes.arrayBuffer());
@@ -287,7 +299,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
         };
       } catch (thirdErr) {
         const classified = classifyProviderError("Hugging Face", thirdErr || fluxErr || sdxlErr);
-        if (classified.cooldownMs) setCooldown("huggingface", Math.min(classified.cooldownMs, 30_000), classified.message);
+        if (classified.cooldownMs) setCooldown("huggingface", Math.min(classified.cooldownMs, 10_000), classified.message);
         throw classified;
       }
     }
