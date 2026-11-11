@@ -210,9 +210,8 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   }
 
   if (!best) {
-    throw new Error(
-      lastError ||
-        "No image provider could generate this image. Configure Gemini image access, Hugging Face credits, or start the local engine."
+    throw new ImageProviderError(
+      lastError || "All configured image providers are currently unavailable."
     );
   }
 

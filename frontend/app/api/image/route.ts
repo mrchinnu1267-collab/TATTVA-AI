@@ -8,6 +8,7 @@ import {
   executeOutpainting,
   buildSceneSpatialLayout,
   enrichPromptWithSpatialLayout,
+  formatUserFacingImageError,
 } from "../../lib/image-engine";
 import {
   checkRateLimit,
@@ -312,12 +313,10 @@ export async function POST(request: Request) {
     );
 
     console.error("[TATTVA Image] Generation failed:", message);
+    const safeUserMessage = formatUserFacingImageError(error);
     return NextResponse.json(
       {
-        error: message,
-        hint: unavailable
-          ? "Add Gemini image billing, Hugging Face inference credits, or start the local engine. The free fallback may also need a 45s cooldown."
-          : undefined,
+        error: safeUserMessage,
       },
       { status: unavailable ? 503 : 500 }
     );

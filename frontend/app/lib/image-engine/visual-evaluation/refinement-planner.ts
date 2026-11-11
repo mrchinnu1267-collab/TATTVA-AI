@@ -124,3 +124,4 @@ export function planRefinement(input: RefinementPlanInput): RefinementAction {
     priority: "none",
   };
 }
+

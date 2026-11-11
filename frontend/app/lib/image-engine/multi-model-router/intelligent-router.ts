@@ -37,6 +37,15 @@ function isProviderAvailable(providerId: ImageProviderId): boolean {
   if (providerId === "huggingface" && !Boolean((process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim())) {
     return false;
   }
+  if (providerId === "local") {
+    const onVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+    const localUrl = (process.env.LOCAL_IMAGE_ENGINE_URL || "").trim();
+    const isLocalhost = !localUrl || /^https?:\/\/(127\.0\.0\.1|localhost)/i.test(localUrl);
+    // On Vercel, localhost engine cannot be accessed and should be skipped
+    if (onVercel && isLocalhost) {
+      return false;
+    }
+  }
 
   return true;
 }

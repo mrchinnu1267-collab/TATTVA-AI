@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+models/
+cache/
+.env
+.env.local
+.git/
+.gitignore
+*.log

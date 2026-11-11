@@ -35,11 +35,19 @@ interface Cooldown {
 
 const cooldowns = new Map<ImageProviderId, Cooldown>();
 
+export function isRunningOnVercel(): boolean {
+  return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+}
+
+export function isLocalhostUrl(url: string): boolean {
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/i.test(url);
+}
+
 export function clearCooldowns(): void {
   cooldowns.clear();
 }
 
-function setCooldown(provider: ImageProviderId, ms: number, reason: string): void {
+export function setCooldown(provider: ImageProviderId, ms: number, reason: string): void {
   cooldowns.set(provider, { until: Date.now() + ms, reason });
 }
 
@@ -60,7 +68,9 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
   const lower = message.toLowerCase();
 
   const noCredits =
-    /no remaining credits|insufficient|billing|payment|quota|limit:\s*0|exceeded your current quota/.test(lower);
+    /no remaining credits|insufficient|billing|payment|quota|limit:\s*0|exceeded your current quota|runs limit|zerogpu quota/.test(
+      lower
+    );
   const auth = /401|403|unauthorized|invalid.*(token|key)|permission/.test(lower);
   const notFound = /404|not found|does not exist|not supported/.test(lower);
   const rateLimited = /429|rate limit|too many requests|cooldown/.test(lower);
@@ -69,13 +79,13 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
   if (noCredits) {
     return new ImageProviderError(
       `${label} has no remaining quota or credits. ${truncate(message, 240)}`,
-      { retryable: false, cooldownMs: 5_000 }
+      { retryable: false, cooldownMs: 600_000 } // 10 minute cooldown for quota exhaustion
     );
   }
   if (auth) {
-    return new ImageProviderError(`${label} rejected the credentials. ${truncate(message, 240)}`, {
+    return new ImageProviderError(`${label} rejected credentials. ${truncate(message, 240)}`, {
       retryable: false,
-      cooldownMs: 5_000,
+      cooldownMs: 1_800_000, // 30 minute cooldown for bad auth
     });
   }
   if (notFound) {
@@ -97,6 +107,46 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
   return new ImageProviderError(`${label} failed: ${truncate(message, 300)}`, {
     retryable: true,
   });
+}
+
+/**
+ * User-facing error message sanitizer.
+ * Guarantees zero credential, token, localhost, internal URL or stack trace leakage.
+ */
+export function formatUserFacingImageError(rawError: unknown): string {
+  const message = rawError instanceof Error ? rawError.message : String(rawError);
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes("safety") ||
+    lower.includes("prohibited adult") ||
+    lower.includes("content safety guidelines") ||
+    lower.includes("safety violation")
+  ) {
+    return "I cannot fulfill this request as it violates visual content safety guidelines. System policies are strictly enforced. 🔒";
+  }
+
+  // Quota / Billing Exhaustion
+  if (
+    /quota|limit:\s*0|credits|billing|payment|exceeded your current quota|runs limit|zerogpu quota/i.test(lower)
+  ) {
+    return "Image generation is temporarily unavailable because the cloud provider quota has been reached. Please check your provider billing or try again later.";
+  }
+
+  // Missing Configuration / Invalid Credentials
+  if (
+    /not configured|no image provider.*configured|missing.*key|credentials rejected/i.test(lower)
+  ) {
+    return "Image generation is not configured yet. Please configure a valid cloud image provider key (Gemini, Hugging Face, or OpenAI) in application settings.";
+  }
+
+  // Network / Connection Timeout
+  if (/timeout|timed out|abort|connection refused|econnrefused|fetch failed|service could not be reached/i.test(lower)) {
+    return "The image service timed out or could not be reached. Please check your network connection and try again.";
+  }
+
+  // Fallback for all providers unavailable
+  return "All configured image providers are currently unavailable. Please try again shortly.";
 }
 
 // --------------------------------------------------------------------- Gemini
@@ -168,10 +218,67 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
   const started = Date.now();
   const seed = typeof req.seed === "number" && req.seed >= 0 ? req.seed : Math.floor(Math.random() * 1_000_000);
   const hfToken = (process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim();
-  const clientOptions = hfToken ? ({ hf_token: hfToken, token: hfToken } as any) : undefined;
+  const clientOptions = hfToken ? ({ token: hfToken, hf_token: hfToken } as any) : undefined;
   const authHeaders: Record<string, string> = hfToken ? { Authorization: `Bearer ${hfToken}` } : {};
 
-  // Strategy 1: SDXL-Lightning via AP123/SDXL-Lightning (Ultra-fast 4-step SDXL, 1024x1024, unwatermarked)
+  let lastHfError: unknown = null;
+
+  // Strategy 1: Persistent Dedicated GPU Space (cagliostrolab/animagine-xl-3.1)
+  // Highly resilient, zero ZeroGPU quota limitation, unwatermarked, 1024x1024 SDXL-based engine
+  try {
+    const animeClient = await GradioClient.connect("cagliostrolab/animagine-xl-3.1", clientOptions);
+    const animePredict = animeClient.predict("/run", [
+      req.prompt,
+      req.negativePrompt ||
+        "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+      seed,
+      width || 1024,
+      height || 1024,
+      7,
+      28,
+      "Euler a",
+      "1024 x 1024",
+      "(None)",
+      "Standard v3.1",
+      false,
+      0.55,
+      1.5,
+      true,
+    ]) as Promise<{ data: Array<any> }>;
+
+    const animeTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Animagine dedicated GPU space timed out after 30s")), 30_000)
+    );
+    const animeRes = await Promise.race([animePredict, animeTimeout]);
+
+    const fileObj = animeRes.data?.[0]?.[0]?.image || animeRes.data?.[0];
+    const fileUrl = fileObj?.url;
+    if (!fileUrl) throw new Error("Animagine returned no image URL.");
+
+    const imgRes = await fetch(fileUrl, {
+      headers: authHeaders,
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!imgRes.ok) throw new Error(`Animagine download failed: HTTP ${imgRes.status}`);
+
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const mimeType = imgRes.headers.get("content-type") || "image/png";
+
+    return {
+      image: bufferToDataUri(buffer, mimeType),
+      provider: "huggingface",
+      model: "cagliostrolab/animagine-xl-3.1",
+      seed,
+      width,
+      height,
+      latencyMs: Date.now() - started,
+    };
+  } catch (animagineErr) {
+    lastHfError = animagineErr;
+    console.warn("[Hugging Face] Dedicated GPU space fallback triggered:", animagineErr instanceof Error ? animagineErr.message : String(animagineErr));
+  }
+
+  // Strategy 2: SDXL-Lightning (AP123/SDXL-Lightning, fast 4-step diffusion)
   try {
     const client = await GradioClient.connect("AP123/SDXL-Lightning", clientOptions);
     const predictPromise = client.predict("/generate_image", [
@@ -179,7 +286,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
       "4-Step",
     ]) as Promise<{ data: Array<{ url?: string; path?: string } | undefined> }>;
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("SDXL-Lightning timed out after 35s")), 35_000)
+      setTimeout(() => reject(new Error("SDXL-Lightning timed out after 14s")), 14_000)
     );
     const result = await Promise.race([predictPromise, timeoutPromise]);
 
@@ -188,7 +295,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
 
     const imgRes = await fetch(fileData.url, {
       headers: authHeaders,
-      signal: AbortSignal.timeout(35_000),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!imgRes.ok) throw new Error(`Failed to download SDXL image: HTTP ${imgRes.status}`);
 
@@ -205,122 +312,96 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
       latencyMs: Date.now() - started,
     };
   } catch (sdxlErr) {
-    const sdxlMsg = sdxlErr instanceof Error ? sdxlErr.message : String(sdxlErr);
-    console.warn("[Hugging Face] SDXL-Lightning fallback triggered:", sdxlMsg);
-
-    // Strategy 2: FLUX.1-schnell Space (Fast 4-step diffusion, unwatermarked)
-    try {
-      const client = await GradioClient.connect("black-forest-labs/FLUX.1-schnell", clientOptions);
-      const predictPromise = client.predict("/infer", {
-        prompt: req.prompt,
-        seed,
-        randomize_seed: !req.seed,
-        width,
-        height,
-        num_inference_steps: req.steps && req.steps <= 6 ? req.steps : 4,
-      }) as Promise<{ data: Array<{ url?: string; path?: string } | number> }>;
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("FLUX space timed out after 35s")), 35_000)
-      );
-      const result = await Promise.race([predictPromise, timeoutPromise]);
-
-      const fileData = result.data?.[0] as { url?: string; path?: string } | undefined;
-      const actualSeed = typeof result.data?.[1] === "number" ? result.data[1] : seed;
-
-      if (!fileData?.url) {
-        throw new Error("FLUX space returned no image URL.");
-      }
-
-      const imgRes = await fetch(fileData.url, {
-        headers: authHeaders,
-        signal: AbortSignal.timeout(35_000),
-      });
-      if (!imgRes.ok) {
-        throw new Error(`Failed to retrieve generated image from space: HTTP ${imgRes.status}`);
-      }
-
-      const buffer = Buffer.from(await imgRes.arrayBuffer());
-      const mimeType = imgRes.headers.get("content-type") || "image/webp";
-
-      return {
-        image: bufferToDataUri(buffer, mimeType),
-        provider: "huggingface",
-        model: "black-forest-labs/FLUX.1-schnell",
-        seed: actualSeed,
-        width,
-        height,
-        latencyMs: Date.now() - started,
-      };
-    } catch (fluxErr) {
-      const fluxMsg = fluxErr instanceof Error ? fluxErr.message : String(fluxErr);
-      console.warn("[Hugging Face] FLUX.1-schnell fallback triggered:", fluxMsg);
-
-      // Strategy 3: Animagine XL 3.1
-      try {
-        const animeClient = await GradioClient.connect("cagliostrolab/animagine-xl-3.1", clientOptions);
-        const animeRes = (await animeClient.predict("/run", [
-          req.prompt,
-          req.negativePrompt || "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
-          seed,
-          width || 1024,
-          height || 1024,
-          7,
-          28,
-          "Euler a",
-          "1024 x 1024",
-          "(None)",
-          "Standard v3.1",
-          false,
-          0.55,
-          1.5,
-          true,
-        ])) as { data: Array<any> };
-
-        const fileObj = animeRes.data?.[0]?.[0]?.image || animeRes.data?.[0];
-        const fileUrl = fileObj?.url;
-        if (!fileUrl) throw new Error("Animagine returned no image URL.");
-
-        const imgRes = await fetch(fileUrl, {
-          headers: authHeaders,
-          signal: AbortSignal.timeout(35_000),
-        });
-        if (!imgRes.ok) throw new Error(`Animagine download failed: HTTP ${imgRes.status}`);
-
-        const buffer = Buffer.from(await imgRes.arrayBuffer());
-        const mimeType = imgRes.headers.get("content-type") || "image/png";
-
-        return {
-          image: bufferToDataUri(buffer, mimeType),
-          provider: "huggingface",
-          model: "cagliostrolab/animagine-xl-3.1",
-          seed,
-          width,
-          height,
-          latencyMs: Date.now() - started,
-        };
-      } catch (thirdErr) {
-        const classified = classifyProviderError("Hugging Face", thirdErr || fluxErr || sdxlErr);
-        if (classified.cooldownMs) setCooldown("huggingface", Math.min(classified.cooldownMs, 10_000), classified.message);
-        throw classified;
-      }
-    }
+    lastHfError = sdxlErr;
+    console.warn("[Hugging Face] SDXL-Lightning fallback triggered:", sdxlErr instanceof Error ? sdxlErr.message : String(sdxlErr));
   }
+
+  // Strategy 3: FLUX.1-schnell Space (4-step distilled diffusion)
+  try {
+    const client = await GradioClient.connect("black-forest-labs/FLUX.1-schnell", clientOptions);
+    const predictPromise = client.predict("/infer", {
+      prompt: req.prompt,
+      seed,
+      randomize_seed: !req.seed,
+      width,
+      height,
+      num_inference_steps: req.steps && req.steps <= 6 ? req.steps : 4,
+    }) as Promise<{ data: Array<{ url?: string; path?: string } | number> }>;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("FLUX space timed out after 14s")), 14_000)
+    );
+    const result = await Promise.race([predictPromise, timeoutPromise]);
+
+    const fileData = result.data?.[0] as { url?: string; path?: string } | undefined;
+    const actualSeed = typeof result.data?.[1] === "number" ? result.data[1] : seed;
+
+    if (!fileData?.url) {
+      throw new Error("FLUX space returned no image URL.");
+    }
+
+    const imgRes = await fetch(fileData.url, {
+      headers: authHeaders,
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!imgRes.ok) {
+      throw new Error(`Failed to retrieve generated image from space: HTTP ${imgRes.status}`);
+    }
+
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const mimeType = imgRes.headers.get("content-type") || "image/webp";
+
+    return {
+      image: bufferToDataUri(buffer, mimeType),
+      provider: "huggingface",
+      model: "black-forest-labs/FLUX.1-schnell",
+      seed: actualSeed,
+      width,
+      height,
+      latencyMs: Date.now() - started,
+    };
+  } catch (fluxErr) {
+    lastHfError = fluxErr;
+    console.warn("[Hugging Face] FLUX.1-schnell fallback triggered:", fluxErr instanceof Error ? fluxErr.message : String(fluxErr));
+  }
+
+  const classified = classifyProviderError("Hugging Face", lastHfError || new Error("All Hugging Face spaces failed to generate"));
+  if (classified.cooldownMs) setCooldown("huggingface", Math.min(classified.cooldownMs, 60_000), classified.message);
+  throw classified;
 }
 
-// --------------------------------------------------------------- Local
+// --------------------------------------------------------------- Local / Hosted Diffusers Engine
 
 let localHealthCache: { at: number; ok: boolean } = { at: 0, ok: false };
 
-function getLocalBaseUrl(): string {
-  return (process.env.LOCAL_IMAGE_ENGINE_URL || "http://127.0.0.1:8001").replace(/\/+$/, "");
+export function getLocalBaseUrl(): string {
+  const configured = (process.env.LOCAL_IMAGE_ENGINE_URL || "").trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  if (isRunningOnVercel()) {
+    // On Vercel, localhost targets the ephemeral serverless container, never the user's computer.
+    return "";
+  }
+  return "http://127.0.0.1:8001";
 }
 
-async function isLocalEngineHealthy(): Promise<boolean> {
-  if (Date.now() - localHealthCache.at < 20_000) return localHealthCache.ok;
+export async function isLocalEngineHealthy(): Promise<boolean> {
+  const baseUrl = getLocalBaseUrl();
+  if (!baseUrl) return false;
+
+  // Never probe localhost when executing inside Vercel cloud environment
+  if (isRunningOnVercel() && isLocalhostUrl(baseUrl)) {
+    return false;
+  }
+
+  if (Date.now() - localHealthCache.at < 15_000) return localHealthCache.ok;
+
+  const authKey = (process.env.LOCAL_IMAGE_ENGINE_KEY || process.env.IMAGE_ENGINE_API_KEY || "").trim();
+  const headers: Record<string, string> = authKey ? { Authorization: `Bearer ${authKey}`, "X-API-Key": authKey } : {};
+
   try {
-    const res = await fetch(`${getLocalBaseUrl()}/health`, {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers,
       cache: "no-store",
-      signal: AbortSignal.timeout(1800),
+      signal: AbortSignal.timeout(1200),
     });
     const ok = res.ok;
     localHealthCache = { at: Date.now(), ok };
@@ -332,18 +413,34 @@ async function isLocalEngineHealthy(): Promise<boolean> {
 }
 
 async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> {
-  if (!(await isLocalEngineHealthy())) {
+  const baseUrl = getLocalBaseUrl();
+  if (!baseUrl || (isRunningOnVercel() && isLocalhostUrl(baseUrl))) {
     throw new ImageProviderError(
-      "Local image engine is offline. Start image-engine/main.py to enable offline generation.",
-      { retryable: false, cooldownMs: 60_000 }
+      "Hosted GPU image engine is not configured in LOCAL_IMAGE_ENGINE_URL.",
+      { retryable: false, cooldownMs: 300_000 }
     );
   }
 
+  if (!(await isLocalEngineHealthy())) {
+    throw new ImageProviderError(
+      isRunningOnVercel()
+        ? "Hosted GPU image engine is currently unreachable."
+        : "Local image engine is offline. Start image-engine/main.py to enable offline generation.",
+      { retryable: false, cooldownMs: 30_000 }
+    );
+  }
+
+  const authKey = (process.env.LOCAL_IMAGE_ENGINE_KEY || process.env.IMAGE_ENGINE_API_KEY || "").trim();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(authKey ? { Authorization: `Bearer ${authKey}`, "X-API-Key": authKey } : {}),
+  };
+
   const started = Date.now();
   try {
-    const res = await fetch(`${getLocalBaseUrl()}/generate`, {
+    const res = await fetch(`${baseUrl}/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         prompt: req.prompt,
         negative_prompt: req.negativePrompt,
@@ -355,7 +452,7 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
         reference_image: req.referenceImage,
         strength: req.strength,
       }),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!res.ok) {
@@ -382,7 +479,7 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
       latencyMs: Date.now() - started,
     };
   } catch (error) {
-    const classified = classifyProviderError("Local engine", error);
+    const classified = classifyProviderError("Image engine", error);
     localHealthCache = { at: Date.now(), ok: false };
     throw classified;
   }
@@ -518,7 +615,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       available,
       model,
       reason: !configured
-        ? "Not configured."
+        ? (baseReason || "Not configured.")
         : remaining > 0
         ? cooldowns.get(id)?.reason
         : !online
@@ -527,12 +624,23 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
     };
   };
 
+  const onVercel = isRunningOnVercel();
+  const configuredEngineUrl = (process.env.LOCAL_IMAGE_ENGINE_URL || "").trim();
+  const isHostedEngine = Boolean(configuredEngineUrl && !isLocalhostUrl(configuredEngineUrl));
+
+  const localConfigured = onVercel ? isHostedEngine : true;
+  const localReason = onVercel && !isHostedEngine
+    ? "Localhost engine is disabled on cloud deployment. Configure a hosted GPU endpoint in LOCAL_IMAGE_ENGINE_URL."
+    : isHostedEngine
+    ? "Hosted GPU image engine is currently unreachable."
+    : "Start the Python engine (image-engine/main.py).";
+
   return [
     status(
       "huggingface",
-      "Hugging Face SDXL / FLUX",
+      "Hugging Face SDXL / Animagine",
       hfKey,
-      "AP123/SDXL-Lightning",
+      "cagliostrolab/animagine-xl-3.1",
       true
     ),
     status(
@@ -553,11 +661,11 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
     ),
     status(
       "local",
-      "Local CUDA Engine",
-      true,
-      "local SDXL / SD1.5",
+      onVercel ? (isHostedEngine ? "Hosted GPU Engine" : "Local Engine (Cloud Disabled)") : "Local CUDA Engine",
+      localConfigured,
+      "SDXL / SD1.5",
       localOnline,
-      "Start the Python engine (image-engine/main.py)."
+      localReason
     ),
   ];
 }

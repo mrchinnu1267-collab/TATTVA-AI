@@ -18,6 +18,10 @@ try {
   if (phaseE?.runVisualEvaluationPhaseETests) {
     await phaseE.runVisualEvaluationPhaseETests();
   }
+  const infraRepair = await jiti("./image-infrastructure-repair.test.ts");
+  if (infraRepair?.runInfrastructureRepairTests) {
+    await infraRepair.runInfrastructureRepairTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

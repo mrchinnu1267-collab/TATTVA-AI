@@ -33,7 +33,11 @@ import {
   moderateVisualImage,
   SAFETY_REJECTION_MESSAGE,
 } from "../content-moderation";
-import { generateImage, generateImageWithMultimodalRAG } from "../image-engine";
+import {
+  generateImage,
+  generateImageWithMultimodalRAG,
+  formatUserFacingImageError,
+} from "../image-engine";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
 
@@ -367,13 +371,13 @@ export class MasterAIOrchestrator {
         console.error("[TATTVA Image] Orchestrator generation failed:", message);
         return {
           role: "assistant",
-          content: `I could not generate that image yet. ${message}\n\nAdd Gemini image billing, Hugging Face credits, or start the local engine, then try again.`,
+          content: formatUserFacingImageError(imageError),
           kind: "text",
           intent: effectiveIntent,
-          modelUsed: "TATTVA Image Engine",
+          modelUsed: "tattva-error-handler",
           provider: "local",
           latencyMs: Date.now() - startTime,
-          warnings: [message],
+          warnings: ["Image generation failed, formatted safe response"],
         };
       }
     }

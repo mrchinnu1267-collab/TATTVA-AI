@@ -116,3 +116,4 @@ export interface VisualEvaluationResult {
   evaluationMethod: "vision_llm_grounding" | "heuristic_fallback";
   latencyMs: number;
 }
+
