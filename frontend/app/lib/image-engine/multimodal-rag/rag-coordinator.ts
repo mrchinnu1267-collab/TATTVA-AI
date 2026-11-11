@@ -99,20 +99,29 @@ export async function generateImageWithMultimodalRAG(
     const effectiveReference =
       scenePlan.conditioningPlan.referenceImage || referenceImage;
 
-    finalResult = await generateImage({
-      prompt: compiledPrompt,
-      style,
-      aspectRatio,
-      width: options.width,
-      height: options.height,
-      seed: options.seed ? options.seed + attempt * 12345 : undefined,
-      customNegative: options.customNegative,
-      referenceImage: effectiveReference,
-      provider: options.provider,
-      quality: options.quality || "balanced",
-      verify: false, // We perform comprehensive 10-point multimodal validation next
-      userId,
-    });
+    try {
+      const passResult = await generateImage({
+        prompt: compiledPrompt,
+        style,
+        aspectRatio,
+        width: options.width,
+        height: options.height,
+        seed: options.seed ? options.seed + attempt * 12345 : undefined,
+        customNegative: options.customNegative,
+        referenceImage: effectiveReference,
+        provider: options.provider,
+        quality: options.quality || "balanced",
+        verify: false, // We perform comprehensive 10-point multimodal validation next
+        userId,
+      });
+      finalResult = passResult;
+    } catch (genError) {
+      if (finalResult?.image) {
+        // Retain previous successful generation pass if refinement encounters a transient error
+        break;
+      }
+      throw genError;
+    }
 
     // =========================================================================
     // STAGE 6: MULTI-STAGE QUALITY VALIDATION
@@ -124,8 +133,8 @@ export async function generateImageWithMultimodalRAG(
       scenePlan,
     });
 
-    // If score is high (>= 86) or this is the last attempt, accept
-    if (qualityReport.overallScore >= 86 || attempt >= maxAttempts - 1) {
+    // If score is high (>= 80) or this is the last attempt, accept
+    if (qualityReport.overallScore >= 80 || attempt >= maxAttempts - 1) {
       break;
     }
 

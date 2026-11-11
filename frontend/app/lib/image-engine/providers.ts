@@ -342,15 +342,67 @@ async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult>
   }
 }
 
+// ---------------------------------------------------------------- Pollinations (Zero-Config Cloud)
+
+async function generateWithPollinations(req: ProviderRequest): Promise<ProviderResult> {
+  const remaining = getCooldownRemaining("pollinations");
+  if (remaining > 0) {
+    throw new ImageProviderError(
+      `TATTVA Cloud is cooling down for ${Math.ceil(remaining / 1000)}s.`,
+      { retryable: false, cooldownMs: remaining }
+    );
+  }
+
+  const started = Date.now();
+  const width = Math.min(1024, Math.max(256, req.width || 1024));
+  const height = Math.min(1024, Math.max(256, req.height || 1024));
+  const promptEncoded = encodeURIComponent(req.prompt.slice(0, 1000));
+  const seed = req.seed || Math.floor(Math.random() * 2_147_483_647);
+
+  const url = `https://image.pollinations.ai/prompt/${promptEncoded}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(60_000),
+      headers: {
+        "User-Agent": "TATTVA-AI-Engine/1.0",
+        Accept: "image/jpeg,image/png,image/*",
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${truncate(text, 240)}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = res.headers.get("content-type") || "image/jpeg";
+    const imageUri = bufferToDataUri(buffer, mimeType);
+
+    return {
+      image: imageUri,
+      provider: "pollinations",
+      model: "turbo-diffusion",
+      seed,
+      width,
+      height,
+      latencyMs: Date.now() - started,
+    };
+  } catch (error) {
+    const classified = classifyProviderError("TATTVA Cloud Engine", error);
+    if (classified.cooldownMs) setCooldown("pollinations", classified.cooldownMs, classified.message);
+    throw classified;
+  }
+}
+
 export function resolveProviderOrder(
   requested: ImageProviderChoice | undefined,
   quality: "fast" | "balanced" | "max"
 ): ImageProviderId[] {
   if (requested && requested !== "auto") return [requested];
-  // Quality-first when max, latency-first when fast.
-  return quality === "max"
-    ? ["gemini", "huggingface", "openai", "local"]
-    : ["gemini", "huggingface", "openai", "local"];
+  // Quality-first with resilient zero-config cloud fallback before local
+  return ["gemini", "huggingface", "openai", "pollinations", "local"];
 }
 
 export async function generateWithProvider(
@@ -364,6 +416,8 @@ export async function generateWithProvider(
       return generateWithHuggingFace(req);
     case "openai":
       return generateWithOpenAI(req);
+    case "pollinations":
+      return generateWithPollinations(req);
     case "local":
       return generateWithLocal(req);
     default:
@@ -427,6 +481,13 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       "dall-e-3",
       true,
       "OpenAI API key needed for DALL-E 3."
+    ),
+    status(
+      "pollinations",
+      "TATTVA Cloud Engine (Zero-Config)",
+      true,
+      "turbo-diffusion",
+      true
     ),
     status(
       "local",

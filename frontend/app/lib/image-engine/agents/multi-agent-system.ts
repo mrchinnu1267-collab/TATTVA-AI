@@ -109,6 +109,7 @@ export class MultiAgentImageSystem {
     // AGENT 5: GENERATION AGENT
     // =========================================================================
     onAgentUpdate?.({ agent: "Generation Agent", action: `Executing generation via ${routingDecision.primaryModel.providerId}`, status: "running" });
+    const mappedProvider = (routingDecision.primaryModel.providerId === "comfyui" ? "local" : routingDecision.primaryModel.providerId) as any;
     let generationResult = await generateImage({
       prompt,
       style: options.style,
@@ -118,7 +119,7 @@ export class MultiAgentImageSystem {
       seed: options.seed,
       customNegative: options.customNegative,
       referenceImage: scenePlan.conditioningPlan.referenceImage || referenceImage,
-      provider: (routingDecision.primaryModel.providerId === "comfyui" ? "local" : routingDecision.primaryModel.providerId) as any,
+      provider: mappedProvider,
       quality: options.quality || "balanced",
       verify: false,
       userId,
@@ -165,7 +166,7 @@ export class MultiAgentImageSystem {
         style: options.style,
         aspectRatio: options.aspectRatio,
         referenceImage: scenePlan.conditioningPlan.referenceImage || referenceImage,
-        provider: (routingDecision.primaryModel.providerId === "comfyui" ? "local" : routingDecision.primaryModel.providerId) as any,
+        provider: mappedProvider,
         quality: options.quality || "balanced",
         verify: false,
         userId,
@@ -206,4 +207,3 @@ export class MultiAgentImageSystem {
 }
 
 export const multiAgentImageSystem = new MultiAgentImageSystem();
-
