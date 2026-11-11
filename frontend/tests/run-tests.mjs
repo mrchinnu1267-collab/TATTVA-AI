@@ -42,6 +42,10 @@ try {
   if (promptAccuracy?.runPromptAccuracySystemTests) {
     await promptAccuracy.runPromptAccuracySystemTests();
   }
+  const phaseJ = await jiti("./model-benchmarking-intelligence.test.ts");
+  if (phaseJ?.runModelBenchmarkingIntelligenceTests) {
+    await phaseJ.runModelBenchmarkingIntelligenceTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

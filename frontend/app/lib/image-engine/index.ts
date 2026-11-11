@@ -19,3 +19,4 @@ export * from "./customization";
 export * from "./editing";
 export * from "./consistency";
 export * from "./accuracy";
+export * from "./model-benchmarking";

@@ -22,6 +22,7 @@ import {
   Sun,
   Target,
   Trash2,
+  Trophy,
   Unlock,
   User,
   Wand2,
@@ -35,6 +36,7 @@ import { CustomizationSuite } from "../components/image-studio/CustomizationSuit
 import { EditingSuite } from "../components/image-studio/EditingSuite";
 import { SubjectLibrary } from "../components/image-studio/SubjectLibrary";
 import { AccuracyAuditSuite } from "../components/image-studio/AccuracyAuditSuite";
+import { ModelIntelligenceDashboard } from "../components/image-studio/ModelIntelligenceDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -273,7 +275,7 @@ export default function ImageStudioPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const [loading, setLoading] = useState(false);
-  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization" | "edit" | "subject" | "accuracy">("none");
+  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization" | "edit" | "subject" | "accuracy" | "intelligence">("none");
   const [activeAdapterId, setActiveAdapterId] = useState<string | undefined>(undefined);
   const [adapterScale, setAdapterScale] = useState<number>(0.8);
   const [error, setError] = useState("");
@@ -1045,6 +1047,18 @@ export default function ImageStudioPage() {
                 <Target className="h-3.5 w-3.5 text-amber-500" />
                 Prompt Accuracy Engine
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "intelligence" ? "none" : "intelligence"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "intelligence"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                Model Intelligence & Benchmark
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1136,6 +1150,15 @@ export default function ImageStudioPage() {
               referenceImage={referenceImage}
               onApplyImage={(imageUrl) => {
                 setReferenceImage(imageUrl);
+              }}
+            />
+          )}
+
+          {suiteMode === "intelligence" && (
+            <ModelIntelligenceDashboard
+              onSelectModel={(modelId) => {
+                setProvider("auto");
+                setSuiteMode("none");
               }}
             />
           )}
