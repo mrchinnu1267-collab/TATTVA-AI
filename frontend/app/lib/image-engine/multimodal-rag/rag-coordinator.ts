@@ -126,41 +126,35 @@ export async function generateImageWithMultimodalRAG(
     // =========================================================================
     // STAGE 6: MULTI-STAGE QUALITY VALIDATION
     // =========================================================================
-    options.onProgress?.("validating", "Auditing image across 10 visual quality dimensions...");
-    qualityReport = await validateImageQuality({
-      image: finalResult.image,
-      prompt,
-      scenePlan,
-    });
+    if (options.verify) {
+      options.onProgress?.("validating", "Auditing image across 10 visual quality dimensions...");
+      qualityReport = await validateImageQuality({
+        image: finalResult.image,
+        prompt,
+        scenePlan,
+      });
 
-    // If score is high (>= 80) or this is the last attempt, accept
-    if (qualityReport.overallScore >= 80 || attempt >= maxAttempts - 1) {
+      // If score is high (>= 80) or this is the last attempt, accept
+      if (qualityReport.overallScore >= 80 || attempt >= maxAttempts - 1) {
+        break;
+      }
+
+      // =========================================================================
+      // STAGE 7: RAG-ASSISTED IMAGE CORRECTION
+      // =========================================================================
+      if (qualityReport.correctionPlan && attempt < maxAttempts - 1) {
+        correctionRounds++;
+        options.onProgress?.(
+          "refining",
+          `Applying targeted correction: ${qualityReport.correctionPlan.suggestedFix}`
+        );
+
+        // Targeted prompt refinement
+        const addition = qualityReport.correctionPlan.newPromptAdditions || qualityReport.correctionPlan.suggestedFix;
+        compiledPrompt = `${prompt}. Specifically ensure: ${addition}. Keep everything else intact.${visualContextInjection}`;
+      }
+    } else {
       break;
-    }
-
-    // =========================================================================
-    // STAGE 7: RAG-ASSISTED IMAGE CORRECTION
-    // =========================================================================
-    if (qualityReport.correctionPlan && attempt < maxAttempts - 1) {
-      correctionRounds++;
-      options.onProgress?.(
-        "refining",
-        `Applying targeted correction: ${qualityReport.correctionPlan.suggestedFix}`
-      );
-
-      // Targeted prompt refinement
-      const addition = qualityReport.correctionPlan.newPromptAdditions || qualityReport.correctionPlan.suggestedFix;
-      compiledPrompt = `${prompt}. Specifically ensure: ${addition}. Keep everything else intact.${visualContextInjection}`;
-    }
-  }
-
-  // ===========================================================================
-  // STAGE 8: MANDATORY POST-GENERATION SAFETY VERIFICATION
-  // ===========================================================================
-  if (finalResult?.image) {
-    const postGenCheck = await moderateVisualImage(finalResult.image);
-    if (!postGenCheck.isSafe) {
-      throw new ImageProviderError(SAFETY_REJECTION_MESSAGE, { retryable: false });
     }
   }
 

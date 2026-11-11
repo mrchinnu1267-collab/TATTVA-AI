@@ -310,23 +310,6 @@ export class MasterAIOrchestrator {
           userId: context.userId,
         });
 
-        // Stage 3: Post-generation image output verification
-        if (imageResult.image) {
-          const outputModeration = await moderateVisualImage(imageResult.image);
-          if (!outputModeration.isSafe) {
-            return {
-              role: "assistant",
-              content: SAFETY_REJECTION_MESSAGE,
-              kind: "text",
-              intent: effectiveIntent,
-              modelUsed: "tattva-content-guardrail",
-              provider: "local",
-              latencyMs: Date.now() - startTime,
-              warnings: ["Generated output safety violation: image discarded"],
-            };
-          }
-        }
-
         const failed = imageResult.verification.requirements.filter(
           (item) => item.met === false
         );

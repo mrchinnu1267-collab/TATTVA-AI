@@ -183,6 +183,7 @@ export interface MultimodalRAGOptions {
   enableRAG?: boolean;
   maxRetrievedReferences?: number;
   userId?: string;
+  verify?: boolean;
   onProgress?: (stage: string, detail?: string) => void;
 }
 

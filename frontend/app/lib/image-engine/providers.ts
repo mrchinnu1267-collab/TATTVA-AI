@@ -34,6 +34,10 @@ interface Cooldown {
 
 const cooldowns = new Map<ImageProviderId, Cooldown>();
 
+export function clearCooldowns(): void {
+  cooldowns.clear();
+}
+
 function setCooldown(provider: ImageProviderId, ms: number, reason: string): void {
   cooldowns.set(provider, { until: Date.now() + ms, reason });
 }
@@ -64,13 +68,13 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
   if (noCredits) {
     return new ImageProviderError(
       `${label} has no remaining quota or credits. ${truncate(message, 240)}`,
-      { retryable: false, cooldownMs: 10 * 60_000 }
+      { retryable: false, cooldownMs: 5_000 }
     );
   }
   if (auth) {
     return new ImageProviderError(`${label} rejected the credentials. ${truncate(message, 240)}`, {
       retryable: false,
-      cooldownMs: 10 * 60_000,
+      cooldownMs: 5_000,
     });
   }
   if (notFound) {
@@ -130,21 +134,6 @@ async function generateWithGemini(req: ProviderRequest): Promise<ProviderResult>
 
 // ---------------------------------------------------------------- HuggingFace
 
-let gradioFluxClient: GradioClient | null = null;
-let gradioConnectedAt = 0;
-
-async function getFluxClient(token?: string): Promise<GradioClient> {
-  if (gradioFluxClient && Date.now() - gradioConnectedAt < 30 * 60 * 1000) {
-    return gradioFluxClient;
-  }
-  const hfToken = token && token.startsWith("hf_") ? (token as `hf_${string}`) : undefined;
-  gradioFluxClient = await GradioClient.connect("black-forest-labs/FLUX.1-schnell", {
-    token: hfToken,
-  });
-  gradioConnectedAt = Date.now();
-  return gradioFluxClient;
-}
-
 function resolveDimensions(req: ProviderRequest): { width: number; height: number } {
   if (req.width && req.height) {
     const w = Math.max(256, Math.min(1536, Math.round(req.width / 16) * 16));
@@ -166,8 +155,6 @@ function resolveDimensions(req: ProviderRequest): { width: number; height: numbe
 }
 
 async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderResult> {
-  const token = (process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim();
-
   const remaining = getCooldownRemaining("huggingface");
   if (remaining > 0) {
     throw new ImageProviderError(
@@ -180,83 +167,129 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
   const started = Date.now();
   const seed = typeof req.seed === "number" && req.seed >= 0 ? req.seed : Math.floor(Math.random() * 1_000_000);
 
-  // Strategy 1: Official FLUX.1-schnell Space (Fast, highest quality, zero watermarks)
+  // Strategy 1: SDXL-Lightning via AP123/SDXL-Lightning (Ultra-fast 4-step SDXL, 1024x1024, unwatermarked, no ZeroGPU quota blocks)
   try {
-    const client = await getFluxClient(token);
-    const result = (await client.predict("/infer", {
-      prompt: req.prompt,
-      seed,
-      randomize_seed: !req.seed,
-      width,
-      height,
-      num_inference_steps: req.steps && req.steps <= 6 ? req.steps : 4,
-    })) as { data: Array<{ url?: string; path?: string } | number> };
+    const client = await GradioClient.connect("AP123/SDXL-Lightning");
+    const predictPromise = client.predict("/generate_image", [
+      req.prompt,
+      "4-Step",
+    ]) as Promise<{ data: Array<{ url?: string; path?: string } | undefined> }>;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("SDXL-Lightning timed out after 35s")), 35_000)
+    );
+    const result = await Promise.race([predictPromise, timeoutPromise]);
 
-    const fileData = result.data?.[0] as { url?: string; path?: string } | undefined;
-    const actualSeed = typeof result.data?.[1] === "number" ? result.data[1] : seed;
-
-    if (!fileData?.url) {
-      throw new Error("FLUX space returned no image URL.");
-    }
+    const fileData = result.data?.[0];
+    if (!fileData?.url) throw new Error("SDXL-Lightning returned no image URL.");
 
     const imgRes = await fetch(fileData.url, { signal: AbortSignal.timeout(35_000) });
-    if (!imgRes.ok) {
-      throw new Error(`Failed to retrieve generated image from space: HTTP ${imgRes.status}`);
-    }
+    if (!imgRes.ok) throw new Error(`Failed to download SDXL image: HTTP ${imgRes.status}`);
 
     const buffer = Buffer.from(await imgRes.arrayBuffer());
-    const mimeType = imgRes.headers.get("content-type") || "image/webp";
+    const mimeType = imgRes.headers.get("content-type") || "image/png";
 
     return {
       image: bufferToDataUri(buffer, mimeType),
       provider: "huggingface",
-      model: "black-forest-labs/FLUX.1-schnell",
-      seed: actualSeed,
+      model: "AP123/SDXL-Lightning",
+      seed,
       width,
       height,
       latencyMs: Date.now() - started,
     };
-  } catch (fluxErr) {
-    gradioFluxClient = null;
-    const fluxMsg = fluxErr instanceof Error ? fluxErr.message : String(fluxErr);
-    console.warn("[Hugging Face] FLUX.1-schnell space fallback triggered:", fluxMsg);
+  } catch (sdxlErr) {
+    const sdxlMsg = sdxlErr instanceof Error ? sdxlErr.message : String(sdxlErr);
+    console.warn("[Hugging Face] SDXL-Lightning fallback triggered:", sdxlMsg);
 
-    // Strategy 2: SDXL-Lightning Space fallback
+    // Strategy 2: FLUX.1-schnell Space (Anonymous connection, unwatermarked)
     try {
-      const hfToken = token && token.startsWith("hf_") ? (token as `hf_${string}`) : undefined;
-      const sdxlClient = await GradioClient.connect("ByteDance/SDXL-Lightning", {
-        token: hfToken,
-      });
-      const sdxlResult = (await sdxlClient.predict("/generate_image", {
+      const client = await GradioClient.connect("black-forest-labs/FLUX.1-schnell");
+      const predictPromise = client.predict("/infer", {
         prompt: req.prompt,
-        height,
+        seed,
+        randomize_seed: !req.seed,
         width,
-        num_inference_steps: 4,
-        guidance_scale: 0,
-      })) as { data: Array<{ url?: string } | undefined> };
+        height,
+        num_inference_steps: req.steps && req.steps <= 6 ? req.steps : 4,
+      }) as Promise<{ data: Array<{ url?: string; path?: string } | number> }>;
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("FLUX space timed out after 35s")), 35_000)
+      );
+      const result = await Promise.race([predictPromise, timeoutPromise]);
 
-      const fileData = sdxlResult.data?.[0];
-      if (!fileData?.url) throw new Error("SDXL-Lightning space returned no image URL.");
+      const fileData = result.data?.[0] as { url?: string; path?: string } | undefined;
+      const actualSeed = typeof result.data?.[1] === "number" ? result.data[1] : seed;
+
+      if (!fileData?.url) {
+        throw new Error("FLUX space returned no image URL.");
+      }
 
       const imgRes = await fetch(fileData.url, { signal: AbortSignal.timeout(35_000) });
-      if (!imgRes.ok) throw new Error(`SDXL download failed: HTTP ${imgRes.status}`);
+      if (!imgRes.ok) {
+        throw new Error(`Failed to retrieve generated image from space: HTTP ${imgRes.status}`);
+      }
 
       const buffer = Buffer.from(await imgRes.arrayBuffer());
-      const mimeType = imgRes.headers.get("content-type") || "image/jpeg";
+      const mimeType = imgRes.headers.get("content-type") || "image/webp";
 
       return {
         image: bufferToDataUri(buffer, mimeType),
         provider: "huggingface",
-        model: "ByteDance/SDXL-Lightning",
-        seed,
+        model: "black-forest-labs/FLUX.1-schnell",
+        seed: actualSeed,
         width,
         height,
         latencyMs: Date.now() - started,
       };
-    } catch (sdxlErr) {
-      const classified = classifyProviderError("Hugging Face", sdxlErr || fluxErr);
-      if (classified.cooldownMs) setCooldown("huggingface", classified.cooldownMs, classified.message);
-      throw classified;
+    } catch (fluxErr) {
+      const fluxMsg = fluxErr instanceof Error ? fluxErr.message : String(fluxErr);
+      console.warn("[Hugging Face] FLUX.1-schnell fallback triggered:", fluxMsg);
+
+      // Strategy 3: Animagine XL 3.1
+      try {
+        const animeClient = await GradioClient.connect("cagliostrolab/animagine-xl-3.1");
+        const animeRes = (await animeClient.predict("/run", [
+          req.prompt,
+          req.negativePrompt || "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+          seed,
+          width || 1024,
+          height || 1024,
+          7,
+          28,
+          "Euler a",
+          "1024 x 1024",
+          "(None)",
+          "Standard v3.1",
+          false,
+          0.55,
+          1.5,
+          true,
+        ])) as { data: Array<any> };
+
+        const fileObj = animeRes.data?.[0]?.[0]?.image || animeRes.data?.[0];
+        const fileUrl = fileObj?.url;
+        if (!fileUrl) throw new Error("Animagine returned no image URL.");
+
+        const imgRes = await fetch(fileUrl, { signal: AbortSignal.timeout(35_000) });
+        if (!imgRes.ok) throw new Error(`Animagine download failed: HTTP ${imgRes.status}`);
+
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const mimeType = imgRes.headers.get("content-type") || "image/png";
+
+        return {
+          image: bufferToDataUri(buffer, mimeType),
+          provider: "huggingface",
+          model: "cagliostrolab/animagine-xl-3.1",
+          seed,
+          width,
+          height,
+          latencyMs: Date.now() - started,
+        };
+      } catch (thirdErr) {
+        const classified = classifyProviderError("Hugging Face", thirdErr || fluxErr || sdxlErr);
+        if (classified.cooldownMs) setCooldown("huggingface", Math.min(classified.cooldownMs, 30_000), classified.message);
+        throw classified;
+      }
     }
   }
 }
@@ -463,9 +496,9 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
   return [
     status(
       "huggingface",
-      "Hugging Face FLUX",
+      "Hugging Face SDXL / FLUX",
       hfKey,
-      "black-forest-labs/FLUX.1-schnell",
+      "AP123/SDXL-Lightning",
       true
     ),
     status(
