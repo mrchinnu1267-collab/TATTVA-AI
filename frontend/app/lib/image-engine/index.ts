@@ -17,3 +17,4 @@ export * from "./spatial-control";
 export * from "./visual-evaluation";
 export * from "./customization";
 export * from "./editing";
+export * from "./consistency";

@@ -34,6 +34,10 @@ try {
   if (phaseH?.runImageEditingManipulationTests) {
     await phaseH.runImageEditingManipulationTests();
   }
+  const phaseI = await jiti("./subject-consistency.test.ts");
+  if (phaseI?.runSubjectConsistencyTests) {
+    await phaseI.runSubjectConsistencyTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
