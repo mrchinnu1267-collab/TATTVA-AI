@@ -4,6 +4,7 @@
  */
 
 import { InferenceClient } from "@huggingface/inference";
+import { Client as GradioClient } from "@gradio/client";
 import { geminiImage, GEMINI_IMAGE_MODELS } from "./gemini";
 import { bufferToDataUri, fitWithinArea, truncate } from "./image-utils";
 import type {
@@ -129,22 +130,43 @@ async function generateWithGemini(req: ProviderRequest): Promise<ProviderResult>
 
 // ---------------------------------------------------------------- HuggingFace
 
-const HF_IMAGE_MODELS = [
-  { model: "black-forest-labs/FLUX.1-dev", provider: "fal-ai" },
-  { model: "black-forest-labs/FLUX.1-schnell", provider: "nscale" },
-  { model: "stabilityai/stable-diffusion-3-medium-diffusers", provider: "hf-inference" },
-];
+let gradioFluxClient: GradioClient | null = null;
+let gradioConnectedAt = 0;
 
-let hfClient: InferenceClient | null = null;
+async function getFluxClient(token?: string): Promise<GradioClient> {
+  if (gradioFluxClient && Date.now() - gradioConnectedAt < 30 * 60 * 1000) {
+    return gradioFluxClient;
+  }
+  const hfToken = token && token.startsWith("hf_") ? (token as `hf_${string}`) : undefined;
+  gradioFluxClient = await GradioClient.connect("black-forest-labs/FLUX.1-schnell", {
+    token: hfToken,
+  });
+  gradioConnectedAt = Date.now();
+  return gradioFluxClient;
+}
 
-function getHfClient(token: string): InferenceClient {
-  if (!hfClient) hfClient = new InferenceClient(token);
-  return hfClient;
+function resolveDimensions(req: ProviderRequest): { width: number; height: number } {
+  if (req.width && req.height) {
+    const w = Math.max(256, Math.min(1536, Math.round(req.width / 16) * 16));
+    const h = Math.max(256, Math.min(1536, Math.round(req.height / 16) * 16));
+    return { width: w, height: h };
+  }
+  switch (req.aspectRatio) {
+    case "16:9":
+      return { width: 1024, height: 576 };
+    case "9:16":
+      return { width: 576, height: 1024 };
+    case "4:3":
+      return { width: 1024, height: 768 };
+    case "3:4":
+      return { width: 768, height: 1024 };
+    default:
+      return { width: 1024, height: 1024 };
+  }
 }
 
 async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderResult> {
   const token = (process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim();
-  if (!token) throw new ImageProviderError("HF_TOKEN is not configured.", { retryable: false });
 
   const remaining = getCooldownRemaining("huggingface");
   if (remaining > 0) {
@@ -154,53 +176,89 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
     );
   }
 
-  const client = getHfClient(token);
-  let lastError: unknown;
+  const { width, height } = resolveDimensions(req);
+  const started = Date.now();
+  const seed = typeof req.seed === "number" && req.seed >= 0 ? req.seed : Math.floor(Math.random() * 1_000_000);
 
-  for (const candidate of HF_IMAGE_MODELS) {
-    const started = Date.now();
+  // Strategy 1: Official FLUX.1-schnell Space (Fast, highest quality, zero watermarks)
+  try {
+    const client = await getFluxClient(token);
+    const result = (await client.predict("/infer", {
+      prompt: req.prompt,
+      seed,
+      randomize_seed: !req.seed,
+      width,
+      height,
+      num_inference_steps: req.steps && req.steps <= 6 ? req.steps : 4,
+    })) as { data: Array<{ url?: string; path?: string } | number> };
+
+    const fileData = result.data?.[0] as { url?: string; path?: string } | undefined;
+    const actualSeed = typeof result.data?.[1] === "number" ? result.data[1] : seed;
+
+    if (!fileData?.url) {
+      throw new Error("FLUX space returned no image URL.");
+    }
+
+    const imgRes = await fetch(fileData.url, { signal: AbortSignal.timeout(35_000) });
+    if (!imgRes.ok) {
+      throw new Error(`Failed to retrieve generated image from space: HTTP ${imgRes.status}`);
+    }
+
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const mimeType = imgRes.headers.get("content-type") || "image/webp";
+
+    return {
+      image: bufferToDataUri(buffer, mimeType),
+      provider: "huggingface",
+      model: "black-forest-labs/FLUX.1-schnell",
+      seed: actualSeed,
+      width,
+      height,
+      latencyMs: Date.now() - started,
+    };
+  } catch (fluxErr) {
+    gradioFluxClient = null;
+    const fluxMsg = fluxErr instanceof Error ? fluxErr.message : String(fluxErr);
+    console.warn("[Hugging Face] FLUX.1-schnell space fallback triggered:", fluxMsg);
+
+    // Strategy 2: SDXL-Lightning Space fallback
     try {
-      const blob = await client.textToImage(
-        {
-          model: candidate.model,
-          inputs: req.prompt,
-          parameters: {
-            negative_prompt: req.negativePrompt,
-            width: req.width,
-            height: req.height,
-            num_inference_steps: req.steps,
-            guidance_scale: req.guidance,
-            seed: req.seed,
-          },
-          provider: candidate.provider as never,
-        },
-        { outputType: "blob" }
-      );
+      const hfToken = token && token.startsWith("hf_") ? (token as `hf_${string}`) : undefined;
+      const sdxlClient = await GradioClient.connect("ByteDance/SDXL-Lightning", {
+        token: hfToken,
+      });
+      const sdxlResult = (await sdxlClient.predict("/generate_image", {
+        prompt: req.prompt,
+        height,
+        width,
+        num_inference_steps: 4,
+        guidance_scale: 0,
+      })) as { data: Array<{ url?: string } | undefined> };
 
-      const buffer = Buffer.from(await blob.arrayBuffer());
+      const fileData = sdxlResult.data?.[0];
+      if (!fileData?.url) throw new Error("SDXL-Lightning space returned no image URL.");
+
+      const imgRes = await fetch(fileData.url, { signal: AbortSignal.timeout(35_000) });
+      if (!imgRes.ok) throw new Error(`SDXL download failed: HTTP ${imgRes.status}`);
+
+      const buffer = Buffer.from(await imgRes.arrayBuffer());
+      const mimeType = imgRes.headers.get("content-type") || "image/jpeg";
+
       return {
-        image: bufferToDataUri(buffer, blob.type || "image/png"),
+        image: bufferToDataUri(buffer, mimeType),
         provider: "huggingface",
-        model: candidate.model,
-        seed: req.seed,
-        width: req.width,
-        height: req.height,
+        model: "ByteDance/SDXL-Lightning",
+        seed,
+        width,
+        height,
         latencyMs: Date.now() - started,
       };
-    } catch (error) {
-      const classified = classifyProviderError("Hugging Face", error);
-      lastError = classified;
-      // Stop early on account-level failures; otherwise try the next model.
-      if (/credits|quota|credentials|billing/i.test(classified.message)) break;
+    } catch (sdxlErr) {
+      const classified = classifyProviderError("Hugging Face", sdxlErr || fluxErr);
+      if (classified.cooldownMs) setCooldown("huggingface", classified.cooldownMs, classified.message);
+      throw classified;
     }
   }
-
-  const classified =
-    lastError instanceof ImageProviderError
-      ? lastError
-      : classifyProviderError("Hugging Face", lastError);
-  if (classified.cooldownMs) setCooldown("huggingface", classified.cooldownMs, classified.message);
-  throw classified;
 }
 
 // --------------------------------------------------------------- Local
@@ -347,9 +405,9 @@ export function resolveProviderOrder(
   quality: "fast" | "balanced" | "max"
 ): ImageProviderId[] {
   if (requested && requested !== "auto") return [requested];
-  return quality === "max"
-    ? ["gemini", "huggingface", "openai", "local"]
-    : ["gemini", "huggingface", "openai", "local"];
+  // Prioritize Hugging Face FLUX.1-schnell (unwatermarked, fast, high visual fidelity)
+  // Fall back to Gemini, OpenAI, then local engine
+  return ["huggingface", "gemini", "openai", "local"];
 }
 
 export async function generateWithProvider(
@@ -357,10 +415,10 @@ export async function generateWithProvider(
   req: ProviderRequest
 ): Promise<ProviderResult> {
   switch (provider) {
-    case "gemini":
-      return generateWithGemini(req);
     case "huggingface":
       return generateWithHuggingFace(req);
+    case "gemini":
+      return generateWithGemini(req);
     case "openai":
       return generateWithOpenAI(req);
     case "local":
@@ -404,20 +462,19 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
 
   return [
     status(
+      "huggingface",
+      "Hugging Face FLUX",
+      hfKey,
+      "black-forest-labs/FLUX.1-schnell",
+      true
+    ),
+    status(
       "gemini",
       "Google Gemini Image",
       geminiKey,
       GEMINI_IMAGE_MODELS[0],
       true,
       "Gemini image access needs quota/billing."
-    ),
-    status(
-      "huggingface",
-      "Hugging Face FLUX",
-      hfKey,
-      HF_IMAGE_MODELS[0].model,
-      true,
-      "Hugging Face needs inference credits."
     ),
     status(
       "openai",
