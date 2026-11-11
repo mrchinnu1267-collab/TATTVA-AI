@@ -350,6 +350,7 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
     gemini: formatPromptForGemini(structured, { aspectRatio, quality }),
     openai: formatPromptForDallE(structured, { aspectRatio }),
     huggingface: sdxlFormatted.positive,
+    pollinations: formatPromptForFlux(structured, { aspectRatio }),
     local: localFormatted.positive,
   };
   const compilerWarnings: string[] = [...structured.warnings];

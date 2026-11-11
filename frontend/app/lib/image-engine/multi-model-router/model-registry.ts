@@ -9,6 +9,32 @@ import { ImageProviderId } from "../types";
 
 export const SUPPORTED_MODELS: Record<string, ModelSpecification> = {
   // 1. FLUX.1-dev (High-Fidelity Text-to-Image & Typography)
+  "flux-pollinations": {
+    id: "flux-pollinations",
+    name: "FLUX Pollinations Cloud",
+    exactModelIdentifier: "pollinations/flux",
+    family: "flux",
+    hosting: "open_weight",
+    providerId: "pollinations",
+    description: "Fast cloud-hosted FLUX.1 model powered by Pollinations AI with zero ZeroGPU quota limits.",
+    strengths: ["photorealism", "high uptime", "zero quota limits", "unwatermarked"],
+    supportsTextToImage: true,
+    supportsImageToImage: false,
+    supportsReferenceImage: false,
+    supportsInpainting: false,
+    supportsOutpainting: false,
+    supportsControlNet: false,
+    supportsNegativePrompt: false,
+    supportsStrengthControl: false,
+    maxResolution: { width: 1024, height: 1024 },
+    resolutionLimits: { minWidth: 256, minHeight: 256, maxWidth: 1024, maxHeight: 1024 },
+    license: "Apache-2.0",
+    pricingUsdPerMegapixel: 0.0,
+    costPerMegapixelUsd: 0.0,
+    averageLatencyMs: 4500,
+    qualityScore: 94,
+    offlineCapable: false,
+  },
   "flux-1-dev": {
     id: "flux-1-dev",
     name: "FLUX.1-dev",

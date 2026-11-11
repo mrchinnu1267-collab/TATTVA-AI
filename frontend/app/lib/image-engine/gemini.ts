@@ -62,7 +62,13 @@ function parseDataUri(dataUri: string): { mimeType: string; data: string } | nul
 async function callGemini(
   model: string,
   parts: GeminiPart[],
-  options: { temperature?: number; json?: boolean; apiKey: string; timeoutMs?: number }
+  options: {
+    temperature?: number;
+    json?: boolean;
+    apiKey: string;
+    timeoutMs?: number;
+    responseModalities?: string[];
+  }
 ): Promise<GeminiResponse> {
   const res = await fetch(`${BASE_URL}/models/${encodeURIComponent(model)}:generateContent?key=${options.apiKey}`, {
     method: "POST",
@@ -72,6 +78,7 @@ async function callGemini(
       generationConfig: {
         temperature: options.temperature ?? 0.4,
         ...(options.json ? { responseMimeType: "application/json" } : {}),
+        ...(options.responseModalities ? { responseModalities: options.responseModalities } : {}),
       },
       safetySettings: GEMINI_SAFETY_SETTINGS,
     }),
@@ -177,6 +184,7 @@ export async function geminiImage(
         apiKey,
         temperature: 0.7,
         timeoutMs: options.timeoutMs ?? 180_000,
+        responseModalities: ["IMAGE", "TEXT"],
       });
 
       const imagePart = data.candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data);

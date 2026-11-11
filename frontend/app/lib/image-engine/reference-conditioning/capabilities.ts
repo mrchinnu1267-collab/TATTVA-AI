@@ -39,6 +39,14 @@ export const PROVIDER_REFERENCE_CAPABILITIES: Record<ImageProviderId, ProviderRe
     supportedFormats: [],
     reason: "OpenAI DALL-E 3 does not accept reference images for image generation. Reference images must not be silently discarded.",
   },
+  pollinations: {
+    provider: "pollinations",
+    supportsReferenceImage: false,
+    supportsStrength: false,
+    maxResolution: 2048,
+    supportedFormats: [],
+    reason: "Pollinations FLUX standard API is text-conditioned.",
+  },
 };
 
 /**

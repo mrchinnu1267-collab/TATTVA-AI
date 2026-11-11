@@ -37,6 +37,9 @@ function isProviderAvailable(providerId: ImageProviderId): boolean {
   if (providerId === "huggingface" && !Boolean((process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim())) {
     return false;
   }
+  if (providerId === "pollinations") {
+    return true;
+  }
   if (providerId === "local") {
     const onVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
     const localUrl = (process.env.LOCAL_IMAGE_ENGINE_URL || "").trim();
@@ -246,6 +249,11 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
 
   for (const fb of fallbackModels) {
     providerChainSet.add(fb.providerId);
+  }
+
+  // Ensure zero-quota Pollinations cloud fallback is present before local
+  if (isProviderAvailable("pollinations")) {
+    providerChainSet.add("pollinations");
   }
 
   const fallbackChain: ImageProviderId[] = Array.from(providerChainSet);

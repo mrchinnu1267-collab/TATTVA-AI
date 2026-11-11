@@ -275,7 +275,14 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
     };
   } catch (animagineErr) {
     lastHfError = animagineErr;
-    console.warn("[Hugging Face] Dedicated GPU space fallback triggered:", animagineErr instanceof Error ? animagineErr.message : String(animagineErr));
+    const errStr = animagineErr instanceof Error ? animagineErr.message : String(animagineErr);
+    console.warn("[Hugging Face] Dedicated GPU space fallback triggered:", errStr);
+    if (/exceeded your ZeroGPU quota/i.test(errStr)) {
+      // Account-wide ZeroGPU quota exhausted; fast-fail instead of wasting timeouts on subsequent ZeroGPU spaces
+      const classified = classifyProviderError("Hugging Face", animagineErr);
+      setCooldown("huggingface", 120_000, classified.message);
+      throw classified;
+    }
   }
 
   // Strategy 2: SDXL-Lightning (AP123/SDXL-Lightning, fast 4-step diffusion)
@@ -551,6 +558,65 @@ async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult>
   }
 }
 
+// ------------------------------------------------------------- Pollinations FLUX
+
+async function generateWithPollinations(req: ProviderRequest): Promise<ProviderResult> {
+  const remaining = getCooldownRemaining("pollinations");
+  if (remaining > 0) {
+    throw new ImageProviderError(
+      `Pollinations is cooling down for ${Math.ceil(remaining / 1000)}s.`,
+      { retryable: false, cooldownMs: remaining }
+    );
+  }
+
+  const started = Date.now();
+  const width = req.width || 1024;
+  const height = req.height || 1024;
+  const seed = req.seed ?? Math.floor(Math.random() * 1_000_000);
+  const encoded = encodeURIComponent(req.prompt);
+
+  // Strategy 1: FLUX model on Pollinations
+  const fluxUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true`;
+
+  try {
+    const res = await fetch(fluxUrl, { signal: AbortSignal.timeout(28_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const mimeType = res.headers.get("content-type") || "image/jpeg";
+    return {
+      image: bufferToDataUri(buffer, mimeType),
+      provider: "pollinations",
+      model: "flux",
+      seed,
+      width,
+      height,
+      latencyMs: Date.now() - started,
+    };
+  } catch {
+    // Strategy 2: Default standard model on Pollinations
+    try {
+      const fallbackUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+      const res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(18_000) });
+      if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const mimeType = res.headers.get("content-type") || "image/jpeg";
+      return {
+        image: bufferToDataUri(buffer, mimeType),
+        provider: "pollinations",
+        model: "pollinations-standard",
+        seed,
+        width,
+        height,
+        latencyMs: Date.now() - started,
+      };
+    } catch (fallbackErr) {
+      const classified = classifyProviderError("Pollinations AI", fallbackErr);
+      if (classified.cooldownMs) setCooldown("pollinations", classified.cooldownMs, classified.message);
+      throw classified;
+    }
+  }
+}
+
 export function resolveProviderOrder(
   requested: ImageProviderChoice | undefined,
   quality: "fast" | "balanced" | "max",
@@ -563,7 +629,7 @@ export function resolveProviderOrder(
     // When reference image is present, prioritize multimodal native and img2img-capable engines
     baseOrder = ["gemini", "huggingface", "local"];
   } else {
-    baseOrder = ["huggingface", "gemini", "openai", "local"];
+    baseOrder = ["huggingface", "gemini", "pollinations", "openai", "local"];
   }
 
   if (hasReferenceImage) {
@@ -583,6 +649,8 @@ export async function generateWithProvider(
       return generateWithHuggingFace(req);
     case "gemini":
       return generateWithGemini(req);
+    case "pollinations":
+      return generateWithPollinations(req);
     case "openai":
       return generateWithOpenAI(req);
     case "local":
@@ -658,6 +726,13 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       "dall-e-3",
       true,
       "OpenAI API key needed for DALL-E 3."
+    ),
+    status(
+      "pollinations",
+      "Pollinations FLUX Cloud",
+      true,
+      "flux",
+      true
     ),
     status(
       "local",

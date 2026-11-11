@@ -86,6 +86,7 @@ export async function createReferenceConditioningPlan(params: {
   const promptsByProvider: Record<ImageProviderId, string> = {
     gemini: geminiConditioned,
     huggingface: sdxlConditioned,
+    pollinations: prompt,
     local: localConditioned,
     openai: openaiConditioned,
   };

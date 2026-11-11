@@ -56,6 +56,7 @@ export interface PromptValidationResult {
 export const PROVIDER_TOKEN_BUDGETS: Record<ImageProviderId, number> = {
   huggingface: 77,   // Primary SDXL-Lightning dual CLIP-L/G window (FLUX fallback allows up to 256 T5 tokens)
   local: 77,         // Local SDXL / SD 1.5 CLIP encoder limit
+  pollinations: 256, // FLUX.1 T5-XXL token budget on Pollinations
   gemini: 1000,      // Generative Language Multimodal text context (chars/tokens)
   openai: 1000,      // DALL-E 3 API limit
 };
@@ -290,6 +291,7 @@ export function parseStructuredPrompt(
   const estimatedTokens: Record<ImageProviderId, number> = {
     huggingface: approxTokens,
     local: approxTokens,
+    pollinations: approxTokens,
     gemini: wordCount,
     openai: wordCount,
   };
@@ -579,6 +581,9 @@ export function validatePromptForProvider(
       break;
     case "local":
       optimizedPrompt = formatPromptForLocal(structured, options).positive;
+      break;
+    case "pollinations":
+      optimizedPrompt = formatPromptForFlux(structured, options);
       break;
     default:
       optimizedPrompt = structured.rawPrompt;
