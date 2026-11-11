@@ -228,6 +228,8 @@ export async function POST(request: Request) {
         quality,
         maxAttempts: toNumber(body.maxAttempts),
         userId: session.userId,
+        activeAdapterId: typeof body.activeAdapterId === "string" ? body.activeAdapterId : undefined,
+        adapterScale: toNumber(body.adapterScale),
       });
     } else {
       result = await generateImage({
@@ -245,6 +247,8 @@ export async function POST(request: Request) {
         verify: body.verify === undefined ? true : Boolean(body.verify),
         targetScore: toNumber(body.targetScore),
         userId: session.userId,
+        activeAdapterId: typeof body.activeAdapterId === "string" ? body.activeAdapterId : undefined,
+        adapterScale: toNumber(body.adapterScale),
       });
     }
 

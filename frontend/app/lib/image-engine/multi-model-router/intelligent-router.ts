@@ -176,6 +176,29 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
     }
   }
 
+  // Adapter Compatibility Check (Phase G)
+  if (params.activeAdapterId) {
+    // If an adapter is active, prioritize base models matching the adapter architecture (SDXL, FLUX, SD 1.5)
+    const adapterTarget = params.activeAdapterId.toLowerCase();
+    const isFluxAdapter = adapterTarget.includes("flux");
+    const isAnimeAdapter = adapterTarget.includes("anime") || adapterTarget.includes("animagine");
+    const isSD15Adapter = adapterTarget.includes("sd15") || adapterTarget.includes("1.5") || adapterTarget.includes("v1-5");
+
+    const adapterCompatible = candidateModels.filter((m) => {
+      if (isFluxAdapter) return m.family === "flux";
+      if (isAnimeAdapter) return m.id.includes("animagine") || m.family === "sdxl";
+      if (isSD15Adapter) return m.family === "sd15" || m.id.includes("sd15");
+      // Default to SDXL family for general style / art nouveau / 3D LoRAs
+      return m.family === "sdxl" || m.family === "flux";
+    });
+
+    if (adapterCompatible.length > 0) {
+      candidateModels = adapterCompatible;
+    } else {
+      warnings.push(`Active custom adapter '${params.activeAdapterId}' may require an SDXL/FLUX-compatible engine.`);
+    }
+  }
+
   // Respect user's explicit provider choice if compatible
   if (preferredProvider && preferredProvider !== "auto") {
     const userMatches = candidateModels.filter((m) => m.providerId === preferredProvider);

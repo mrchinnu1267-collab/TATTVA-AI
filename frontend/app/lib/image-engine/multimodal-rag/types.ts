@@ -185,6 +185,8 @@ export interface MultimodalRAGOptions {
   userId?: string;
   verify?: boolean;
   onProgress?: (stage: string, detail?: string) => void;
+  activeAdapterId?: string;
+  adapterScale?: number;
 }
 
 export interface MultimodalRAGResult extends ImageEngineResult {

@@ -54,6 +54,8 @@ export interface ImageGenerationOptions {
   verify?: boolean;
   targetScore?: number;
   userId?: string;
+  activeAdapterId?: string;
+  adapterScale?: number;
 }
 
 export interface CompiledImagePrompt {
@@ -76,6 +78,8 @@ export interface CompiledImagePrompt {
   structured?: any;
   promptsByProvider?: Record<ImageProviderId, string>;
   warnings?: string[];
+  activeAdapterId?: string;
+  adapterScale?: number;
 }
 
 export interface ProviderRequest {
@@ -90,6 +94,8 @@ export interface ProviderRequest {
   quality: ImageQuality;
   referenceImage?: string;
   strength?: number;
+  activeAdapterId?: string;
+  adapterScale?: number;
 }
 
 export interface ProviderResult {

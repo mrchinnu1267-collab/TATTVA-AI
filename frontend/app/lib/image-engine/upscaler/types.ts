@@ -190,3 +190,4 @@ export const SUPER_RES_MODELS: Record<SuperResolutionModelId, SuperResolutionMod
     hosting: "universal_server",
   },
 };
+

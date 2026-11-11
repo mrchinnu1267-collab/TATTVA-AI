@@ -374,6 +374,8 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
     requirements,
     referenceImage: options.referenceImage,
     strength: options.strength,
+    activeAdapterId: options.activeAdapterId,
+    adapterScale: options.adapterScale,
     structured,
     promptsByProvider,
     warnings: compilerWarnings,

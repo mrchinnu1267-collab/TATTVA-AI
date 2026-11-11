@@ -458,6 +458,8 @@ async function generateWithLocal(req: ProviderRequest): Promise<ProviderResult> 
         seed: req.seed,
         reference_image: req.referenceImage,
         strength: req.strength,
+        lora_adapter: req.activeAdapterId,
+        lora_scale: req.adapterScale,
       }),
       signal: AbortSignal.timeout(120_000),
     });

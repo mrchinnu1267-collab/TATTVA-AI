@@ -655,3 +655,4 @@ export const BENCHMARK_50_IMAGES: BenchmarkImageSpec[] = [
     syntheticDataUri: generateBenchmarkDataUri("tattva_05"),
   },
 ];
+

@@ -78,6 +78,8 @@ export interface RoutingAnalysisParams {
   isOffline?: boolean;
   requestedWorkflow?: ImageWorkflowType;
   maxCostUsd?: number;
+  activeAdapterId?: string;
+  adapterScale?: number;
 }
 
 export interface ProviderBenchmarkMetric {

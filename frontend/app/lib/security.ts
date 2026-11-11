@@ -415,6 +415,7 @@ export type AuthenticatedSession = {
   name?: string;
   role: string;
   isGuest: boolean;
+  workspaceId?: string;
 };
 
 /**

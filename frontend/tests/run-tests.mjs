@@ -26,6 +26,10 @@ try {
   if (phaseF?.runSuperResolutionEnhancementTests) {
     await phaseF.runSuperResolutionEnhancementTests();
   }
+  const phaseG = await jiti("./model-customization-lora.test.ts");
+  if (phaseG?.runModelCustomizationLoRATests) {
+    await phaseG.runModelCustomizationLoRATests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

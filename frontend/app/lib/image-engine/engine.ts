@@ -61,6 +61,8 @@ function requestFor(
     quality: compiled.quality,
     referenceImage: compiled.referenceImage,
     strength: compiled.strength,
+    activeAdapterId: compiled.activeAdapterId,
+    adapterScale: compiled.adapterScale,
   };
 }
 

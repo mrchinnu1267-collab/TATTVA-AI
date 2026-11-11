@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Cpu,
   Copy,
   Download,
   Image as ImageIcon,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { SpatialEditingSuite } from "../components/image-studio/SpatialEditingSuite";
 import { EnhancementSuite } from "../components/image-studio/EnhancementSuite";
+import { CustomizationSuite } from "../components/image-studio/CustomizationSuite";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -266,7 +268,9 @@ export default function ImageStudioPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const [loading, setLoading] = useState(false);
-  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance">("none");
+  const [suiteMode, setSuiteMode] = useState<"none" | "spatial" | "enhance" | "customization">("none");
+  const [activeAdapterId, setActiveAdapterId] = useState<string | undefined>(undefined);
+  const [adapterScale, setAdapterScale] = useState<number>(0.8);
   const [error, setError] = useState("");
   const [errorHint, setErrorHint] = useState("");
   const [result, setResult] = useState<ImageApiResponse | null>(null);
@@ -377,6 +381,8 @@ export default function ImageStudioPage() {
           spatialBoxes: spatialBoxes.length > 0 ? spatialBoxes : undefined,
           seed: lockSeed && seedInput.trim() ? Number(seedInput) : undefined,
           verify,
+          activeAdapterId,
+          adapterScale,
         }),
       });
 
@@ -983,6 +989,21 @@ export default function ImageStudioPage() {
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                 AI Super-Resolution & 4× Upscaling
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "customization" ? "none" : "customization"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "customization"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <Cpu className="h-3.5 w-3.5 text-amber-500" />
+                LoRA Custom Models & Fine-Tuning
+                {activeAdapterId && (
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block ml-0.5" />
+                )}
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1022,6 +1043,20 @@ export default function ImageStudioPage() {
                 }
               }}
               isLoading={loading}
+            />
+          )}
+
+          {suiteMode === "customization" && (
+            <CustomizationSuite
+              activeAdapterId={activeAdapterId}
+              adapterScale={adapterScale}
+              onSelectAdapter={(adapter) => {
+                setActiveAdapterId(adapter?.id);
+                if (adapter?.triggerWord && !prompt.includes(adapter.triggerWord)) {
+                  setPrompt((prev) => `${adapter.triggerWord}, ${prev}`);
+                }
+              }}
+              onUpdateScale={setAdapterScale}
             />
           )}
 
