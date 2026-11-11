@@ -21,3 +21,4 @@ export * from "./consistency";
 export * from "./accuracy";
 export * from "./model-benchmarking";
 export * from "./reliability";
+export * from "./services";

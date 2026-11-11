@@ -129,6 +129,20 @@ const CONTRADICTION_PAIRS: Array<{ a: RegExp; b: RegExp; message: string }> = [
 // =============================================================================
 
 /**
+ * Detects conflicting or contradictory visual instructions in the prompt.
+ */
+export function detectPromptContradictions(rawPrompt: string): string[] {
+  const clean = rawPrompt.trim();
+  const contradictions: string[] = [];
+  for (const pair of CONTRADICTION_PAIRS) {
+    if (pair.a.test(clean) && pair.b.test(clean)) {
+      contradictions.push(pair.message);
+    }
+  }
+  return contradictions;
+}
+
+/**
  * Parses user prompt into structured visual concepts without dropping user intent.
  */
 export function parseStructuredPrompt(

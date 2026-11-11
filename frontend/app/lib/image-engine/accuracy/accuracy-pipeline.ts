@@ -102,6 +102,7 @@ export async function generateAccurateImage(
 
   return {
     finalImage,
+    initialImage: baseImageUri,
     originalPrompt: prompt,
     structuredSpec,
     requirementsChecklist: finalChecklist,

@@ -50,6 +50,10 @@ try {
   if (phaseK?.runProductionReliabilityTests) {
     await phaseK.runProductionReliabilityTests();
   }
+  const phaseL = await jiti("./unified-image-studio-phase-l.test.ts");
+  if (phaseL?.runUnifiedImageStudioPhaseLTests) {
+    await phaseL.runUnifiedImageStudioPhaseLTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

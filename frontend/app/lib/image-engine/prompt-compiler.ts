@@ -6,6 +6,7 @@
 import { normalizeAspectRatio, sizeForAspect } from "./image-utils";
 import {
   parseStructuredPrompt,
+  detectPromptContradictions,
   formatPromptForGemini,
   formatPromptForDallE,
   formatPromptForSDXL,
@@ -14,6 +15,8 @@ import {
   validatePromptForProvider,
   type StructuredPromptInfo,
 } from "./prompt-processors";
+
+export { detectPromptContradictions };
 import type {
   AspectRatio,
   CompiledImagePrompt,

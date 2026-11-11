@@ -150,6 +150,7 @@ export interface TargetedCorrectionRecord {
  */
 export interface MultiStageAccuracyResult {
   finalImage: string;
+  initialImage?: string;
   originalPrompt: string;
   structuredSpec: StructuredGenerationSpec;
   requirementsChecklist: RequirementValidationItem[];
