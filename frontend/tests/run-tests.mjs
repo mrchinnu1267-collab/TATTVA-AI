@@ -54,6 +54,10 @@ try {
   if (phaseL?.runUnifiedImageStudioPhaseLTests) {
     await phaseL.runUnifiedImageStudioPhaseLTests();
   }
+  const phaseM = await jiti("./phase-m-validation.test.ts");
+  if (phaseM?.runPhaseMAccuracyValidationTests) {
+    await phaseM.runPhaseMAccuracyValidationTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
