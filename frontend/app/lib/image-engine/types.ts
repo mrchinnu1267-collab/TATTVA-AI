@@ -3,7 +3,7 @@
  * Compile -> generate -> verify -> refine loop for maximum prompt adherence.
  */
 
-export type ImageProviderId = "gemini" | "huggingface" | "openai" | "pollinations" | "local";
+export type ImageProviderId = "gemini" | "huggingface" | "openai" | "local";
 export type ImageProviderChoice = "auto" | ImageProviderId;
 export type ImageQuality = "fast" | "balanced" | "max";
 export type AspectRatio = "1:1" | "4:3" | "3:4" | "16:9" | "9:16";

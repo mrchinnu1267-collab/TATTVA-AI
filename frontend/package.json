@@ -7,12 +7,14 @@
     "dev:host": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
+    "generate-video": "tsx index.ts",
     "test": "node tests/run-tests.mjs",
     "graphify": "py -m graphify update . --no-cluster",
     "graphify:mcp": "py -m graphify.serve graphify-out/graph.json --transport stdio"
   },
   "dependencies": {
     "@google/genai": "^2.31.0",
+    "@higgsfield/client": "^0.2.6",
     "@huggingface/inference": "^4.13.32",
     "@sentry/nextjs": "^11.11.0",
     "@supabase/ssr": "^0.12.7",
@@ -20,6 +22,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/leaflet": "^1.9.22",
     "@types/nodemailer": "^8.0.2",
+    "dotenv": "^18.0.10",
     "firebase": "^13.1.0",
     "framer-motion": "^14.9.0",
     "leaflet": "^1.9.4",
@@ -37,6 +40,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0"
   }
 }
