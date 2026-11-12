@@ -70,6 +70,10 @@ try {
   if (phaseP?.runPhasePProductionReleaseTests) {
     await phaseP.runPhasePProductionReleaseTests();
   }
+  const phaseQ = await jiti("./phase-q-production-monitoring.test.ts");
+  if (phaseQ?.runPhaseQProductionMonitoringTests) {
+    await phaseQ.runPhaseQProductionMonitoringTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
