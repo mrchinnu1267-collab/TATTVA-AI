@@ -20,6 +20,7 @@ export * from "./production-monitoring.service";
 export * from "./accuracy-research.service";
 export * from "./nextgen-architecture.service";
 export * from "./final-accuracy-optimization.service";
+export * from "./real-world-validation.service";
 
 import { PromptUnderstandingService } from "./prompt-understanding.service";
 import { RequirementExtractionService } from "./requirement-extraction.service";
@@ -37,6 +38,7 @@ import { ProductionMonitoringService } from "./production-monitoring.service";
 import { AccuracyResearchService } from "./accuracy-research.service";
 import { NextGenArchitectureService } from "./nextgen-architecture.service";
 import { FinalAccuracyOptimizationService } from "./final-accuracy-optimization.service";
+import { RealWorldValidationService } from "./real-world-validation.service";
 
 /**
  * Unified Facade for the complete TATTVA AI Image Studio
@@ -58,5 +60,6 @@ export const UnifiedImageStudioEngine = {
   AccuracyResearch: AccuracyResearchService,
   NextGenArchitecture: NextGenArchitectureService,
   FinalAccuracyOptimization: FinalAccuracyOptimizationService,
+  RealWorldValidation: RealWorldValidationService,
 };
 

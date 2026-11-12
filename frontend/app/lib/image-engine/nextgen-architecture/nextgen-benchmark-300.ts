@@ -503,3 +503,4 @@ export class NextGenBenchmark300 {
     };
   }
 }
+

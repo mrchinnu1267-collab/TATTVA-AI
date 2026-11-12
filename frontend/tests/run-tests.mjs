@@ -86,6 +86,10 @@ try {
   if (phaseT?.runPhaseTAccuracyOptimizationTests) {
     await phaseT.runPhaseTAccuracyOptimizationTests();
   }
+  const phaseU = await jiti("./phase-u-real-world-validation.test.ts");
+  if (phaseU?.runPhaseURealWorldValidationTests) {
+    await phaseU.runPhaseURealWorldValidationTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Compass,
   Cpu,
   BrainCircuit,
   Copy,
@@ -53,6 +54,7 @@ import { ProductionMonitoringDashboard } from "../components/image-studio/Produc
 import { AccuracyResearchDashboard } from "../components/image-studio/AccuracyResearchDashboard";
 import { NextGenArchitectureDashboard } from "../components/image-studio/NextGenArchitectureDashboard";
 import { FinalAccuracyOptimizationDashboard } from "../components/image-studio/FinalAccuracyOptimizationDashboard";
+import { RealWorldValidationDashboard } from "../components/image-studio/RealWorldValidationDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -309,6 +311,7 @@ export default function ImageStudioPage() {
     | "research"
     | "nextgen"
     | "optimization"
+    | "realworld"
   >("none");
   const [savingToWorkspace, setSavingToWorkspace] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -1280,6 +1283,18 @@ export default function ImageStudioPage() {
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
                 Final Accuracy & Error Reduction (Phase T)
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "realworld" ? "none" : "realworld"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "realworld"
+                    ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <Compass className="h-3.5 w-3.5 text-indigo-500" />
+                Real-World Validation (Phase U)
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1424,6 +1439,10 @@ export default function ImageStudioPage() {
 
           {suiteMode === "optimization" && (
             <FinalAccuracyOptimizationDashboard onClose={() => setSuiteMode("none")} />
+          )}
+
+          {suiteMode === "realworld" && (
+            <RealWorldValidationDashboard onClose={() => setSuiteMode("none")} />
           )}
 
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">
