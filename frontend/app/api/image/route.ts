@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const VALID_QUALITIES: ImageQuality[] = ["fast", "balanced", "max"];
-const VALID_PROVIDERS = ["auto", "gemini", "huggingface", "openai", "local", "pollinations"];
+const VALID_PROVIDERS = ["auto", "nano-banana", "gemini", "huggingface", "openai", "local", "pollinations"];
 
 function toNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
@@ -45,6 +45,7 @@ export async function GET() {
     status: "ok",
     providers,
     defaultProvider:
+      providers.find((provider) => provider.available && provider.id === "nano-banana")?.id ??
       providers.find((provider) => provider.available && provider.id === "gemini")?.id ??
       providers.find((provider) => provider.available)?.id ??
       "auto",

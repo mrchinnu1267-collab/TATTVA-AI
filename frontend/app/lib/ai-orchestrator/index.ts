@@ -271,7 +271,7 @@ export class MasterAIOrchestrator {
 
     // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
     if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
-      const candidatePrompt = classification.diffusionPrompt || cleanUserPrompt;
+      const candidatePrompt = cleanUserPrompt || classification.diffusionPrompt || "";
 
       // Stage 1: Strict Content Moderation on User Prompt
       const promptModeration = moderateTextPrompt(candidatePrompt);

@@ -80,4 +80,13 @@ describe("Nano Banana Image Engine Integration", () => {
     assert.strictEqual(nanoBanana.label, "Google Nano Banana 2.1 / Pro");
     assert.strictEqual(nanoBanana.model, "gemini-2.5-flash-image");
   });
+
+  it("should be included in API GET route providers", async () => {
+    const { GET } = await import("../app/api/image/route");
+    const response = await GET();
+    const data = await response.json();
+    assert.strictEqual(data.status, "ok");
+    const nanoBanana = data.providers.find((p: any) => p.id === "nano-banana");
+    assert.ok(nanoBanana, "API /api/image route must list nano-banana");
+  });
 });
