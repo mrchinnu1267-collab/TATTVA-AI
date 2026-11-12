@@ -77,10 +77,12 @@ export async function generateImageWithMultimodalRAG(
   // ===========================================================================
   // Synthesize prompt that preserves 100% user instruction and infuses visual guidance
   const visualContextInjection = retrievalResult.aggregatedVisualContext
-    ? ` [Visual Reference Guidance: ${retrievalResult.aggregatedVisualContext}]`
+    ? `${retrievalResult.aggregatedVisualContext}`
     : "";
 
-  let compiledPrompt = `${prompt}${visualContextInjection}`;
+  let compiledPrompt = visualContextInjection
+    ? `${prompt}. ${visualContextInjection}`
+    : prompt;
   let correctionRounds = 0;
   const maxAttempts = options.maxAttempts ?? 2;
   let finalResult: any = null;

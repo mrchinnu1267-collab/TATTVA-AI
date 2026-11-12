@@ -162,7 +162,10 @@ async function generateWithGemini(req: ProviderRequest): Promise<ProviderResult>
 
   const started = Date.now();
   try {
-    const result = await geminiImage(req.prompt, {
+    const effectivePrompt = req.referenceImage
+      ? `[REFERENCE CONDITIONING INSTRUCTION: Visually condition on the attached reference image. Maintain the core subject identity, recognizable facial features, and visual consistency while applying the following user instructions:]\n${req.prompt}`
+      : req.prompt;
+    const result = await geminiImage(effectivePrompt, {
       referenceImage: req.referenceImage,
       aspectRatio: req.aspectRatio,
     });

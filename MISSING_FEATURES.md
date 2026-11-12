@@ -106,3 +106,4 @@ While TATTVA AI possesses production-certified Image Studio (Phases A–W) and O
 * **Missing Real-Time Streaming & State Indicators:**
   - API responses are returned as full JSON objects at the end of execution rather than streaming tokens via Server-Sent Events (`ReadableStream`).
   - Users do not see real-time state transitions: Thinking → Searching → Reading Files → Generating Images → Executing Tools → Creating Documents → Verifying.
+

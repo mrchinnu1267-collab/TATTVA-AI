@@ -168,20 +168,26 @@ export function aggregateVisualContext(
 
   const primary = matches[0];
   const parts: string[] = [];
+  const lowerPrompt = userPrompt.toLowerCase();
 
-  // 1. Lighting guidance from best reference
-  if (primary.item.lighting) {
-    parts.push(`Lighting aesthetic inspired by verified reference: ${primary.item.lighting}.`);
+  // Strict Protection: Check whether user specified colors, lighting, or composition
+  const hasUserColor = /\b(red|blue|green|yellow|orange|purple|pink|black|white|brown|gold|silver|cyan|magenta|teal|crimson|emerald|navy|gray|grey|beige|ivory|maroon|saffron|coral|amber)\b/i.test(lowerPrompt);
+  const hasUserLighting = /\b(lighting|light|glow|sunlight|illumination|golden hour|blue hour|moonlit|neon|studio|dramatic|candlelight|volumetric)\b/i.test(lowerPrompt);
+  const hasUserComposition = /\b(close-up|macro|wide-angle|panoramic|aerial|portrait|landscape|top-down|centered|rule of thirds|50mm|85mm|35mm|framing)\b/i.test(lowerPrompt);
+
+  // 1. Lighting guidance ONLY if user did not specify lighting
+  if (!hasUserLighting && primary.item.lighting) {
+    parts.push(`Subtle lighting aesthetic: ${primary.item.lighting}.`);
   }
 
-  // 2. Composition & Camera guidance
-  if (primary.item.cameraAngle && primary.item.composition) {
-    parts.push(`Framing & lens specification: ${primary.item.cameraAngle}, ${primary.item.composition}.`);
+  // 2. Composition & Camera guidance ONLY if user did not specify composition
+  if (!hasUserComposition && primary.item.cameraAngle && primary.item.composition) {
+    parts.push(`Camera framing: ${primary.item.cameraAngle}, ${primary.item.composition}.`);
   }
 
-  // 3. Dominant Color Harmony
-  if (primary.item.dominantColors && primary.item.dominantColors.length > 0) {
-    parts.push(`Harmonious color palette guidance: [${primary.item.dominantColors.slice(0, 4).join(", ")}].`);
+  // 3. Dominant Color Harmony ONLY if user did NOT specify colors
+  if (!hasUserColor && primary.item.dominantColors && primary.item.dominantColors.length > 0) {
+    parts.push(`Color tone aesthetic: [${primary.item.dominantColors.slice(0, 3).join(", ")}].`);
   }
 
   return parts.join(" ");

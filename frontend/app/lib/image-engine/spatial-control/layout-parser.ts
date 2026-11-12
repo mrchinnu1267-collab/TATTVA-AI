@@ -198,15 +198,15 @@ export function buildSceneSpatialLayout(
 
   const composition = options.composition || detectSceneComposition(prompt, boxes);
 
-  // Generate spatial prompt guidance injection
+  // Generate natural language spatial prompt guidance
   const spatialClauses = boxes.map((box) => {
     const horizDesc =
-      box.x < 0.3 ? "on the left" : box.x > 0.6 ? "on the right" : "centered";
-    return `[${box.layer.toUpperCase()}: ${box.label} positioned ${horizDesc} at coordinates (${Math.round(box.x * 100)}%, ${Math.round(box.y * 100)}%)]`;
+      box.x < 0.35 ? "on the left side" : box.x > 0.65 ? "on the right side" : "in the center";
+    return `In the ${box.layer}, ${box.label} is positioned ${horizDesc}`;
   });
 
   const promptGuidance = spatialClauses.length > 0
-    ? `Explicit Spatial Composition: ${spatialClauses.join(", ")}.`
+    ? `Explicit Spatial Composition: ${spatialClauses.join("; ")}.`
     : undefined;
 
   return {

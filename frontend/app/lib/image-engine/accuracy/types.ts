@@ -50,6 +50,8 @@ export interface SpatialRelationshipItem {
     | "in_front_of"
     | "above"
     | "below"
+    | "under"
+    | "next_to"
     | "center"
     | "foreground"
     | "background"

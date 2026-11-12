@@ -94,3 +94,4 @@
   - Multi-tenant workspace RBAC, encrypted MCP tokens, SSRF protection, CSP headers, and rate limiting are implemented.
 * **Limitations:**
   - Runtime persistence layer currently defaults to file-based caches (`.tattva_memory_data/` and `.tattva_secure_vault/cloud_chats/`) when Supabase connection parameters are unconfigured or tables are unapplied.
+

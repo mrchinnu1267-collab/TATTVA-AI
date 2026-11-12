@@ -19,11 +19,13 @@ import { STYLE_PRESETS } from "./prompt-compiler";
 
 export interface StructuredPromptInfo {
   rawPrompt: string;
+  cleanInstructionText: string;
   mainSubject: string;
   secondaryObjects: string[];
+  allEntities: string[];
   actions: string[];
   environment: string;
-  objectPositions: Array<{ object: string; position: string }>;
+  objectPositions: Array<{ object: string; position: string; target?: string }>;
   lighting: string;
   composition: string;
   cameraAngle: string;
@@ -143,6 +145,55 @@ export function detectPromptContradictions(rawPrompt: string): string[] {
 }
 
 /**
+ * Prunes conflicting negative prompt tokens based on positive user requirements.
+ */
+export function pruneConflictingNegativePrompts(
+  positivePrompt: string,
+  baseNegative: string
+): string {
+  const lower = positivePrompt.toLowerCase();
+  let pruned = baseNegative;
+
+  // 1. Multiple objects / counts / twins / groups requested: do not suppress duplicates
+  if (
+    /\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|pair|both|twins?|group|crowd|multiple|several|\d+)\b/i.test(lower)
+  ) {
+    pruned = pruned.replace(/\bduplicate subject,?\s*/gi, "");
+  }
+
+  // 2. Text, typography, logo, sign, or poster requested: do not suppress text/logos
+  if (
+    /\b(text|typography|words?|letters?|font|quote|titled?|says?|reading|label(ed|led)?|logo|badge|sign|signature|watermark|poster|flyer|banner|billboard|cover)\b/i.test(lower) ||
+    /["“'][^"”']+["”']/.test(positivePrompt)
+  ) {
+    pruned = pruned.replace(/\b(watermark|signature|logo|text),?\s*/gi, "");
+  }
+
+  // 3. Close-up, macro, crop, or framed composition: do not penalize cropping
+  if (
+    /\b(close-up|macro|cropped|crop|extreme close-up|headshot|profile view|zoomed in|tight shot)\b/i.test(lower)
+  ) {
+    pruned = pruned.replace(/\b(cut off|cropped),?\s*/gi, "");
+  }
+
+  // 4. Hands, fingers, or sketches explicitly described
+  if (
+    /\b(hands?|fingers?|gloves?|sketch|drawing|hand-drawn|manicure)\b/i.test(lower)
+  ) {
+    pruned = pruned.replace(/\b(malformed hands|extra fingers),?\s*/gi, "");
+  }
+
+  // 5. Night, dark, or shadow scenes
+  if (
+    /\b(night|midnight|dark|shadows?|silhouette|noir|dimly lit|twilight)\b/i.test(lower)
+  ) {
+    pruned = pruned.replace(/\b(dark|underexposed),?\s*/gi, "");
+  }
+
+  return pruned.replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim();
+}
+
+/**
  * Parses user prompt into structured visual concepts without dropping user intent.
  */
 export function parseStructuredPrompt(
@@ -175,11 +226,11 @@ export function parseStructuredPrompt(
   }
 
   // Extract explicit counts (e.g. "two cats", "3 dogs")
-  const countRegex = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+([a-zA-Z][a-zA-Z-]*(?:\s+[a-zA-Z][a-zA-Z-]*){0,2})\b/gi;
+  const countRegex = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|pair of|single)\s+([a-zA-Z][a-zA-Z-]*(?:\s+[a-zA-Z][a-zA-Z-]*){0,2})\b/gi;
   const counts: Array<{ entity: string; count: number }> = [];
   const COUNT_MAP: Record<string, number> = {
-    one: 1, two: 2, three: 3, four: 4, five: 5,
-    six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    one: 1, single: 1, two: 2, "pair of": 2, three: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
   };
   let cMatch: RegExpExecArray | null;
   while ((cMatch = countRegex.exec(clean))) {
@@ -195,6 +246,7 @@ export function parseStructuredPrompt(
     "black", "white", "red", "blue", "green", "yellow", "orange", "purple",
     "violet", "pink", "brown", "gold", "golden", "silver", "cyan", "magenta",
     "teal", "turquoise", "crimson", "emerald", "navy", "grey", "gray", "bronze",
+    "amber", "beige", "ivory", "maroon", "coral", "saffron",
   ];
   const colorRegex = new RegExp(`\\b(${COLOR_NAMES.join("|")})\\b`, "gi");
   const colors: string[] = [];
@@ -238,17 +290,6 @@ export function parseStructuredPrompt(
     }
   }
 
-  // Extract spatial positions
-  const objectPositions: Array<{ object: string; position: string }> = [];
-  for (const posPhrase of POSITION_WORDS) {
-    const idx = lower.indexOf(posPhrase);
-    if (idx !== -1) {
-      // Find neighboring words
-      const segment = clean.substring(Math.max(0, idx - 40), Math.min(clean.length, idx + posPhrase.length + 40));
-      objectPositions.push({ object: segment.trim(), position: posPhrase });
-    }
-  }
-
   // Extract Environment / Setting
   let environment = "";
   const envMatch = clean.match(/\b(?:in|on|at|inside|outside|under|amidst)\s+(?:a|an|the)?\s*([a-zA-Z0-9\s]{3,35}?)(?:,|\.|\bwith\b|\bunder\b|\bfeaturing\b|$)/i);
@@ -261,34 +302,122 @@ export function parseStructuredPrompt(
 
   // Extract Action verbs
   const actions: string[] = [];
-  const actionRegex = /\b(standing|smiling|running|walking|sitting|flying|floating|resting|holding|looking|jumping|dancing|swimming|sleeping|reading|playing|gazing|illuminating|soaring|perched)\b/gi;
+  const actionRegex = /\b(standing|smiling|running|walking|sitting|flying|floating|resting|holding|looking|jumping|dancing|swimming|sleeping|reading|playing|gazing|illuminating|soaring|perched|parked|placed|leaning)\b/gi;
   let actMatch: RegExpExecArray | null;
   while ((actMatch = actionRegex.exec(clean))) {
     const act = actMatch[1].toLowerCase();
     if (!actions.includes(act)) actions.push(act);
   }
 
-  // Extract Main Subject and Secondary Objects
-  // Strip introductory filler
-  let stripped = clean;
+  // Clean prompt text without filler opening (e.g. "Create an image of...")
+  let cleanInstructionText = clean;
   for (const f of FILLER_PHRASES) {
-    stripped = stripped.replace(f, "").trim();
+    cleanInstructionText = cleanInstructionText.replace(f, "").trim();
   }
 
-  // First sentence / primary clause is the main subject core
-  const primaryClause = stripped.split(/[,.;]|\bwith\b|\bin\b|\bat\b/i)[0].trim() || stripped;
+  // Extract spatial relationships & positional placements losslessly
+  const objectPositions: Array<{ object: string; position: string; target?: string }> = [];
+  
+  // Specific spatial patterns: left of, right of, in front of, behind, under, next to
+  const spatialPatterns: Array<{ regex: RegExp; position: string }> = [
+    { regex: /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|stands?\s+|sits?\s+|parked\s+|placed\s+)?(?:on the left(?:\s+side)?\s+of|to the left of)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi, position: "on the left side of" },
+    { regex: /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|stands?\s+|sits?\s+|parked\s+|placed\s+)?(?:on the right(?:\s+side)?\s+of|to the right of)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi, position: "on the right side of" },
+    { regex: /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|stands?\s+|sits?\s+|parked\s+|placed\s+)?(?:in front of|directly in front of)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi, position: "in front of" },
+    { regex: /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|stands?\s+|sits?\s+|parked\s+|placed\s+)?(?:behind|in back of|at the back of)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi, position: "behind" },
+    { regex: /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|stands?\s+|sits?\s+|parked\s+|placed\s+)?(?:under|underneath|beneath)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi, position: "under" },
+    { regex: /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|stands?\s+|sits?\s+|parked\s+|placed\s+)?(?:next to|beside|adjacent to)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi, position: "next to" },
+  ];
+
+  for (const sp of spatialPatterns) {
+    let sm: RegExpExecArray | null;
+    while ((sm = sp.regex.exec(cleanInstructionText))) {
+      const subj = sm[1].replace(/^(put|place|add|there is|a|an|the)\s+/i, "").trim();
+      const tgt = sm[2].trim();
+      if (subj && tgt) {
+        objectPositions.push({ object: subj, position: sp.position, target: tgt });
+      }
+    }
+  }
+
+  // General positional words for broad grounding
+  for (const posPhrase of POSITION_WORDS) {
+    const idx = lower.indexOf(posPhrase);
+    if (idx !== -1) {
+      const segment = clean.substring(Math.max(0, idx - 40), Math.min(clean.length, idx + posPhrase.length + 40)).trim();
+      if (!objectPositions.some((p) => p.position === posPhrase)) {
+        objectPositions.push({ object: segment, position: posPhrase });
+      }
+    }
+  }
+
+  // Lossless Main Subject and All Entities Extraction
+  // Split into sentences and independent clauses
+  const rawSentences = cleanInstructionText
+    .split(/(?<=[.!?])\s+|;\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const allEntities: string[] = [];
+  const secondaryObjects: string[] = [];
+
+  // Register entities from counts
+  for (const c of counts) {
+    const label = `${c.count > 1 ? c.count + " " : ""}${c.entity}`;
+    if (!allEntities.includes(label)) allEntities.push(label);
+  }
+
+  // Register entities from spatial directives
+  for (const p of objectPositions) {
+    const cleanObj = p.object.replace(/^(put|place|add|a|an|the)\s+/i, "").trim();
+    if (cleanObj && cleanObj.length > 2 && !allEntities.some((e) => e.includes(cleanObj))) {
+      allEntities.push(cleanObj);
+    }
+    if (p.target && !allEntities.some((e) => e.includes(p.target!))) {
+      allEntities.push(p.target);
+    }
+  }
+
+  // Primary clause from first sentence defines the main subject core
+  const firstSentence = rawSentences[0] || cleanInstructionText;
+  const primaryClause = firstSentence.split(/[,;]|\bwith\b/i)[0].trim() || firstSentence;
   const mainSubject = primaryClause || clean;
 
-  // Secondary elements are additional nouns/clauses
-  const secondaryObjects: string[] = [];
+  // Extract secondary objects from subsequent sentences and secondary clauses
+  if (rawSentences.length > 1) {
+    for (let i = 1; i < rawSentences.length; i++) {
+      const sentence = rawSentences[i]
+        .replace(/^(put|place|add|there is|there are|featuring|include|draw)\s+(a|an|the)?\s*/i, "")
+        .trim();
+      if (sentence && !secondaryObjects.includes(sentence)) {
+        secondaryObjects.push(sentence);
+      }
+    }
+  }
+
+  // Also check clauses inside the first sentence
   if (clean.includes("with ")) {
     const afterWith = clean.split(/\bwith\b/i)[1]?.split(/[,.;]/)[0]?.trim();
-    if (afterWith && afterWith !== mainSubject) secondaryObjects.push(afterWith);
+    if (afterWith && afterWith !== mainSubject && !secondaryObjects.includes(afterWith)) {
+      secondaryObjects.push(afterWith);
+    }
   }
   if (clean.includes("and ")) {
     const afterAnd = clean.split(/\band\b/i)[1]?.split(/[,.;]/)[0]?.trim();
     if (afterAnd && afterAnd !== mainSubject && !secondaryObjects.includes(afterAnd)) {
       secondaryObjects.push(afterAnd);
+    }
+  }
+  if (clean.includes("under ")) {
+    const afterUnder = clean.split(/\bunder\b/i)[1]?.split(/[,.;]/)[0]?.trim();
+    if (afterUnder && afterUnder !== mainSubject && !secondaryObjects.includes(afterUnder)) {
+      secondaryObjects.push(afterUnder);
+    }
+  }
+
+  // Ensure all registered entities are included in secondaryObjects if not matching mainSubject
+  for (const ent of allEntities) {
+    if (!mainSubject.toLowerCase().includes(ent.toLowerCase()) && !secondaryObjects.some((s) => s.toLowerCase().includes(ent.toLowerCase()))) {
+      secondaryObjects.push(ent);
     }
   }
 
@@ -297,8 +426,13 @@ export function parseStructuredPrompt(
   for (const c of counts) requiredDetails.push(`${c.count} ${c.entity}`);
   for (const col of colors) requiredDetails.push(col);
   for (const t of textElements) requiredDetails.push(`"${t}"`);
+  for (const sp of objectPositions) {
+    if (sp.target) {
+      requiredDetails.push(`${sp.object} ${sp.position} ${sp.target}`);
+    }
+  }
 
-  // Rough token count estimate (words * 1.25 + punctuation)
+  // Rough token count estimate
   const wordCount = clean.split(/\s+/).length;
   const approxTokens = Math.round(wordCount * 1.25);
 
@@ -312,8 +446,10 @@ export function parseStructuredPrompt(
 
   return {
     rawPrompt: clean,
+    cleanInstructionText,
     mainSubject,
     secondaryObjects,
+    allEntities,
     actions,
     environment,
     objectPositions,
@@ -484,7 +620,8 @@ export function formatPromptForSDXL(
   if (options.customNegative) {
     negList.push(options.customNegative);
   }
-  const negative = negList.join(", ");
+  const rawNegative = negList.join(", ");
+  const negative = pruneConflictingNegativePrompts(positive, rawNegative);
 
   // Estimate tokens in positive
   const words = positive.split(/\s+/).length;
@@ -500,6 +637,7 @@ export function formatPromptForSDXL(
  * Processor 4: FLUX.1 (Schnell / Dev)
  * Designed for T5-XXL (256/512 tokens) + CLIP-L.
  * Thrives on natural English sentences, scene description, and typography in quotes.
+ * Guarantees zero prompt information loss.
  */
 export function formatPromptForFlux(
   structured: StructuredPromptInfo,
@@ -507,38 +645,52 @@ export function formatPromptForFlux(
 ): string {
   const parts: string[] = [];
 
-  // Descriptive opening
-  const stylePrefix = structured.style !== "auto" ? `${structured.style} style scene featuring` : "A high quality scene of";
-  parts.push(`${stylePrefix} ${structured.mainSubject}`);
+  // Style prefix if requested
+  const preset = structured.style !== "auto" ? STYLE_PRESETS[structured.style] : null;
+  const stylePrefix = preset?.positive ? `${preset.positive}.` : "";
+  if (stylePrefix) parts.push(stylePrefix);
 
-  if (structured.actions.length > 0) {
-    parts.push(`actively ${structured.actions.join(" and ")}.`);
+  // Preserved lossless instruction narrative
+  if (structured.cleanInstructionText && structured.cleanInstructionText.length > 5) {
+    // Capitalize first character
+    const capitalized = structured.cleanInstructionText.charAt(0).toUpperCase() + structured.cleanInstructionText.slice(1);
+    parts.push(capitalized.endsWith(".") ? capitalized : `${capitalized}.`);
+  } else {
+    parts.push(`A high quality scene of ${structured.mainSubject}.`);
+    if (structured.secondaryObjects.length > 0) {
+      parts.push(`Accompanied by ${structured.secondaryObjects.join(", ")}.`);
+    }
   }
 
-  if (structured.environment) {
-    parts.push(`Set in ${structured.environment}.`);
-  }
-
-  if (structured.secondaryObjects.length > 0) {
-    parts.push(`Accompanied by ${structured.secondaryObjects.join(", ")}.`);
-  }
-
+  // Explicit spatial arrangement guarantee
   if (structured.objectPositions.length > 0) {
-    const posList = structured.objectPositions.map((p) => p.object).slice(0, 3).join("; ");
-    parts.push(`Compositional arrangement: ${posList}.`);
+    const detailedPlacements = structured.objectPositions
+      .map((p) => p.target ? `${p.object} is positioned ${p.position} ${p.target}` : `${p.object} is ${p.position}`)
+      .join(", ");
+    if (detailedPlacements) {
+      parts.push(`Precise spatial layout: ${detailedPlacements}.`);
+    }
   }
 
-  if (structured.lighting || structured.composition) {
-    const lightComp = [structured.lighting, structured.composition].filter(Boolean).join(" with ");
-    parts.push(`Illumination and camera: ${lightComp}.`);
+  // Explicit object counts guarantee
+  if (structured.counts.length > 0) {
+    const countClauses = structured.counts.map((c) => `exactly ${c.count} ${c.entity}`).join(" and ");
+    parts.push(`Featuring ${countClauses}.`);
   }
 
+  // Explicit typography
   if (structured.textElements.length > 0) {
     const textQuotes = structured.textElements.map((t) => `"${t}"`).join(", ");
     parts.push(`With crisp, legible typography reading ${textQuotes}.`);
   }
 
-  return parts.join(" ").replace(/\s+\./g, ".").trim();
+  // Camera & lighting if specified
+  if (structured.lighting || structured.composition) {
+    const lightComp = [structured.lighting, structured.composition].filter(Boolean).join(" with ");
+    parts.push(`Rendered with ${lightComp}.`);
+  }
+
+  return parts.join(" ").replace(/\s+\./g, ".").replace(/\.\.+/g, ".").trim();
 }
 
 /**

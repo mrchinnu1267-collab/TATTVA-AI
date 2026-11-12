@@ -1,3 +1,4 @@
+process.env.NODE_ENV = process.env.NODE_ENV || "test";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -98,6 +99,7 @@ try {
   if (phaseW?.runPhaseWEngineMaintenanceTests) {
     await phaseW.runPhaseWEngineMaintenanceTests();
   }
+  await jiti("./image-accuracy-100-benchmark.test.ts");
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

@@ -189,46 +189,86 @@ export function parsePromptUnderstanding(
   const spatialRelationships: SpatialRelationshipItem[] = [];
 
   // Left of
-  const leftOfRegex = /([a-z0-9\s\-]+?)\s+(?:parked|positioned|standing|placed|located)?\s*(?:to the left of|on the left of|left from)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
+  const leftOfRegex = /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|parked|positioned|standing|placed|located)?\s*(?:to the left(?:\s+side)?\s+of|on the left(?:\s+side)?\s+of|left from)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
   let spMatch: RegExpExecArray | null;
   while ((spMatch = leftOfRegex.exec(cleanPrompt))) {
+    const rawSubj = spMatch[1].replace(/^(put|place|add|there is|a|an|the)\s+/i, "").trim();
+    let rawTgt = spMatch[2].trim();
+    if (/^it$/i.test(rawTgt)) rawTgt = "main object";
     spatialRelationships.push({
-      subject: spMatch[1].trim(),
+      subject: rawSubj,
       relation: "left_of",
-      target: spMatch[2].trim(),
+      target: rawTgt,
       raw: spMatch[0],
     });
   }
 
   // Right of
-  const rightOfRegex = /([a-z0-9\s\-]+?)\s+(?:parked|positioned|standing|placed|located)?\s*(?:to the right of|on the right of|right from)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
+  const rightOfRegex = /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|parked|positioned|standing|placed|located)?\s*(?:to the right(?:\s+side)?\s+of|on the right(?:\s+side)?\s+of|right from)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
   while ((spMatch = rightOfRegex.exec(cleanPrompt))) {
+    const rawSubj = spMatch[1].replace(/^(put|place|add|there is|a|an|the)\s+/i, "").trim();
+    let rawTgt = spMatch[2].trim();
+    if (/^it$/i.test(rawTgt)) rawTgt = "main object";
     spatialRelationships.push({
-      subject: spMatch[1].trim(),
+      subject: rawSubj,
       relation: "right_of",
-      target: spMatch[2].trim(),
+      target: rawTgt,
+      raw: spMatch[0],
+    });
+  }
+
+  // Under / beneath
+  const underRegex = /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|parked|positioned|standing|placed|located)?\s*(?:under|underneath|beneath)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
+  while ((spMatch = underRegex.exec(cleanPrompt))) {
+    const rawSubj = spMatch[1].replace(/^(create an? image of|picture of|render of|a|an|the)\s+/i, "").trim();
+    let rawTgt = spMatch[2].trim();
+    if (/^it$/i.test(rawTgt)) rawTgt = "main object";
+    spatialRelationships.push({
+      subject: rawSubj,
+      relation: "under",
+      target: rawTgt,
+      raw: spMatch[0],
+    });
+  }
+
+  // Next to / beside
+  const nextToRegex = /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|parked|positioned|standing|placed|located)?\s*(?:next to|beside|adjacent to)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
+  while ((spMatch = nextToRegex.exec(cleanPrompt))) {
+    const rawSubj = spMatch[1].replace(/^(put|place|add|there is|a|an|the)\s+/i, "").trim();
+    let rawTgt = spMatch[2].trim();
+    if (/^it$/i.test(rawTgt)) rawTgt = "main object";
+    spatialRelationships.push({
+      subject: rawSubj,
+      relation: "next_to",
+      target: rawTgt,
       raw: spMatch[0],
     });
   }
 
   // Behind
-  const behindRegex = /([a-z0-9\s\-]+?)\s+(?:positioned|standing|located)?\s*(?:behind|in back of|at the rear of)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
+  const behindRegex = /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|positioned|standing|located)?\s*(?:behind|in back of|at the rear of)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
   while ((spMatch = behindRegex.exec(cleanPrompt))) {
+    const rawSubj = spMatch[1].replace(/^(put|place|add|there is|a|an|the)\s+/i, "").trim();
+    let rawTgt = spMatch[2].trim();
+    if (/^it$/i.test(rawTgt)) rawTgt = "main object";
     spatialRelationships.push({
-      subject: spMatch[1].trim(),
+      subject: rawSubj,
       relation: "behind",
-      target: spMatch[2].trim(),
+      target: rawTgt,
       raw: spMatch[0],
     });
   }
 
   // In front of
-  const inFrontRegex = /([a-z0-9\s\-]+?)\s+(?:positioned|standing|located)?\s*(?:in front of|before)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
+  const inFrontRegex = /([a-z0-9\s\-]+?)\s+(?:is\s+|are\s+|positioned|standing|located)?\s*(?:in front of|directly in front of|before)\s+([a-z0-9\s\-]+?)(?:,|\.|$|with|and)/gi;
   while ((spMatch = inFrontRegex.exec(cleanPrompt))) {
+    const rawSubj = spMatch[1].replace(/^(put|place|add|there is|and|a|an|the)\s+/i, "").trim();
+    let rawTgt = spMatch[2].trim();
+    if (/^it$/i.test(rawTgt)) rawTgt = "main object";
     spatialRelationships.push({
-      subject: spMatch[1].trim(),
+      subject: rawSubj,
       relation: "in_front_of",
-      target: spMatch[2].trim(),
+      target: rawTgt,
       raw: spMatch[0],
     });
   }

@@ -7,6 +7,7 @@ import { normalizeAspectRatio, sizeForAspect } from "./image-utils";
 import {
   parseStructuredPrompt,
   detectPromptContradictions,
+  pruneConflictingNegativePrompts,
   formatPromptForGemini,
   formatPromptForDallE,
   formatPromptForSDXL,
@@ -16,7 +17,7 @@ import {
   type StructuredPromptInfo,
 } from "./prompt-processors";
 
-export { detectPromptContradictions };
+export { detectPromptContradictions, pruneConflictingNegativePrompts };
 import type {
   AspectRatio,
   CompiledImagePrompt,
@@ -341,6 +342,8 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
   const negativeParts = [BASE_NEGATIVE, stylePreset.negative || "", options.customNegative || ""].filter(
     Boolean
   );
+  const rawNegative = negativeParts.join(", ");
+  const prunedNegative = pruneConflictingNegativePrompts(original, rawNegative);
 
   const steps = quality === "fast" ? 20 : quality === "max" ? 40 : 28;
   const guidance = quality === "max" ? 8 : 7;
@@ -365,7 +368,7 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
     compilerVersion: COMPILER_VERSION,
     prompt: original,
     positive,
-    negative: negativeParts.join(", "),
+    negative: prunedNegative,
     style,
     aspectRatio,
     seed,

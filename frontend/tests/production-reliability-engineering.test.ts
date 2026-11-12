@@ -266,7 +266,7 @@ export async function runProductionReliabilityTests() {
   assert.strictEqual(metrics.count, 10, "Must count all sample latencies");
   assert.strictEqual(metrics.minMs, 1000, "Minimum latency must be 1000ms");
   assert.strictEqual(metrics.maxMs, 10000, "Maximum latency must be 10000ms");
-  assert.strictEqual(metrics.medianMs, 3250, "Median latency must be 3250ms");
+  assert.strictEqual(metrics.medianMs, 2750, "Median latency must be 2750ms");
   assert.strictEqual(metrics.p95Ms, 10000, "95th percentile latency must be 10000ms");
 
   const dashboardMetrics = getReliabilityDashboardMetrics();

@@ -174,3 +174,4 @@ Located in `app/lib/document-engine/`:
 * **SSRF Guard:** `ssrf-guard.ts` validates outgoing Claude MCP requests, blocking loopback addresses, private subnets (RFC 1918), and cloud metadata endpoints (`169.254.169.254`).
 * **Credential Encryption:** AES-256-GCM encryption for user BYOK keys and MCP tokens at rest.
 * **Security Headers & CSP:** Nonce-based Content Security Policy with `strict-dynamic` in Next.js headers.
+
