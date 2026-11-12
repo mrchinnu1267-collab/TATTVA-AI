@@ -120,9 +120,10 @@ export class MasterAIOrchestrator {
     const queryForClassification = humanAnalysis.referenceResolution.resolvedQuery || cleanUserPrompt;
 
     // Check attached images or files
-    const userAttachedImage = latestMessage.attachments?.find(
-      (att) => att.data?.startsWith("data:image/") || att.type?.startsWith("image/")
-    )?.data;
+    const userAttachedImage = latestMessage.attachments?.find((att) => {
+      const d = att.data || (att as any).url || "";
+      return typeof d === "string" && (d.startsWith("data:image/") || (att.type?.startsWith("image/") && d.length > 20));
+    })?.data;
     const lastAssistantImage = [...messages].reverse().find((m) => m.role === "assistant" && m.image)?.image;
     const sourceImageForEdit = userAttachedImage || lastAssistantImage;
     const hasImageToEdit = Boolean(sourceImageForEdit);

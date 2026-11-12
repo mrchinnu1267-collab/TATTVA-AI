@@ -188,8 +188,34 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
 }
 
 /**
- * User-facing error message sanitizer.
- * Guarantees zero credential, token, localhost, internal URL or stack trace leakage.
+ * Diagnostic message sanitizer.
+ * Guarantees zero credential, token, localhost, internal URL or stack trace leakage
+ * while preserving informative error descriptions for user visibility.
+ */
+export function sanitizeDiagnosticMessage(text: string): string {
+  return text
+    .replace(/hf_[a-zA-Z0-9]{20,}/g, "[REDACTED_HF_TOKEN]")
+    .replace(/AIzaSy[a-zA-Z0-9_-]{25,}/g, "[REDACTED_GEMINI_KEY]")
+    .replace(/sk-[a-zA-Z0-9_-]{20,}/g, "[REDACTED_OPENAI_KEY]")
+    .replace(/Bearer\s+[a-zA-Z0-9_.-]+/gi, "Bearer [REDACTED]")
+    .replace(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\S*/gi, "[LOCAL_ENDPOINT]")
+    .replace(/https?:\/\/\S+/gi, (url) => {
+      try {
+        const u = new URL(url);
+        return `${u.protocol}//${u.host}`;
+      } catch {
+        return "[URL]";
+      }
+    })
+    .replace(/[A-Za-z]:\\[^:\n\r]+/g, "[PATH]")
+    .replace(/\/[\w.-]+(?:\/[\w.-]+)+/g, "[PATH]")
+    .trim();
+}
+
+/**
+ * User-facing error message sanitizer & diagnostic reporter.
+ * Guarantees zero credential, token, localhost, internal URL or stack trace leakage
+ * while providing clear, transparent diagnostic visibility into provider states.
  */
 export function formatUserFacingImageError(rawError: unknown): string {
   const message = rawError instanceof Error ? rawError.message : String(rawError);
@@ -202,6 +228,19 @@ export function formatUserFacingImageError(rawError: unknown): string {
     lower.includes("safety violation")
   ) {
     return "I cannot fulfill this request as it violates visual content safety guidelines. System policies are strictly enforced. 🔒";
+  }
+
+  // Reference image format / validation errors
+  if (lower.includes("reference image validation failed") || lower.includes("invalid image format")) {
+    const cleanErr = sanitizeDiagnosticMessage(message).replace(/^.*validation failed:\s*/i, "");
+    return `Reference image error: ${cleanErr || "The uploaded image could not be processed"}. Please upload a valid PNG, JPEG, or WebP image.`;
+  }
+
+  // Multi-provider fallback failure: return transparent diagnostic breakdown
+  if (message.includes("All configured image providers failed:")) {
+    const breakdown = message.replace(/^.*All configured image providers failed:\s*/i, "").trim();
+    const sanitized = sanitizeDiagnosticMessage(breakdown);
+    return `Image generation failed across configured providers (${sanitized}). Please try again shortly.`;
   }
 
   // Quota / Billing Exhaustion
@@ -223,7 +262,12 @@ export function formatUserFacingImageError(rawError: unknown): string {
     return "The image service timed out or could not be reached. Please check your network connection and try again.";
   }
 
-  // Fallback for all providers unavailable
+  // Generic fallback with sanitized context
+  const snippet = sanitizeDiagnosticMessage(message).slice(0, 160);
+  if (snippet && snippet !== "Error") {
+    return `Image generation failed: ${snippet}. Please try again shortly.`;
+  }
+
   return "All configured image providers are currently unavailable. Please try again shortly.";
 }
 
@@ -745,6 +789,9 @@ export function resolveProviderOrder(
   } else if (hasReferenceImage) {
     // When reference image is present, prioritize multimodal native and img2img-capable engines
     baseOrder = ["gemini", "huggingface", "local"];
+  } else if (isRunningOnVercel() || quality === "fast") {
+    // In Vercel serverless environment, prioritize fast cloud engines to stay within strict execution limits
+    baseOrder = ["gemini", "pollinations", "huggingface", "openai", "local"];
   } else {
     baseOrder = ["huggingface", "gemini", "pollinations", "openai", "local"];
   }

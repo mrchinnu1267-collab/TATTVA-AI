@@ -6,6 +6,7 @@
 
 import { geminiVision, getGeminiApiKey } from "../gemini";
 import { readImageSize } from "../image-utils";
+import { isRunningOnVercel } from "../providers";
 import { parseStructuredPrompt } from "../prompt-processors";
 import { verifyCharacterAccuracy } from "./character-verifier";
 import type {
@@ -213,7 +214,7 @@ export async function analyzeGeneratedImage(params: {
     const visionResponse = await geminiVision(promptWithContext, imageDataUri, {
       json: true,
       temperature: 0.1,
-      timeoutMs: 60_000,
+      timeoutMs: isRunningOnVercel() ? 12_000 : 30_000,
     });
 
     const parsedData = extractJsonFromText(visionResponse.text);

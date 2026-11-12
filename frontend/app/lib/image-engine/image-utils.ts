@@ -81,6 +81,32 @@ export function bufferToDataUri(buffer: Buffer | Uint8Array, mime = "image/png")
   return `data:${mime};base64,${Buffer.from(buffer).toString("base64")}`;
 }
 
+/**
+ * Resolves a reference image string (data URI or remote HTTP/HTTPS URL) into a standard data URI.
+ */
+export async function resolveReferenceImageAsDataUri(ref: string, timeoutMs = 8000): Promise<string> {
+  const trimmed = ref.trim();
+  if (trimmed.startsWith("data:image/")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const res = await fetch(trimmed, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { Accept: "image/*" },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch reference image: HTTP ${res.status}`);
+    }
+    const contentType = res.headers.get("content-type") || "image/png";
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 15 * 1024 * 1024) {
+      throw new Error("Reference image exceeds 15 MB limit.");
+    }
+    return `data:${contentType};base64,${buf.toString("base64")}`;
+  }
+  return trimmed;
+}
+
 /** Best-effort intrinsic size read from PNG/JPEG headers. */
 export function readImageSize(dataUri: string): { width: number; height: number } | null {
   const parsed = dataUriToBase64(dataUri);

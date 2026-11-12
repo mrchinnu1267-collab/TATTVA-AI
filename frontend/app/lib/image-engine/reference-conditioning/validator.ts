@@ -30,6 +30,24 @@ export function validateReferenceImage(imageDataUri: string): ReferenceImageVali
   }
 
   const trimmed = imageDataUri.trim();
+
+  // Support direct web URLs (e.g. Unsplash, CDN, or cloud storage links)
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      new URL(trimmed);
+      return {
+        isValid: true,
+        mimeType: "image/jpeg",
+        fileSizeBytes: 0,
+      };
+    } catch {
+      return {
+        isValid: false,
+        error: "Invalid image URL format.",
+      };
+    }
+  }
+
   const parsed = dataUriToBase64(trimmed);
 
   if (!parsed) {

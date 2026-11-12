@@ -16,7 +16,7 @@ import {
   listAvailableModels,
 } from "./model-registry";
 import { rankModelsByCategory, getBenchmarkMetric } from "./benchmark-system";
-import { getCooldownRemaining } from "../providers";
+import { getCooldownRemaining, isRunningOnVercel } from "../providers";
 import { checkProviderReferenceSupport } from "../reference-conditioning/capabilities";
 import { classifyConditioningIntent } from "../reference-conditioning/analyzer";
 import { isProviderCompatibleWithOperation } from "../provider-capabilities";
@@ -282,6 +282,12 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
   const fallbackModels = candidateModels.filter((m) => m.id !== primaryModel!.id);
   const providerChainSet = new Set<ImageProviderId>();
   providerChainSet.add(primaryModel.providerId);
+
+  // On Vercel cloud serverless, prioritize ultra-fast cloud fallback (Pollinations Turbo: 5-7s)
+  // before slow ZeroGPU Gradio spaces to protect against serverless timeout kills
+  if (isRunningOnVercel() && !referenceImage && isProviderAvailable("pollinations")) {
+    providerChainSet.add("pollinations");
+  }
 
   for (const fb of fallbackModels) {
     if (workflow === "inpainting" && !isProviderCompatibleWithOperation(fb.providerId, "inpainting")) continue;

@@ -138,7 +138,7 @@ function determineConditioningPlan(
   if (preferred) {
     return {
       method: preferred,
-      referenceImage: referenceImage || retrievalResult?.primaryReference?.imageUrl,
+      referenceImage: referenceImage || undefined,
       strength: 0.75,
     };
   }
@@ -190,7 +190,7 @@ function determineConditioningPlan(
     const top = retrievalResult.matches[0].item;
     return {
       method: top.conditioningTypes[0] || "ip-adapter",
-      referenceImage: top.imageUrl,
+      referenceImage: referenceImage || undefined,
       strength: 0.45,
       guidancePrompt: `Conditioned with visual reference: ${top.title}.`,
     };

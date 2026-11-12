@@ -97,9 +97,8 @@ export async function generateImageWithMultimodalRAG(
       `Executing image generation pass ${attempt + 1}/${maxAttempts}...`
     );
 
-    // Call underlying generator with conditioning reference
-    const effectiveReference =
-      scenePlan.conditioningPlan.referenceImage || referenceImage;
+    // Call underlying generator with conditioning reference (only when reference is explicitly provided)
+    const effectiveReference = referenceImage || undefined;
 
     try {
       const passResult = await generateImage({

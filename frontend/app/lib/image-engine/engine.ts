@@ -14,6 +14,7 @@ import {
 import { isProviderCompatibleWithOperation } from "./provider-capabilities";
 import { verifyImage } from "./verifier";
 import { validateReferenceImage } from "./reference-conditioning";
+import { resolveReferenceImageAsDataUri } from "./image-utils";
 import { routeImageRequest, recordGenerationOutcome } from "./multi-model-router";
 import { evaluateVisualQuality } from "./visual-evaluation";
 import {
@@ -87,19 +88,32 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
   // 2. Reference Image Moderation & Validation (if supplied)
   if (options.referenceImage) {
-    const validation = validateReferenceImage(options.referenceImage);
-    if (!validation.isValid) {
-      throw new ImageProviderError(
-        `Reference image validation failed: ${validation.error}`,
-        { retryable: false }
-      );
+    let resolvedRef = options.referenceImage;
+    if (resolvedRef.startsWith("http://") || resolvedRef.startsWith("https://")) {
+      try {
+        resolvedRef = await resolveReferenceImageAsDataUri(resolvedRef);
+        options.referenceImage = resolvedRef;
+      } catch (refFetchErr) {
+        console.warn("[Image Engine] Could not fetch remote reference image URL. Proceeding with text-to-image:", refFetchErr);
+        options.referenceImage = undefined;
+      }
     }
-    const refModeration = await moderateVisualImage(options.referenceImage);
-    if (!refModeration.isSafe) {
-      throw new ImageProviderError(
-        SAFETY_REJECTION_MESSAGE,
-        { retryable: false }
-      );
+
+    if (options.referenceImage) {
+      const validation = validateReferenceImage(options.referenceImage);
+      if (!validation.isValid) {
+        throw new ImageProviderError(
+          `Reference image validation failed: ${validation.error}`,
+          { retryable: false }
+        );
+      }
+      const refModeration = await moderateVisualImage(options.referenceImage);
+      if (!refModeration.isSafe) {
+        throw new ImageProviderError(
+          SAFETY_REJECTION_MESSAGE,
+          { retryable: false }
+        );
+      }
     }
   }
 
