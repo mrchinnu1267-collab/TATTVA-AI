@@ -17,6 +17,7 @@ export * from "./benchmark.service";
 export * from "./storage.service";
 export * from "./job-management.service";
 export * from "./production-monitoring.service";
+export * from "./accuracy-research.service";
 
 import { PromptUnderstandingService } from "./prompt-understanding.service";
 import { RequirementExtractionService } from "./requirement-extraction.service";
@@ -31,6 +32,7 @@ import { BenchmarkService } from "./benchmark.service";
 import { StorageService } from "./storage.service";
 import { JobManagementService } from "./job-management.service";
 import { ProductionMonitoringService } from "./production-monitoring.service";
+import { AccuracyResearchService } from "./accuracy-research.service";
 
 /**
  * Unified Facade for the complete TATTVA AI Image Studio
@@ -49,5 +51,6 @@ export const UnifiedImageStudioEngine = {
   Storage: StorageService,
   JobManagement: JobManagementService,
   ProductionMonitoring: ProductionMonitoringService,
+  AccuracyResearch: AccuracyResearchService,
 };
 

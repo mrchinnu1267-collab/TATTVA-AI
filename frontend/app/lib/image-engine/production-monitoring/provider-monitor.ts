@@ -136,15 +136,15 @@ class ProviderMonitor {
         telemetry.status = "healthy";
         telemetry.isAvailableForInference = true;
       } else {
-        const state = cbHealth.circuitState.toLowerCase() as CircuitBreakerState;
-        if (state === "open" || telemetry.circuitBreakerState === "open") {
+        const rawState = cbHealth.circuitState.toLowerCase();
+        if (rawState === "open" || telemetry.circuitBreakerState === "open") {
           telemetry.circuitBreakerState = "open";
           telemetry.isAvailableForInference = false;
           telemetry.status = "down";
-        } else if (state === "half_open" || (state as string) === "half-open") {
+        } else if (rawState === "half_open" || rawState === "half-open") {
           telemetry.circuitBreakerState = "half-open";
         } else {
-          telemetry.circuitBreakerState = state;
+          telemetry.circuitBreakerState = "closed";
         }
       }
     }

@@ -14,6 +14,7 @@ import {
   BrainCircuit,
   Copy,
   Download,
+  FlaskConical,
   History,
   Image as ImageIcon,
   Layers,
@@ -49,6 +50,7 @@ import { ValidationDashboard } from "../components/image-studio/ValidationDashbo
 import { ContinuousLearningDashboard } from "../components/image-studio/ContinuousLearningDashboard";
 import { RegressionDashboard } from "../components/image-studio/RegressionDashboard";
 import { ProductionMonitoringDashboard } from "../components/image-studio/ProductionMonitoringDashboard";
+import { AccuracyResearchDashboard } from "../components/image-studio/AccuracyResearchDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -302,6 +304,7 @@ export default function ImageStudioPage() {
     | "learning"
     | "regression"
     | "monitoring"
+    | "research"
   >("none");
   const [savingToWorkspace, setSavingToWorkspace] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -1237,6 +1240,18 @@ export default function ImageStudioPage() {
                 <Activity className="h-3.5 w-3.5 text-cyan-500" />
                 Production Monitoring & Intelligence (Phase Q)
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "research" ? "none" : "research"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "research"
+                    ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <FlaskConical className="h-3.5 w-3.5 text-purple-500" />
+                Accuracy Research & Next-Gen (Phase R)
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1369,6 +1384,10 @@ export default function ImageStudioPage() {
 
           {suiteMode === "monitoring" && (
             <ProductionMonitoringDashboard onClose={() => setSuiteMode("none")} />
+          )}
+
+          {suiteMode === "research" && (
+            <AccuracyResearchDashboard onClose={() => setSuiteMode("none")} />
           )}
 
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">

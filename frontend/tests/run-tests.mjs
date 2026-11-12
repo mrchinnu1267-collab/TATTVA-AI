@@ -74,6 +74,10 @@ try {
   if (phaseQ?.runPhaseQProductionMonitoringTests) {
     await phaseQ.runPhaseQProductionMonitoringTests();
   }
+  const phaseR = await jiti("./phase-r-accuracy-research.test.ts");
+  if (phaseR?.runPhaseRAccuracyResearchTests) {
+    await phaseR.runPhaseRAccuracyResearchTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
