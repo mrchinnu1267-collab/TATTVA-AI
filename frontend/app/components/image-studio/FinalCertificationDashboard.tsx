@@ -22,7 +22,7 @@ import {
   Server,
   Activity,
 } from "lucide-react";
-import { FinalCertificationReport } from "@/app/lib/image-engine/final-certification/types";
+import { FinalCertificationReport } from "../../lib/image-engine/final-certification/types";
 
 interface Props {
   onClose: () => void;
@@ -436,7 +436,7 @@ export function FinalCertificationDashboard({ onClose }: Props) {
               {Object.entries(report.qualityMetrics.dimensionScores).map(([dim, score]) => (
                 <div key={dim} className="flex justify-between items-center py-1 border-b border-neutral-800/60">
                   <span className="text-neutral-400 capitalize">{dim.replace(/([A-Z])/g, " $1")}</span>
-                  <span className="font-bold text-white">{score}%</span>
+                  <span className="font-bold text-white">{String(score)}%</span>
                 </div>
               ))}
             </div>
