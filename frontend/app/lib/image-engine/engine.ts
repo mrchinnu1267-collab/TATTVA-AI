@@ -7,9 +7,11 @@ import { compileImagePrompt, refinePrompt } from "./prompt-compiler";
 import {
   generateWithProvider,
   getCooldownRemaining,
+  getCooldownEntry,
   ImageProviderError,
   resolveProviderOrder,
 } from "./providers";
+import { isProviderCompatibleWithOperation } from "./provider-capabilities";
 import { verifyImage } from "./verifier";
 import { validateReferenceImage } from "./reference-conditioning";
 import { routeImageRequest, recordGenerationOutcome } from "./multi-model-router";
@@ -144,16 +146,43 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
     let generated = false;
 
-    // Check which providers in order are healthy and not in cooldown
-    let providersToTry = order.filter((p) => getCooldownRemaining(p) === 0);
+    // Filter candidate providers strictly by requested operation capability
+    const compatibleOrder = options.referenceImage
+      ? order.filter((p) => isProviderCompatibleWithOperation(p, "reference_image"))
+      : order;
 
-    // If ALL providers in the chain are in cooldown, do not fail silently!
-    // Attempt the least-penalized provider (the one closest to recovering)
-    if (providersToTry.length === 0 && order.length > 0) {
-      const sortedByCooldown = [...order].sort(
-        (a, b) => getCooldownRemaining(a) - getCooldownRemaining(b)
-      );
-      providersToTry = [sortedByCooldown[0]];
+    // Check which compatible providers in order are healthy and not in cooldown
+    let providersToTry = compatibleOrder.filter((p) => getCooldownRemaining(p) === 0);
+
+    // If ALL compatible providers in the chain are in cooldown, do not fail silently,
+    // but STRICTLY DO NOT retry hard exhaustion/auth failures (e.g. invalid credentials or quota exhaustion).
+    // Bounded retries: only attempt transient errors with consecutive failures <= 2.
+    if (providersToTry.length === 0 && compatibleOrder.length > 0) {
+      const retryableTransientCandidates = compatibleOrder
+        .map((p) => ({
+          provider: p,
+          entry: getCooldownEntry(p),
+          remaining: getCooldownRemaining(p),
+        }))
+        .filter((c) => {
+          if (!c.entry) return false;
+          // Strictly forbid retrying quota exhaustion or invalid auth in recovery loops
+          if (!c.entry.isRetryable) return false;
+          if (
+            c.entry.category === "QUOTA_EXHAUSTION" ||
+            c.entry.category === "INVALID_AUTHENTICATION" ||
+            c.entry.category === "MODEL_CONFIGURATION_ERROR"
+          ) {
+            return false;
+          }
+          // Bounded retry policy: maximum 2 transient attempts
+          return c.entry.consecutiveFailures <= 2;
+        })
+        .sort((a, b) => a.remaining - b.remaining);
+
+      if (retryableTransientCandidates.length > 0) {
+        providersToTry = [retryableTransientCandidates[0].provider];
+      }
     }
 
     for (const provider of providersToTry) {

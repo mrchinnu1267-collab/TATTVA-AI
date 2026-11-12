@@ -13,6 +13,7 @@ export type ImageWorkflowType =
   | "product_photography"
   | "portrait_generation"
   | "inpainting"
+  | "outpainting"
   | "background_replacement"
   | "character_preservation"
   | "composition_transfer"

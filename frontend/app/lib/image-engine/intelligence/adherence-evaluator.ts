@@ -190,7 +190,9 @@ export function evaluatePromptAdherence(params: {
   let colorStatus: EvaluationStatus = "PASS";
   let colorScore = 94;
   const missingColors: string[] = [];
-  const observedColorNames = understanding.dominantColors.map((c) => c.name.toLowerCase());
+  const observedColorNames = (understanding.dominantColors || []).map((c: any) =>
+    typeof c === "string" ? c.toLowerCase() : (c?.name || "").toLowerCase()
+  );
 
   for (const expCol of parsed.colors) {
     const hasColor = observedColorNames.some((obs) => obs.includes(expCol) || expCol.includes(obs));
@@ -305,7 +307,9 @@ export function evaluatePromptAdherence(params: {
   const missingTexts: string[] = [];
 
   if (parsed.textElements.length > 0) {
-    const observedTexts = understanding.visibleText.map((t) => t.text.toLowerCase());
+    const observedTexts = (understanding.visibleText || []).map((t: any) =>
+      typeof t === "string" ? t.toLowerCase() : (t?.text || "").toLowerCase()
+    );
     for (const expText of parsed.textElements) {
       const expTextLower = expText.toLowerCase();
       const match = observedTexts.find((obs) => obs.includes(expTextLower) || expTextLower.includes(obs));
@@ -326,7 +330,10 @@ export function evaluatePromptAdherence(params: {
     categoryId: "text_accuracy",
     categoryLabel: "Text Accuracy (OCR)",
     expectedResult: parsed.textElements.map((t) => `"${t}"`).join(", ") || "No text requested",
-    observedResult: understanding.visibleText.map((t) => `"${t.text}" (${t.legibility})`).join(", ") || "No visible text",
+    observedResult:
+      (understanding.visibleText || [])
+        .map((t: any) => (typeof t === "string" ? `"${t}"` : `"${t?.text}" (${t?.legibility || "clear"})`))
+        .join(", ") || "No visible text",
     status: textStatus,
     visualEvidence: missingTexts.length === 0
       ? parsed.textElements.length > 0 ? "Quoted strings are clearly rendered and legible." : "No unwanted text observed."

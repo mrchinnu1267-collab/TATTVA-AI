@@ -8,6 +8,7 @@ import { Client as GradioClient } from "@gradio/client";
 import { geminiImage, GEMINI_IMAGE_MODELS } from "./gemini";
 import { bufferToDataUri, fitWithinArea, truncate } from "./image-utils";
 import { filterCompatibleReferenceProviders } from "./reference-conditioning";
+import { optimizePromptForModel } from "./prompt-optimizer";
 import type {
   ImageProviderChoice,
   ImageProviderId,
@@ -17,24 +18,40 @@ import type {
   ProviderRuntimeStatus,
 } from "./types";
 
+export type FailureCategory =
+  | "QUOTA_EXHAUSTION"
+  | "INVALID_AUTHENTICATION"
+  | "RATE_LIMITING"
+  | "TEMPORARY_SERVER_ERROR"
+  | "NETWORK_TIMEOUT"
+  | "MODEL_CONFIGURATION_ERROR";
+
+export interface CooldownEntry {
+  until: number;
+  reason: string;
+  category: FailureCategory;
+  isRetryable: boolean;
+  consecutiveFailures: number;
+}
+
 export class ImageProviderError extends Error {
   retryable: boolean;
   cooldownMs: number;
+  category?: FailureCategory;
 
-  constructor(message: string, options: { retryable?: boolean; cooldownMs?: number } = {}) {
+  constructor(
+    message: string,
+    options: { retryable?: boolean; cooldownMs?: number; category?: FailureCategory } = {}
+  ) {
     super(message);
     this.name = "ImageProviderError";
     this.retryable = options.retryable ?? true;
     this.cooldownMs = options.cooldownMs ?? 0;
+    this.category = options.category;
   }
 }
 
-interface Cooldown {
-  until: number;
-  reason: string;
-}
-
-const cooldowns = new Map<ImageProviderId, Cooldown>();
+const cooldowns = new Map<ImageProviderId, CooldownEntry>();
 
 export function isRunningOnVercel(): boolean {
   return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
@@ -48,8 +65,22 @@ export function clearCooldowns(): void {
   cooldowns.clear();
 }
 
-export function setCooldown(provider: ImageProviderId, ms: number, reason: string): void {
-  cooldowns.set(provider, { until: Date.now() + ms, reason });
+export function setCooldown(
+  provider: ImageProviderId,
+  ms: number,
+  reason: string,
+  category: FailureCategory = "TEMPORARY_SERVER_ERROR",
+  isRetryable: boolean = true
+): void {
+  const prev = cooldowns.get(provider);
+  const consecutiveFailures = (prev?.consecutiveFailures || 0) + 1;
+  cooldowns.set(provider, {
+    until: Date.now() + ms,
+    reason,
+    category,
+    isRetryable,
+    consecutiveFailures,
+  });
 }
 
 export function getCooldownRemaining(provider: ImageProviderId): number {
@@ -74,6 +105,17 @@ export function getCooldownInfo(provider: ImageProviderId): { remaining: number;
   return { remaining, reason: entry.reason };
 }
 
+export function getCooldownEntry(provider: ImageProviderId): CooldownEntry | null {
+  const entry = cooldowns.get(provider);
+  if (!entry) return null;
+  const remaining = entry.until - Date.now();
+  if (remaining <= 0) {
+    cooldowns.delete(provider);
+    return null;
+  }
+  return entry;
+}
+
 function classifyProviderError(label: string, error: unknown): ImageProviderError {
   if (error instanceof ImageProviderError) return error;
   const message = error instanceof Error ? error.message : String(error);
@@ -83,41 +125,65 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
     /no remaining credits|insufficient|billing|payment|quota|limit:\s*0|exceeded your current quota|runs limit|zerogpu quota/.test(
       lower
     );
-  const auth = /401|403|unauthorized|invalid.*(token|key)|permission/.test(lower);
+  const auth = /401|403|unauthorized|invalid.*(token|key)|permission|rejected credentials/.test(lower);
+  const config = /not configured|missing.*key|missing.*token|invalid model/.test(lower);
   const notFound = /404|not found|does not exist|not supported/.test(lower);
   const rateLimited = /429|rate limit|too many requests|cooldown/.test(lower);
-  const timeout = /timeout|timed out|aborted/.test(lower);
+  const timeout = /timeout|timed out|aborted|etimedout/.test(lower);
+  const serverError = /500|502|503|504|internal server error|service unavailable|bad gateway/.test(lower);
 
   if (noCredits) {
     return new ImageProviderError(
       `${label} has no remaining quota or credits. ${truncate(message, 240)}`,
-      { retryable: false, cooldownMs: 120_000 } // 2 minute cooldown for quota exhaustion (allows quick recovery)
+      { retryable: false, cooldownMs: 120_000, category: "QUOTA_EXHAUSTION" }
     );
   }
   if (auth) {
     return new ImageProviderError(`${label} rejected credentials. ${truncate(message, 240)}`, {
       retryable: false,
-      cooldownMs: 300_000, // 5 minute cooldown for bad auth
+      cooldownMs: 300_000,
+      category: "INVALID_AUTHENTICATION",
+    });
+  }
+  if (config) {
+    return new ImageProviderError(`${label} configuration error: ${truncate(message, 240)}`, {
+      retryable: false,
+      cooldownMs: 300_000,
+      category: "MODEL_CONFIGURATION_ERROR",
     });
   }
   if (notFound) {
     return new ImageProviderError(`${label} could not run the requested model. ${truncate(message, 240)}`, {
-      retryable: true,
+      retryable: false,
+      cooldownMs: 60_000,
+      category: "MODEL_CONFIGURATION_ERROR",
     });
   }
   if (rateLimited) {
     return new ImageProviderError(`${label} is rate limited. ${truncate(message, 240)}`, {
-      retryable: false,
-      cooldownMs: 30_000,
+      retryable: true,
+      cooldownMs: 25_000,
+      category: "RATE_LIMITING",
     });
   }
   if (timeout) {
     return new ImageProviderError(`${label} timed out. ${truncate(message, 240)}`, {
       retryable: true,
+      cooldownMs: 15_000,
+      category: "NETWORK_TIMEOUT",
+    });
+  }
+  if (serverError) {
+    return new ImageProviderError(`${label} temporary server error. ${truncate(message, 240)}`, {
+      retryable: true,
+      cooldownMs: 15_000,
+      category: "TEMPORARY_SERVER_ERROR",
     });
   }
   return new ImageProviderError(`${label} failed: ${truncate(message, 300)}`, {
     retryable: true,
+    cooldownMs: 15_000,
+    category: "TEMPORARY_SERVER_ERROR",
   });
 }
 
@@ -577,25 +643,12 @@ async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult>
 
 // ------------------------------------------------------------- Pollinations FLUX & Turbo
 
-function cleanPollinationsPrompt(prompt: string, maxLen = 280): string {
-  let clean = prompt
-    .replace(/[()[\]{}]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (clean.length > maxLen) {
-    const sliced = clean.slice(0, maxLen);
-    const lastBoundary = Math.max(sliced.lastIndexOf(" "), sliced.lastIndexOf(","));
-    clean = (lastBoundary > 120 ? sliced.slice(0, lastBoundary) : sliced).trim();
-  }
-  return clean;
-}
-
 async function generateWithPollinations(req: ProviderRequest): Promise<ProviderResult> {
   const remaining = getCooldownRemaining("pollinations");
   if (remaining > 0) {
     throw new ImageProviderError(
       `Pollinations is cooling down for ${Math.ceil(remaining / 1000)}s.`,
-      { retryable: false, cooldownMs: remaining }
+      { retryable: false, cooldownMs: remaining, category: "TEMPORARY_SERVER_ERROR" }
     );
   }
 
@@ -603,8 +656,14 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
   const width = req.width || 1024;
   const height = req.height || 1024;
   const seed = req.seed ?? Math.floor(Math.random() * 1_000_000);
-  const cleanPrompt = cleanPollinationsPrompt(req.prompt, 260);
-  const encoded = encodeURIComponent(cleanPrompt);
+
+  // Model-specific prompt optimizer preserves all 8 semantic dimensions (subject, counts, objects, attributes, layout, bg, style, text):
+  const promptOpt = optimizePromptForModel({
+    originalPrompt: req.prompt,
+    provider: "pollinations",
+    maxCharLimit: 380,
+  });
+  const encoded = encodeURIComponent(promptOpt.optimizedPrompt);
 
   // Strategy 1: FLUX model on Pollinations
   const fluxUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true`;
@@ -659,8 +718,16 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
         };
       } catch (fallbackErr) {
         const classified = classifyProviderError("Pollinations AI", fallbackErr);
-        // Transient failures on zero-auth cloud provider receive a max 15s cooldown
-        if (classified.cooldownMs) setCooldown("pollinations", Math.min(classified.cooldownMs, 15_000), classified.message);
+        // Transient failures on zero-auth cloud provider receive a bounded 15s cooldown
+        if (classified.cooldownMs) {
+          setCooldown(
+            "pollinations",
+            Math.min(classified.cooldownMs, 15_000),
+            classified.message,
+            classified.category || "TEMPORARY_SERVER_ERROR",
+            true
+          );
+        }
         throw classified;
       }
     }
@@ -745,17 +812,32 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       healthStatus = "CONFIGURATION_ERROR";
       reason = reason || `${label} is not configured. Missing API credentials.`;
     } else if (remaining > 0 && cooldownEntry) {
-      const lower = cooldownEntry.reason.toLowerCase();
-      if (/quota|credit|billing|limit:\s*0|runs limit|zerogpu/i.test(lower)) {
+      if (cooldownEntry.category === "QUOTA_EXHAUSTION") {
         healthStatus = "QUOTA_EXCEEDED";
-      } else if (/auth|unauthorized|credential|token|key|forbidden|401|403/i.test(lower)) {
+      } else if (cooldownEntry.category === "INVALID_AUTHENTICATION") {
         healthStatus = "AUTHENTICATION_FAILED";
-      } else if (/rate limit|too many|429/i.test(lower)) {
+      } else if (cooldownEntry.category === "RATE_LIMITING") {
         healthStatus = "RATE_LIMITED";
-      } else if (/timeout|aborted|timed out|503|busy/i.test(lower)) {
+      } else if (cooldownEntry.category === "MODEL_CONFIGURATION_ERROR") {
+        healthStatus = "CONFIGURATION_ERROR";
+      } else if (
+        cooldownEntry.category === "NETWORK_TIMEOUT" ||
+        cooldownEntry.category === "TEMPORARY_SERVER_ERROR"
+      ) {
         healthStatus = "DEGRADED";
       } else {
-        healthStatus = "TEMPORARILY_UNAVAILABLE";
+        const lower = cooldownEntry.reason.toLowerCase();
+        if (/quota|credit|billing|limit:\s*0|runs limit|zerogpu/i.test(lower)) {
+          healthStatus = "QUOTA_EXCEEDED";
+        } else if (/auth|unauthorized|credential|token|key|forbidden|401|403/i.test(lower)) {
+          healthStatus = "AUTHENTICATION_FAILED";
+        } else if (/rate limit|too many|429/i.test(lower)) {
+          healthStatus = "RATE_LIMITED";
+        } else if (/timeout|aborted|timed out|503|busy/i.test(lower)) {
+          healthStatus = "DEGRADED";
+        } else {
+          healthStatus = "TEMPORARILY_UNAVAILABLE";
+        }
       }
       reason = `${cooldownEntry.reason} (cooldown: ${Math.ceil(remaining / 1000)}s)`;
     } else if (!online) {

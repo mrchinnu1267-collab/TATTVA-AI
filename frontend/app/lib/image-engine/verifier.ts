@@ -5,6 +5,7 @@
 
 import { geminiVision, getGeminiApiKey } from "./gemini";
 import { readImageSize } from "./image-utils";
+import { CHARACTER_REGISTRY } from "./intelligence/character-verifier";
 import type {
   CompiledImagePrompt,
   ImageRequirement,
@@ -95,8 +96,27 @@ export async function verifyImage(params: {
     return heuristicVerification(image, compiled, "Vision verifier is not configured.");
   }
 
-  const checklist = requirements.length
-    ? requirements
+  // Automatically extract character identification requirements for known pop-culture figures
+  const characterReqs: ImageRequirement[] = [];
+  const promptLower = (compiled.prompt || "").toLowerCase();
+  for (const [key, sig] of Object.entries(CHARACTER_REGISTRY)) {
+    if (sig.aliases.some((alias) => promptLower.includes(alias))) {
+      characterReqs.push({
+        id: `char_${key}`,
+        category: "subject",
+        text: `Authentic canonical ${sig.name} appearance (${sig.definingTraits.slice(0, 3).join(", ")}). Must NOT be a generic cartoon, unrelated animal, or astronaut.`,
+        critical: true,
+      });
+    }
+  }
+
+  const effectiveRequirements = [
+    ...requirements,
+    ...characterReqs.filter((cr) => !requirements.some((r) => r.text.includes(cr.text))),
+  ];
+
+  const checklist = effectiveRequirements.length
+    ? effectiveRequirements
         .map((item) => `- id="${item.id}" [${item.category}] ${item.text}${item.critical ? " (critical)" : ""}`)
         .join("\n")
     : "- No explicit details were extracted. Judge overall semantic fidelity to the request.";
@@ -111,6 +131,7 @@ ${checklist}
 
 Rules:
 - CRITICAL CONTENT SAFETY AUDIT: Check if the image contains any nudity, bare breasts, exposed genitalia, unclothed bodies, sexually suggestive adult content, sexualized minors (zero tolerance), gruesome gore, decapitation, self-harm, or suicide depictions. If ANY of these violations are detected, set "score": 0, "verdict": "fail", and add "Prohibited adult/nude content detected: Violates content safety guidelines" into "issues".
+- MAIN SUBJECT INTEGRITY: If the user requested a specific named character (e.g., Doraemon, Pikachu, Batman), verify they have their canonical defining traits. A generic substitute, unrelated creature, or astronaut must be marked with "met": false on that requirement.
 - Judge ONLY what is visibly present. Do not assume or give credit for good style alone.
 - Counts must match exactly (no extra or missing subjects).
 - Quoted text must be spelled exactly as written.
@@ -145,7 +166,7 @@ Respond ONLY with valid JSON:
       });
     }
 
-    const checks: RequirementCheck[] = requirements.map((item) => {
+    const checks: RequirementCheck[] = effectiveRequirements.map((item) => {
       const found = checkMap.get(item.id);
       return {
         id: item.id,
@@ -156,15 +177,24 @@ Respond ONLY with valid JSON:
       };
     });
 
-    // A critical miss caps the score, even if the model was generous.
+    // CRITICAL ADHERENCE SCORING:
+    // If the requested main subject or any critical requirement is missing or incorrect,
+    // mark the result as a MAJOR FAILURE. High visual style never overrides subject failure.
     const criticalMisses = checks.filter((item) => item.critical && item.met === false);
     let score = clampScore(parsed.score);
-    if (criticalMisses.length >= 2) score = Math.min(score, 68);
-    else if (criticalMisses.length === 1) score = Math.min(score, 82);
+    if (criticalMisses.length >= 1) {
+      score = Math.min(score, 25);
+    }
 
     const issues = Array.isArray(parsed.issues)
       ? (parsed.issues as unknown[]).filter((item): item is string => typeof item === "string")
       : [];
+
+    if (criticalMisses.length > 0) {
+      issues.unshift(
+        `MAJOR FAILURE: Critical requirement(s) failed: ${criticalMisses.map((m) => `"${m.text}"`).join(", ")}. Visual appeal cannot compensate for subject failure.`
+      );
+    }
 
     return {
       score,

@@ -19,6 +19,7 @@ import { rankModelsByCategory, getBenchmarkMetric } from "./benchmark-system";
 import { getCooldownRemaining } from "../providers";
 import { checkProviderReferenceSupport } from "../reference-conditioning/capabilities";
 import { classifyConditioningIntent } from "../reference-conditioning/analyzer";
+import { isProviderCompatibleWithOperation } from "../provider-capabilities";
 import { ImageProviderChoice, ImageProviderId } from "../types";
 
 /**
@@ -171,11 +172,20 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
     }
   }
 
-  // Filter for inpainting-capable models if inpainting workflow requested
+  // Filter for inpainting / outpainting capable models if editing workflow requested
   if (workflow === "inpainting") {
-    const inpaintCapable = candidateModels.filter((m) => m.supportsInpainting);
+    const inpaintCapable = candidateModels.filter(
+      (m) => m.supportsInpainting && isProviderCompatibleWithOperation(m.providerId, "inpainting")
+    );
     if (inpaintCapable.length > 0) {
       candidateModels = inpaintCapable;
+    }
+  } else if (workflow === "outpainting") {
+    const outpaintCapable = candidateModels.filter(
+      (m) => isProviderCompatibleWithOperation(m.providerId, "outpainting")
+    );
+    if (outpaintCapable.length > 0) {
+      candidateModels = outpaintCapable;
     }
   }
 
@@ -266,7 +276,7 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
   }
 
   // ===========================================================================
-  // 4. FALLBACK CHAIN ASSEMBLY
+  // 4. FALLBACK CHAIN ASSEMBLY WITH STRICT OPERATION COMPATIBILITY
   // ===========================================================================
   // Filter remaining candidate models to build ordered fallback chain
   const fallbackModels = candidateModels.filter((m) => m.id !== primaryModel!.id);
@@ -274,21 +284,36 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
   providerChainSet.add(primaryModel.providerId);
 
   for (const fb of fallbackModels) {
+    if (workflow === "inpainting" && !isProviderCompatibleWithOperation(fb.providerId, "inpainting")) continue;
+    if (workflow === "outpainting" && !isProviderCompatibleWithOperation(fb.providerId, "outpainting")) continue;
+    if (referenceImage && !isProviderCompatibleWithOperation(fb.providerId, "reference_image")) continue;
     providerChainSet.add(fb.providerId);
   }
 
-  // Ensure zero-quota Pollinations cloud fallback is present before local (only if not restricted to offline)
-  if (!isOffline && !referenceImage) {
-    providerChainSet.add("pollinations");
-  }
-
-  // Ensure full fallback fleet is accessible to prevent dead-end chains if primary/secondary fail
+  // Ensure full fallback fleet is accessible, but STRICTLY RESPECT ACTUAL OPERATION SUPPORT
   if (!isOffline) {
     const backupFleet: ImageProviderId[] = ["huggingface", "pollinations", "gemini", "local", "openai"];
     for (const p of backupFleet) {
-      if (!referenceImage || checkProviderReferenceSupport(p).supportsReferenceImage) {
-        providerChainSet.add(p);
+      // 1. Reference Image Compatibility (OpenAI & Pollinations do not support reference inputs)
+      if (referenceImage && !isProviderCompatibleWithOperation(p, "reference_image")) {
+        continue;
       }
+      // 2. Inpainting Compatibility
+      if (workflow === "inpainting" && !isProviderCompatibleWithOperation(p, "inpainting")) {
+        continue;
+      }
+      // 3. Outpainting Compatibility
+      if (workflow === "outpainting" && !isProviderCompatibleWithOperation(p, "outpainting")) {
+        continue;
+      }
+      // 4. Image Editing / Composition Transfer Compatibility
+      if (
+        (workflow === "background_replacement" || workflow === "character_preservation" || workflow === "style_transfer") &&
+        !isProviderCompatibleWithOperation(p, "image_editing")
+      ) {
+        continue;
+      }
+      providerChainSet.add(p);
     }
   }
 
