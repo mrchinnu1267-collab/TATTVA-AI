@@ -78,6 +78,10 @@ try {
   if (phaseR?.runPhaseRAccuracyResearchTests) {
     await phaseR.runPhaseRAccuracyResearchTests();
   }
+  const phaseS = await jiti("./phase-s-nextgen-architecture.test.ts");
+  if (phaseS?.runPhaseSNextGenArchitectureTests) {
+    await phaseS.runPhaseSNextGenArchitectureTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
