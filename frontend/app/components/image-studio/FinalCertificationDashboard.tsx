@@ -163,11 +163,10 @@ export function FinalCertificationDashboard({ onClose }: Props) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                isActive
-                  ? "bg-amber-500 text-neutral-950 shadow-md shadow-amber-500/20"
-                  : "bg-neutral-800/60 text-neutral-400 hover:bg-neutral-800 hover:text-white"
-              }`}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${isActive
+                ? "bg-amber-500 text-neutral-950 shadow-md shadow-amber-500/20"
+                : "bg-neutral-800/60 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                }`}
             >
               <Icon className="h-3.5 w-3.5" />
               {tab.label}
@@ -284,11 +283,10 @@ export function FinalCertificationDashboard({ onClose }: Props) {
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-white truncate max-w-[180px]">{prov.displayName}</span>
                   <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                      prov.operationalStatus === "operational"
-                        ? "bg-emerald-500/20 text-emerald-300"
-                        : "bg-amber-500/20 text-amber-300"
-                    }`}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${prov.operationalStatus === "operational"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "bg-amber-500/20 text-amber-300"
+                      }`}
                   >
                     {prov.operationalStatus}
                   </span>
@@ -299,38 +297,34 @@ export function FinalCertificationDashboard({ onClose }: Props) {
                 {/* Capability badges */}
                 <div className="flex flex-wrap gap-1 text-[10px]">
                   <span
-                    className={`rounded px-1.5 py-0.5 ${
-                      prov.verifiedCapabilities.textToImage
-                        ? "bg-neutral-800 text-neutral-300"
-                        : "bg-neutral-900 text-neutral-600 line-through"
-                    }`}
+                    className={`rounded px-1.5 py-0.5 ${prov.verifiedCapabilities.textToImage
+                      ? "bg-neutral-800 text-neutral-300"
+                      : "bg-neutral-900 text-neutral-600 line-through"
+                      }`}
                   >
                     Text2Img
                   </span>
                   <span
-                    className={`rounded px-1.5 py-0.5 ${
-                      prov.verifiedCapabilities.referenceConditioning
-                        ? "bg-indigo-900/40 text-indigo-300"
-                        : "bg-neutral-900 text-neutral-600 line-through"
-                    }`}
+                    className={`rounded px-1.5 py-0.5 ${prov.verifiedCapabilities.referenceConditioning
+                      ? "bg-indigo-900/40 text-indigo-300"
+                      : "bg-neutral-900 text-neutral-600 line-through"
+                      }`}
                   >
                     Reference
                   </span>
                   <span
-                    className={`rounded px-1.5 py-0.5 ${
-                      prov.verifiedCapabilities.inpaintingMasks
-                        ? "bg-cyan-900/40 text-cyan-300"
-                        : "bg-neutral-900 text-neutral-600 line-through"
-                    }`}
+                    className={`rounded px-1.5 py-0.5 ${prov.verifiedCapabilities.inpaintingMasks
+                      ? "bg-cyan-900/40 text-cyan-300"
+                      : "bg-neutral-900 text-neutral-600 line-through"
+                      }`}
                   >
                     Inpainting
                   </span>
                   <span
-                    className={`rounded px-1.5 py-0.5 ${
-                      prov.verifiedCapabilities.spatialControls
-                        ? "bg-amber-900/40 text-amber-300"
-                        : "bg-neutral-900 text-neutral-600 line-through"
-                    }`}
+                    className={`rounded px-1.5 py-0.5 ${prov.verifiedCapabilities.spatialControls
+                      ? "bg-amber-900/40 text-amber-300"
+                      : "bg-neutral-900 text-neutral-600 line-through"
+                      }`}
                   >
                     Spatial
                   </span>
@@ -480,4 +474,3 @@ export function FinalCertificationDashboard({ onClose }: Props) {
     </div>
   );
 }
-
