@@ -57,6 +57,7 @@ import { NextGenArchitectureDashboard } from "../components/image-studio/NextGen
 import { FinalAccuracyOptimizationDashboard } from "../components/image-studio/FinalAccuracyOptimizationDashboard";
 import { RealWorldValidationDashboard } from "../components/image-studio/RealWorldValidationDashboard";
 import { FinalCertificationDashboard } from "../components/image-studio/FinalCertificationDashboard";
+import { EngineMaintenanceDashboard } from "../components/image-studio/EngineMaintenanceDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -315,6 +316,7 @@ export default function ImageStudioPage() {
     | "optimization"
     | "realworld"
     | "certification"
+    | "maintenance"
   >("none");
   const [savingToWorkspace, setSavingToWorkspace] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -1310,6 +1312,18 @@ export default function ImageStudioPage() {
                 <Award className="h-3.5 w-3.5 text-amber-500" />
                 Engine Certification (Phase V)
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "maintenance" ? "none" : "maintenance"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "maintenance"
+                    ? "bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <Activity className="h-3.5 w-3.5 text-teal-500" />
+                Continuous Maintenance (Phase W)
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1462,6 +1476,10 @@ export default function ImageStudioPage() {
 
           {suiteMode === "certification" && (
             <FinalCertificationDashboard onClose={() => setSuiteMode("none")} />
+          )}
+
+          {suiteMode === "maintenance" && (
+            <EngineMaintenanceDashboard onClose={() => setSuiteMode("none")} />
           )}
 
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">

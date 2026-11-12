@@ -94,6 +94,10 @@ try {
   if (phaseV?.runPhaseVFinalCertificationTests) {
     await phaseV.runPhaseVFinalCertificationTests();
   }
+  const phaseW = await jiti("./phase-w-engine-maintenance.test.ts");
+  if (phaseW?.runPhaseWEngineMaintenanceTests) {
+    await phaseW.runPhaseWEngineMaintenanceTests();
+  }
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");
