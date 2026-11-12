@@ -48,6 +48,7 @@ import { ModelIntelligenceDashboard } from "../components/image-studio/ModelInte
 import { ProductionReliabilityDashboard } from "../components/image-studio/ProductionReliabilityDashboard";
 import { WorkspaceHistorySuite } from "../components/image-studio/WorkspaceHistorySuite";
 import { AccuracyReportCard } from "../components/image-studio/AccuracyReportCard";
+import { ImageIntelligenceReport } from "../components/image-studio/ImageIntelligenceReport";
 import { ValidationDashboard } from "../components/image-studio/ValidationDashboard";
 import { ContinuousLearningDashboard } from "../components/image-studio/ContinuousLearningDashboard";
 import { RegressionDashboard } from "../components/image-studio/RegressionDashboard";
@@ -97,6 +98,7 @@ interface ImageApiResponse {
   metadata: ImageMetadata;
   verification: ImageVerification;
   accuracy: number;
+  intelligenceReport?: any;
   compiler: CompilerSummary;
   attempts: AttemptSummary[];
   warnings: string[];
@@ -1681,6 +1683,25 @@ export default function ImageStudioPage() {
                 corrections={(result as any).accuracyReport?.correctionsApplied || []}
                 initialImage={(result as any).initialImage}
                 finalImage={result.image}
+              />
+
+              {/* ADVANCED IMAGE INTELLIGENCE & FORENSIC PROMPT ADHERENCE REPORT */}
+              <ImageIntelligenceReport
+                report={result.intelligenceReport}
+                image={result.image}
+                prompt={prompt}
+                onImageImproved={(improvedResult) => {
+                  setResult((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          image: improvedResult.revisedImage,
+                          accuracy: improvedResult.postCorrectionReport.overallScore,
+                          intelligenceReport: improvedResult.postCorrectionReport,
+                        }
+                      : null
+                  );
+                }}
               />
 
               {result.rag && (

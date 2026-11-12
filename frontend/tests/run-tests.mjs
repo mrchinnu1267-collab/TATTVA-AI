@@ -100,6 +100,7 @@ try {
     await phaseW.runPhaseWEngineMaintenanceTests();
   }
   await jiti("./image-accuracy-100-benchmark.test.ts");
+  await jiti("./image-intelligence-system.test.ts");
   await jiti("./main-chat.test.ts");
   await jiti("./image-generation-multimodel.test.ts");
   await jiti("./prompt-accuracy-50.test.ts");

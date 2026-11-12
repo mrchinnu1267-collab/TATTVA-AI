@@ -21,6 +21,10 @@ import {
   SAFETY_REJECTION_MESSAGE,
 } from "../../lib/content-moderation";
 import type { ImageQuality } from "../../lib/image-engine";
+import {
+  analyzeGeneratedImage,
+  evaluatePromptAdherence,
+} from "../../lib/image-engine/intelligence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -277,11 +281,31 @@ export async function POST(request: Request) {
       }
     }
 
+    // Stage 4: Multimodal Vision Image Understanding & Prompt Adherence
+    let intelligenceReport = null;
+    if (result.image) {
+      try {
+        const understanding = await analyzeGeneratedImage({
+          image: result.image,
+          originalPrompt: prompt,
+          forceVision: true,
+        });
+        intelligenceReport = evaluatePromptAdherence({
+          imageId: `gen_${Date.now()}`,
+          originalPrompt: prompt,
+          understanding,
+        });
+      } catch (err: any) {
+        console.warn("[API:Image] Intelligence report error:", err.message);
+      }
+    }
+
     return NextResponse.json({
       image: result.image,
       metadata: result.metadata,
       verification: result.verification,
-      accuracy: result.accuracy,
+      accuracy: intelligenceReport?.overallScore ?? result.accuracy,
+      intelligenceReport,
       rag: result.rag || null,
       evaluation: result.evaluation || null,
       compiler: {

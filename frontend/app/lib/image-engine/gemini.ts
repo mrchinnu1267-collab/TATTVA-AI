@@ -3,7 +3,11 @@
  * Kept dependency-free so it also works in edge/route handlers.
  */
 
-export const GEMINI_TEXT_MODELS = ["gemini-3.5-flash-lite", "gemini-3.6-flash"] as const;
+export const GEMINI_TEXT_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
+] as const;
 
 export const GEMINI_IMAGE_MODELS = [
   "gemini-3.1-flash-image",
