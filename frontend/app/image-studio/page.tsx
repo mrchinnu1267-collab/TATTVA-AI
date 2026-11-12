@@ -52,6 +52,7 @@ import { RegressionDashboard } from "../components/image-studio/RegressionDashbo
 import { ProductionMonitoringDashboard } from "../components/image-studio/ProductionMonitoringDashboard";
 import { AccuracyResearchDashboard } from "../components/image-studio/AccuracyResearchDashboard";
 import { NextGenArchitectureDashboard } from "../components/image-studio/NextGenArchitectureDashboard";
+import { FinalAccuracyOptimizationDashboard } from "../components/image-studio/FinalAccuracyOptimizationDashboard";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -307,6 +308,7 @@ export default function ImageStudioPage() {
     | "monitoring"
     | "research"
     | "nextgen"
+    | "optimization"
   >("none");
   const [savingToWorkspace, setSavingToWorkspace] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -1266,6 +1268,18 @@ export default function ImageStudioPage() {
                 <Sparkles className="h-3.5 w-3.5 text-cyan-500" />
                 Next-Gen AI Image Architecture (Phase S)
               </button>
+              <button
+                type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "optimization" ? "none" : "optimization"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "optimization"
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+                }`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                Final Accuracy & Error Reduction (Phase T)
+              </button>
             </div>
             {suiteMode !== "none" && (
               <button
@@ -1406,6 +1420,10 @@ export default function ImageStudioPage() {
 
           {suiteMode === "nextgen" && (
             <NextGenArchitectureDashboard onClose={() => setSuiteMode("none")} />
+          )}
+
+          {suiteMode === "optimization" && (
+            <FinalAccuracyOptimizationDashboard onClose={() => setSuiteMode("none")} />
           )}
 
           <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--soft)]">
