@@ -278,8 +278,18 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
   }
 
   // Ensure zero-quota Pollinations cloud fallback is present before local (only if not restricted to offline)
-  if (!isOffline && isProviderAvailable("pollinations")) {
+  if (!isOffline && !referenceImage) {
     providerChainSet.add("pollinations");
+  }
+
+  // Ensure full fallback fleet is accessible to prevent dead-end chains if primary/secondary fail
+  if (!isOffline) {
+    const backupFleet: ImageProviderId[] = ["huggingface", "pollinations", "gemini", "local", "openai"];
+    for (const p of backupFleet) {
+      if (!referenceImage || checkProviderReferenceSupport(p).supportsReferenceImage) {
+        providerChainSet.add(p);
+      }
+    }
   }
 
   const fallbackChain: ImageProviderId[] = Array.from(providerChainSet);

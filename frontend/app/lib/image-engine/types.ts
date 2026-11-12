@@ -109,11 +109,21 @@ export interface ProviderResult {
   revisedPrompt?: string;
 }
 
+export type ProviderHealthStatus =
+  | "AVAILABLE"
+  | "DEGRADED"
+  | "RATE_LIMITED"
+  | "AUTHENTICATION_FAILED"
+  | "QUOTA_EXCEEDED"
+  | "CONFIGURATION_ERROR"
+  | "TEMPORARILY_UNAVAILABLE";
+
 export interface ProviderRuntimeStatus {
   id: ImageProviderId;
   label: string;
   configured: boolean;
   available: boolean;
+  status: ProviderHealthStatus;
   model: string;
   reason?: string;
 }

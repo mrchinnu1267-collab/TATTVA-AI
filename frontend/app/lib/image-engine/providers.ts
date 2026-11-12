@@ -11,6 +11,7 @@ import { filterCompatibleReferenceProviders } from "./reference-conditioning";
 import type {
   ImageProviderChoice,
   ImageProviderId,
+  ProviderHealthStatus,
   ProviderRequest,
   ProviderResult,
   ProviderRuntimeStatus,
@@ -62,6 +63,17 @@ export function getCooldownRemaining(provider: ImageProviderId): number {
   return remaining;
 }
 
+export function getCooldownInfo(provider: ImageProviderId): { remaining: number; reason: string } | null {
+  const entry = cooldowns.get(provider);
+  if (!entry) return null;
+  const remaining = entry.until - Date.now();
+  if (remaining <= 0) {
+    cooldowns.delete(provider);
+    return null;
+  }
+  return { remaining, reason: entry.reason };
+}
+
 function classifyProviderError(label: string, error: unknown): ImageProviderError {
   if (error instanceof ImageProviderError) return error;
   const message = error instanceof Error ? error.message : String(error);
@@ -79,13 +91,13 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
   if (noCredits) {
     return new ImageProviderError(
       `${label} has no remaining quota or credits. ${truncate(message, 240)}`,
-      { retryable: false, cooldownMs: 600_000 } // 10 minute cooldown for quota exhaustion
+      { retryable: false, cooldownMs: 120_000 } // 2 minute cooldown for quota exhaustion (allows quick recovery)
     );
   }
   if (auth) {
     return new ImageProviderError(`${label} rejected credentials. ${truncate(message, 240)}`, {
       retryable: false,
-      cooldownMs: 1_800_000, // 30 minute cooldown for bad auth
+      cooldownMs: 300_000, // 5 minute cooldown for bad auth
     });
   }
   if (notFound) {
@@ -96,7 +108,7 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
   if (rateLimited) {
     return new ImageProviderError(`${label} is rate limited. ${truncate(message, 240)}`, {
       retryable: false,
-      cooldownMs: 60_000,
+      cooldownMs: 30_000,
     });
   }
   if (timeout) {
@@ -250,7 +262,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
     ]) as Promise<{ data: Array<any> }>;
 
     const animeTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Animagine dedicated GPU space timed out after 30s")), 30_000)
+      setTimeout(() => reject(new Error("Animagine dedicated GPU space timed out after 50s")), 50_000)
     );
     const animeRes = await Promise.race([animePredict, animeTimeout]);
 
@@ -260,7 +272,7 @@ async function generateWithHuggingFace(req: ProviderRequest): Promise<ProviderRe
 
     const imgRes = await fetch(fileUrl, {
       headers: authHeaders,
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(35_000),
     });
     if (!imgRes.ok) throw new Error(`Animagine download failed: HTTP ${imgRes.status}`);
 
@@ -563,7 +575,20 @@ async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult>
   }
 }
 
-// ------------------------------------------------------------- Pollinations FLUX
+// ------------------------------------------------------------- Pollinations FLUX & Turbo
+
+function cleanPollinationsPrompt(prompt: string, maxLen = 280): string {
+  let clean = prompt
+    .replace(/[()[\]{}]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (clean.length > maxLen) {
+    const sliced = clean.slice(0, maxLen);
+    const lastBoundary = Math.max(sliced.lastIndexOf(" "), sliced.lastIndexOf(","));
+    clean = (lastBoundary > 120 ? sliced.slice(0, lastBoundary) : sliced).trim();
+  }
+  return clean;
+}
 
 async function generateWithPollinations(req: ProviderRequest): Promise<ProviderResult> {
   const remaining = getCooldownRemaining("pollinations");
@@ -578,13 +603,14 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
   const width = req.width || 1024;
   const height = req.height || 1024;
   const seed = req.seed ?? Math.floor(Math.random() * 1_000_000);
-  const encoded = encodeURIComponent(req.prompt);
+  const cleanPrompt = cleanPollinationsPrompt(req.prompt, 260);
+  const encoded = encodeURIComponent(cleanPrompt);
 
   // Strategy 1: FLUX model on Pollinations
   const fluxUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true`;
 
   try {
-    const res = await fetch(fluxUrl, { signal: AbortSignal.timeout(28_000) });
+    const res = await fetch(fluxUrl, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buffer = Buffer.from(await res.arrayBuffer());
     const mimeType = res.headers.get("content-type") || "image/jpeg";
@@ -598,26 +624,45 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
       latencyMs: Date.now() - started,
     };
   } catch {
-    // Strategy 2: Default standard model on Pollinations
+    // Strategy 2: Fast Turbo model on Pollinations
     try {
-      const fallbackUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-      const res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(18_000) });
-      if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
+      const turboUrl = `https://image.pollinations.ai/prompt/${encoded}?model=turbo&width=${width}&height=${height}&seed=${seed}&nologo=true`;
+      const res = await fetch(turboUrl, { signal: AbortSignal.timeout(18_000) });
+      if (!res.ok) throw new Error(`Pollinations Turbo HTTP ${res.status}`);
       const buffer = Buffer.from(await res.arrayBuffer());
       const mimeType = res.headers.get("content-type") || "image/jpeg";
       return {
         image: bufferToDataUri(buffer, mimeType),
         provider: "pollinations",
-        model: "pollinations-standard",
+        model: "pollinations-turbo",
         seed,
         width,
         height,
         latencyMs: Date.now() - started,
       };
-    } catch (fallbackErr) {
-      const classified = classifyProviderError("Pollinations AI", fallbackErr);
-      if (classified.cooldownMs) setCooldown("pollinations", classified.cooldownMs, classified.message);
-      throw classified;
+    } catch {
+      // Strategy 3: Standard bare pollinations endpoint
+      try {
+        const standardUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+        const res = await fetch(standardUrl, { signal: AbortSignal.timeout(15_000) });
+        if (!res.ok) throw new Error(`Pollinations standard HTTP ${res.status}`);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const mimeType = res.headers.get("content-type") || "image/jpeg";
+        return {
+          image: bufferToDataUri(buffer, mimeType),
+          provider: "pollinations",
+          model: "pollinations-standard",
+          seed,
+          width,
+          height,
+          latencyMs: Date.now() - started,
+        };
+      } catch (fallbackErr) {
+        const classified = classifyProviderError("Pollinations AI", fallbackErr);
+        // Transient failures on zero-auth cloud provider receive a max 15s cooldown
+        if (classified.cooldownMs) setCooldown("pollinations", Math.min(classified.cooldownMs, 15_000), classified.message);
+        throw classified;
+      }
     }
   }
 }
@@ -671,32 +716,6 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
   const openAiKey = Boolean((process.env.OPENAI_API_KEY || "").trim());
   const localOnline = await isLocalEngineHealthy();
 
-  const status = (
-    id: ImageProviderId,
-    label: string,
-    configured: boolean,
-    model: string,
-    online: boolean,
-    baseReason?: string
-  ): ProviderRuntimeStatus => {
-    const remaining = getCooldownRemaining(id);
-    const available = configured && online && remaining === 0;
-    return {
-      id,
-      label,
-      configured,
-      available,
-      model,
-      reason: !configured
-        ? (baseReason || "Not configured.")
-        : remaining > 0
-        ? cooldowns.get(id)?.reason
-        : !online
-        ? baseReason
-        : undefined,
-    };
-  };
-
   const onVercel = isRunningOnVercel();
   const configuredEngineUrl = (process.env.LOCAL_IMAGE_ENGINE_URL || "").trim();
   const isHostedEngine = Boolean(configuredEngineUrl && !isLocalhostUrl(configuredEngineUrl));
@@ -707,6 +726,54 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
     : isHostedEngine
     ? "Hosted GPU image engine is currently unreachable."
     : "Start the Python engine (image-engine/main.py).";
+
+  const status = (
+    id: ImageProviderId,
+    label: string,
+    configured: boolean,
+    model: string,
+    online: boolean,
+    baseReason?: string
+  ): ProviderRuntimeStatus => {
+    const remaining = getCooldownRemaining(id);
+    const cooldownEntry = cooldowns.get(id);
+
+    let healthStatus: ProviderHealthStatus = "AVAILABLE";
+    let reason = baseReason;
+
+    if (!configured) {
+      healthStatus = "CONFIGURATION_ERROR";
+      reason = reason || `${label} is not configured. Missing API credentials.`;
+    } else if (remaining > 0 && cooldownEntry) {
+      const lower = cooldownEntry.reason.toLowerCase();
+      if (/quota|credit|billing|limit:\s*0|runs limit|zerogpu/i.test(lower)) {
+        healthStatus = "QUOTA_EXCEEDED";
+      } else if (/auth|unauthorized|credential|token|key|forbidden|401|403/i.test(lower)) {
+        healthStatus = "AUTHENTICATION_FAILED";
+      } else if (/rate limit|too many|429/i.test(lower)) {
+        healthStatus = "RATE_LIMITED";
+      } else if (/timeout|aborted|timed out|503|busy/i.test(lower)) {
+        healthStatus = "DEGRADED";
+      } else {
+        healthStatus = "TEMPORARILY_UNAVAILABLE";
+      }
+      reason = `${cooldownEntry.reason} (cooldown: ${Math.ceil(remaining / 1000)}s)`;
+    } else if (!online) {
+      healthStatus = id === "local" ? "DEGRADED" : "TEMPORARILY_UNAVAILABLE";
+    }
+
+    const available = configured && online && remaining === 0;
+
+    return {
+      id,
+      label,
+      configured,
+      available,
+      status: healthStatus,
+      model,
+      reason: available ? undefined : reason,
+    };
+  };
 
   return [
     status(
@@ -722,7 +789,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       geminiKey,
       GEMINI_IMAGE_MODELS[0],
       true,
-      "Gemini image access needs quota/billing."
+      "Gemini API key configured. Active quota required."
     ),
     status(
       "openai",
@@ -748,4 +815,17 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       localReason
     ),
   ];
+}
+
+/**
+ * Formats a clear diagnostic summary for logs and admin troubleshooting
+ */
+export function formatDetailedProviderDiagnostics(statuses: ProviderRuntimeStatus[]): string {
+  return statuses
+    .map((s) => {
+      const badge = s.status === "AVAILABLE" ? "READY" : s.status;
+      const reason = s.reason ? ` - ${s.reason}` : "";
+      return `[${s.id.toUpperCase()}] ${s.label}: ${badge}${reason}`;
+    })
+    .join("\n");
 }

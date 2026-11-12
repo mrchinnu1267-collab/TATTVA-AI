@@ -694,12 +694,22 @@ export default function ImageStudioPage() {
     (id: string) => {
       const status = providers.find((item) => item.id === id);
       if (!status) return { label: "Checking", tone: "text-neutral-400", dot: "bg-neutral-400" };
-      if (status.available)
+      if (status.status === "AVAILABLE" || status.available)
         return { label: "Ready", tone: "text-emerald-500", dot: "bg-emerald-500" };
+      if (status.status === "QUOTA_EXCEEDED")
+        return { label: "Quota Exceeded", tone: "text-amber-500", dot: "bg-amber-500" };
+      if (status.status === "RATE_LIMITED")
+        return { label: "Rate Limited", tone: "text-amber-400", dot: "bg-amber-400" };
+      if (status.status === "AUTHENTICATION_FAILED")
+        return { label: "Auth Failed", tone: "text-rose-500", dot: "bg-rose-500" };
+      if (status.status === "CONFIGURATION_ERROR")
+        return { label: "Not Configured", tone: "text-neutral-400", dot: "bg-neutral-400" };
+      if (status.status === "DEGRADED")
+        return { label: "Degraded", tone: "text-yellow-500", dot: "bg-yellow-500" };
       return {
         label: status.configured ? "Unavailable" : "Not configured",
-        tone: "text-neutral-400",
-        dot: "bg-neutral-400",
+        tone: "text-rose-400",
+        dot: "bg-rose-400",
       };
     },
     [providers]

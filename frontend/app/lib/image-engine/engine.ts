@@ -144,9 +144,19 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
     let generated = false;
 
-    for (const provider of order) {
-      if (getCooldownRemaining(provider) > 0) continue;
+    // Check which providers in order are healthy and not in cooldown
+    let providersToTry = order.filter((p) => getCooldownRemaining(p) === 0);
 
+    // If ALL providers in the chain are in cooldown, do not fail silently!
+    // Attempt the least-penalized provider (the one closest to recovering)
+    if (providersToTry.length === 0 && order.length > 0) {
+      const sortedByCooldown = [...order].sort(
+        (a, b) => getCooldownRemaining(a) - getCooldownRemaining(b)
+      );
+      providersToTry = [sortedByCooldown[0]];
+    }
+
+    for (const provider of providersToTry) {
       const request = requestFor(compiled, attemptPrompt, attempt, provider);
       const providerStarted = Date.now();
 
@@ -212,8 +222,14 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   }
 
   if (!best) {
+    const errorDetails = attempts
+      .filter((a) => a.error)
+      .map((a) => `${a.provider}: ${a.error}`)
+      .join("; ");
     throw new ImageProviderError(
-      lastError || "All configured image providers are currently unavailable."
+      errorDetails
+        ? `All configured image providers are currently unavailable (${errorDetails})`
+        : lastError || "All configured image providers are currently unavailable."
     );
   }
 
