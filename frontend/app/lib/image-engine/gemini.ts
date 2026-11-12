@@ -13,6 +13,14 @@ export const GEMINI_IMAGE_MODELS = [
   "gemini-3.1-flash-image",
   "gemini-2.5-flash-image",
   "gemini-3-pro-image-preview",
+  "imagen-3.0-generate-002",
+] as const;
+
+export const NANO_BANANA_MODELS = [
+  "gemini-2.5-flash-image", // Nano Banana 2.1 / Flash Image Preview
+  "gemini-3.1-flash-image", // Nano Banana 2
+  "gemini-3-pro-image-preview", // Nano Banana Pro
+  "imagen-3.0-generate-002", // Imagen 3 Nano Banana Architecture
 ] as const;
 
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
@@ -53,7 +61,10 @@ interface GeminiResponse {
 }
 
 export function getGeminiApiKey(): string | undefined {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const key =
+    process.env.NANO_BANANA_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY;
   return key ? key.trim() : undefined;
 }
 
@@ -216,4 +227,16 @@ export async function geminiImage(
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Gemini image generation failed.");
+}
+
+/**
+ * Nano Banana Image Generation Adapter
+ * Uses Google's state-of-the-art conversational image generation models (Gemini Flash Image / Pro Image)
+ * with multi-image conditioning, precise prompt alignment, and character preservation.
+ */
+export async function nanoBananaImage(
+  prompt: string,
+  options: { referenceImage?: string; aspectRatio?: string; timeoutMs?: number } = {}
+): Promise<{ image: string; model: string; revisedPrompt?: string }> {
+  return geminiImage(prompt, options);
 }

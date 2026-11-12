@@ -187,6 +187,7 @@ export function compileSubjectConsistentPrompt(
 
   return {
     providerPrompts: {
+      "nano-banana": geminiPrompt,
       gemini: geminiPrompt,
       huggingface: sdxlPrompt,
       pollinations: pollinationsPrompt,

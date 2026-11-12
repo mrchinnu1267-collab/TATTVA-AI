@@ -56,6 +56,7 @@ export interface PromptValidationResult {
 
 // Token budgets per provider architecture
 export const PROVIDER_TOKEN_BUDGETS: Record<ImageProviderId, number> = {
+  "nano-banana": 2000, // Nano Banana conversational image context
   huggingface: 77,   // Primary SDXL-Lightning dual CLIP-L/G window (FLUX fallback allows up to 256 T5 tokens)
   local: 77,         // Local SDXL / SD 1.5 CLIP encoder limit
   pollinations: 256, // FLUX.1 T5-XXL token budget on Pollinations
@@ -437,6 +438,7 @@ export function parseStructuredPrompt(
   const approxTokens = Math.round(wordCount * 1.25);
 
   const estimatedTokens: Record<ImageProviderId, number> = {
+    "nano-banana": wordCount,
     huggingface: approxTokens,
     local: approxTokens,
     pollinations: approxTokens,

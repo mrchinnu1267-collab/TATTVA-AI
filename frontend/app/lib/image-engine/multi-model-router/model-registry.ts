@@ -174,6 +174,34 @@ export const SUPPORTED_MODELS: Record<string, ModelSpecification> = {
     offlineCapable: false,
   },
 
+  // 5b. Google Nano Banana 2.1 / Pro (Conversational Image Engine)
+  "nano-banana": {
+    id: "nano-banana",
+    name: "Google Nano Banana 2.1 / Pro",
+    exactModelIdentifier: "gemini-2.5-flash-image",
+    family: "gemini",
+    hosting: "premium_hosted",
+    providerId: "nano-banana",
+    description: "Google's conversational image generation engine (Nano Banana). Excels at character consistency, multi-image conditioning, exact text rendering, and rapid iterative editing.",
+    strengths: ["character consistency", "multi-image conditioning", "conversational editing", "text rendering", "unwatermarked synthid"],
+    supportsTextToImage: true,
+    supportsImageToImage: true,
+    supportsReferenceImage: true,
+    supportsInpainting: true,
+    supportsOutpainting: true,
+    supportsControlNet: true,
+    supportsNegativePrompt: false,
+    supportsStrengthControl: false,
+    maxResolution: { width: 2048, height: 2048 },
+    resolutionLimits: { minWidth: 512, minHeight: 512, maxWidth: 2048, maxHeight: 2048 },
+    license: "Google Generative AI Commercial Terms",
+    pricingUsdPerMegapixel: 0.02,
+    costPerMegapixelUsd: 0.02,
+    averageLatencyMs: 3900,
+    qualityScore: 98,
+    offlineCapable: false,
+  },
+
   // 6. OpenAI DALL-E 3 (Text-Only Imaginative Composition)
   "dall-e-3": {
     id: "dall-e-3",

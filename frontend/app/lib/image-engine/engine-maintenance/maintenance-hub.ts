@@ -53,6 +53,7 @@ export class MaintenanceHub {
   private seedProductionTelemetry(): void {
     const providers: ImageProviderId[] = ["gemini", "huggingface", "pollinations", "local"];
     const models: Record<ImageProviderId, string> = {
+      "nano-banana": "gemini-2.5-flash-image",
       gemini: "gemini-2.5-flash-image",
       huggingface: "black-forest-labs/FLUX.1-dev",
       pollinations: "flux",

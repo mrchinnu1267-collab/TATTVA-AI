@@ -19,7 +19,15 @@ export type TaskIntent =
   | "summarization"
   | "agent_task";
 
-export type ModelProvider = "gemini" | "openrouter" | "nvidia" | "huggingface" | "pollinations" | "local" | "openai";
+export type ModelProvider =
+  | "gemini"
+  | "openrouter"
+  | "nvidia"
+  | "huggingface"
+  | "pollinations"
+  | "local"
+  | "openai"
+  | "nano-banana";
 
 export interface AIModelSpec {
   id: string;

@@ -7,6 +7,14 @@ import { ImageProviderId } from "../types";
 import type { ProviderReferenceCapability } from "./types";
 
 export const PROVIDER_REFERENCE_CAPABILITIES: Record<ImageProviderId, ProviderReferenceCapability> = {
+  "nano-banana": {
+    provider: "nano-banana",
+    supportsReferenceImage: true,
+    supportsStrength: false, // Nano Banana handles reference conditioning natively in context
+    maxResolution: 2048,
+    supportedFormats: ["png", "jpeg", "webp", "gif"],
+    reason: "Google Nano Banana (Gemini) natively supports multi-image reference conditioning and subject consistency.",
+  },
   gemini: {
     provider: "gemini",
     supportsReferenceImage: true,

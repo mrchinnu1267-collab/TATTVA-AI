@@ -295,7 +295,8 @@ export function EngineMaintenanceDashboard({ onClose }: Props) {
               className="rounded-xl border border-neutral-700 bg-neutral-800 py-1.5 px-2.5 text-xs text-white focus:outline-none"
             >
               <option value="all">All Providers</option>
-              <option value="gemini">Google Gemini</option>
+              <option value="nano-banana">Google Nano Banana 2.1 / Pro</option>
+              <option value="gemini">Google Gemini Image</option>
               <option value="huggingface">Hugging Face FLUX</option>
               <option value="pollinations">Pollinations</option>
               <option value="local">Local Diffusers</option>

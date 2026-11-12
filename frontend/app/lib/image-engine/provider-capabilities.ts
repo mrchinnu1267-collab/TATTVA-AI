@@ -31,6 +31,23 @@ export interface ProviderCapabilityProfile {
 }
 
 export const PROVIDER_CAPABILITIES: Record<ImageProviderId, ProviderCapabilityProfile> = {
+  "nano-banana": {
+    providerId: "nano-banana",
+    label: "Google Nano Banana 2.1 / Pro",
+    supportsTextToImage: true,
+    supportsReferenceImage: true,
+    supportsImageEditing: true,
+    supportsInpainting: true,
+    supportsOutpainting: true,
+    supportsHighResolution: true,
+    maxResolution: 2048,
+    supportedAspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
+    supportedInputFormats: ["png", "jpeg", "webp", "gif"],
+    limitations: [
+      "Subject to Google Gemini API quota limits (HTTP 429).",
+      "Native conversational multimodal conditioning and SynthID watermark identification.",
+    ],
+  },
   gemini: {
     providerId: "gemini",
     label: "Google Gemini Image",

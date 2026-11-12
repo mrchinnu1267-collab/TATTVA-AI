@@ -210,16 +210,16 @@ export function optimizePromptForModel(params: {
   }
 
   // =========================================================================
-  // 3. GOOGLE GEMINI (Multimodal Native)
+  // 3. GOOGLE GEMINI & NANO BANANA (Multimodal Native)
   // =========================================================================
-  else if (provider === "gemini") {
-    // Gemini accepts up to 8,000 tokens of natural language instruction
+  else if (provider === "gemini" || provider === "nano-banana") {
+    // Gemini / Nano Banana accepts up to 8,000 tokens of natural language instruction with multi-image conditioning
     if (character) {
       optimizedPrompt = `Depict authentic canonical ${character.canonicalName} (${character.description}). Scene details: ${originalPrompt}`;
     } else {
       optimizedPrompt = originalPrompt;
     }
-    notes.push("Full natural language descriptive prompt with canonical character anchoring.");
+    notes.push("Full natural language descriptive prompt with canonical character anchoring for Nano Banana.");
   }
 
   // =========================================================================

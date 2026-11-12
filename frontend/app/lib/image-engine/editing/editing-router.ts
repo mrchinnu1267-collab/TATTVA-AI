@@ -10,6 +10,16 @@ import { EditingOperationType, EditingProviderCapability } from "./types";
 import { getCooldownRemaining } from "../providers";
 
 export const EDITING_PROVIDER_CAPABILITIES: Record<ImageProviderId, EditingProviderCapability> = {
+  "nano-banana": {
+    providerId: "nano-banana",
+    supportsInpainting: true,
+    supportsMaskInput: true,
+    supportsOutpainting: true,
+    supportsBackgroundRemoval: true,
+    supportsTransparency: false,
+    maxDimensions: { width: 2048, height: 2048 },
+    averageLatencyMs: 3100,
+  },
   gemini: {
     providerId: "gemini",
     supportsInpainting: true,

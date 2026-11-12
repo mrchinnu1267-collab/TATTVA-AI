@@ -35,7 +35,17 @@ function isProviderAvailable(providerId: ImageProviderId): boolean {
   if (providerId === "openai" && !Boolean((process.env.OPENAI_API_KEY || "").trim())) {
     return false;
   }
-  if (providerId === "gemini" && !Boolean((process.env.GEMINI_API_KEY || "").trim())) {
+  if (
+    (providerId === "gemini" || providerId === "nano-banana") &&
+    !Boolean(
+      (
+        process.env.NANO_BANANA_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        ""
+      ).trim()
+    )
+  ) {
     return false;
   }
   if (providerId === "huggingface" && !Boolean((process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim())) {
@@ -298,7 +308,14 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
 
   // Ensure full fallback fleet is accessible, but STRICTLY RESPECT ACTUAL OPERATION SUPPORT
   if (!isOffline) {
-    const backupFleet: ImageProviderId[] = ["huggingface", "pollinations", "gemini", "local", "openai"];
+    const backupFleet: ImageProviderId[] = [
+      "nano-banana",
+      "huggingface",
+      "pollinations",
+      "gemini",
+      "local",
+      "openai",
+    ];
     for (const p of backupFleet) {
       // 1. Reference Image Compatibility (OpenAI & Pollinations do not support reference inputs)
       if (referenceImage && !isProviderCompatibleWithOperation(p, "reference_image")) {

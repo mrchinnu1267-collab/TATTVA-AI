@@ -788,12 +788,12 @@ export function resolveProviderOrder(
     baseOrder = [requested];
   } else if (hasReferenceImage) {
     // When reference image is present, prioritize multimodal native and img2img-capable engines
-    baseOrder = ["gemini", "huggingface", "local"];
+    baseOrder = ["nano-banana", "gemini", "huggingface", "local"];
   } else if (isRunningOnVercel() || quality === "fast") {
     // In Vercel serverless environment, prioritize fast cloud engines to stay within strict execution limits
-    baseOrder = ["gemini", "pollinations", "huggingface", "openai", "local"];
+    baseOrder = ["nano-banana", "gemini", "pollinations", "huggingface", "openai", "local"];
   } else {
-    baseOrder = ["huggingface", "gemini", "pollinations", "openai", "local"];
+    baseOrder = ["nano-banana", "huggingface", "gemini", "pollinations", "openai", "local"];
   }
 
   if (hasReferenceImage) {
@@ -809,10 +809,11 @@ export async function generateWithProvider(
   req: ProviderRequest
 ): Promise<ProviderResult> {
   switch (provider) {
-    case "huggingface":
-      return generateWithHuggingFace(req);
+    case "nano-banana":
     case "gemini":
       return generateWithGemini(req);
+    case "huggingface":
+      return generateWithHuggingFace(req);
     case "pollinations":
       return generateWithPollinations(req);
     case "openai":
@@ -905,6 +906,14 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
   };
 
   return [
+    status(
+      "nano-banana",
+      "Google Nano Banana 2.1 / Pro",
+      geminiKey,
+      "gemini-2.5-flash-image",
+      true,
+      "Nano Banana powered by Google Gemini architecture with multi-image conditioning."
+    ),
     status(
       "huggingface",
       "Hugging Face SDXL / Animagine",

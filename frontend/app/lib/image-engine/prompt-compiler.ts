@@ -353,6 +353,7 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
   const sdxlFormatted = formatPromptForSDXL(structured);
   const localFormatted = formatPromptForLocal(structured);
   const promptsByProvider: Record<ImageProviderId, string> = {
+    "nano-banana": formatPromptForGemini(structured, { aspectRatio, quality }),
     gemini: formatPromptForGemini(structured, { aspectRatio, quality }),
     openai: formatPromptForDallE(structured, { aspectRatio }),
     huggingface: sdxlFormatted.positive,
