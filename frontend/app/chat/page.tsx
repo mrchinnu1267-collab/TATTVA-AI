@@ -7603,6 +7603,36 @@ export default function ChatPage() {
                 </div>
               </div>
 
+              <div className="p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">How TATTVA AI Works (Multi-Layer Intelligence)</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-medium">Real-Time Grounded</span>
+                </div>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  TATTVA AI operates like a real-time research analyst paired with a massive neural library—dynamically gathering, verifying, and synthesizing answers across multiple distinct layers:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px] text-neutral-600 dark:text-neutral-300">
+                  <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
+                    <strong className="text-neutral-900 dark:text-white">🧠 Neural Foundation:</strong> Generates core concepts, logic, and code token-by-token.
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
+                    <strong className="text-neutral-900 dark:text-white">🌐 Live Web Grounding:</strong> Searches top web pages and anchors fresh facts.
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
+                    <strong className="text-neutral-900 dark:text-white">🖼️ Visual &amp; Video:</strong> Generates images, transcribes handwriting &amp; summarizes YouTube.
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
+                    <strong className="text-neutral-900 dark:text-white">🛰️ Geospatial Maps:</strong> Real-time ratings, coordinates, and satellite views.
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
+                    <strong className="text-neutral-900 dark:text-white">📁 Workspace Connectors:</strong> Search private emails, docs, sheets &amp; calendar.
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
+                    <strong className="text-neutral-900 dark:text-white">🔌 Developer MCP &amp; APIs:</strong> Connects custom tools, REST APIs &amp; sensor streams.
+                  </div>
+                </div>
+              </div>
+
               <div className="p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700">
                 <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">Creator &amp; Architectural Attribution</p>
                 <p className="text-[11px] text-neutral-500 mt-0.5">

@@ -44,6 +44,15 @@ TATTVA_AI/
 
 ## 3. Completed Milestones & Verified Features
 
+- [x] **Dynamic Information Gathering & Multi-Layer Neural Architecture Integration**:
+  - Formalized TATTVA AI's multi-tier information gathering pipeline:
+    1. **Pre-Trained Neural Foundation:** Concept generation, logic, and code assembly token-by-token.
+    2. **Real-Time Grounding & Retrieval:** Live Web Grounding (Google Search), Visual/Video Intelligence (YouTube summaries, Image generation, OCR), Geospatial Satellite Maps, Personal Workspace Connectors (@Gmail, @Drive, @Docs, @Sheets, @Calendar), Multimodal Encoders, and Developer Bridges (MCP / REST APIs).
+    3. **Dynamic Synthesis:** Sub-second routing, parallel dispatch, and verified response synthesis.
+  - Added architecture documentation to `docs/INFORMATION_GATHERING_ARCHITECTURE.md`.
+  - Enriched master system prompt in `app/lib/ai-orchestrator/index.ts` with explicit multi-layer reasoning instructions.
+  - Added interactive "How TATTVA AI Works" multi-layer intelligence overview inside the Help & Documentation modal in `app/chat/page.tsx`.
+
 - [x] **TATTVA AI Universal File Generation Engine & Microsoft Office Compatibility**:
   - Identified & permanently resolved root cause of identical DOCX generation: Google Gemini API had deprecated `gemini-2.5-flash` with 404 NOT FOUND for new users, which caused the synthesizer to catch the error and silently fall back to the static hardcoded template `"Strategic Framework for ${safeTitle}"`. Upgraded all document engine endpoints to `gemini-3.8-flash`.
   - Built two-tier Microsoft Office generation and validation pipeline:
