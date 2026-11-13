@@ -7557,7 +7557,7 @@ export default function ChatPage() {
       {isHelpModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setIsHelpModalOpen(false)}>
           <div
-            className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
+            className={`w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-3xl border p-6 shadow-2xl backdrop-blur-2xl transition-all ${isDark ? "border-neutral-800 bg-[#121316] text-white" : "border-black/10 bg-white text-black"
               }`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -7574,7 +7574,7 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => setIsHelpModalOpen(false)}
-                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition"
+                className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-black dark:hover:text-white transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -7630,6 +7630,94 @@ export default function ChatPage() {
                   <div className="p-1.5 rounded-lg bg-white/60 dark:bg-neutral-900/60 border border-black/5 dark:border-neutral-700/60">
                     <strong className="text-neutral-900 dark:text-white">🔌 Developer MCP &amp; APIs:</strong> Connects custom tools, REST APIs &amp; sensor streams.
                   </div>
+                </div>
+              </div>
+
+              {/* Universal File & Deliverables Prompt Toolkit */}
+              <div className="p-3.5 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/70 border border-black/5 dark:border-neutral-700 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">Universal File &amp; Deliverables Prompt Toolkit</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 font-medium">Click to Load</span>
+                </div>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  Trigger TATTVA AI&apos;s binary generation engine directly using these 5 production formulas:
+                </p>
+                <div className="space-y-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('Create a comprehensive, publication-ready Technical Documentation on [Topic] and export it as a downloadable .docx file. Include clean title header, executive summary, numbered technical sections, structured comparison tables, bold takeaways, and concrete data—zero placeholder text or [fill-in] brackets.');
+                      setIsHelpModalOpen(false);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full text-left p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 hover:bg-white dark:hover:bg-neutral-900 border border-black/5 dark:border-neutral-700/60 transition group flex items-start gap-2 cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-cyan-500 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-neutral-900 dark:text-white group-hover:text-cyan-500 transition">1. Professional Document (.docx / .pdf)</div>
+                      <div className="text-[10px] text-neutral-500 line-clamp-1">Title header, executive summary, numbered sections, comparison tables, zero placeholders.</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('Build a complete, multi-tab .xlsx workbook for [Project Budget / IoT Sensor Logs] and provide it as a downloadable file. Organize into clearly named sheets (Summary_Dashboard, Raw_Data, Analytics), domain-accurate baseline records, and live Excel formulas (SUM, AVERAGE, IF, COUNTIF, percentage variance).');
+                      setIsHelpModalOpen(false);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full text-left p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 hover:bg-white dark:hover:bg-neutral-900 border border-black/5 dark:border-neutral-700/60 transition group flex items-start gap-2 cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-neutral-900 dark:text-white group-hover:text-emerald-500 transition">2. Multi-Sheet Excel Workbook (.xlsx / .csv)</div>
+                      <div className="text-[10px] text-neutral-500 line-clamp-1">Multi-tab structure, domain data, live formulas (SUM, AVERAGE, IF, COUNTIF) — no hardcoded totals.</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('Generate a complete, production-ready Full-Stack IoT Dashboard codebase and package all files into a single downloadable .zip archive. Include app.py, requirements.txt, templates/index.html, static/style.css, static/app.js, and README.md. Write 100% complete, runnable code—no // TODO or truncated functions.');
+                      setIsHelpModalOpen(false);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full text-left p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 hover:bg-white dark:hover:bg-neutral-900 border border-black/5 dark:border-neutral-700/60 transition group flex items-start gap-2 cursor-pointer"
+                  >
+                    <FolderArchive className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-neutral-900 dark:text-white group-hover:text-amber-500 transition">3. Multi-File Code Repo Bundle (.zip)</div>
+                      <div className="text-[10px] text-neutral-500 line-clamp-1">Clean folder hierarchy, runnable full-stack scripts, aligned endpoints, comprehensive README.</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('Build a self-contained, single-file HTML/CSS/vanilla JS interactive web application for [App Name & Purpose], render it in the interactive preview, and make it downloadable as an .html file. Use sleek dark-mode UI (#0B0F19 background, glassmorphic cards, #06B6D4 cyan & #8B5CF6 violet), interactive controls, real-time filtering, localStorage, and Chart.js CDN.');
+                      setIsHelpModalOpen(false);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full text-left p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 hover:bg-white dark:hover:bg-neutral-900 border border-black/5 dark:border-neutral-700/60 transition group flex items-start gap-2 cursor-pointer"
+                  >
+                    <Code2 className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-neutral-900 dark:text-white group-hover:text-violet-500 transition">4. Interactive Web Canvas (.html + Live Preview)</div>
+                      <div className="text-[10px] text-neutral-500 line-clamp-1">Sleek dark-mode canvas, glassmorphic cards, interactive charts, self-contained single file.</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('Draft a structured Project Plan and Dataset Tracker on [Topic] and format it for @Google Docs and @Google Sheets. Use clean section headings, itemized bullet lists, and formatted tables ready for instant collaboration.');
+                      setIsHelpModalOpen(false);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full text-left p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 hover:bg-white dark:hover:bg-neutral-900 border border-black/5 dark:border-neutral-700/60 transition group flex items-start gap-2 cursor-pointer"
+                  >
+                    <Cloud className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-neutral-900 dark:text-white group-hover:text-blue-500 transition">5. Native Workspace Export (@Google Docs / @Google Sheets)</div>
+                      <div className="text-[10px] text-neutral-500 line-clamp-1">Clean headings, bulleted action items, and structured tabular layouts ready to sync.</div>
+                    </div>
+                  </button>
                 </div>
               </div>
 
