@@ -14,6 +14,8 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.MediaScannerConnection
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -153,8 +155,29 @@ class MainActivity : ComponentActivity() {
         loadTattvaApp()
     }
 
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+            val network = cm.activeNetwork ?: return false
+            val actNw = cm.getNetworkCapabilities(network) ?: return false
+            actNw.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    (actNw.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                            actNw.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                            actNw.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                            actNw.hasTransport(NetworkCapabilities.TRANSPORT_VPN))
+        } catch (e: Exception) {
+            true // Allow navigation attempt if check throws
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
+        // Enable persistent cookies and third-party cookies (essential for Next.js and Supabase OAuth)
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, true)
+        }
+
         val settings = webView.settings
         settings.apply {
             javaScriptEnabled = true
@@ -171,7 +194,13 @@ class MainActivity : ComponentActivity() {
             loadWithOverviewMode = true
             cacheMode = WebSettings.LOAD_DEFAULT
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            userAgentString = settings.userAgentString + " TattvaAI-Android"
+
+            // Clean User Agent: remove '; wv' and 'Version/X.X' so Google OAuth does not throw 403 disallowed_useragent
+            val defaultUa = settings.userAgentString
+            val cleanUa = defaultUa
+                .replace("; wv", "")
+                .replace(Regex("Version/[0-9.]+ "), "")
+            userAgentString = cleanUa
         }
 
         // Expose AndroidBridge
@@ -243,19 +272,41 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                if (scheme == "intent") {
+                    return try {
+                        val parsedIntent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                        if (parsedIntent.resolveActivity(packageManager) != null) {
+                            startActivity(parsedIntent)
+                            true
+                        } else {
+                            val fallbackUrl = parsedIntent.getStringExtra("browser_fallback_url")
+                            if (!fallbackUrl.isNullOrBlank()) {
+                                webView.loadUrl(fallbackUrl)
+                                true
+                            } else false
+                        }
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+
                 val serverUrl = getServerUrl()
-                return if (url.startsWith(serverUrl) ||
-                    url.startsWith("https://tattva-ai-phi.vercel.app") ||
-                    host.contains("vercel.app") ||
-                    host.contains("supabase.co") ||
-                    host.contains("accounts.google.com") ||
-                    host.contains("github.com") ||
-                    url.startsWith("http://192.168.") ||
-                    url.startsWith("http://10.") ||
-                    url.startsWith("http://172.") ||
-                    url.startsWith("http://127.0.0.1") ||
-                    url.startsWith("http://localhost")
-                ) {
+                val isInternal = url.startsWith(serverUrl, ignoreCase = true) ||
+                        url.startsWith("https://tattva-ai-phi.vercel.app", ignoreCase = true) ||
+                        host.contains("vercel.app") ||
+                        host.contains("supabase.co") ||
+                        host.contains("accounts.google.com") ||
+                        host.endsWith("google.com") ||
+                        host.endsWith("googleapis.com") ||
+                        host.endsWith("gstatic.com") ||
+                        host.contains("github.com") ||
+                        url.startsWith("http://192.168.") ||
+                        url.startsWith("http://10.") ||
+                        url.startsWith("http://172.") ||
+                        url.startsWith("http://127.0.0.1") ||
+                        url.startsWith("http://localhost")
+
+                return if (isInternal) {
                     false
                 } else {
                     try {
@@ -268,7 +319,20 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                handler?.proceed()
+                val errorMsg = when (error?.primaryError) {
+                    SslError.SSL_EXPIRED -> "SSL Certificate Expired"
+                    SslError.SSL_IDMISMATCH -> "SSL Certificate Host Mismatch"
+                    SslError.SSL_NOTYETVALID -> "SSL Certificate Not Yet Valid (Check device date/time)"
+                    SslError.SSL_UNTRUSTED -> "SSL Certificate Authority Untrusted"
+                    SslError.SSL_DATE_INVALID -> "SSL Certificate Date Invalid"
+                    else -> "SSL Certificate Validation Error"
+                }
+                android.util.Log.e("TattvaAI", "SSL Validation Failure ($errorMsg): ${error?.url}")
+                handler?.cancel() // Strictly enforce SSL validation - do not bypass
+                runOnUiThread {
+                    errorLayout.visibility = View.VISIBLE
+                    errorText.text = "Secure SSL Connection Failed:\n$errorMsg\n\nPlease ensure your device's date and time are accurate."
+                }
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -277,13 +341,44 @@ class MainActivity : ComponentActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                errorLayout.visibility = View.GONE
+                CookieManager.getInstance().flush()
                 injectNotificationBridge(view)
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
-                    errorLayout.visibility = View.VISIBLE
-                    errorText.text = "Unable to connect to TATTVA AI Server:\n" + getServerUrl() + "\n\nPlease make sure your server is running and your Android phone is on the same Wi-Fi network."
+                    val description = error?.description?.toString() ?: "Network error"
+                    val errorCode = error?.errorCode ?: 0
+                    android.util.Log.e("TattvaAI", "WebView Error ($errorCode): $description on ${request.url}")
+
+                    val isOnline = isNetworkAvailable()
+                    val friendlyMsg = if (!isOnline) {
+                        "No Internet Connection\n\nPlease check your Wi-Fi or mobile data connection and tap Retry Connection."
+                    } else {
+                        "Unable to connect to TATTVA AI Server:\n${getServerUrl()}\n\n($description - Code $errorCode)\n\nPlease tap Retry Connection or Configure Server Address."
+                    }
+
+                    runOnUiThread {
+                        errorLayout.visibility = View.VISIBLE
+                        errorText.text = friendlyMsg
+                    }
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    val isOnline = isNetworkAvailable()
+                    val friendlyMsg = if (!isOnline) {
+                        "No Internet Connection\n\nPlease check your Wi-Fi or mobile data connection and tap Retry Connection."
+                    } else {
+                        "Unable to connect to TATTVA AI Server:\n${getServerUrl()}\n\n(${description ?: "Connection error"} - Code $errorCode)"
+                    }
+                    runOnUiThread {
+                        errorLayout.visibility = View.VISIBLE
+                        errorText.text = friendlyMsg
+                    }
                 }
             }
         }
@@ -408,13 +503,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setServerUrl(url: String) {
-        val cleanUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            "http://" + url
-        } else url
+        val trimmed = url.trim()
+        val cleanUrl = if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+            "https://" + trimmed
+        } else trimmed
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_SERVER_URL, cleanUrl.trimEnd('/'))
             .apply()
+        errorLayout.visibility = View.GONE
+        loadTattvaApp()
+    }
+
+    private fun resetToProductionServer() {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_SERVER_URL, DEFAULT_URL)
+            .apply()
+        errorLayout.visibility = View.GONE
+        Toast.makeText(this, "Connecting to Cloud Server: $DEFAULT_URL", Toast.LENGTH_SHORT).show()
         loadTattvaApp()
     }
 
@@ -423,18 +530,21 @@ class MainActivity : ComponentActivity() {
         val input = EditText(this).apply {
             setText(currentUrl)
             setSelection(currentUrl.length)
-            hint = "e.g. https://tattva-ai-phi.vercel.app or http://192.168.0.207:3000"
+            hint = "e.g. https://tattva-ai-phi.vercel.app"
         }
 
         AlertDialog.Builder(this)
             .setTitle("TATTVA AI Server Configuration")
-            .setMessage("Set your local Wi-Fi or remote server address:")
+            .setMessage("Default: Official Cloud Server (https://tattva-ai-phi.vercel.app)\n\nEnter server address or reset to official cloud:")
             .setView(input)
             .setPositiveButton("Connect") { _, _ ->
                 val newUrl = input.text.toString().trim()
                 if (newUrl.isNotEmpty()) {
                     setServerUrl(newUrl)
                 }
+            }
+            .setNeutralButton("Reset to Cloud") { _, _ ->
+                resetToProductionServer()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -476,10 +586,23 @@ class MainActivity : ComponentActivity() {
                 setTextColor(android.graphics.Color.WHITE)
                 setOnClickListener {
                     errorLayout.visibility = View.GONE
+                    progressBar.visibility = View.VISIBLE
+                    progressBar.progress = 15
+                    webView.stopLoading()
                     loadTattvaApp()
                 }
             }
             addView(btnRetry)
+
+            val btnCloud = Button(context).apply {
+                text = "Connect to Official Cloud"
+                setBackgroundColor(android.graphics.Color.parseColor("#0EA5E9"))
+                setTextColor(android.graphics.Color.WHITE)
+                setOnClickListener {
+                    resetToProductionServer()
+                }
+            }
+            addView(btnCloud)
 
             btnSettings = Button(context).apply {
                 text = "Configure Server Address"
