@@ -75,11 +75,44 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
   const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
+  const isResetInFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"info" | "error" | "success">("info");
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
 
   const hasCheckedAuth = useRef(false);
+
+  // Initialize and tick reset cooldown
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedTarget = sessionStorage.getItem("tattva_reset_cooldown_target");
+      if (storedTarget) {
+        const remaining = Math.max(0, Math.ceil((parseInt(storedTarget, 10) - Date.now()) / 1000));
+        if (remaining > 0) {
+          setResetCooldown(remaining);
+        } else {
+          sessionStorage.removeItem("tattva_reset_cooldown_target");
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (resetCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResetCooldown((prev) => {
+        if (prev <= 1) {
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem("tattva_reset_cooldown_target");
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resetCooldown]);
 
   // Auto session check and query param evaluation
   useEffect(() => {
@@ -163,8 +196,11 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
   }, [initialMode, router]);
 
   async function handleForgotPassword(targetEmail: string) {
+    if (isResetInFlight.current || loading || resetCooldown > 0) return;
+    isResetInFlight.current = true;
     setLoading(true);
     setMessage("");
+
     try {
       const supabase = createClient();
       const redirectUrl =
@@ -175,13 +211,40 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
       const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
         redirectTo: redirectUrl,
       });
-      if (error) throw error;
-      setMessage("Password reset link has been dispatched to your email. Please check your inbox.");
+
+      if (error) {
+        const errMsg = error.message || "";
+        const isRateLimit =
+          error.status === 429 ||
+          errMsg.toLowerCase().includes("rate limit") ||
+          (error as unknown as { code?: string }).code === "over_email_send_rate_limit";
+
+        if (isRateLimit) {
+          const cooldownSecs = 60;
+          setResetCooldown(cooldownSecs);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("tattva_reset_cooldown_target", (Date.now() + cooldownSecs * 1000).toString());
+          }
+          setMessage("Email rate limit reached: Supabase limits password-reset emails to prevent abuse. Please wait a few minutes before trying again, or check your spam/junk folder for previous emails.");
+          setMessageType("error");
+          return;
+        }
+
+        throw error;
+      }
+
+      const cooldownSecs = 60;
+      setResetCooldown(cooldownSecs);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("tattva_reset_cooldown_target", (Date.now() + cooldownSecs * 1000).toString());
+      }
+      setMessage("Password reset link has been dispatched to your email. Please check your inbox and spam folder.");
       setMessageType("success");
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : "Failed to send reset link.");
       setMessageType("error");
     } finally {
+      isResetInFlight.current = false;
       setLoading(false);
     }
   }
@@ -615,7 +678,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
             {/* SUBMIT BUTTON */}
             <button
               type="submit"
-              disabled={loading || !email.trim() || (mode !== "forgot" && password.length < 6)}
+              disabled={loading || !email.trim() || (mode !== "forgot" && password.length < 6) || (mode === "forgot" && resetCooldown > 0)}
               className="flex h-11 w-full items-center justify-center rounded-xl bg-black text-sm font-semibold text-white shadow-xs transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {loading ? (
@@ -632,7 +695,11 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
               ) : mode === "signup" ? (
                 "Create Free Account"
               ) : mode === "forgot" ? (
-                "Send Password Reset Link"
+                resetCooldown > 0 ? (
+                  `Resend Link in ${resetCooldown}s`
+                ) : (
+                  "Send Password Reset Link"
+                )
               ) : (
                 "Log In to TATTVA AI"
               )}

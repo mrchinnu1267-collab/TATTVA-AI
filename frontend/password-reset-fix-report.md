@@ -162,3 +162,4 @@ To guarantee email delivery and redirect handling in all environments:
      ```
 2. In **Supabase Dashboard** > **Authentication** > **Email Templates**:
    - Verify the **Reset Password** template link points to `{{ .ConfirmationURL }}`.
+
