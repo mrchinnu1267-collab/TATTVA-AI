@@ -203,10 +203,10 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
 
     try {
       const supabase = createClient();
-      const redirectUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/reset-password`
-          : "https://tattva-ai-phi.vercel.app/reset-password";
+      const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+      const redirectUrl = isLocal
+        ? `${window.location.origin}/reset-password`
+        : "https://tattva-ai-phi.vercel.app/reset-password";
 
       const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
         redirectTo: redirectUrl,
@@ -226,6 +226,18 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
             sessionStorage.setItem("tattva_reset_cooldown_target", (Date.now() + cooldownSecs * 1000).toString());
           }
           setMessage("Email rate limit reached: Supabase limits password-reset emails to prevent abuse. Please wait a few minutes before trying again, or check your spam/junk folder for previous emails.");
+          setMessageType("error");
+          return;
+        }
+
+        // Handle custom SMTP dispatch failures
+        if (
+          errMsg.toLowerCase().includes("error sending recovery email") ||
+          (error as unknown as { code?: string }).code === "unexpected_failure"
+        ) {
+          setMessage(
+            "SMTP Configuration Error: The server could not dispatch the recovery email. Please ensure your custom SMTP in Supabase uses Port 587 (STARTTLS) and a valid Google App Password without spaces."
+          );
           setMessageType("error");
           return;
         }

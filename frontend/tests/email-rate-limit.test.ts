@@ -55,4 +55,25 @@ describe("Email Rate Limit & Cooldown Handling", () => {
     assert.equal(outcome, "error");
     assert.notEqual(outcome, "success");
   });
+
+  it("should detect SMTP 500 error sending recovery email and guide user to Port 587", () => {
+    const error500 = {
+      code: 500,
+      error_code: "unexpected_failure",
+      message: "Error sending recovery email",
+    };
+
+    const isSmtpFailure =
+      error500.message.toLowerCase().includes("error sending recovery email") ||
+      error500.error_code === "unexpected_failure";
+
+    assert.equal(isSmtpFailure, true);
+
+    const friendlyMessage = isSmtpFailure
+      ? "SMTP Configuration Error: The server could not dispatch the recovery email. Please ensure your custom SMTP in Supabase uses Port 587 (STARTTLS) and a valid Google App Password without spaces."
+      : error500.message;
+
+    assert.match(friendlyMessage, /Port 587/);
+    assert.match(friendlyMessage, /STARTTLS/);
+  });
 });

@@ -102,3 +102,4 @@ The automated test suite in `tests/email-rate-limit.test.ts` verified:
 - ✔ Zero false-positive success claims when provider throws an error.
 
 All 21 authentication & rate-limit tests passed with 100% success.
+

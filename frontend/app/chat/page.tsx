@@ -7482,14 +7482,20 @@ export default function ChatPage() {
                       if (!userEmail) return;
                       try {
                         const supabase = createClient();
-                        const redirectUrl =
-                          typeof window !== "undefined"
-                            ? `${window.location.origin}/reset-password`
-                            : "https://tattva-ai-phi.vercel.app/reset-password";
+                        const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+                        const redirectUrl = isLocal
+                          ? `${window.location.origin}/reset-password`
+                          : "https://tattva-ai-phi.vercel.app/reset-password";
                         const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
                           redirectTo: redirectUrl,
                         });
-                        if (error) throw error;
+                        if (error) {
+                          if (error.message?.includes("Error sending recovery email")) {
+                            showToast("SMTP Error: Check Port 587 in Supabase Custom SMTP settings.");
+                            return;
+                          }
+                          throw error;
+                        }
                         showToast("Password reset link sent to your email ✉️");
                         setIsManageAccountModalOpen(false);
                       } catch (err: unknown) {
