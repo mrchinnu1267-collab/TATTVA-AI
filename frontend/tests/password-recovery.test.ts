@@ -20,29 +20,29 @@ describe("TATTVA AI - Password Reset & Recovery Ecosystem", () => {
     assert.strictEqual(prodRedirectUrl, "https://tattva-ai-phi.vercel.app/reset-password");
   });
 
-  // Test 3: Password Validation - Minimum Length Enforcement
-  test("3. Enforces minimum password length (>= 6 characters)", () => {
+  // Test 3: Password Validation - Minimum Length Enforcement (>= 8 characters)
+  test("3. Enforces minimum password length (>= 8 characters)", () => {
     function validatePasswordLength(pwd: string): boolean {
-      return typeof pwd === "string" && pwd.length >= 6;
+      return typeof pwd === "string" && pwd.length >= 8;
     }
 
     assert.strictEqual(validatePasswordLength("123"), false);
-    assert.strictEqual(validatePasswordLength("abcde"), false);
+    assert.strictEqual(validatePasswordLength("1234567"), false);
     assert.strictEqual(validatePasswordLength(""), false);
-    assert.strictEqual(validatePasswordLength("123456"), true);
+    assert.strictEqual(validatePasswordLength("12345678"), true);
     assert.strictEqual(validatePasswordLength("SecureP@ss2026!"), true);
   });
 
-  // Test 4: Password Confirmation Matching
+  // Test 4: Password Confirmation Matching (>= 8 characters)
   test("4. Enforces strict password confirmation match", () => {
     function validatePasswordMatch(pwd: string, confirm: string): boolean {
-      return pwd.length >= 6 && confirm.length >= 6 && pwd === confirm;
+      return pwd.length >= 8 && confirm.length >= 8 && pwd === confirm;
     }
 
     assert.strictEqual(validatePasswordMatch("secret123", "secret123"), true);
     assert.strictEqual(validatePasswordMatch("secret123", "secret456"), false);
     assert.strictEqual(validatePasswordMatch("secret123", ""), false);
-    assert.strictEqual(validatePasswordMatch("123", "123"), false, "Fails if under 6 chars even if matching");
+    assert.strictEqual(validatePasswordMatch("12345", "12345"), false, "Fails if under 8 chars even if matching");
   });
 
   // Test 5: Recovery Link Type Detection & Route Guarding

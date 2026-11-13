@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
+import RecoveryRedirectGuard from "./components/RecoveryRedirectGuard";
 
 const ChatPage = dynamic(() => import("./chat/page"), {
   ssr: true,
@@ -96,6 +97,7 @@ const structuredData = {
 export default function Home() {
   return (
     <>
+      <RecoveryRedirectGuard />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

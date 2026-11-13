@@ -14,7 +14,6 @@ import {
   Check,
   ArrowRight,
   KeyRound,
-  Sparkles,
 } from "lucide-react";
 import { createClient } from "../lib/supabase";
 
@@ -55,17 +54,8 @@ export default function ResetPasswordPage() {
           const urlErrorCode = searchParams.get("error_code") || hashParams.get("error_code");
           const urlErrorDesc = searchParams.get("error_description") || hashParams.get("error_description");
 
-          if (urlErrorCode === "otp_expired" || urlError || urlErrorDesc) {
-            const isExpired =
-              urlErrorCode === "otp_expired" ||
-              (urlErrorDesc && urlErrorDesc.toLowerCase().includes("expired")) ||
-              (urlError && urlError.toLowerCase().includes("expired"));
-
-            const cleanDesc = isExpired
-              ? "Your password reset link has expired. Please request a new password reset link."
-              : (urlErrorDesc || urlError || "The password reset link is invalid or has expired.").replace(/\+/g, " ");
-
-            setMessage(cleanDesc);
+          if (urlErrorCode === "otp_expired" || urlError === "access_denied" || urlError || urlErrorDesc) {
+            setMessage("Your password reset link has expired or is invalid.");
             setMessageType("error");
             setHasValidSession(false);
             setSessionChecking(false);
@@ -73,15 +63,11 @@ export default function ResetPasswordPage() {
           }
 
           // 2. PKCE code exchange flow (?code=...)
-          const code = searchParams.get("code");
+          const code = searchParams.get("code") || hashParams.get("code");
           if (code) {
             const { data, error } = await supabase.auth.exchangeCodeForSession(code);
             if (error) {
-              setMessage(
-                error.message.includes("expired")
-                  ? "This password reset link has expired. Please request a new reset link."
-                  : error.message
-              );
+              setMessage("Your password reset link has expired or is invalid.");
               setMessageType("error");
               setHasValidSession(false);
               setSessionChecking(false);
@@ -97,8 +83,8 @@ export default function ResetPasswordPage() {
           }
 
           // 3. OTP verification flow (?token_hash=...&type=recovery)
-          const tokenHash = searchParams.get("token_hash");
-          const type = searchParams.get("type");
+          const tokenHash = searchParams.get("token_hash") || hashParams.get("token_hash");
+          const type = searchParams.get("type") || hashParams.get("type");
           if (tokenHash && type === "recovery") {
             const { data, error } = await supabase.auth.verifyOtp({
               token_hash: tokenHash,
@@ -106,11 +92,7 @@ export default function ResetPasswordPage() {
             });
 
             if (error) {
-              setMessage(
-                error.message.includes("expired")
-                  ? "This password reset link has expired. Please request a new reset link."
-                  : error.message
-              );
+              setMessage("Your password reset link has expired or is invalid.");
               setMessageType("error");
               setHasValidSession(false);
               setSessionChecking(false);
@@ -144,7 +126,7 @@ export default function ResetPasswordPage() {
           setUserEmail(data.session.user.email || "");
           setSessionChecking(false);
         } else {
-          // Allow up to 3.5 seconds for hash parsing / background event before marking as expired
+          // Allow up to 3 seconds for hash parsing / background event before marking as expired
           setTimeout(async () => {
             const retrySession = await supabase.auth.getSession();
             if (retrySession.data?.session?.user) {
@@ -153,12 +135,12 @@ export default function ResetPasswordPage() {
             } else {
               setHasValidSession(false);
               if (!message) {
-                setMessage("Your password reset link is invalid, expired, or has already been used. Please request a new link.");
+                setMessage("Your password reset link has expired or is invalid.");
                 setMessageType("error");
               }
             }
             setSessionChecking(false);
-          }, 3500);
+          }, 3000);
         }
 
         return () => {
@@ -179,9 +161,16 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setMessage("");
 
-    // Enforce Minimum Password Length
-    if (password.length < 6) {
-      setMessage("Password must be at least 6 characters long.");
+    // Enforce Password is not empty
+    if (!password.trim()) {
+      setMessage("Please enter a new password.");
+      setMessageType("error");
+      return;
+    }
+
+    // Enforce Minimum Password Length of 8 characters
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters long.");
       setMessageType("error");
       return;
     }
@@ -198,15 +187,21 @@ export default function ResetPasswordPage() {
     try {
       const supabase = createClient();
 
-      // 10. Update Password using Supabase Auth
-      const { error } = await supabase.auth.updateUser({ password });
+      // Update Password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: password,
+      });
 
       if (error) throw error;
 
-      setMessage("Password updated successfully! Ending recovery session and redirecting to Login...");
+      setMessage("Your password has been updated successfully.");
       setMessageType("success");
 
-      // 11. End recovery session & clear local cache
+      // Clear the recovery form
+      setPassword("");
+      setConfirmPassword("");
+
+      // End recovery session & clear local cache
       try {
         await supabase.auth.signOut();
       } catch {
@@ -217,11 +212,11 @@ export default function ResetPasswordPage() {
         localStorage.removeItem("tattva_user_session_email");
         localStorage.removeItem("tattva_user_session_name");
         localStorage.removeItem("tattva_remember_device");
-        // Clear session cookie if any
+        sessionStorage.removeItem("tattva_awaiting_recovery");
         document.cookie = "tattva_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
       }
 
-      // Redirect to Login page with success indicator
+      // Redirect to Login page with success parameter
       setTimeout(() => {
         router.replace("/login?reset=success");
       }, 1500);
@@ -233,7 +228,7 @@ export default function ResetPasswordPage() {
   }
 
   const passwordsMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
-  const isLengthValid = password.length >= 6;
+  const isLengthValid = password.length >= 8;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-white via-neutral-50/50 to-white text-neutral-900 font-sans selection:bg-black selection:text-white flex flex-col justify-between antialiased">
@@ -280,15 +275,13 @@ export default function ResetPasswordPage() {
               Reset Your Password
             </h1>
             <p className="mt-1 text-xs text-neutral-500 max-w-xs mx-auto leading-relaxed">
-              {userEmail ? (
-                <>
-                  Creating new credentials for{" "}
-                  <span className="font-semibold text-neutral-800">{userEmail}</span>
-                </>
-              ) : (
-                "Enter your new secure password to restore full access to your account."
-              )}
+              Create a new password for your account.
             </p>
+            {userEmail && (
+              <p className="mt-1 text-[11px] text-neutral-400">
+                Account: <span className="font-semibold text-neutral-700">{userEmail}</span>
+              </p>
+            )}
           </div>
 
           {/* STATUS NOTICES */}
@@ -323,7 +316,7 @@ export default function ResetPasswordPage() {
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-xs text-neutral-600 leading-relaxed text-left">
                 <p className="font-semibold text-neutral-800 mb-1">Link Invalid or Expired</p>
                 <p>
-                  Password reset links are strictly single-use and expire automatically for your security.
+                  Your password reset link has expired or is invalid.
                   Please request a fresh reset link to proceed.
                 </p>
               </div>
@@ -339,12 +332,12 @@ export default function ResetPasswordPage() {
                   href="/login"
                   className="flex h-11 w-full items-center justify-center rounded-xl border border-neutral-200 bg-white text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50"
                 >
-                  Back to Sign In
+                  Back to Login
                 </Link>
               </div>
             </div>
           ) : (
-            /* PASSWORD RESET FORM */
+            /* NEW PASSWORD FORM */
             <form onSubmit={handleReset} className="mt-5 space-y-4">
               {/* NEW PASSWORD */}
               <div>
@@ -363,10 +356,10 @@ export default function ResetPasswordPage() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters"
                     disabled={loading}
                     className="w-full rounded-xl border border-neutral-300 bg-white pl-10 pr-10 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:opacity-50"
                   />
@@ -374,12 +367,18 @@ export default function ResetPasswordPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-700"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {password.length > 0 && (
+                  <p className={`mt-1 text-[11px] flex items-center gap-1 ${isLengthValid ? "text-emerald-600" : "text-amber-600"}`}>
+                    {isLengthValid ? <Check className="w-3 h-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                    {isLengthValid ? "Minimum length satisfied (8+ characters)" : `${8 - password.length} more characters needed`}
+                  </p>
+                )}
               </div>
 
               {/* CONFIRM NEW PASSWORD */}
@@ -387,7 +386,7 @@ export default function ResetPasswordPage() {
                 <div className="flex items-center justify-between mb-1">
                   <label
                     htmlFor="confirm-new-password"
-                    className="text-xs font-medium text-neutral-700"
+                    className="block text-xs font-medium text-neutral-700"
                   >
                     Confirm New Password
                   </label>
@@ -395,10 +394,10 @@ export default function ResetPasswordPage() {
                     <span className="text-[11px] flex items-center gap-1 font-medium">
                       {passwordsMatch ? (
                         <span className="text-emerald-600 flex items-center gap-0.5">
-                          <Check className="w-3 h-3" /> Matching
+                          <Check className="w-3 h-3" /> Passwords match
                         </span>
                       ) : (
-                        <span className="text-red-500">Must match</span>
+                        <span className="text-red-500">Passwords don&apos;t match</span>
                       )}
                     </span>
                   )}
@@ -412,78 +411,51 @@ export default function ResetPasswordPage() {
                     type={showConfirmPassword ? "text" : "password"}
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter your new password"
+                    placeholder="Repeat your password"
                     disabled={loading}
-                    className={`w-full rounded-xl border pl-10 pr-10 py-2.5 text-sm outline-none transition disabled:opacity-50 ${
+                    className={`w-full rounded-xl border bg-white pl-10 pr-10 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 outline-none transition focus:ring-1 disabled:opacity-50 ${
                       confirmPassword && !passwordsMatch
-                        ? "border-red-300 bg-red-50/20 text-neutral-900 focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                        : "border-neutral-300 bg-white text-neutral-900 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                        : "border-neutral-300 focus:border-neutral-900 focus:ring-neutral-900"
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     tabIndex={-1}
-                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-700"
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                   >
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* PASSWORD REQUIREMENTS INDICATOR */}
-              <div className="rounded-xl bg-neutral-50 border border-neutral-200/60 p-3 text-[11px] text-neutral-500 space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      isLengthValid ? "bg-emerald-500" : "bg-neutral-300"
-                    }`}
-                  />
-                  <span className={isLengthValid ? "text-emerald-700 font-medium" : ""}>
-                    At least 6 characters
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      passwordsMatch ? "bg-emerald-500" : "bg-neutral-300"
-                    }`}
-                  />
-                  <span className={passwordsMatch ? "text-emerald-700 font-medium" : ""}>
-                    Passwords match exactly
-                  </span>
-                </div>
-              </div>
-
               {/* SUBMIT BUTTON */}
               <button
                 type="submit"
-                disabled={loading || !isLengthValid || !passwordsMatch}
-                className="mt-2 flex h-11 w-full items-center justify-center rounded-xl bg-black text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading || !password || !confirmPassword || !isLengthValid || !passwordsMatch}
+                className="flex h-11 w-full items-center justify-center rounded-xl bg-black text-sm font-semibold text-white shadow-xs transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                    <span>Updating password in Supabase...</span>
+                    <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <span>Updating Password...</span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5">
-                    <span>Update Password</span>
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </span>
+                  "Update Password"
                 )}
               </button>
 
-              <div className="text-center pt-2">
+              <div className="pt-2 text-center">
                 <Link
                   href="/login"
-                  className="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition"
+                  className="text-xs font-semibold text-neutral-500 hover:text-black transition"
                 >
-                  Cancel and return to Login
+                  ← Back to Login
                 </Link>
               </div>
             </form>
@@ -492,9 +464,8 @@ export default function ResetPasswordPage() {
       </div>
 
       {/* FOOTER */}
-      <footer className="w-full px-6 py-4 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-400 gap-2">
-        <span>© {new Date().getFullYear()} TATTVA AI. All rights reserved.</span>
-        <span>Secure Zero Trust End-to-End Encryption</span>
+      <footer className="w-full py-4 text-center text-[11px] text-neutral-400">
+        © 2026 TATTVA AI. Secure Zero-Trust Authentication.
       </footer>
     </main>
   );

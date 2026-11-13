@@ -2465,6 +2465,22 @@ export default function ChatPage() {
       document.documentElement.classList.remove("dark");
     }
 
+    // Guard: Never initialize guest session or chat interface if arriving via recovery link or recovery error
+    if (
+      typeof window !== "undefined" &&
+      (window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("type=recovery") ||
+        window.location.search.includes("next=%2Freset-password") ||
+        window.location.search.includes("next=/reset-password") ||
+        window.location.search.includes("error_code=otp_expired") ||
+        window.location.hash.includes("error_code=otp_expired") ||
+        (window.location.search.includes("error=access_denied") && window.location.search.includes("expired")) ||
+        (window.location.hash.includes("error=access_denied") && window.location.hash.includes("expired")))
+    ) {
+      router.replace("/reset-password" + window.location.search + window.location.hash);
+      return;
+    }
+
     // Check active local user session
     const rawCachedEmail = localStorage.getItem("tattva_user_session_email");
     const isOldHardcodedDev = rawCachedEmail === "mr.chinnu1267@gmail.com";
