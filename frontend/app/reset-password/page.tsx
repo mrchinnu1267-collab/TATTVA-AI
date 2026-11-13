@@ -44,12 +44,33 @@ export default function ResetPasswordPage() {
       try {
         const supabase = createClient();
 
-        // 1. Check for error parameters passed in URL (e.g. from expired links or Supabase redirect)
+        // 1. Direct Hash Fragment Session Recovery (#access_token=...&refresh_token=...)
         if (typeof window !== "undefined") {
           const searchParams = new URLSearchParams(window.location.search);
           const rawHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
           const hashParams = new URLSearchParams(rawHash);
 
+          // Check if session tokens are directly present in hash
+          const accessToken = hashParams.get("access_token");
+          const refreshToken = hashParams.get("refresh_token");
+          if (accessToken && refreshToken) {
+            try {
+              const { data, error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+              if (data?.session?.user) {
+                setHasValidSession(true);
+                setUserEmail(data.session.user.email || "");
+                setSessionChecking(false);
+                return;
+              }
+            } catch {
+              // fallback to listener / getSession
+            }
+          }
+
+          // Check for URL error parameters
           const urlError = searchParams.get("error") || hashParams.get("error");
           const urlErrorCode = searchParams.get("error_code") || hashParams.get("error_code");
           const urlErrorDesc = searchParams.get("error_description") || hashParams.get("error_description");
@@ -62,23 +83,50 @@ export default function ResetPasswordPage() {
             return;
           }
 
+          // Check if session is already active before code exchange
+          const { data: initialSession } = await supabase.auth.getSession();
+          if (initialSession?.session?.user) {
+            setHasValidSession(true);
+            setUserEmail(initialSession.session.user.email || "");
+            setSessionChecking(false);
+            return;
+          }
+
           // 2. PKCE code exchange flow (?code=...)
           const code = searchParams.get("code") || hashParams.get("code");
           if (code) {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-            if (error) {
-              setMessage("Your password reset link has expired or is invalid.");
-              setMessageType("error");
-              setHasValidSession(false);
-              setSessionChecking(false);
-              return;
-            }
-
-            if (data?.session) {
-              setHasValidSession(true);
-              setUserEmail(data.session.user?.email || "");
-              setSessionChecking(false);
-              return;
+            try {
+              const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+              if (data?.session?.user) {
+                setHasValidSession(true);
+                setUserEmail(data.session.user.email || "");
+                setSessionChecking(false);
+                return;
+              }
+              if (error) {
+                // If code exchange returned error, verify if session was already established
+                const { data: fallbackSession } = await supabase.auth.getSession();
+                if (fallbackSession?.session?.user) {
+                  setHasValidSession(true);
+                  setUserEmail(fallbackSession.session.user.email || "");
+                  setSessionChecking(false);
+                  return;
+                }
+                setMessage("Your password reset link has expired or is invalid.");
+                setMessageType("error");
+                setHasValidSession(false);
+                setSessionChecking(false);
+                return;
+              }
+            } catch {
+              // verify if session already present
+              const { data: fallbackSession } = await supabase.auth.getSession();
+              if (fallbackSession?.session?.user) {
+                setHasValidSession(true);
+                setUserEmail(fallbackSession.session.user.email || "");
+                setSessionChecking(false);
+                return;
+              }
             }
           }
 
@@ -91,17 +139,17 @@ export default function ResetPasswordPage() {
               type: "recovery",
             });
 
-            if (error) {
-              setMessage("Your password reset link has expired or is invalid.");
-              setMessageType("error");
-              setHasValidSession(false);
+            if (data?.session?.user) {
+              setHasValidSession(true);
+              setUserEmail(data.session.user.email || "");
               setSessionChecking(false);
               return;
             }
 
-            if (data?.session) {
-              setHasValidSession(true);
-              setUserEmail(data.session.user?.email || "");
+            if (error) {
+              setMessage("Your password reset link has expired or is invalid.");
+              setMessageType("error");
+              setHasValidSession(false);
               setSessionChecking(false);
               return;
             }
