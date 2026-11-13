@@ -22,7 +22,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { createClient } from "../lib/supabase";
-import { getAuthCallbackUrl } from "../lib/auth-redirect";
+import { getAuthCallbackUrl, getOAuthCallbackUrl, PRODUCTION_SITE_URL } from "../lib/auth-redirect";
 import {
   createAccount,
   loginUser,
@@ -273,7 +273,20 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
 
     try {
       const supabase = createClient();
-      const callbackUrl = getAuthCallbackUrl("/chat");
+
+      // Determine canonical OAuth callback URL
+      // Guarantees that mobile browsers (iOS/Android) and desktop browsers in production
+      // strictly target https://tattva-ai-phi.vercel.app/auth/callback without localhost leakage
+      const isLocal =
+        typeof window !== "undefined" &&
+        (window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1" ||
+          window.location.hostname.endsWith(".local"));
+
+      const callbackUrl = isLocal
+        ? `${window.location.origin}/auth/callback`
+        : getOAuthCallbackUrl("/chat");
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

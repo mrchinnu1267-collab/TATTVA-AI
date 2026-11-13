@@ -132,3 +132,20 @@ export function getAuthCallbackUrl(next = "/chat", request?: Request): string {
   const safeNext = sanitizeRedirectPath(next, "/chat");
   return `${baseUrl}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 }
+
+/**
+ * Returns the exact OAuth callback URL for third-party providers (Google OAuth).
+ * In production or on mobile devices, this strictly targets `https://tattva-ai-phi.vercel.app/auth/callback`.
+ * In local dev (localhost/127.0.0.1), it uses `${window.location.origin}/auth/callback`.
+ *
+ * Omitting query parameters like ?next=/chat ensures exact string matching with Supabase
+ * Redirect URLs allowlist, preventing Supabase from rejecting the URL and falling back to localhost.
+ */
+export function getOAuthCallbackUrl(next?: string, request?: Request): string {
+  const baseUrl = getAuthBaseUrl(request);
+  if (!next || next === "/chat") {
+    return `${baseUrl}/auth/callback`;
+  }
+  const safeNext = sanitizeRedirectPath(next, "/chat");
+  return `${baseUrl}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+}

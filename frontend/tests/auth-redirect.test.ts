@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   getAuthBaseUrl,
   getAuthCallbackUrl,
+  getOAuthCallbackUrl,
   sanitizeRedirectPath,
   PRODUCTION_SITE_URL,
 } from "../app/lib/auth-redirect";
@@ -134,6 +135,50 @@ describe("TATTVA AI - Email Authentication Redirect & Canonical Domain", () => {
     assert.strictEqual(
       mapped,
       "This email verification link has expired. Please sign in or request a new verification email."
+    );
+  });
+
+  test("10. Google OAuth callback URL in production strictly uses canonical domain without query mismatch", () => {
+    setNodeEnv("production");
+    process.env.NEXT_PUBLIC_SITE_URL = "https://tattva-ai-phi.vercel.app";
+
+    const oauthUrl = getOAuthCallbackUrl("/chat");
+    assert.strictEqual(
+      oauthUrl,
+      "https://tattva-ai-phi.vercel.app/auth/callback",
+      "OAuth callback must be clean https://tattva-ai-phi.vercel.app/auth/callback to match Supabase allowlist"
+    );
+    assert.ok(!oauthUrl.includes("localhost"), "Production OAuth callback must never contain localhost");
+  });
+
+  test("11. Google OAuth callback URL in local development targets localhost", () => {
+    setNodeEnv("development");
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    delete process.env.NEXT_PUBLIC_APP_URL;
+
+    const oauthUrl = getOAuthCallbackUrl("/chat");
+    assert.strictEqual(
+      oauthUrl,
+      "http://localhost:3000/auth/callback",
+      "Local dev OAuth callback should target localhost:3000"
+    );
+  });
+
+  test("12. Mobile device simulation on production resolves strictly to canonical domain", () => {
+    setNodeEnv("production");
+    // Simulate mobile browser request with mobile user agent and host header
+    const mobileRequest = new Request("https://tattva-ai-phi.vercel.app/login", {
+      headers: {
+        host: "tattva-ai-phi.vercel.app",
+        "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+      },
+    });
+
+    const mobileOauthUrl = getOAuthCallbackUrl("/chat", mobileRequest);
+    assert.strictEqual(
+      mobileOauthUrl,
+      "https://tattva-ai-phi.vercel.app/auth/callback",
+      "Mobile device request on production must never redirect to localhost:3000"
     );
   });
 
