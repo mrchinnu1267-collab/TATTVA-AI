@@ -132,15 +132,33 @@ export class RAGEngine {
 
   /**
    * Performs hybrid search (cosine vector similarity + keyword relevance)
+   * Enforces multi-tenant isolation via userId and workspaceId filtering
    */
   public async hybridSearch(
     query: string,
     limit: number = 4,
-    filterDocId?: string
+    filterDocId?: string,
+    filterUserId?: string,
+    filterWorkspaceId?: string
   ): Promise<RAGSearchResult> {
-    const candidates = filterDocId
-      ? this.chunks.filter((c) => c.documentId === filterDocId)
-      : this.chunks;
+    let candidates = this.chunks;
+
+    // Strict multi-tenant isolation
+    if (filterUserId) {
+      candidates = candidates.filter(
+        (c) => !c.metadata?.userId || c.metadata?.userId === filterUserId
+      );
+    }
+
+    if (filterWorkspaceId) {
+      candidates = candidates.filter(
+        (c) => !c.metadata?.workspaceId || c.metadata?.workspaceId === filterWorkspaceId
+      );
+    }
+
+    if (filterDocId) {
+      candidates = candidates.filter((c) => c.documentId === filterDocId);
+    }
 
     if (candidates.length === 0) {
       return {
