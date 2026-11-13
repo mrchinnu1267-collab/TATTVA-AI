@@ -186,4 +186,28 @@ describe("TATTVA AI - Password Reset & Recovery Ecosystem", () => {
     assert.strictEqual(isSignedOut, true);
     assert.strictEqual(isRecoverySessionActive, false);
   });
+
+  // Test 9: Interception of otp_expired and access_denied on root/chat routes
+  test("9. Intercepts otp_expired errors on root/chat and reroutes to /reset-password", () => {
+    function shouldRerouteToResetPassword(url: string): boolean {
+      const parsed = new URL(url);
+      const isRecovery =
+        parsed.hash.includes("type=recovery") ||
+        parsed.search.includes("type=recovery") ||
+        parsed.search.includes("next=%2Freset-password") ||
+        parsed.search.includes("next=/reset-password") ||
+        parsed.search.includes("error_code=otp_expired") ||
+        parsed.hash.includes("error_code=otp_expired") ||
+        (parsed.search.includes("error=access_denied") && parsed.search.includes("expired")) ||
+        (parsed.hash.includes("error=access_denied") && parsed.hash.includes("expired"));
+      return isRecovery;
+    }
+
+    const testUrl =
+      "http://localhost:3000/?error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired#error=access_denied&error_code=otp_expired";
+    assert.strictEqual(shouldRerouteToResetPassword(testUrl), true);
+
+    const testCleanUrl = "http://localhost:3000/chat";
+    assert.strictEqual(shouldRerouteToResetPassword(testCleanUrl), false);
+  });
 });

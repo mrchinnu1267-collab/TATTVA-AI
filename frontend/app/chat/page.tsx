@@ -2507,13 +2507,17 @@ export default function ChatPage() {
     try {
       const supabase = createClient();
 
-      // Check if user arrived via recovery link
+      // Check if user arrived via recovery link or recovery error
       if (
         typeof window !== "undefined" &&
         (window.location.hash.includes("type=recovery") ||
           window.location.search.includes("type=recovery") ||
           window.location.search.includes("next=%2Freset-password") ||
-          window.location.search.includes("next=/reset-password"))
+          window.location.search.includes("next=/reset-password") ||
+          window.location.search.includes("error_code=otp_expired") ||
+          window.location.hash.includes("error_code=otp_expired") ||
+          (window.location.search.includes("error=access_denied") && window.location.search.includes("expired")) ||
+          (window.location.hash.includes("error=access_denied") && window.location.hash.includes("expired")))
       ) {
         router.replace("/reset-password" + window.location.search + window.location.hash);
         return;

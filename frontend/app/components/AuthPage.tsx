@@ -164,8 +164,14 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
       }
     }
 
-    // Check if arrived via recovery link
-    if (typeof window !== "undefined" && (window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery"))) {
+    // Check if arrived via recovery link or recovery error
+    if (
+      typeof window !== "undefined" &&
+      (window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("type=recovery") ||
+        window.location.search.includes("error_code=otp_expired") ||
+        window.location.hash.includes("error_code=otp_expired"))
+    ) {
       router.replace("/reset-password" + window.location.search + window.location.hash);
       return;
     }

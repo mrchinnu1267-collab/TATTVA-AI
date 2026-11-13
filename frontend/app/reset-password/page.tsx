@@ -48,12 +48,23 @@ export default function ResetPasswordPage() {
         // 1. Check for error parameters passed in URL (e.g. from expired links or Supabase redirect)
         if (typeof window !== "undefined") {
           const searchParams = new URLSearchParams(window.location.search);
-          const urlError = searchParams.get("error");
-          const urlErrorDesc = searchParams.get("error_description");
+          const rawHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+          const hashParams = new URLSearchParams(rawHash);
 
-          if (urlError || urlErrorDesc) {
-            const cleanDesc = (urlErrorDesc || urlError || "The password reset link is invalid or has expired.")
-              .replace(/\+/g, " ");
+          const urlError = searchParams.get("error") || hashParams.get("error");
+          const urlErrorCode = searchParams.get("error_code") || hashParams.get("error_code");
+          const urlErrorDesc = searchParams.get("error_description") || hashParams.get("error_description");
+
+          if (urlErrorCode === "otp_expired" || urlError || urlErrorDesc) {
+            const isExpired =
+              urlErrorCode === "otp_expired" ||
+              (urlErrorDesc && urlErrorDesc.toLowerCase().includes("expired")) ||
+              (urlError && urlError.toLowerCase().includes("expired"));
+
+            const cleanDesc = isExpired
+              ? "Your password reset link has expired. Please request a new password reset link."
+              : (urlErrorDesc || urlError || "The password reset link is invalid or has expired.").replace(/\+/g, " ");
+
             setMessage(cleanDesc);
             setMessageType("error");
             setHasValidSession(false);
