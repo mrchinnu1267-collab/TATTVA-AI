@@ -27,6 +27,8 @@ export type ModelProvider =
   | "pollinations"
   | "local"
   | "openai"
+  | "anthropic"
+  | "tattva"
   | "azure-openai"
   | "nano-banana"
   | "ai-horde"
@@ -41,6 +43,29 @@ export interface AIModelSpec {
   latencyTier: "ultra_low" | "low" | "medium" | "high";
   strengths: TaskIntent[];
   isAvailable: boolean;
+  parameterScale?: string;
+  supportsStreaming?: boolean;
+  supportsVision?: boolean;
+  pricingPer1MTokens?: {
+    prompt: number;
+    completion: number;
+  };
+}
+
+export interface TokenUsageMetrics {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+export interface StreamChunkEvent {
+  type: "delta" | "usage" | "error" | "done";
+  delta?: string;
+  modelUsed?: string;
+  provider?: ModelProvider;
+  usage?: TokenUsageMetrics;
+  error?: string;
 }
 
 export interface IntentClassificationResult {

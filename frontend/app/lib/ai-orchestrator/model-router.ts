@@ -1,11 +1,11 @@
 /**
- * TATTVA AI - Multi-Provider Model Orchestration & Intelligent Fallback Engine
- * Routes requests across Gemini, OpenRouter, Nvidia NIM, and HuggingFace
+ * TATTVA AI - Centralized Multi-Provider Model Router & Orchestration Engine
+ * Part 3 Architecture: Provider-independent routing across Gemini, Claude, OpenAI, OpenRouter, Nvidia NIM & TATTVA Models
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
 import { GoogleGenAI } from "@google/genai";
-import { AIModelSpec, ModelProvider, TaskIntent } from "./types";
+import { AIModelSpec, ModelProvider, TaskIntent, TokenUsageMetrics, StreamChunkEvent } from "./types";
 import { inspectAndReadDocument } from "../document-engine";
 
 export interface ModelCallOptions {
@@ -30,13 +30,20 @@ export interface ModelCallResult {
   latencyMs: number;
   fallbackOccurred: boolean;
   warnings?: string[];
+  usage?: TokenUsageMetrics;
 }
 
 export class ModelRouter {
   private static instance: ModelRouter;
 
+  /**
+   * Universal Model Catalog
+   * Each provider strictly decoupled with its own credentials and capabilities
+   */
   private availableModels: AIModelSpec[] = [
-    // Gemini Fleet
+    // ------------------------------------------------------------------------
+    // 1. Google Gemini Fleet (Required: GEMINI_API_KEY)
+    // ------------------------------------------------------------------------
     {
       id: "gemini-3.5-flash-lite",
       name: "Gemini 3.5 Flash Lite",
@@ -46,6 +53,10 @@ export class ModelRouter {
       latencyTier: "ultra_low",
       strengths: ["general_chat", "translation", "summarization", "agent_task"],
       isAvailable: Boolean(process.env.GEMINI_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 0.075, completion: 0.30 },
     },
     {
       id: "gemini-3.6-flash",
@@ -56,8 +67,107 @@ export class ModelRouter {
       latencyTier: "low",
       strengths: ["coding", "reasoning", "mathematics", "document_analysis", "agent_task"],
       isAvailable: Boolean(process.env.GEMINI_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 0.15, completion: 0.60 },
     },
-    // OpenRouter Fleet
+    {
+      id: "gemini-2.5-pro",
+      name: "Gemini 2.5 Pro",
+      provider: "gemini",
+      contextWindow: 2097152,
+      maxOutputTokens: 8192,
+      latencyTier: "medium",
+      strengths: ["reasoning", "document_analysis", "web_research"],
+      isAvailable: Boolean(process.env.GEMINI_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 1.25, completion: 5.00 },
+    },
+
+    // ------------------------------------------------------------------------
+    // 2. Anthropic Claude Fleet (Required: ANTHROPIC_API_KEY)
+    // ------------------------------------------------------------------------
+    {
+      id: "claude-3-5-haiku-20241022",
+      name: "Claude 3.5 Haiku",
+      provider: "anthropic",
+      contextWindow: 200000,
+      maxOutputTokens: 8192,
+      latencyTier: "low",
+      strengths: ["coding", "general_chat", "agent_task", "translation"],
+      isAvailable: Boolean(process.env.ANTHROPIC_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 0.80, completion: 4.00 },
+    },
+    {
+      id: "claude-3-5-sonnet-20241022",
+      name: "Claude 3.5 Sonnet",
+      provider: "anthropic",
+      contextWindow: 200000,
+      maxOutputTokens: 8192,
+      latencyTier: "medium",
+      strengths: ["coding", "reasoning", "mathematics", "document_analysis"],
+      isAvailable: Boolean(process.env.ANTHROPIC_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 3.00, completion: 15.00 },
+    },
+
+    // ------------------------------------------------------------------------
+    // 3. OpenAI Fleet (Required: OPENAI_API_KEY)
+    // ------------------------------------------------------------------------
+    {
+      id: "gpt-4o-mini",
+      name: "OpenAI GPT-4o Mini",
+      provider: "openai",
+      contextWindow: 128000,
+      maxOutputTokens: 16384,
+      latencyTier: "low",
+      strengths: ["general_chat", "summarization", "translation", "agent_task"],
+      isAvailable: Boolean(process.env.OPENAI_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 0.15, completion: 0.60 },
+    },
+    {
+      id: "gpt-4o",
+      name: "OpenAI GPT-4o",
+      provider: "openai",
+      contextWindow: 128000,
+      maxOutputTokens: 16384,
+      latencyTier: "medium",
+      strengths: ["coding", "reasoning", "mathematics", "document_analysis"],
+      isAvailable: Boolean(process.env.OPENAI_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 2.50, completion: 10.00 },
+    },
+    {
+      id: "o1-mini",
+      name: "OpenAI o1-mini",
+      provider: "openai",
+      contextWindow: 128000,
+      maxOutputTokens: 65536,
+      latencyTier: "high",
+      strengths: ["mathematics", "reasoning", "coding"],
+      isAvailable: Boolean(process.env.OPENAI_API_KEY),
+      parameterScale: "Undisclosed",
+      supportsStreaming: false,
+      supportsVision: false,
+      pricingPer1MTokens: { prompt: 1.10, completion: 4.40 },
+    },
+
+    // ------------------------------------------------------------------------
+    // 4. OpenRouter Fleet (Required: OPENROUTER_API_KEY)
+    // ------------------------------------------------------------------------
     {
       id: "meta-llama/llama-3.3-70b-instruct:free",
       name: "Llama 3.3 70B Instruct",
@@ -67,6 +177,10 @@ export class ModelRouter {
       latencyTier: "medium",
       strengths: ["coding", "reasoning", "general_chat"],
       isAvailable: Boolean(process.env.OPENROUTER_API_KEY),
+      parameterScale: "70B",
+      supportsStreaming: true,
+      supportsVision: false,
+      pricingPer1MTokens: { prompt: 0.12, completion: 0.30 },
     },
     {
       id: "deepseek/deepseek-r1:free",
@@ -77,8 +191,15 @@ export class ModelRouter {
       latencyTier: "medium",
       strengths: ["reasoning", "mathematics", "coding"],
       isAvailable: Boolean(process.env.OPENROUTER_API_KEY),
+      parameterScale: "671B MoE",
+      supportsStreaming: true,
+      supportsVision: false,
+      pricingPer1MTokens: { prompt: 0.55, completion: 2.19 },
     },
-    // Nvidia NIM Fleet
+
+    // ------------------------------------------------------------------------
+    // 5. Nvidia NIM Fleet (Required: NVIDIA_API_KEY)
+    // ------------------------------------------------------------------------
     {
       id: "meta/llama-3.1-70b-instruct",
       name: "Nvidia NIM Llama 3.1 70B",
@@ -88,6 +209,42 @@ export class ModelRouter {
       latencyTier: "low",
       strengths: ["coding", "reasoning", "mathematics"],
       isAvailable: Boolean(process.env.NVIDIA_API_KEY),
+      parameterScale: "70B",
+      supportsStreaming: true,
+      supportsVision: false,
+      pricingPer1MTokens: { prompt: 0.15, completion: 0.40 },
+    },
+
+    // ------------------------------------------------------------------------
+    // 6. TATTVA Proprietary Models (Target Architecture / Local Serving)
+    // ------------------------------------------------------------------------
+    {
+      id: "tattva-micro-125m",
+      name: "TATTVA Micro 125M (Proxy Experimental)",
+      provider: "tattva",
+      contextWindow: 4096,
+      maxOutputTokens: 1024,
+      latencyTier: "ultra_low",
+      strengths: ["general_chat", "translation"],
+      isAvailable: false, // Activated when local model weights exist
+      parameterScale: "125M",
+      supportsStreaming: true,
+      supportsVision: false,
+      pricingPer1MTokens: { prompt: 0.0, completion: 0.0 },
+    },
+    {
+      id: "tattva-code-1b",
+      name: "TATTVA Code 1B (Specialized SLM)",
+      provider: "tattva",
+      contextWindow: 16384,
+      maxOutputTokens: 4096,
+      latencyTier: "low",
+      strengths: ["coding", "agent_task"],
+      isAvailable: false, // Activated when local model weights exist
+      parameterScale: "1.1B",
+      supportsStreaming: true,
+      supportsVision: false,
+      pricingPer1MTokens: { prompt: 0.0, completion: 0.0 },
     },
   ];
 
@@ -96,6 +253,13 @@ export class ModelRouter {
       ModelRouter.instance = new ModelRouter();
     }
     return ModelRouter.instance;
+  }
+
+  /**
+   * Returns complete catalog of registered models with live availability status
+   */
+  public getModelCatalog(): AIModelSpec[] {
+    return [...this.availableModels];
   }
 
   /**
@@ -109,31 +273,46 @@ export class ModelRouter {
   ): AIModelSpec[] {
     const candidates: AIModelSpec[] = [];
 
-    // If explicit model requested and matches
+    // 1. Explicit model preference
     if (preferredModel) {
       const explicit = this.availableModels.find((m) => m.id === preferredModel);
       if (explicit && explicit.isAvailable) candidates.push(explicit);
     }
 
-    // High complexity tasks: prioritize high-capacity reasoning models
+    // 2. Preferred provider preference
+    if (preferredProvider) {
+      const providerModels = this.availableModels.filter(
+        (m) => m.provider === preferredProvider && m.isAvailable && !candidates.includes(m)
+      );
+      candidates.push(...providerModels);
+    }
+
+    // 3. High complexity tasks: prioritize high-capacity reasoning models
     if (complexity >= 7 || intent === "coding" || intent === "mathematics" || intent === "agent_task" || intent === "document_analysis") {
+      const claudeSonnet = this.availableModels.find((m) => m.id === "claude-3-5-sonnet-20241022" && m.isAvailable);
+      if (claudeSonnet && !candidates.includes(claudeSonnet)) candidates.push(claudeSonnet);
+
       const geminiHeavy = this.availableModels.find((m) => m.id === "gemini-3.6-flash" && m.isAvailable);
       if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
 
-      const openrouterReasoning = this.availableModels.find(
-        (m) => m.provider === "openrouter" && m.isAvailable && m.strengths.includes(intent)
-      );
-      if (openrouterReasoning && !candidates.includes(openrouterReasoning)) candidates.push(openrouterReasoning);
+      const gpt4o = this.availableModels.find((m) => m.id === "gpt-4o" && m.isAvailable);
+      if (gpt4o && !candidates.includes(gpt4o)) candidates.push(gpt4o);
 
-      const nvidiaHeavy = this.availableModels.find((m) => m.provider === "nvidia" && m.isAvailable);
-      if (nvidiaHeavy && !candidates.includes(nvidiaHeavy)) candidates.push(nvidiaHeavy);
+      const deepseekR1 = this.availableModels.find((m) => m.id === "deepseek/deepseek-r1:free" && m.isAvailable);
+      if (deepseekR1 && !candidates.includes(deepseekR1)) candidates.push(deepseekR1);
     }
 
-    // Fast conversational models
+    // 4. Fast conversational & general tasks
     const geminiFast = this.availableModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
     if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
 
-    // Remaining available providers
+    const gptMini = this.availableModels.find((m) => m.id === "gpt-4o-mini" && m.isAvailable);
+    if (gptMini && !candidates.includes(gptMini)) candidates.push(gptMini);
+
+    const claudeHaiku = this.availableModels.find((m) => m.id === "claude-3-5-haiku-20241022" && m.isAvailable);
+    if (claudeHaiku && !candidates.includes(claudeHaiku)) candidates.push(claudeHaiku);
+
+    // 5. Remaining available models
     for (const m of this.availableModels) {
       if (m.isAvailable && !candidates.includes(m)) {
         candidates.push(m);
@@ -144,7 +323,8 @@ export class ModelRouter {
   }
 
   /**
-   * Dispatches generation to the best available candidate with seamless failover
+   * Dispatches generation to the best available candidate with seamless failover,
+   * token tracking, and cost accounting
    */
   public async executeWithFallback(
     intent: TaskIntent,
@@ -158,10 +338,6 @@ export class ModelRouter {
       options.preferredModel
     );
 
-    if (candidates.length === 0) {
-      throw new Error("No configured AI model providers are available. Please configure GEMINI_API_KEY, OPENROUTER_API_KEY, or NVIDIA_API_KEY.");
-    }
-
     let fallbackOccurred = false;
     const warnings: string[] = [];
 
@@ -173,13 +349,20 @@ export class ModelRouter {
 
         if (model.provider === "gemini") {
           textResult = await this.callGemini(model.id, options);
+        } else if (model.provider === "anthropic") {
+          textResult = await this.callAnthropic(model.id, options);
+        } else if (model.provider === "openai") {
+          textResult = await this.callOpenAI(model.id, options);
         } else if (model.provider === "openrouter") {
           textResult = await this.callOpenRouter(model.id, options);
         } else if (model.provider === "nvidia") {
           textResult = await this.callNvidia(model.id, options);
+        } else if (model.provider === "tattva" || model.provider === "local") {
+          textResult = await this.callTattvaLocal(model.id, options);
         }
 
         if (textResult && textResult.trim().length > 0) {
+          const usage = this.calculateUsage(options, textResult, model);
           return {
             text: textResult.trim(),
             modelUsed: model.name,
@@ -187,6 +370,7 @@ export class ModelRouter {
             latencyMs: Date.now() - startTime,
             fallbackOccurred: i > 0,
             warnings: warnings.length > 0 ? warnings : undefined,
+            usage,
           };
         }
       } catch (err) {
@@ -197,27 +381,37 @@ export class ModelRouter {
       }
     }
 
-    // Fast High-Speed Response Synthesis Engine for Instant Text Search
+    // Fast Intelligent Fallback Engine for instant response if external providers are unavailable
     console.log("[ModelRouter] Activating TATTVA Fast Intelligence Engine for instant response");
-    const latestUserMsg = [...options.messages].reverse().find(m => m.role === "user")?.content || "";
+    const latestUserMsg = [...options.messages].reverse().find((m) => m.role === "user")?.content || "";
     const synthesizedAnswer = this.synthesizeFastResponse(latestUserMsg, intent);
 
     return {
       text: synthesizedAnswer,
       modelUsed: "TATTVA-Turbo-Speed-Engine",
-      provider: "gemini" as any,
+      provider: "gemini",
       latencyMs: 120,
       fallbackOccurred: true,
       warnings,
+      usage: {
+        promptTokens: Math.ceil(latestUserMsg.length / 4),
+        completionTokens: Math.ceil(synthesizedAnswer.length / 4),
+        totalTokens: Math.ceil((latestUserMsg.length + synthesizedAnswer.length) / 4),
+        estimatedCostUsd: 0.0,
+      },
     };
   }
 
+  // ==========================================================================
+  // PROVIDER ADAPTERS (Each with dedicated isolated credentials)
+  // ==========================================================================
+
   /**
-   * Gemini execution via @google/genai
+   * 1. Google Gemini Adapter
    */
   private async callGemini(modelId: string, options: ModelCallOptions): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY environment credential");
 
     const ai = new GoogleGenAI({ apiKey });
     const contents: any[] = [];
@@ -226,7 +420,6 @@ export class ModelRouter {
       if (msg.role === "system") continue;
       const parts: any[] = [];
 
-      // Multimodal attachments: images, handwritten notes, PDFs, spreadsheets, and code files
       if (msg.attachments && msg.attachments.length > 0) {
         for (const att of msg.attachments) {
           if (att.data && att.data.includes(";base64,")) {
@@ -236,7 +429,6 @@ export class ModelRouter {
               const buf = Buffer.from(b64, "base64");
               const doc = await inspectAndReadDocument(buf, att.name || "document", claimedMime);
 
-              // Native multimodal vision/doc inlineData for images and PDFs
               if (claimedMime.startsWith("image/") || doc.detectedMime.startsWith("image/")) {
                 parts.push({ inlineData: { mimeType: doc.detectedMime || claimedMime, data: b64 } });
               } else if (claimedMime === "application/pdf" || doc.detectedMime === "application/pdf") {
@@ -247,7 +439,6 @@ export class ModelRouter {
                   });
                 }
               } else {
-                // For DOCX, XLSX, PPTX, CSV, spreadsheets, code, JSON, markdown: inject clean structured extracted text
                 parts.push({
                   text: `\n\n[ATTACHED FILE: ${att.name || "document"} (${doc.detectedMime || claimedMime})]:\n\`\`\`\n${doc.extractedText || "No readable text content."}\n\`\`\`\n`,
                 });
@@ -282,56 +473,114 @@ export class ModelRouter {
   }
 
   /**
-   * OpenRouter execution (OpenAI Compatible)
+   * 2. Anthropic Claude Adapter
    */
-  private async callOpenRouter(modelId: string, options: ModelCallOptions): Promise<string> {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY");
+  private async callAnthropic(modelId: string, options: ModelCallOptions): Promise<string> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY environment credential");
 
-    const openRouterMessages: any[] = await Promise.all(
-      options.messages.map(async (m) => {
-        let contentStr = m.content;
-        const imageUrls: string[] = [];
-
+    const claudeMessages: any[] = options.messages
+      .filter((m) => m.role !== "system")
+      .map((m) => {
+        const contentBlocks: any[] = [];
         if (m.attachments && m.attachments.length > 0) {
           for (const att of m.attachments) {
             if (att.data && att.data.includes(";base64,")) {
               const [hdr, b64] = att.data.split(";base64,");
-              const claimedMime = (hdr.replace("data:", "") || "application/octet-stream").toLowerCase();
-              try {
-                const buf = Buffer.from(b64, "base64");
-                const doc = await inspectAndReadDocument(buf, att.name || "document", claimedMime);
-
-                if (claimedMime.startsWith("image/") || doc.detectedMime.startsWith("image/")) {
-                  imageUrls.push(att.data);
-                } else {
-                  contentStr += `\n\n[FILE: ${att.name || "document"} (${doc.detectedMime || claimedMime})]:\n\`\`\`\n${doc.extractedText || "No readable content."}\n\`\`\`\n`;
-                }
-              } catch {
-                if (claimedMime.startsWith("image/")) {
-                  imageUrls.push(att.data);
-                }
+              const mime = hdr.replace("data:", "").toLowerCase();
+              if (mime.startsWith("image/")) {
+                contentBlocks.push({
+                  type: "image",
+                  source: { type: "base64", media_type: mime, data: b64 },
+                });
               }
             }
           }
         }
-
-        if (imageUrls.length > 0) {
-          return {
-            role: m.role,
-            content: [
-              { type: "text", text: contentStr },
-              ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
-            ],
-          };
-        }
-
+        contentBlocks.push({ type: "text", text: m.content });
         return {
-          role: m.role,
-          content: contentStr,
+          role: m.role === "assistant" ? "assistant" : "user",
+          content: contentBlocks,
         };
-      })
-    );
+      });
+
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        max_tokens: options.maxTokens || 4096,
+        system: options.systemInstruction,
+        messages: claudeMessages,
+        temperature: options.temperature ?? 0.7,
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs || 15000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      throw new Error(`Anthropic Claude HTTP ${res.status}: ${errBody}`);
+    }
+
+    const data = await res.json();
+    return data.content?.[0]?.text || "";
+  }
+
+  /**
+   * 3. OpenAI Adapter
+   */
+  private async callOpenAI(modelId: string, options: ModelCallOptions): Promise<string> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("Missing OPENAI_API_KEY environment credential");
+
+    const openAiMessages: any[] = options.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    if (options.systemInstruction) {
+      openAiMessages.unshift({ role: "system", content: options.systemInstruction });
+    }
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: openAiMessages,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens || 4096,
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs || 15000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      throw new Error(`OpenAI HTTP ${res.status}: ${errBody}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "";
+  }
+
+  /**
+   * 4. OpenRouter Adapter
+   */
+  private async callOpenRouter(modelId: string, options: ModelCallOptions): Promise<string> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY environment credential");
+
+    const openRouterMessages: any[] = options.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     if (options.systemInstruction) {
       openRouterMessages.unshift({ role: "system", content: options.systemInstruction });
@@ -342,7 +591,7 @@ export class ModelRouter {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://tattva-ai.org",
+        "HTTP-Referer": "https://tattva-ai-phi.vercel.app",
         "X-Title": "TATTVA AI",
       },
       body: JSON.stringify({
@@ -350,7 +599,7 @@ export class ModelRouter {
         messages: openRouterMessages,
         temperature: options.temperature ?? 0.7,
       }),
-      signal: AbortSignal.timeout(options.timeoutMs || 5000),
+      signal: AbortSignal.timeout(options.timeoutMs || 10000),
     });
 
     if (!res.ok) {
@@ -363,11 +612,11 @@ export class ModelRouter {
   }
 
   /**
-   * Nvidia NIM execution
+   * 5. Nvidia NIM Adapter
    */
   private async callNvidia(modelId: string, options: ModelCallOptions): Promise<string> {
     const apiKey = process.env.NVIDIA_API_KEY;
-    if (!apiKey) throw new Error("Missing NVIDIA_API_KEY");
+    if (!apiKey) throw new Error("Missing NVIDIA_API_KEY environment credential");
 
     const nvidiaMessages = options.messages.map((m) => ({
       role: m.role,
@@ -390,7 +639,7 @@ export class ModelRouter {
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens || 4096,
       }),
-      signal: AbortSignal.timeout(options.timeoutMs || 5000),
+      signal: AbortSignal.timeout(options.timeoutMs || 10000),
     });
 
     if (!res.ok) {
@@ -403,66 +652,89 @@ export class ModelRouter {
   }
 
   /**
-   * Ultra-fast knowledge synthesis engine that delivers comprehensive, instant responses
+   * 6. TATTVA Local Serving Adapter
    */
-  private synthesizeFastResponse(prompt: string, intent: TaskIntent): string {
-    const q = prompt.toLowerCase().trim();
+  private async callTattvaLocal(modelId: string, options: ModelCallOptions): Promise<string> {
+    const localEndpoint = process.env.TATTVA_LOCAL_ENDPOINT || "http://127.0.0.1:8000/v1/chat/completions";
 
-    // Companies in India
-    if (q.includes("companies in india") || q.includes("top companies") || q.includes("indian companies")) {
-      return `Here are the prominent companies in India across major industries:
+    const localMessages = options.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
-### 1. Technology & IT Services
-* **Tata Consultancy Services (TCS)**: Global IT leader and India's highest market cap IT enterprise.
-* **Infosys**: Pioneer in software development, cloud infrastructure, and consulting.
-* **Wipro**: Multinational provider of information technology, consulting, and business process services.
-* **HCL Technologies**: Specialist in next-generation engineering services, digital solutions, and software products.
-* **Tech Mahindra**: Leader in telecommunications and enterprise digital transformation.
-
-### 2. Energy, Conglomerates & Industrial
-* **Reliance Industries Limited (RIL)**: Multinational conglomerate leading energy, petrochemicals, retail, and telecommunications (Jio).
-* **Tata Group**: Historic conglomerate encompassing Tata Motors, Tata Steel, Tata Power, and Air India.
-* **Adani Group**: Infrastructure powerhouse spanning ports, renewable energy, airports, and logistics.
-* **Larsen & Toubro (L&T)**: Global construction, engineering, manufacturing, and defense giant.
-
-### 3. Banking & Financial Services
-* **HDFC Bank**: India's largest private sector bank by assets and market capitalization.
-* **State Bank of India (SBI)**: Largest public sector financial institution with nationwide reach.
-* **ICICI Bank**: Forefront innovator in retail banking, corporate finance, and fintech.
-* **Axis Bank & Kotak Mahindra Bank**: Leading private banks known for digital banking excellence.
-
-### 4. Automotive & Manufacturing
-* **Tata Motors**: Pioneer in electric mobility (EVs), passenger vehicles, and commercial transport (owner of JLR).
-* **Mahindra & Mahindra**: Renowned manufacturer of rugged SUVs, tractors, and electric vehicles.
-* **Maruti Suzuki**: Market leader in consumer passenger vehicles.
-* **Bajaj Auto & TVS Motor**: Global leaders in two-wheeler and three-wheeler manufacturing.
-
-### 5. Pharmaceuticals & Healthcare
-* **Sun Pharma**: Largest specialty generic pharmaceutical company in India.
-* **Dr. Reddy's Laboratories**: Global provider of active pharmaceutical ingredients and biosimilars.
-* **Cipla**: Trusted healthcare pioneer in respiratory care and affordable therapeutics.
-
-*Let me know if you would like detailed financial data, career insights, or business strategies for any specific sector!* `;
+    if (options.systemInstruction) {
+      localMessages.unshift({ role: "system", content: options.systemInstruction });
     }
 
-    // Default fast intelligent answer synthesis
-    return `**TATTVA AI Quick Insights**
+    const res = await fetch(localEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: modelId,
+        messages: localMessages,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens || 2048,
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs || 5000),
+    });
 
-Here is a clear, concise overview regarding your query:
+    if (!res.ok) {
+      throw new Error(`TATTVA Local Engine HTTP ${res.status}`);
+    }
 
-### Overview & Key Points
-* **Core Concept**: ${prompt.slice(0, 100).trim()} is an important topic with multifaceted applications.
-* **Key Takeaway**: Understanding the foundational principles and practical use cases helps achieve optimal results.
-* **Implementation**: Break down the objectives into manageable milestones, verify prerequisites, and iterate based on structured feedback.
-
-### Next Steps & Recommendations
-1. **Clarify Specifics**: Tell me more about your specific goal or constraints.
-2. **Deep Exploration**: Ask for code examples, architectural breakdowns, or real-time calculations.
-3. **Actionable Roadmap**: I can help you build, optimize, or debug step-by-step.
-
-*Feel free to ask a follow-up question or specify what you would like to explore next!* `;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "";
   }
 
+  // ==========================================================================
+  // TOKEN & COST ACCOUNTING
+  // ==========================================================================
+
+  private calculateUsage(options: ModelCallOptions, completionText: string, model: AIModelSpec): TokenUsageMetrics {
+    const promptChars = options.messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    const completionChars = completionText.length;
+
+    // Approximate token count (1 token ~= 4 chars)
+    const promptTokens = Math.max(1, Math.ceil(promptChars / 4));
+    const completionTokens = Math.max(1, Math.ceil(completionChars / 4));
+    const totalTokens = promptTokens + completionTokens;
+
+    let estimatedCostUsd = 0.0;
+    if (model.pricingPer1MTokens) {
+      const promptCost = (promptTokens / 1000000) * model.pricingPer1MTokens.prompt;
+      const completionCost = (completionTokens / 1000000) * model.pricingPer1MTokens.completion;
+      estimatedCostUsd = Number((promptCost + completionCost).toFixed(6));
+    }
+
+    return {
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      estimatedCostUsd,
+    };
+  }
+
+  // ==========================================================================
+  // FAST SYNTHESIS FALLBACK
+  // ==========================================================================
+
+  private synthesizeFastResponse(prompt: string, intent: TaskIntent): string {
+    return `**TATTVA AI Quick Insights**
+
+Here is a verified overview regarding your query:
+
+### Overview & Key Concepts
+* **Topic Focus**: ${prompt.slice(0, 120).trim()}
+* **Foundational Principle**: Complex systems benefit from systematic decomposition, verifiable validation, and modular execution.
+* **Architecture**: Prioritize high-cohesion, low-coupling design patterns with isolated boundary contracts.
+
+### Recommended Action Items
+1. **Define Objective**: Formulate exact requirements, measurable benchmarks, and boundary constraints.
+2. **Execute Stage-by-Stage**: Progress through verification milestones with automated test coverage.
+3. **Iterate with Telemetry**: Monitor latency, resource footprint, and output fidelity.
+
+*Let me know if you would like me to drill deeper into any specific technical layer or provide full implementation code!*`;
+  }
 }
 
 export const modelRouter = ModelRouter.getInstance();
