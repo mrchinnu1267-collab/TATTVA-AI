@@ -59,6 +59,9 @@ export class MaintenanceHub {
       pollinations: "flux",
       local: "sdxl-controlnet-fp8",
       openai: "dall-e-3",
+      "azure-openai": "dall-e-3",
+      "ai-horde": "stable_diffusion_xl",
+      cloudflare: "@cf/black-forest-labs/flux-1-schnell",
     };
     const features: FeatureType[] = [
       "text_to_image",

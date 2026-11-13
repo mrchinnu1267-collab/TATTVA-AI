@@ -47,6 +47,14 @@ export const PROVIDER_REFERENCE_CAPABILITIES: Record<ImageProviderId, ProviderRe
     supportedFormats: [],
     reason: "OpenAI DALL-E 3 does not accept reference images for image generation. Reference images must not be silently discarded.",
   },
+  "azure-openai": {
+    provider: "azure-openai",
+    supportsReferenceImage: false,
+    supportsStrength: false,
+    maxResolution: 1792,
+    supportedFormats: [],
+    reason: "Azure OpenAI DALL-E 3 does not accept reference images for image generation. Reference images must not be silently discarded.",
+  },
   pollinations: {
     provider: "pollinations",
     supportsReferenceImage: false,
@@ -54,6 +62,22 @@ export const PROVIDER_REFERENCE_CAPABILITIES: Record<ImageProviderId, ProviderRe
     maxResolution: 2048,
     supportedFormats: [],
     reason: "Pollinations FLUX standard API is text-conditioned.",
+  },
+  "ai-horde": {
+    provider: "ai-horde",
+    supportsReferenceImage: false,
+    supportsStrength: false,
+    maxResolution: 1024,
+    supportedFormats: [],
+    reason: "AI Horde standard anonymous endpoint is text-conditioned.",
+  },
+  cloudflare: {
+    provider: "cloudflare",
+    supportsReferenceImage: false,
+    supportsStrength: false,
+    maxResolution: 1024,
+    supportedFormats: [],
+    reason: "Cloudflare Workers AI FLUX.1 Schnell endpoint is text-conditioned.",
   },
 };
 

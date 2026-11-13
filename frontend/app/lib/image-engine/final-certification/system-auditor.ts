@@ -8,7 +8,7 @@ import { SubsystemAuditRecord } from "./types";
 export class SystemAuditor {
   private static instance: SystemAuditor;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): SystemAuditor {
     if (!SystemAuditor.instance) {

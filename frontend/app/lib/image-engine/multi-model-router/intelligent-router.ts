@@ -161,6 +161,9 @@ export function routeImageRequest(params: RoutingAnalysisParams): RouterSelectio
   // 2. MODEL CANDIDATE POOL FILTERING
   // ===========================================================================
   let candidateModels: ModelSpecification[] = listAvailableModels();
+  if (preferredProvider !== "cloudflare") {
+    candidateModels = candidateModels.filter((model) => model.providerId !== "cloudflare");
+  }
 
   // If user requested offline execution, restrict strictly to local engine
   if (isOffline) {

@@ -82,7 +82,7 @@ export async function executeOutpainting(
   const genResult: ImageEngineResult = await generateImage({
     prompt: outpaintPrompt,
     referenceImage: req.image,
-    provider: provider === "openai" ? "gemini" : provider,
+    provider: provider === "openai" || provider === "azure-openai" ? "gemini" : provider,
     quality: "balanced",
     verify: false,
   });

@@ -62,6 +62,9 @@ export const PROVIDER_TOKEN_BUDGETS: Record<ImageProviderId, number> = {
   pollinations: 256, // FLUX.1 T5-XXL token budget on Pollinations
   gemini: 1000,      // Generative Language Multimodal text context (chars/tokens)
   openai: 1000,      // DALL-E 3 API limit
+  "azure-openai": 1000,
+  "ai-horde": 77,    // Stable Diffusion / SDXL CLIP encoder limit
+  cloudflare: 256,   // Cloudflare FLUX.1 Schnell T5-XXL token limit
 };
 
 const FILLER_PHRASES = [
@@ -444,6 +447,9 @@ export function parseStructuredPrompt(
     pollinations: approxTokens,
     gemini: wordCount,
     openai: wordCount,
+    "azure-openai": wordCount,
+    "ai-horde": approxTokens,
+    cloudflare: approxTokens,
   };
 
   return {
@@ -743,6 +749,7 @@ export function validatePromptForProvider(
       optimizedPrompt = formatPromptForGemini(structured, options);
       break;
     case "openai":
+    case "azure-openai":
       optimizedPrompt = formatPromptForDallE(structured, options);
       break;
     case "huggingface":

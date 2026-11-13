@@ -20,7 +20,7 @@ import {
 export class IntelligentScenePlanner {
   private static instance: IntelligentScenePlanner;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): IntelligentScenePlanner {
     if (!IntelligentScenePlanner.instance) {

@@ -73,7 +73,7 @@ export async function runInfrastructureRepairTests() {
   const noConfigMsg = formatUserFacingImageError(noConfigErr);
   assert.strictEqual(
     noConfigMsg,
-    "Image generation is not configured yet. Please configure a valid cloud image provider key (Gemini, Hugging Face, or OpenAI) in application settings."
+    "Image generation is not configured yet. Please configure a valid cloud image provider (Gemini, Hugging Face, OpenAI, or Azure OpenAI) in application settings."
   );
 
   // Test timeout / network failure

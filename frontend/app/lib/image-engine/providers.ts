@@ -9,6 +9,8 @@ import { geminiImage, GEMINI_IMAGE_MODELS } from "./gemini";
 import { bufferToDataUri, fitWithinArea, truncate } from "./image-utils";
 import { filterCompatibleReferenceProviders } from "./reference-conditioning";
 import { optimizePromptForModel } from "./prompt-optimizer";
+import { generateWithAiHorde } from "./free-suite/ai-horde";
+import { generateWithCloudflare, isCloudflareConfigured } from "./cloudflare/cloudflare-adapter";
 import type {
   ImageProviderChoice,
   ImageProviderId,
@@ -254,7 +256,7 @@ export function formatUserFacingImageError(rawError: unknown): string {
   if (
     /not configured|no image provider.*configured|missing.*key|credentials rejected/i.test(lower)
   ) {
-    return "Image generation is not configured yet. Please configure a valid cloud image provider key (Gemini, Hugging Face, or OpenAI) in application settings.";
+    return "Image generation is not configured yet. Please configure a valid cloud image provider (Gemini, Hugging Face, OpenAI, or Azure OpenAI) in application settings.";
   }
 
   // Network / Connection Timeout
@@ -685,6 +687,161 @@ async function generateWithOpenAI(req: ProviderRequest): Promise<ProviderResult>
   }
 }
 
+// -------------------------------------------------------------- Azure OpenAI
+
+interface AzureOpenAIImageConfig {
+  endpoint: string;
+  apiKey: string;
+  deployment: string;
+  apiVersion: string;
+}
+
+function getAzureOpenAIConfigError(): string | null {
+  const endpoint = (process.env.AZURE_OPENAI_ENDPOINT || "").trim();
+  const apiKey = (process.env.AZURE_OPENAI_API_KEY || "").trim();
+  const deployment = (process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT || "").trim();
+
+  if (!endpoint || !apiKey || !deployment) {
+    return "Configure AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_IMAGE_DEPLOYMENT.";
+  }
+
+  try {
+    const parsedEndpoint = new URL(endpoint);
+    if (
+      parsedEndpoint.protocol !== "https:" ||
+      parsedEndpoint.pathname !== "/" ||
+      parsedEndpoint.search ||
+      parsedEndpoint.hash ||
+      parsedEndpoint.username ||
+      parsedEndpoint.password
+    ) {
+      return "AZURE_OPENAI_ENDPOINT must be an HTTPS Azure resource endpoint without a path or query.";
+    }
+  } catch {
+    return "AZURE_OPENAI_ENDPOINT must be a valid HTTPS Azure resource endpoint.";
+  }
+
+  return null;
+}
+
+export function isAzureOpenAIConfigured(): boolean {
+  return getAzureOpenAIConfigError() === null;
+}
+
+function getAzureOpenAIConfig(): AzureOpenAIImageConfig {
+  const configurationError = getAzureOpenAIConfigError();
+  if (configurationError) {
+    throw new ImageProviderError(configurationError, { retryable: false });
+  }
+
+  return {
+    endpoint: new URL(process.env.AZURE_OPENAI_ENDPOINT!.trim()).origin,
+    apiKey: process.env.AZURE_OPENAI_API_KEY!.trim(),
+    deployment: process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT!.trim(),
+    apiVersion: (process.env.AZURE_OPENAI_API_VERSION || "").trim() || "2024-02-01",
+  };
+}
+
+async function generateWithAzureOpenAI(req: ProviderRequest): Promise<ProviderResult> {
+  if (req.referenceImage) {
+    throw new ImageProviderError(
+      "Azure OpenAI DALL-E 3 does not support reference-image conditioning. Reference images are never silently discarded.",
+      { retryable: false }
+    );
+  }
+
+  const config = getAzureOpenAIConfig();
+  const remaining = getCooldownRemaining("azure-openai");
+  if (remaining > 0) {
+    throw new ImageProviderError(
+      `Azure OpenAI is cooling down for ${Math.ceil(remaining / 1000)}s.`,
+      { retryable: false, cooldownMs: remaining }
+    );
+  }
+
+  const isLandscape = req.aspectRatio === "16:9";
+  const isPortrait = req.aspectRatio === "9:16";
+  const size = isLandscape ? "1792x1024" : isPortrait ? "1024x1792" : "1024x1024";
+  const width = isLandscape ? 1792 : 1024;
+  const height = isPortrait ? 1792 : 1024;
+  const endpoint = new URL(
+    `/openai/deployments/${encodeURIComponent(config.deployment)}/images/generations`,
+    `${config.endpoint}/`
+  );
+  endpoint.searchParams.set("api-version", config.apiVersion);
+  const started = Date.now();
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": config.apiKey,
+      },
+      body: JSON.stringify({
+        prompt: req.prompt,
+        n: 1,
+        size,
+        quality: req.quality === "max" ? "hd" : "standard",
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`HTTP ${response.status}: ${truncate(body, 240)}`);
+    }
+
+    const result = await response.json();
+    const imageResult = result?.data?.[0] as
+      | { b64_json?: string; url?: string; revised_prompt?: string }
+      | undefined;
+    let image: string;
+
+    if (imageResult?.b64_json) {
+      image = `data:image/png;base64,${imageResult.b64_json}`;
+    } else if (imageResult?.url) {
+      const imageUrl = new URL(imageResult.url);
+      if (imageUrl.protocol !== "https:") {
+        throw new Error("Azure OpenAI returned an invalid image URL.");
+      }
+
+      const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to retrieve generated image: HTTP ${imageResponse.status}`);
+      }
+      const contentType = imageResponse.headers.get("content-type") || "";
+      if (!contentType.toLowerCase().startsWith("image/")) {
+        throw new Error("Azure OpenAI returned a URL that did not contain an image.");
+      }
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      if (imageBuffer.length > 25_000_000) {
+        throw new Error("Azure OpenAI returned an image that is too large to process.");
+      }
+      image = bufferToDataUri(imageBuffer, contentType);
+    } else {
+      throw new Error("Azure OpenAI returned no image data.");
+    }
+
+    return {
+      image,
+      provider: "azure-openai",
+      model: config.deployment,
+      seed: req.seed,
+      width,
+      height,
+      latencyMs: Date.now() - started,
+      revisedPrompt: imageResult?.revised_prompt,
+    };
+  } catch (error) {
+    const classified = classifyProviderError("Azure OpenAI DALL-E 3", error);
+    if (classified.cooldownMs) {
+      setCooldown("azure-openai", classified.cooldownMs, classified.message);
+    }
+    throw classified;
+  }
+}
+
 // ------------------------------------------------------------- Pollinations FLUX & Turbo
 
 async function generateWithPollinations(req: ProviderRequest): Promise<ProviderResult> {
@@ -709,8 +866,13 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
   });
   const encoded = encodeURIComponent(promptOpt.optimizedPrompt);
 
-  // Strategy 1: FLUX model on Pollinations
-  const fluxUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${width}&height=${height}&seed=${seed}&nologo=true`;
+  // Choose premier model based on prompt attributes
+  const isPhotoreal =
+    /\b(photo|photorealistic|camera|hyperrealistic|dslr|portrait)\b/i.test(req.prompt);
+  const preferredModel = isPhotoreal ? "flux-realism" : "flux";
+
+  // Strategy 1: Targeted FLUX (Realism or Standard) on Pollinations
+  const fluxUrl = `https://image.pollinations.ai/prompt/${encoded}?model=${preferredModel}&width=${width}&height=${height}&seed=${seed}&nologo=true`;
 
   try {
     const res = await fetch(fluxUrl, { signal: AbortSignal.timeout(20_000) });
@@ -720,7 +882,7 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
     return {
       image: bufferToDataUri(buffer, mimeType),
       provider: "pollinations",
-      model: "flux",
+      model: preferredModel,
       seed,
       width,
       height,
@@ -791,9 +953,9 @@ export function resolveProviderOrder(
     baseOrder = ["nano-banana", "gemini", "huggingface", "local"];
   } else if (isRunningOnVercel() || quality === "fast") {
     // In Vercel serverless environment, prioritize fast cloud engines to stay within strict execution limits
-    baseOrder = ["nano-banana", "gemini", "pollinations", "huggingface", "openai", "local"];
+    baseOrder = ["nano-banana", "gemini", "pollinations", "huggingface", "ai-horde", "openai", "local"];
   } else {
-    baseOrder = ["nano-banana", "huggingface", "gemini", "pollinations", "openai", "local"];
+    baseOrder = ["nano-banana", "huggingface", "gemini", "pollinations", "ai-horde", "openai", "local"];
   }
 
   if (hasReferenceImage) {
@@ -818,8 +980,14 @@ export async function generateWithProvider(
       return generateWithPollinations(req);
     case "openai":
       return generateWithOpenAI(req);
+    case "azure-openai":
+      return generateWithAzureOpenAI(req);
     case "local":
       return generateWithLocal(req);
+    case "ai-horde":
+      return generateWithAiHorde(req);
+    case "cloudflare":
+      return generateWithCloudflare(req);
     default:
       throw new ImageProviderError(`Unknown provider: ${provider as string}`);
   }
@@ -938,11 +1106,37 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       "OpenAI API key needed for DALL-E 3."
     ),
     status(
+      "azure-openai",
+      "Azure OpenAI DALL-E 3",
+      isAzureOpenAIConfigured(),
+      (process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT || "dall-e-3").trim(),
+      isAzureOpenAIConfigured(),
+      getAzureOpenAIConfigError() || "Azure OpenAI DALL-E 3 is configured."
+    ),
+    status(
       "pollinations",
       "Pollinations FLUX Cloud",
       true,
       "flux",
       true
+    ),
+    status(
+      "ai-horde",
+      "AI Horde (Free Distributed Cluster)",
+      true,
+      "stable_diffusion_xl",
+      true,
+      "Free crowdsourced GPU cluster with zero subscription or quota limits."
+    ),
+    status(
+      "cloudflare",
+      "Cloudflare Workers AI (FLUX.1 Schnell)",
+      isCloudflareConfigured(),
+      "@cf/black-forest-labs/flux-1-schnell",
+      isCloudflareConfigured(),
+      isCloudflareConfigured()
+        ? "Serverless edge inference (10,000 free Neurons/day ~57 images)."
+        : "Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment."
     ),
     status(
       "local",

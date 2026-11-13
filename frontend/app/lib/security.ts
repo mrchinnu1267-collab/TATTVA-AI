@@ -478,8 +478,27 @@ export async function verifyUserSession(request: Request): Promise<Authenticated
     token = authHeader.slice(7).trim();
   } else if (cookieHeader) {
     // Look for Supabase auth token in cookies
-    const match = cookieHeader.match(/sb-access-token=([^;]+)/) || cookieHeader.match(/supabase-auth-token=([^;]+)/);
-    if (match) token = decodeURIComponent(match[1]);
+    const match =
+      cookieHeader.match(/sb-access-token=([^;]+)/) ||
+      cookieHeader.match(/supabase-auth-token=([^;]+)/) ||
+      cookieHeader.match(/sb-[a-z0-9_-]+-auth-token(?:\.[0-9]+)?=([^;]+)/i);
+    if (match) {
+      try {
+        const decoded = decodeURIComponent(match[1]);
+        if (decoded.startsWith("base64-")) {
+          const rawJson = Buffer.from(decoded.replace("base64-", ""), "base64").toString("utf8");
+          const parsed = JSON.parse(rawJson);
+          token = parsed.access_token || parsed[0] || decoded;
+        } else if (decoded.startsWith("{") || decoded.startsWith("[")) {
+          const parsed = JSON.parse(decoded);
+          token = parsed.access_token || parsed[0] || decoded;
+        } else {
+          token = decoded;
+        }
+      } catch {
+        token = decodeURIComponent(match[1]);
+      }
+    }
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

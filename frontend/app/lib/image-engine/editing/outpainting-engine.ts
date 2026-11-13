@@ -110,7 +110,8 @@ export async function executeCanvasOutpainting(
 
   let finalImage = imageUri;
   let modelUsed = "gemini-2.5-flash-image";
-  let providerUsed: ImageProviderId = provider === "openai" ? "gemini" : provider;
+  let providerUsed: ImageProviderId =
+    provider === "openai" || provider === "azure-openai" ? "gemini" : provider;
 
   try {
     const genResult = await generateImage({

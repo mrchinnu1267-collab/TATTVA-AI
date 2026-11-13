@@ -46,6 +46,9 @@ export function estimateGenerationCost(params: {
     case "openai":
       baseGenerationCost = 0.04;
       break;
+    case "azure-openai":
+      baseGenerationCost = params.quality === "max" ? 0.12 : 0.08;
+      break;
     case "gemini":
       baseGenerationCost = 0.02;
       break;

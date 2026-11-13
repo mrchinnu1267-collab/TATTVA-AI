@@ -356,9 +356,12 @@ export function compileImagePrompt(options: ImageGenerationOptions): CompiledIma
     "nano-banana": formatPromptForGemini(structured, { aspectRatio, quality }),
     gemini: formatPromptForGemini(structured, { aspectRatio, quality }),
     openai: formatPromptForDallE(structured, { aspectRatio }),
+    "azure-openai": formatPromptForDallE(structured, { aspectRatio }),
     huggingface: sdxlFormatted.positive,
     pollinations: formatPromptForFlux(structured, { aspectRatio }),
     local: localFormatted.positive,
+    "ai-horde": sdxlFormatted.positive,
+    cloudflare: formatPromptForFlux(structured, { aspectRatio }),
   };
   const compilerWarnings: string[] = [...structured.warnings];
   if (structured.contradictions.length > 0) {

@@ -70,6 +70,36 @@ export const EDITING_PROVIDER_CAPABILITIES: Record<ImageProviderId, EditingProvi
     maxDimensions: { width: 1024, height: 1024 },
     averageLatencyMs: 5800,
   },
+  "azure-openai": {
+    providerId: "azure-openai",
+    supportsInpainting: false,
+    supportsMaskInput: false,
+    supportsOutpainting: false,
+    supportsBackgroundRemoval: false,
+    supportsTransparency: false,
+    maxDimensions: { width: 1024, height: 1024 },
+    averageLatencyMs: 5800,
+  },
+  "ai-horde": {
+    providerId: "ai-horde",
+    supportsInpainting: false,
+    supportsMaskInput: false,
+    supportsOutpainting: false,
+    supportsBackgroundRemoval: false,
+    supportsTransparency: false,
+    maxDimensions: { width: 1024, height: 1024 },
+    averageLatencyMs: 25000,
+  },
+  cloudflare: {
+    providerId: "cloudflare",
+    supportsInpainting: false,
+    supportsMaskInput: false,
+    supportsOutpainting: false,
+    supportsBackgroundRemoval: false,
+    supportsTransparency: false,
+    maxDimensions: { width: 1024, height: 1024 },
+    averageLatencyMs: 4500,
+  },
 };
 
 /**
@@ -101,6 +131,12 @@ export function resolveEditingProvider(
   if (preferredProvider === "openai" && (hasMask || operation === "inpainting" || operation === "outpainting")) {
     warnings.push(
       "OpenAI DALL-E 3 does not support mask-conditioned inpainting. Automatically re-routed to Gemini multimodal inpainting."
+    );
+  }
+
+  if (preferredProvider === "azure-openai" && (hasMask || operation === "inpainting" || operation === "outpainting")) {
+    warnings.push(
+      "Azure OpenAI DALL-E 3 does not support mask-conditioned inpainting. Automatically re-routed to Gemini multimodal inpainting."
     );
   }
 

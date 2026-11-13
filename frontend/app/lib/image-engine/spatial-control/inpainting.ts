@@ -50,7 +50,7 @@ export async function executeInpainting(
   const genResult: ImageEngineResult = await generateImage({
     prompt: localizedPrompt,
     referenceImage: req.image, // Base image serves as reference conditioning
-    provider: provider === "openai" ? "gemini" : provider, // DALL-E does not support image conditioning
+    provider: provider === "openai" || provider === "azure-openai" ? "gemini" : provider,
     quality: req.quality || "balanced",
     seed: req.seed,
     verify: false,

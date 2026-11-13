@@ -225,7 +225,7 @@ export function optimizePromptForModel(params: {
   // =========================================================================
   // 4. OPENAI (DALL-E 3)
   // =========================================================================
-  else if (provider === "openai") {
+  else if (provider === "openai" || provider === "azure-openai") {
     // DALL-E 3 rewrites prompts unless instructed specifically
     if (character) {
       optimizedPrompt = `A detailed illustration strictly featuring ${character.canonicalName}. ${originalPrompt}`;
@@ -236,7 +236,31 @@ export function optimizePromptForModel(params: {
   }
 
   // =========================================================================
-  // 5. LOCAL ENGINE
+  // 5. AI HORDE (Stable Diffusion / SDXL)
+  // =========================================================================
+  else if (provider === "ai-horde") {
+    if (character) {
+      optimizedPrompt = `${character.canonicalName}, ${character.definingTraits.join(", ")}, ${originalPrompt}`;
+    } else {
+      optimizedPrompt = originalPrompt;
+    }
+    notes.push("Optimized for AI Horde distributed Stable Diffusion pipeline.");
+  }
+
+  // =========================================================================
+  // 6. CLOUDFLARE WORKERS AI (FLUX.1 Schnell)
+  // =========================================================================
+  else if (provider === "cloudflare") {
+    if (character) {
+      optimizedPrompt = `${character.canonicalName}, ${character.definingTraits.join(", ")}, ${originalPrompt}`;
+    } else {
+      optimizedPrompt = originalPrompt;
+    }
+    notes.push("Targeted for Cloudflare Workers AI FLUX.1 Schnell serverless edge.");
+  }
+
+  // =========================================================================
+  // 6. LOCAL ENGINE
   // =========================================================================
   else {
     optimizedPrompt = originalPrompt;

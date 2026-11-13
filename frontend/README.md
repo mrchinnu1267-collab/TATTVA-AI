@@ -28,7 +28,14 @@ ANTHROPIC_MCP_BETA_HEADER="mcp-client-2025-11-20"
 APP_ENCRYPTION_KEY="your-secure-32-byte-hex-encryption-key"
 ```
 
-### 2. Install & Run
+### 2. Enable Google Sign-In with Supabase
+
+1. In Google Cloud Console, create a **Web application** OAuth client. Set its authorized redirect URI to the callback URL shown by Supabase under **Authentication → Providers → Google**.
+2. In Supabase, enable the Google provider and enter the Google OAuth client ID and client secret.
+3. In Supabase **Authentication → URL Configuration**, set the Site URL to your app origin and allow `/auth/callback` for production and local development (for example, `https://your-app.example/auth/callback` and `http://localhost:3000/auth/callback`).
+4. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and your deployment environment. Keep the Google client secret in Supabase; do not add it to frontend environment variables.
+
+### 3. Install & Run
 ```bash
 # Install dependencies
 npm install

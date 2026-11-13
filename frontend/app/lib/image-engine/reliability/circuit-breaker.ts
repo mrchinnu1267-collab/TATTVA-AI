@@ -19,6 +19,7 @@ const ALL_PROVIDERS: ImageProviderId[] = [
   "gemini",
   "huggingface",
   "openai",
+  "azure-openai",
   "local",
   "pollinations",
 ];

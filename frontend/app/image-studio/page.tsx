@@ -212,10 +212,14 @@ const ASPECT_OPTIONS: Array<{ id: AspectRatio; label: string }> = [
 
 const PROVIDER_OPTIONS: Array<{ id: string; label: string }> = [
   { id: "auto", label: "Auto (Intelligent Model Router)" },
+  { id: "cloudflare", label: "Cloudflare Workers AI (FLUX.1 Schnell)" },
   { id: "nano-banana", label: "Google Nano Banana 2.1 / Pro" },
   { id: "gemini", label: "Google Gemini Image" },
+  { id: "pollinations", label: "Pollinations FLUX / Realism (Free)" },
+  { id: "ai-horde", label: "AI Horde (Free Distributed Cluster)" },
   { id: "huggingface", label: "Hugging Face FLUX.1 / Animagine" },
   { id: "openai", label: "OpenAI DALL-E 3" },
+  { id: "azure-openai", label: "Azure OpenAI DALL-E 3" },
   { id: "local", label: "Local CUDA / ComfyUI engine" },
 ];
 
@@ -833,6 +837,7 @@ export default function ImageStudioPage() {
               <select
                 value={aspectRatio}
                 onChange={(event) => setAspectRatio(event.target.value as AspectRatio)}
+                disabled={provider === "cloudflare"}
                 className="mt-1.5 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs outline-none"
               >
                 {ASPECT_OPTIONS.map((option) => (
@@ -848,7 +853,14 @@ export default function ImageStudioPage() {
               </span>
               <select
                 value={provider}
-                onChange={(event) => setProvider(event.target.value)}
+                onChange={(event) => {
+                  const nextProvider = event.target.value;
+                  setProvider(nextProvider);
+                  if (nextProvider === "cloudflare") {
+                    setEnableRAG(false);
+                    setAspectRatio("1:1");
+                  }
+                }}
                 className="mt-1.5 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs outline-none"
               >
                 {PROVIDER_OPTIONS.map((option) => (
@@ -903,9 +915,13 @@ export default function ImageStudioPage() {
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                   Negative prompt
                 </label>
+                {provider === "cloudflare" && (
+                  <p className="text-[9px] text-neutral-400">This model does not support negative prompts.</p>
+                )}
                 <textarea
                   value={negative}
                   onChange={(event) => setNegative(event.target.value)}
+                  disabled={provider === "cloudflare"}
                   rows={2}
                   placeholder="Extra things to avoid..."
                   className="mt-1.5 w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--soft)] px-2.5 py-2 text-[11px] outline-none placeholder:text-neutral-400"
@@ -921,11 +937,12 @@ export default function ImageStudioPage() {
                     value={seedInput}
                     onChange={(event) => setSeedInput(event.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="Random"
-                    disabled={!lockSeed}
+                    disabled={!lockSeed || provider === "cloudflare"}
                     className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--soft)] px-2.5 py-2 text-[11px] outline-none disabled:opacity-50"
                   />
                   <button
                     type="button"
+                    disabled={provider === "cloudflare"}
                     onClick={() => setLockSeed((locked) => !locked)}
                     className={`flex h-8 w-8 items-center justify-center rounded-xl border transition ${
                       lockSeed
@@ -948,6 +965,7 @@ export default function ImageStudioPage() {
                 </div>
                 <button
                   type="button"
+                  disabled={provider === "cloudflare"}
                   onClick={() => setEnableRAG((value) => !value)}
                   className={`relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition ${
                     enableRAG ? "bg-fuchsia-500" : "bg-neutral-300 dark:bg-neutral-700"
@@ -961,6 +979,11 @@ export default function ImageStudioPage() {
                   />
                 </button>
               </div>
+              {provider === "cloudflare" && (
+                <p className="text-[9px] text-neutral-400">
+                  Cloudflare uses one direct Workers AI request; RAG and external vision calls are off.
+                </p>
+              )}
 
               {enableRAG && (
                 <div>

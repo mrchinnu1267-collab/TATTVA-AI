@@ -17,6 +17,7 @@ import { validateReferenceImage } from "./reference-conditioning";
 import { resolveReferenceImageAsDataUri } from "./image-utils";
 import { routeImageRequest, recordGenerationOutcome } from "./multi-model-router";
 import { evaluateVisualQuality } from "./visual-evaluation";
+import { calculateCloudflareUsage, resolveCloudflareSteps } from "./cloudflare/cloudflare-adapter";
 import {
   moderateTextPrompt,
   moderateVisualImage,
@@ -76,6 +77,9 @@ function messageOf(error: unknown): string {
 export async function generateImage(options: ImageGenerationOptions): Promise<ImageEngineResult> {
   const prompt = options.prompt?.trim();
   if (!prompt) throw new Error("A prompt is required.");
+  if (options.provider === "cloudflare" && options.referenceImage) {
+    throw new Error("Cloudflare FLUX.1 Schnell supports text-to-image requests only.");
+  }
 
   // 1. Mandatory Pre-Generation Content Moderation
   const moderationCheck = moderateTextPrompt(prompt);
@@ -119,7 +123,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
   const started = Date.now();
   const compiled = compileImagePrompt({ ...options, prompt });
-  const maxAttempts = resolveMaxAttempts(options);
+  const maxAttempts = options.provider === "cloudflare" ? 1 : resolveMaxAttempts(options);
   const verify = options.verify !== false;
   const targetScore = Math.max(
     50,
@@ -136,7 +140,9 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
   const warnings: string[] = [...(routingDecision.warnings || [])];
   const order =
-    routingDecision.fallbackChain.length > 0
+    options.provider === "cloudflare"
+      ? ["cloudflare" as const]
+      : routingDecision.fallbackChain.length > 0
       ? routingDecision.fallbackChain
       : resolveProviderOrder(options.provider, compiled.quality, Boolean(options.referenceImage));
   const attempts: ImageAttempt[] = [];
@@ -211,7 +217,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
           image: result.image,
           compiled,
           requirements: compiled.requirements,
-          useVision: verify,
+          useVision: verify && provider !== "cloudflare",
         });
 
         attempts.push({
@@ -277,21 +283,27 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   }
 
   // 3. Post-Generation Output Visual Verification
-  const outputCheck = await moderateVisualImage(best.result.image);
-  if (!outputCheck.isSafe) {
-    throw new ImageProviderError(
-      SAFETY_REJECTION_MESSAGE,
-      { retryable: false }
-    );
+  if (best.result.provider !== "cloudflare") {
+    const outputCheck = await moderateVisualImage(best.result.image);
+    if (!outputCheck.isSafe) {
+      throw new ImageProviderError(
+        SAFETY_REJECTION_MESSAGE,
+        { retryable: false }
+      );
+    }
   }
 
   const latencyMs = Date.now() - started;
   let accuracy = best.verification.score;
   const successfulAttempts = attempts.filter((item) => !item.error).length;
+  const estimatedCostUsd =
+    best.result.provider === "cloudflare"
+      ? calculateCloudflareUsage(1024, 1024, resolveCloudflareSteps(compiled.quality)).estimatedCostUsd
+      : routingDecision.estimatedCostUsd;
 
   // 4. Advanced Visual Evaluation & Intelligent Refinement (Phase E)
   let evaluationResult: any = null;
-  if (verify) {
+  if (verify && best.result.provider !== "cloudflare") {
     try {
       evaluationResult = await evaluateVisualQuality({
         image: best.result.image,
@@ -347,7 +359,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       requirements: compiled.requirements,
       workflow: routingDecision.workflow,
       routing_rationale: routingDecision.selectionRationale,
-      estimated_cost_usd: routingDecision.estimatedCostUsd,
+      estimated_cost_usd: estimatedCostUsd,
       primary_model: routingDecision.primaryModel.name,
       scorecard: evaluationResult?.scorecard,
       refinement_action: evaluationResult?.refinementRecommendation?.type,

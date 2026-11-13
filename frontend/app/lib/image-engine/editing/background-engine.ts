@@ -72,7 +72,7 @@ export async function executeBackgroundReplacement(
     const genResult = await generateImage({
       prompt,
       referenceImage: imageUri,
-      provider: provider === "openai" ? "gemini" : provider,
+      provider: provider === "openai" || provider === "azure-openai" ? "gemini" : provider,
       quality: "balanced",
       verify: false,
     });

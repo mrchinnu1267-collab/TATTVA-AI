@@ -122,7 +122,10 @@ export async function executeImageEdit(
       // Compile localized instruction prompt
       const localizedPrompt = `Mask-guided image modification: strictly apply "${intent.normalizedPrompt}" to the masked region. Seamlessly blend lighting, surface textures, reflections, and shadows across borders without touching unmasked content.`;
 
-      const provider = req.provider === "openai" ? "gemini" : (req.provider as ImageProviderId) || "gemini";
+      const provider =
+        req.provider === "openai" || req.provider === "azure-openai"
+          ? "gemini"
+          : (req.provider as ImageProviderId) || "gemini";
       try {
         const genResult = await generateImage({
           prompt: localizedPrompt,

@@ -27,7 +27,10 @@ export type ModelProvider =
   | "pollinations"
   | "local"
   | "openai"
-  | "nano-banana";
+  | "azure-openai"
+  | "nano-banana"
+  | "ai-horde"
+  | "cloudflare";
 
 export interface AIModelSpec {
   id: string;

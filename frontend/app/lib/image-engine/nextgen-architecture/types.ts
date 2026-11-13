@@ -73,16 +73,16 @@ export interface SpatialRelationshipConstraint {
   sourceObjectId: string;
   targetObjectId: string;
   relation:
-    | "left_of"
-    | "right_of"
-    | "above"
-    | "below"
-    | "inside"
-    | "behind"
-    | "in_front_of"
-    | "adjacent_to"
-    | "holding"
-    | "wearing";
+  | "left_of"
+  | "right_of"
+  | "above"
+  | "below"
+  | "inside"
+  | "behind"
+  | "in_front_of"
+  | "adjacent_to"
+  | "holding"
+  | "wearing";
   confidence: number;
   tolerance: number; // Geometric tolerance percentage (e.g. 0.05)
 }
@@ -232,14 +232,14 @@ export interface HierarchicalPipelineExecution {
 
 export interface MetricEvaluationDetail {
   metric:
-    | "object_presence"
-    | "exact_quantities"
-    | "attributes_colors"
-    | "spatial_relationships"
-    | "reference_consistency"
-    | "text_accuracy"
-    | "composition"
-    | "visual_quality";
+  | "object_presence"
+  | "exact_quantities"
+  | "attributes_colors"
+  | "spatial_relationships"
+  | "reference_consistency"
+  | "text_accuracy"
+  | "composition"
+  | "visual_quality";
   score: number; // 0.0 - 1.0
   evaluatorSource: "sam2_segmentation" | "vlm_semantic" | "ocr_engine" | "geometric_iou" | "clip_aesthetic";
   confidence: number; // 0.0 - 1.0

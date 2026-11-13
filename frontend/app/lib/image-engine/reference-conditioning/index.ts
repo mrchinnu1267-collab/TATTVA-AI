@@ -90,6 +90,9 @@ export async function createReferenceConditioningPlan(params: {
     pollinations: prompt,
     local: localConditioned,
     openai: openaiConditioned,
+    "azure-openai": openaiConditioned,
+    "ai-horde": prompt,
+    cloudflare: prompt,
   };
 
   if (validation.aspectRatio && validation.aspectRatio !== aspectRatio) {

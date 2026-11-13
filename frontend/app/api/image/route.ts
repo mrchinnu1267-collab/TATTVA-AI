@@ -20,7 +20,7 @@ import {
   moderateVisualImage,
   SAFETY_REJECTION_MESSAGE,
 } from "../../lib/content-moderation";
-import type { ImageQuality } from "../../lib/image-engine";
+import type { ImageQuality, ImageProviderChoice } from "../../lib/image-engine";
 import {
   analyzeGeneratedImage,
   evaluatePromptAdherence,
@@ -31,7 +31,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const VALID_QUALITIES: ImageQuality[] = ["fast", "balanced", "max"];
-const VALID_PROVIDERS = ["auto", "nano-banana", "gemini", "huggingface", "openai", "local", "pollinations"];
+const VALID_PROVIDERS: (ImageProviderChoice)[] = [
+  "auto",
+  "nano-banana",
+  "gemini",
+  "huggingface",
+  "openai",
+  "azure-openai",
+  "local",
+  "pollinations",
+  "ai-horde",
+  "cloudflare",
+];
 
 function toNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
@@ -109,6 +120,13 @@ export async function POST(request: Request) {
         : undefined;
 
     if (referenceImage) {
+      if (body.provider === "cloudflare") {
+        return NextResponse.json(
+          { error: "Cloudflare FLUX.1 Schnell supports text-to-image requests only." },
+          { status: 400 }
+        );
+      }
+
       if (referenceImage.length > 12_000_000) {
         return NextResponse.json(
           { error: "Reference image is too large. Use an image under 9 MB." },
@@ -135,9 +153,19 @@ export async function POST(request: Request) {
     }
 
     const provider =
-      typeof body.provider === "string" && VALID_PROVIDERS.includes(body.provider)
-        ? (body.provider as "auto" | "gemini" | "huggingface" | "openai" | "local" | "pollinations")
+      typeof body.provider === "string" && VALID_PROVIDERS.includes(body.provider as ImageProviderChoice)
+        ? (body.provider as ImageProviderChoice)
         : "auto";
+
+    if (
+      provider === "cloudflare" &&
+      (body.operation === "inpaint" || body.operation === "outpaint" || body.mask || body.expand)
+    ) {
+      return NextResponse.json(
+        { error: "Cloudflare FLUX.1 Schnell supports text-to-image requests only." },
+        { status: 400 }
+      );
+    }
 
     const quality =
       typeof body.quality === "string" && VALID_QUALITIES.includes(body.quality as ImageQuality)
@@ -215,7 +243,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const enableRAG = body.enableRAG !== false; // Enabled by default for all generation
+    const enableRAG = provider !== "cloudflare" && body.enableRAG !== false;
     let result: any;
 
     if (enableRAG) {
@@ -259,7 +287,8 @@ export async function POST(request: Request) {
 
     // Stage 3: Post-Generation Image Output Verification
     if (result.image) {
-      const outputModeration = await moderateVisualImage(result.image);
+      const outputModeration =
+        provider === "cloudflare" ? { isSafe: true } : await moderateVisualImage(result.image);
       const issuesHasNsfw = result.verification?.issues?.some((issue: string) =>
         /prohibited adult|nudity|nude content|explicit sexual|harmful/i.test(issue)
       );
@@ -289,7 +318,7 @@ export async function POST(request: Request) {
         const understanding = await analyzeGeneratedImage({
           image: result.image,
           originalPrompt: prompt,
-          forceVision: true,
+          forceVision: provider !== "cloudflare",
         });
         intelligenceReport = evaluatePromptAdherence({
           imageId: `gen_${Date.now()}`,

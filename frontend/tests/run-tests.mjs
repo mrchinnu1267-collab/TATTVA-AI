@@ -11,6 +11,8 @@ const jiti = require("../node_modules/jiti/lib/jiti.cjs")(__filename);
 console.log("\n🚀 Running TATTVA AI Test Suite...\n");
 
 try {
+  const azureOpenAi = await jiti("./azure-openai-provider.test.ts");
+  await azureOpenAi.runAzureOpenAIProviderTests();
   await jiti("./prompt-compiler-phase-a.test.ts");
   await jiti("./reference-conditioning-phase-b.test.ts");
   await jiti("./multi-model-router-phase-c.test.ts");

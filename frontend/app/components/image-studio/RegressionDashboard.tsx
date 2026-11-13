@@ -108,9 +108,8 @@ export function RegressionDashboard({ onClose }: { onClose?: () => void }) {
         {/* Header */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
-              isGateBlocked ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-            }`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${isGateBlocked ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              }`}>
               {isGateBlocked ? <ShieldAlert className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
             </div>
             <div>
@@ -146,11 +145,10 @@ export function RegressionDashboard({ onClose }: { onClose?: () => void }) {
         </div>
 
         {/* Deployment Gate Status Banner */}
-        <div className={`p-4 px-6 border-b flex items-center justify-between text-xs ${
-          isGateBlocked
-            ? "bg-rose-950/40 border-rose-900/60 text-rose-300"
-            : "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
-        }`}>
+        <div className={`p-4 px-6 border-b flex items-center justify-between text-xs ${isGateBlocked
+          ? "bg-rose-950/40 border-rose-900/60 text-rose-300"
+          : "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+          }`}>
           <div className="flex items-center gap-2.5">
             {isGateBlocked ? (
               <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -222,9 +220,8 @@ export function RegressionDashboard({ onClose }: { onClose?: () => void }) {
                 <TrendingDown className="w-4 h-4 text-rose-400" />
               )}
             </div>
-            <div className={`text-2xl font-bold font-mono ${
-              (latest?.overallDeltaPercent ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
-            }`}>
+            <div className={`text-2xl font-bold font-mono ${(latest?.overallDeltaPercent ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+              }`}>
               {(latest?.overallDeltaPercent ?? 0) >= 0 ? "+" : ""}{latest?.overallDeltaPercent ?? 0.2}%
             </div>
             <div className="text-[11px] text-slate-400 mt-1 font-mono">
@@ -284,44 +281,40 @@ export function RegressionDashboard({ onClose }: { onClose?: () => void }) {
         <div className="flex border-b border-slate-800 px-6 gap-2 bg-slate-950/40 text-xs font-medium">
           <button
             onClick={() => setActiveTab("dimensions")}
-            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === "dimensions"
-                ? "border-emerald-500 text-emerald-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
-            }`}
+            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${activeTab === "dimensions"
+              ? "border-emerald-500 text-emerald-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
           >
             <Sliders className="w-3.5 h-3.5" />
             9 Evaluation Dimensions & Z-Scores
           </button>
           <button
             onClick={() => setActiveTab("categories")}
-            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === "categories"
-                ? "border-emerald-500 text-emerald-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
-            }`}
+            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${activeTab === "categories"
+              ? "border-emerald-500 text-emerald-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
           >
             <Layers className="w-3.5 h-3.5" />
             13 Benchmark Domains
           </button>
           <button
             onClick={() => setActiveTab("gate")}
-            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === "gate"
-                ? "border-emerald-500 text-emerald-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
-            }`}
+            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${activeTab === "gate"
+              ? "border-emerald-500 text-emerald-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             CI/CD Gate & Sanitized Logs
           </button>
           <button
             onClick={() => setActiveTab("rollback")}
-            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === "rollback"
-                ? "border-emerald-500 text-emerald-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
-            }`}
+            className={`py-3 px-3 border-b-2 transition-colors flex items-center gap-2 ${activeTab === "rollback"
+              ? "border-emerald-500 text-emerald-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Rollback Snapshots & Incidents
@@ -370,29 +363,26 @@ export function RegressionDashboard({ onClose }: { onClose?: () => void }) {
                         </td>
                         <td className="py-3 px-4 text-slate-300">{d.baselineScore}%</td>
                         <td className="py-3 px-4 text-white font-bold">{d.candidateScore}%</td>
-                        <td className={`py-3 px-4 font-semibold ${
-                          d.deltaPercent >= 0 ? "text-emerald-400" : d.deltaPercent <= -4.0 ? "text-rose-400" : "text-amber-400"
-                        }`}>
+                        <td className={`py-3 px-4 font-semibold ${d.deltaPercent >= 0 ? "text-emerald-400" : d.deltaPercent <= -4.0 ? "text-rose-400" : "text-amber-400"
+                          }`}>
                           {d.deltaPercent >= 0 ? "+" : ""}{d.deltaPercent}%
                         </td>
                         <td className="py-3 px-4 text-slate-400">{d.statisticalZScore}</td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] ${
-                            d.isStatisticallySignificant
-                              ? "bg-rose-500/10 text-rose-300 border border-rose-500/20"
-                              : "bg-slate-800 text-slate-400"
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded text-[10px] ${d.isStatisticallySignificant
+                            ? "bg-rose-500/10 text-rose-300 border border-rose-500/20"
+                            : "bg-slate-800 text-slate-400"
+                            }`}>
                             {d.isStatisticallySignificant ? "p < 0.05 (Sig)" : "Noise (p ≥ 0.05)"}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                            d.severity === "critical_regression"
-                              ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                              : d.severity === "warning"
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${d.severity === "critical_regression"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            : d.severity === "warning"
                               ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                               : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          }`}>
+                            }`}>
                             {d.severity.replace(/_/g, " ")}
                           </span>
                         </td>
@@ -428,14 +418,12 @@ export function RegressionDashboard({ onClose }: { onClose?: () => void }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-sm font-bold font-mono ${
-                        cat.deltaPercent >= 0 ? "text-emerald-400" : cat.deltaPercent <= -4.5 ? "text-rose-400" : "text-amber-400"
-                      }`}>
+                      <div className={`text-sm font-bold font-mono ${cat.deltaPercent >= 0 ? "text-emerald-400" : cat.deltaPercent <= -4.5 ? "text-rose-400" : "text-amber-400"
+                        }`}>
                         {cat.deltaPercent >= 0 ? "+" : ""}{cat.deltaPercent}%
                       </div>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-mono ${
-                        cat.severity === "critical_regression" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-400"
-                      }`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-mono ${cat.severity === "critical_regression" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-400"
+                        }`}>
                         {cat.severity.replace(/_/g, " ")}
                       </span>
                     </div>
