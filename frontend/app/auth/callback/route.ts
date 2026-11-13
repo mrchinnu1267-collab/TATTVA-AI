@@ -14,11 +14,12 @@ export async function GET(request: Request) {
   const errorDescription = requestUrl.searchParams.get("error_description");
 
   const baseUrl = getAuthBaseUrl(request);
+  const isRecovery = type === "recovery" || rawNext?.includes("reset-password");
 
   // 1. Handle error queries passed back from Supabase (e.g. link expired, already clicked, invalid)
   if (errorParam || errorDescription) {
     const errorMsg = errorDescription || errorParam || "Authentication link has expired or is invalid.";
-    const targetUrl = new URL("/login", baseUrl);
+    const targetUrl = new URL(isRecovery ? "/reset-password" : "/login", baseUrl);
     targetUrl.searchParams.set("error", "auth_link_error");
     targetUrl.searchParams.set("error_description", errorMsg);
     return NextResponse.redirect(targetUrl);
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
 
   // 2. Determine target path safely (prevent open redirects)
   let nextPath = sanitizeRedirectPath(rawNext, "/chat");
-  if (type === "recovery" || rawNext?.includes("reset-password")) {
+  if (isRecovery) {
     nextPath = "/reset-password";
   }
 
@@ -74,12 +75,12 @@ export async function GET(request: Request) {
 
     if (authError) {
       console.warn("Supabase auth verification failed:", authError);
-      const targetUrl = new URL("/login", baseUrl);
+      const targetUrl = new URL(isRecovery ? "/reset-password" : "/login", baseUrl);
       targetUrl.searchParams.set("error", "verification_failed");
       targetUrl.searchParams.set(
         "error_description",
         authError.includes("expired")
-          ? "This email verification link has expired. Please sign in or request a new verification email."
+          ? "This password reset or verification link has expired. Please request a new link."
           : authError
       );
       return NextResponse.redirect(targetUrl);
@@ -97,7 +98,9 @@ export async function GET(request: Request) {
     const response = NextResponse.redirect(redirectUrl);
 
     // 6. Sync verified user session cookie across devices (Mobile / Desktop)
-    if (user && user.email) {
+    // IMPORTANT: DO NOT set long-term tattva_session cookie during recovery flow,
+    // ensuring the user is not prematurely treated as a fully logged-in user in the dashboard!
+    if (user && user.email && !isRecovery) {
       const sessionPayload = {
         email: user.email.toLowerCase().trim(),
         name: user.user_metadata?.full_name || user.email.split("@")[0] || "User",

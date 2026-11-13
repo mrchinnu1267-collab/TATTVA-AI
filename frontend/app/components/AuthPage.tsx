@@ -108,7 +108,19 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
         return;
       }
 
+      if (params.get("reset") === "success") {
+        setMessage("Your password has been updated successfully. Please log in with your new password.");
+        setMessageType("success");
+        setMode("signin");
+        window.history.replaceState({}, "", window.location.pathname);
+        return;
+      }
+
       const reqMode = params.get("mode") || params.get("tab") || params.get("action");
+      if (reqMode === "forgot" || params.get("forgot") !== null) {
+        setMode("forgot");
+        return;
+      }
       if (reqMode === "signup" || reqMode === "create-account" || reqMode === "register" || params.get("signup") !== null) {
         setMode("signup");
         return;
@@ -117,6 +129,12 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
       if (params.get("logout") === "true" || params.get("switch") === "true") {
         return;
       }
+    }
+
+    // Check if arrived via recovery link
+    if (typeof window !== "undefined" && (window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery"))) {
+      router.replace("/reset-password" + window.location.search + window.location.hash);
+      return;
     }
 
     // If already authenticated and not explicitly signing up, redirect to /chat
@@ -131,6 +149,10 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
       const supabase = createClient();
       supabase.auth.getSession().then((res: { data: { session: { user?: { email?: string } } | null } }) => {
         if (res.data?.session?.user?.email && initialMode !== "signup") {
+          if (typeof window !== "undefined" && (window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery"))) {
+            router.replace("/reset-password" + window.location.search + window.location.hash);
+            return;
+          }
           saveActiveSession(res.data.session.user.email);
           router.replace("/chat");
         }
@@ -145,8 +167,13 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
     setMessage("");
     try {
       const supabase = createClient();
+      const redirectUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/reset-password`
+          : "https://tattva-ai-phi.vercel.app/reset-password";
+
       const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
-        redirectTo: getAuthCallbackUrl("/reset-password"),
+        redirectTo: redirectUrl,
       });
       if (error) throw error;
       setMessage("Password reset link has been dispatched to your email. Please check your inbox.");

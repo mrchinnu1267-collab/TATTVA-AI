@@ -110,6 +110,7 @@ try {
   await jiti("./safety-input-validation.test.ts");
   await jiti("./workspace-applications.test.ts");
   await jiti("./auth-redirect.test.ts");
+  await jiti("./password-recovery.test.ts");
   await jiti("./claude-connectors.test.ts");
   await jiti("./connectors-e2e.test.ts");
   await jiti("./document-reader.test.ts");

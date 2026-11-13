@@ -2508,12 +2508,26 @@ export default function ChatPage() {
       const supabase = createClient();
 
       // Check if user arrived via recovery link
-      if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
-        router.replace("/reset-password");
+      if (
+        typeof window !== "undefined" &&
+        (window.location.hash.includes("type=recovery") ||
+          window.location.search.includes("type=recovery") ||
+          window.location.search.includes("next=%2Freset-password") ||
+          window.location.search.includes("next=/reset-password"))
+      ) {
+        router.replace("/reset-password" + window.location.search + window.location.hash);
         return;
       }
 
       supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
+        if (
+          typeof window !== "undefined" &&
+          (window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery"))
+        ) {
+          router.replace("/reset-password" + window.location.search + window.location.hash);
+          return;
+        }
+
         if (data.session?.user) {
           setCurrentUser(data.session.user);
           const email = data.session.user.email || "";
@@ -2537,6 +2551,13 @@ export default function ChatPage() {
           return;
         }
         if (event === "SIGNED_IN" && session?.user) {
+          if (
+            typeof window !== "undefined" &&
+            (window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery"))
+          ) {
+            router.replace("/reset-password" + window.location.search + window.location.hash);
+            return;
+          }
           setCurrentUser(session.user);
           const email = session.user.email || "";
           setUserEmail(email);
@@ -7461,8 +7482,12 @@ export default function ChatPage() {
                       if (!userEmail) return;
                       try {
                         const supabase = createClient();
+                        const redirectUrl =
+                          typeof window !== "undefined"
+                            ? `${window.location.origin}/reset-password`
+                            : "https://tattva-ai-phi.vercel.app/reset-password";
                         const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-                          redirectTo: getAuthCallbackUrl("/reset-password"),
+                          redirectTo: redirectUrl,
                         });
                         if (error) throw error;
                         showToast("Password reset link sent to your email ✉️");
