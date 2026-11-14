@@ -3,20 +3,25 @@
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { mmmluCSVLoader } from "../../../lib/evaluation/mmmlu";
 import { modelRouter } from "../../../lib/ai-orchestrator/model-router";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const { report } = mmmluCSVLoader.loadAndValidateDataset();
+    const { searchParams } = new URL(req.url);
+    const datasetParam = searchParams.get("dataset") || "sample";
+
+    const { report } = mmmluCSVLoader.loadAndValidateDataset(datasetParam);
     const models = modelRouter.getModelCatalog();
+
+    const isFull = datasetParam === "full";
 
     return NextResponse.json({
       success: true,
       dataset: {
-        name: "OpenAI MMMLU (Hindi)",
-        filename: "mmlu_HI-IN.csv",
+        name: isFull ? "OpenAI MMMLU (Full Corpus)" : "OpenAI MMMLU (Sample Benchmark)",
+        filename: isFull ? "mmlu_HI-IN.csv" : "MMMLU_HI-IN_456_question_sample.csv",
         language: "hi-IN",
         totalRows: report.totalRows,
         validQuestions: report.validQuestions,

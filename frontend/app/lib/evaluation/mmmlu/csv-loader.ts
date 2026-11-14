@@ -14,9 +14,11 @@ import {
 
 export class MMMLUCSVLoader {
   private static instance: MMMLUCSVLoader;
-  private cachedQuestions: MMMLUQuestion[] | null = null;
-  private cachedReport: DatasetValidationReport | null = null;
-  private datasetPath: string | null = null;
+  private cachedDatasets: Map<
+    string,
+    { questions: MMMLUQuestion[]; report: DatasetValidationReport }
+  > = new Map();
+  private datasetPathMap: Map<string, string> = new Map();
 
   public static getInstance(): MMMLUCSVLoader {
     if (!MMMLUCSVLoader.instance) {
@@ -26,23 +28,41 @@ export class MMMLUCSVLoader {
   }
 
   /**
-   * Resolves the absolute path to mmlu_HI-IN.csv across diverse deployment environments
+   * Resolves the absolute path to MMMLU dataset CSV files across monorepo environments
+   * Defaults to canonical 456-question sample initially as requested
    */
-  public resolveDatasetPath(): string {
-    if (this.datasetPath && fs.existsSync(this.datasetPath)) {
-      return this.datasetPath;
+  public resolveDatasetPath(targetDataset: string = "sample"): string {
+    const isFull =
+      targetDataset === "full" ||
+      targetDataset === "mmlu_HI-IN.csv" ||
+      targetDataset === "all";
+
+    const key = isFull ? "full" : "sample";
+    if (this.datasetPathMap.has(key)) {
+      const p = this.datasetPathMap.get(key)!;
+      if (fs.existsSync(p)) return p;
     }
 
+    const preferredFilename = isFull
+      ? "mmlu_HI-IN.csv"
+      : "MMMLU_HI-IN_456_question_sample.csv";
+
+    const fallbackFilename = isFull
+      ? "MMMLU_HI-IN_456_question_sample.csv"
+      : "mmlu_HI-IN.csv";
+
     const candidatePaths = [
-      path.join(process.cwd(), "datasets", "MMMLU", "mmlu_HI-IN.csv"),
-      path.resolve(process.cwd(), "..", "datasets", "MMMLU", "mmlu_HI-IN.csv"),
+      path.join(process.cwd(), "datasets", "MMMLU", preferredFilename),
+      path.resolve(process.cwd(), "..", "datasets", "MMMLU", preferredFilename),
       ...(process.env.MMMLU_DATASET_PATH ? [process.env.MMMLU_DATASET_PATH] : []),
+      path.join(process.cwd(), "datasets", "MMMLU", fallbackFilename),
+      path.resolve(process.cwd(), "..", "datasets", "MMMLU", fallbackFilename),
     ];
 
     for (const p of candidatePaths) {
       try {
         if (fs.existsSync(p)) {
-          this.datasetPath = p;
+          this.datasetPathMap.set(key, p);
           return p;
         }
       } catch {
@@ -51,7 +71,7 @@ export class MMMLUCSVLoader {
     }
 
     throw new Error(
-      "MMMLU dataset file 'mmlu_HI-IN.csv' could not be located. Please ensure it exists at 'datasets/MMMLU/mmlu_HI-IN.csv'."
+      `MMMLU dataset file '${preferredFilename}' could not be located in datasets/MMMLU/.`
     );
   }
 
@@ -112,15 +132,24 @@ export class MMMLUCSVLoader {
   /**
    * Loads and validates the MMMLU Hindi dataset with in-memory caching
    */
-  public loadAndValidateDataset(forceReload: boolean = false): {
+  public loadAndValidateDataset(
+    datasetPreference: string = "sample",
+    forceReload: boolean = false
+  ): {
     questions: MMMLUQuestion[];
     report: DatasetValidationReport;
   } {
-    if (!forceReload && this.cachedQuestions && this.cachedReport) {
-      return { questions: this.cachedQuestions, report: this.cachedReport };
+    const isFull =
+      datasetPreference === "full" ||
+      datasetPreference === "mmlu_HI-IN.csv" ||
+      datasetPreference === "all";
+    const cacheKey = isFull ? "full" : "sample";
+
+    if (!forceReload && this.cachedDatasets.has(cacheKey)) {
+      return this.cachedDatasets.get(cacheKey)!;
     }
 
-    const filePath = this.resolveDatasetPath();
+    const filePath = this.resolveDatasetPath(datasetPreference);
     const rawContent = fs.readFileSync(filePath, { encoding: "utf8" });
     const rawRows = this.parseRFC4180CSV(rawContent);
 
@@ -228,10 +257,10 @@ export class MMMLUCSVLoader {
       errors,
     };
 
-    this.cachedQuestions = validQuestions;
-    this.cachedReport = report;
+    const output = { questions: validQuestions, report };
+    this.cachedDatasets.set(cacheKey, output);
 
-    return { questions: validQuestions, report };
+    return output;
   }
 
   /**
@@ -249,13 +278,15 @@ export class MMMLUCSVLoader {
 
   /**
    * Selects an evaluation question sample based on subject, size, and optional seed
+   * Defaults to the canonical 456-question sample
    */
   public selectQuestions(
-    sampleSize: 10 | 25 | 50 | 100 | 500 | "all" = 25,
+    sampleSize: any = 25,
     subjectFilter?: string,
-    seed?: number
+    seed?: number,
+    datasetPreference: string = "sample"
   ): MMMLUQuestion[] {
-    const { questions } = this.loadAndValidateDataset();
+    const { questions } = this.loadAndValidateDataset(datasetPreference);
 
     // 1. Filter by subject if specified and not "all"
     let filtered = questions;

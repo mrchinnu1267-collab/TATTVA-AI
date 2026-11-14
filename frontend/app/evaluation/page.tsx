@@ -68,6 +68,8 @@ export default function AIEvaluationLabPage() {
   const [loadingMeta, setLoadingMeta] = useState(true);
 
   // Configuration Controls
+  const [selectedDataset, setSelectedDataset] = useState<string>("sample");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("hi-IN");
   const [selectedProvider, setSelectedProvider] = useState<string>("gemini");
   const [selectedModel, setSelectedModel] = useState<string>("gemini-3.6-flash");
   const [sampleSize, setSampleSize] = useState<string>("25");
@@ -176,6 +178,8 @@ export default function AIEvaluationLabPage() {
       subject: selectedSubject,
       concurrency,
       seed: seedInput ? Number(seedInput) : undefined,
+      dataset: selectedDataset,
+      language: selectedLanguage,
       stream: true,
     };
 
@@ -637,6 +641,33 @@ export default function AIEvaluationLabPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Dataset Corpus Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Benchmark Dataset</label>
+                    <select
+                      value={selectedDataset}
+                      onChange={(e) => setSelectedDataset(e.target.value)}
+                      disabled={isRunning}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors disabled:opacity-50"
+                    >
+                      <option value="sample">456-Question Sample Benchmark (Canonical - Fast)</option>
+                      <option value="full">14,042-Question Full Corpus</option>
+                    </select>
+                  </div>
+
+                  {/* Evaluation Language */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Language</label>
+                    <select
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      disabled={isRunning}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors disabled:opacity-50"
+                    >
+                      <option value="hi-IN">Hindi (hi-IN) — Devanagari</option>
+                    </select>
+                  </div>
+
                   {/* Provider Selection */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-300">AI Provider</label>
@@ -680,11 +711,12 @@ export default function AIEvaluationLabPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors disabled:opacity-50"
                     >
                       <option value="10">10 Questions (Fast Sanity Check)</option>
-                      <option value="25">25 Questions (Standard Benchmark)</option>
+                      <option value="25">25 Questions (Default Standard)</option>
                       <option value="50">50 Questions (Comprehensive)</option>
                       <option value="100">100 Questions (Deep Evaluation)</option>
-                      <option value="500">500 Questions (Stress Benchmark)</option>
-                      <option value="all">Full Dataset (All 14,042 Questions)</option>
+                      <option value="250">250 Questions (Extended Benchmark)</option>
+                      <option value="456">456 Questions (Full Sample Benchmark)</option>
+                      <option value="all">Full Corpus (All Questions)</option>
                     </select>
                   </div>
 

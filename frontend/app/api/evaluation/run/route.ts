@@ -23,16 +23,24 @@ export async function POST(req: NextRequest) {
       seed,
       timeoutMs = 30000,
       stream = false,
+      dataset = "sample",
+      language = "hi-IN",
+      userId,
     } = body;
+
+    const parsedSampleSize = sampleSize === "all" ? "all" : Number(sampleSize) || 25;
 
     const config: EvaluationConfig = {
       provider,
       model,
-      sampleSize,
+      sampleSize: parsedSampleSize,
       subject: subject === "all" ? undefined : subject,
       concurrency: Math.min(Math.max(Number(concurrency) || 2, 1), 5),
-      seed: seed ? Number(seed) : undefined,
+      seed: seed !== undefined && seed !== null && seed !== "" ? Number(seed) : undefined,
       timeoutMs: Number(timeoutMs) || 30000,
+      dataset: dataset || "sample",
+      language: language || "hi-IN",
+      userId,
     };
 
     const runId = `eval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -43,7 +51,9 @@ export async function POST(req: NextRequest) {
       const customReadable = new ReadableStream({
         async start(controller) {
           const sendEvent = (event: string, data: any) => {
-            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            controller.enqueue(
+              encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+            );
           };
 
           try {

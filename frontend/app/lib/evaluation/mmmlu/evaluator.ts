@@ -248,7 +248,8 @@ The "answer" field MUST be exactly one of: "A", "B", "C", or "D".`;
     const questions = mmmluCSVLoader.selectQuestions(
       config.sampleSize,
       config.subject,
-      config.seed
+      config.seed,
+      config.dataset || "sample"
     );
 
     const totalQuestions = questions.length;
@@ -313,6 +314,12 @@ The "answer" field MUST be exactly one of: "A", "B", "C", or "D".`;
     const validAttempts = correctCount + incorrectCount;
     const accuracy = validAttempts > 0 ? (correctCount / validAttempts) * 100 : 0;
     const rawAccuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+    const avgResponseTimeMs =
+      results.length > 0
+        ? Math.round(
+            results.reduce((acc, r) => acc + (r.latencyMs || 0), 0) / results.length
+          )
+        : 0;
 
     // Calculate subject-wise metrics
     const subjectMetrics: Record<string, SubjectAccuracyMetric> = {};
@@ -341,14 +348,21 @@ The "answer" field MUST be exactly one of: "A", "B", "C", or "D".`;
 
     const summary: EvaluationRunSummary = {
       id: runId,
-      datasetName: "OpenAI MMMLU",
+      userId: config.userId,
+      status: abortController.signal.aborted ? "cancelled" : "completed",
+      datasetName:
+        config.dataset === "full"
+          ? "OpenAI MMMLU (Full Corpus)"
+          : "OpenAI MMMLU (Sample Benchmark)",
       datasetVersion: "Hindi (HI-IN)",
-      language: "hi-IN",
+      language: config.language || "hi-IN",
       provider: config.provider,
       model: config.model,
       createdAt: new Date(startTime).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs,
+      totalDurationMs: durationMs,
+      averageResponseTimeMs: avgResponseTimeMs,
       totalQuestions,
       attemptedQuestions,
       validAttempts,

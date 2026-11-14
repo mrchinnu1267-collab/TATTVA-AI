@@ -98,15 +98,29 @@ export interface DetailedDatasetValidationReport {
   unicodeIntegrity: UnicodeIntegrityReport;
 }
 
+export type SampleSizeOption =
+  | 10
+  | 25
+  | 50
+  | 100
+  | 250
+  | 456
+  | 500
+  | "all"
+  | number;
+
 export interface EvaluationConfig {
   provider: ModelProvider;
   model: string;
-  sampleSize: 10 | 25 | 50 | 100 | 500 | "all";
+  sampleSize: SampleSizeOption;
   subject?: string; // "all" or specific subject
   concurrency?: number; // 1 to 5, default 2
   seed?: number; // Optional random seed for reproducible sampling
   timeoutMs?: number; // Default 30000ms
   maxRetries?: number; // Default 2
+  dataset?: "sample" | "full" | string; // defaults to "sample" (456-question sample)
+  language?: string; // defaults to "hi-IN"
+  userId?: string;
 }
 
 export type EvaluationQuestionStatus =
@@ -148,6 +162,8 @@ export interface SubjectAccuracyMetric {
 
 export interface EvaluationRunSummary {
   id: string;
+  userId?: string;
+  status?: "running" | "completed" | "failed" | "cancelled";
   datasetName: string;
   datasetVersion: string;
   language: string;
@@ -156,6 +172,8 @@ export interface EvaluationRunSummary {
   createdAt: string; // ISO String
   completedAt?: string;
   durationMs: number;
+  totalDurationMs?: number;
+  averageResponseTimeMs: number;
   totalQuestions: number;
   attemptedQuestions: number;
   validAttempts: number; // Excludes API failures and invalid formats
