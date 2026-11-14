@@ -117,6 +117,7 @@ try {
   await jiti("./human-intelligence.test.ts");
   await jiti("./prompt-intelligence.test.ts");
   await jiti("./research-file-engine.test.ts");
+  await jiti("./mmmlu-evaluation.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {
