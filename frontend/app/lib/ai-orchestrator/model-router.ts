@@ -256,10 +256,27 @@ export class ModelRouter {
   }
 
   /**
-   * Returns complete catalog of registered models with live availability status
+   * Dynamically checks if a model provider's credential is configured and active
+   */
+  public isModelAvailable(spec: AIModelSpec): boolean {
+    const cleanKey = (key?: string) => Boolean(key?.replace(/^["']|["']$/g, "").trim());
+    if (spec.provider === "gemini") return cleanKey(process.env.GEMINI_API_KEY);
+    if (spec.provider === "anthropic") return cleanKey(process.env.ANTHROPIC_API_KEY);
+    if (spec.provider === "openai") return cleanKey(process.env.OPENAI_API_KEY);
+    if (spec.provider === "openrouter") return cleanKey(process.env.OPENROUTER_API_KEY);
+    if (spec.provider === "nvidia") return cleanKey(process.env.NVIDIA_API_KEY);
+    if (spec.provider === "tattva" || spec.provider === "local") return Boolean(process.env.TATTVA_LOCAL_ENDPOINT);
+    return false;
+  }
+
+  /**
+   * Returns complete catalog of registered models with live dynamic availability status
    */
   public getModelCatalog(): AIModelSpec[] {
-    return [...this.availableModels];
+    return this.availableModels.map((m) => ({
+      ...m,
+      isAvailable: this.isModelAvailable(m),
+    }));
   }
 
   /**
@@ -271,17 +288,18 @@ export class ModelRouter {
     preferredProvider?: ModelProvider,
     preferredModel?: string
   ): AIModelSpec[] {
+    const activeModels = this.getModelCatalog();
     const candidates: AIModelSpec[] = [];
 
     // 1. Explicit model preference
     if (preferredModel) {
-      const explicit = this.availableModels.find((m) => m.id === preferredModel);
+      const explicit = activeModels.find((m) => m.id === preferredModel);
       if (explicit && explicit.isAvailable) candidates.push(explicit);
     }
 
     // 2. Preferred provider preference
     if (preferredProvider) {
-      const providerModels = this.availableModels.filter(
+      const providerModels = activeModels.filter(
         (m) => m.provider === preferredProvider && m.isAvailable && !candidates.includes(m)
       );
       candidates.push(...providerModels);
@@ -289,31 +307,31 @@ export class ModelRouter {
 
     // 3. High complexity tasks: prioritize high-capacity reasoning models
     if (complexity >= 7 || intent === "coding" || intent === "mathematics" || intent === "agent_task" || intent === "document_analysis") {
-      const claudeSonnet = this.availableModels.find((m) => m.id === "claude-3-5-sonnet-20241022" && m.isAvailable);
+      const claudeSonnet = activeModels.find((m) => m.id === "claude-3-5-sonnet-20241022" && m.isAvailable);
       if (claudeSonnet && !candidates.includes(claudeSonnet)) candidates.push(claudeSonnet);
 
-      const geminiHeavy = this.availableModels.find((m) => m.id === "gemini-3.6-flash" && m.isAvailable);
+      const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.6-flash" && m.isAvailable);
       if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
 
-      const gpt4o = this.availableModels.find((m) => m.id === "gpt-4o" && m.isAvailable);
+      const gpt4o = activeModels.find((m) => m.id === "gpt-4o" && m.isAvailable);
       if (gpt4o && !candidates.includes(gpt4o)) candidates.push(gpt4o);
 
-      const deepseekR1 = this.availableModels.find((m) => m.id === "deepseek/deepseek-r1:free" && m.isAvailable);
+      const deepseekR1 = activeModels.find((m) => m.id === "deepseek/deepseek-r1:free" && m.isAvailable);
       if (deepseekR1 && !candidates.includes(deepseekR1)) candidates.push(deepseekR1);
     }
 
     // 4. Fast conversational & general tasks
-    const geminiFast = this.availableModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
+    const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
     if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
 
-    const gptMini = this.availableModels.find((m) => m.id === "gpt-4o-mini" && m.isAvailable);
+    const gptMini = activeModels.find((m) => m.id === "gpt-4o-mini" && m.isAvailable);
     if (gptMini && !candidates.includes(gptMini)) candidates.push(gptMini);
 
-    const claudeHaiku = this.availableModels.find((m) => m.id === "claude-3-5-haiku-20241022" && m.isAvailable);
+    const claudeHaiku = activeModels.find((m) => m.id === "claude-3-5-haiku-20241022" && m.isAvailable);
     if (claudeHaiku && !candidates.includes(claudeHaiku)) candidates.push(claudeHaiku);
 
     // 5. Remaining available models
-    for (const m of this.availableModels) {
+    for (const m of activeModels) {
       if (m.isAvailable && !candidates.includes(m)) {
         candidates.push(m);
       }
@@ -410,7 +428,7 @@ export class ModelRouter {
    * 1. Google Gemini Adapter
    */
   private async callGemini(modelId: string, options: ModelCallOptions): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY?.replace(/^["']|["']$/g, "").trim();
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY environment credential");
 
     const ai = new GoogleGenAI({ apiKey });
@@ -476,7 +494,7 @@ export class ModelRouter {
    * 2. Anthropic Claude Adapter
    */
   private async callAnthropic(modelId: string, options: ModelCallOptions): Promise<string> {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY?.replace(/^["']|["']$/g, "").trim();
     if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY environment credential");
 
     const claudeMessages: any[] = options.messages
@@ -523,7 +541,12 @@ export class ModelRouter {
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
-      throw new Error(`Anthropic Claude HTTP ${res.status}: ${errBody}`);
+      let parsedMsg = errBody;
+      try {
+        const parsed = JSON.parse(errBody);
+        parsedMsg = parsed.error?.message || errBody;
+      } catch {}
+      throw new Error(`Anthropic Claude HTTP ${res.status}: ${parsedMsg}`);
     }
 
     const data = await res.json();
@@ -534,7 +557,7 @@ export class ModelRouter {
    * 3. OpenAI Adapter
    */
   private async callOpenAI(modelId: string, options: ModelCallOptions): Promise<string> {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY?.replace(/^["']|["']$/g, "").trim();
     if (!apiKey) throw new Error("Missing OPENAI_API_KEY environment credential");
 
     const openAiMessages: any[] = options.messages.map((m) => ({
@@ -563,7 +586,12 @@ export class ModelRouter {
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
-      throw new Error(`OpenAI HTTP ${res.status}: ${errBody}`);
+      let parsedMsg = errBody;
+      try {
+        const parsed = JSON.parse(errBody);
+        parsedMsg = parsed.error?.message || errBody;
+      } catch {}
+      throw new Error(`OpenAI HTTP ${res.status}: ${parsedMsg}`);
     }
 
     const data = await res.json();
@@ -574,7 +602,7 @@ export class ModelRouter {
    * 4. OpenRouter Adapter
    */
   private async callOpenRouter(modelId: string, options: ModelCallOptions): Promise<string> {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY?.replace(/^["']|["']$/g, "").trim();
     if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY environment credential");
 
     const openRouterMessages: any[] = options.messages.map((m) => ({
@@ -615,7 +643,7 @@ export class ModelRouter {
    * 5. Nvidia NIM Adapter
    */
   private async callNvidia(modelId: string, options: ModelCallOptions): Promise<string> {
-    const apiKey = process.env.NVIDIA_API_KEY;
+    const apiKey = process.env.NVIDIA_API_KEY?.replace(/^["']|["']$/g, "").trim();
     if (!apiKey) throw new Error("Missing NVIDIA_API_KEY environment credential");
 
     const nvidiaMessages = options.messages.map((m) => ({
