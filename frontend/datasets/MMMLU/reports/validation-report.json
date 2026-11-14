@@ -1,0 +1,101 @@
+{
+  "datasetFile": "MMMLU_HI-IN_456_question_sample.csv",
+  "datasetPath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\datasets\\MMMLU\\MMMLU_HI-IN_456_question_sample.csv",
+  "fileSizeBytes": 415007,
+  "fileSizeFormatted": "405.28 KB",
+  "validatedAt": "2026-11-14T23:00:10.125Z",
+  "isValid": true,
+  "totalRecords": 456,
+  "validRecords": 456,
+  "invalidRecords": 0,
+  "duplicateRecords": 0,
+  "totalSubjects": 57,
+  "subjectsBreakdown": {
+    "abstract_algebra": 8,
+    "anatomy": 8,
+    "astronomy": 8,
+    "business_ethics": 8,
+    "clinical_knowledge": 8,
+    "college_biology": 8,
+    "college_chemistry": 8,
+    "college_computer_science": 8,
+    "college_mathematics": 8,
+    "college_medicine": 8,
+    "college_physics": 8,
+    "computer_security": 8,
+    "conceptual_physics": 8,
+    "econometrics": 8,
+    "electrical_engineering": 8,
+    "elementary_mathematics": 8,
+    "formal_logic": 8,
+    "global_facts": 8,
+    "high_school_biology": 8,
+    "high_school_chemistry": 8,
+    "high_school_computer_science": 8,
+    "high_school_european_history": 8,
+    "high_school_geography": 8,
+    "high_school_government_and_politics": 8,
+    "high_school_macroeconomics": 8,
+    "high_school_mathematics": 8,
+    "high_school_microeconomics": 8,
+    "high_school_physics": 8,
+    "high_school_psychology": 8,
+    "high_school_statistics": 8,
+    "high_school_us_history": 8,
+    "high_school_world_history": 8,
+    "human_aging": 8,
+    "human_sexuality": 8,
+    "international_law": 8,
+    "jurisprudence": 8,
+    "logical_fallacies": 8,
+    "machine_learning": 8,
+    "management": 8,
+    "marketing": 8,
+    "medical_genetics": 8,
+    "miscellaneous": 8,
+    "moral_disputes": 8,
+    "moral_scenarios": 8,
+    "nutrition": 8,
+    "philosophy": 8,
+    "prehistory": 8,
+    "professional_accounting": 8,
+    "professional_law": 8,
+    "professional_medicine": 8,
+    "professional_psychology": 8,
+    "public_relations": 8,
+    "security_studies": 8,
+    "sociology": 8,
+    "us_foreign_policy": 8,
+    "virology": 8,
+    "world_religions": 8
+  },
+  "answerDistribution": {
+    "A": {
+      "count": 100,
+      "percentage": 21.93
+    },
+    "B": {
+      "count": 107,
+      "percentage": 23.46
+    },
+    "C": {
+      "count": 118,
+      "percentage": 25.88
+    },
+    "D": {
+      "count": 131,
+      "percentage": 28.73
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "unicodeIntegrity": {
+    "passed": true,
+    "hasReplacementChar": false,
+    "hasNullBytes": false,
+    "nonAsciiDevanagariDetected": true,
+    "details": [
+      "Devanagari Hindi script (U+0900 - U+097F) successfully identified and verified."
+    ]
+  }
+}

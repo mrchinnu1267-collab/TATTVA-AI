@@ -43,8 +43,59 @@ export interface DatasetValidationReport {
   missingQuestions: number;
   missingOptions: number;
   invalidAnswers: number;
+  duplicateQuestions?: number;
   subjects: Array<{ name: string; count: number }>;
   errors: string[];
+}
+
+export interface AnswerDistribution {
+  A: { count: number; percentage: number };
+  B: { count: number; percentage: number };
+  C: { count: number; percentage: number };
+  D: { count: number; percentage: number };
+}
+
+export interface ValidationErrorRecord {
+  rowIndex: number;
+  questionPreview: string;
+  errorType:
+    | "missing_question"
+    | "missing_option"
+    | "invalid_answer"
+    | "empty_subject"
+    | "duplicate_question"
+    | "malformed_row"
+    | "unicode_encoding";
+  message: string;
+  field?: string;
+  rawAnswer?: string;
+}
+
+export interface UnicodeIntegrityReport {
+  passed: boolean;
+  hasReplacementChar: boolean;
+  hasNullBytes: boolean;
+  nonAsciiDevanagariDetected: boolean;
+  details: string[];
+}
+
+export interface DetailedDatasetValidationReport {
+  datasetFile: string;
+  datasetPath: string;
+  fileSizeBytes: number;
+  fileSizeFormatted: string;
+  validatedAt: string;
+  isValid: boolean;
+  totalRecords: number;
+  validRecords: number;
+  invalidRecords: number;
+  duplicateRecords: number;
+  totalSubjects: number;
+  subjectsBreakdown: Record<string, number>;
+  answerDistribution: AnswerDistribution;
+  errors: ValidationErrorRecord[];
+  warnings: string[];
+  unicodeIntegrity: UnicodeIntegrityReport;
 }
 
 export interface EvaluationConfig {
