@@ -49,9 +49,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Security guard: sanitize relativePath to prevent directory traversal
+    const cleanRelPath = String(relativePath).replace(/^[/\\]+/, "").trim();
+    if (cleanRelPath.includes("..")) {
+      return NextResponse.json(
+        { success: false, error: "Invalid relativePath: directory traversal characters ('..') are strictly prohibited" },
+        { status: 400 }
+      );
+    }
+
     datasetRegistry.registerDataset({
-      id,
-      name,
+      id: String(id).replace(/[^a-zA-Z0-9_-]/g, ""),
+      name: String(name).trim().slice(0, 100),
       description: description || "",
       source: source || "User Uploaded",
       license: license || "Custom / Proprietary",
@@ -61,7 +70,7 @@ export async function POST(req: NextRequest) {
       fileSizeBytes: 0,
       fileSizeFormatted: "0 B",
       format: format || "jsonl",
-      relativePath,
+      relativePath: cleanRelPath,
       categories: categories || ["knowledge"],
       intendedPurpose: intendedPurpose || "Evaluation",
       dateImported: new Date().toISOString(),

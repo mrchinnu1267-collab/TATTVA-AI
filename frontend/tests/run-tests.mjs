@@ -141,6 +141,10 @@ try {
   if (perfImp?.runPerformanceImprovementTests) {
     await perfImp.runPerformanceImprovementTests();
   }
+  const e2eFlow = await jiti("./e2e-evaluation-flow.test.ts");
+  if (e2eFlow?.runE2EVerificationTest) {
+    await e2eFlow.runE2EVerificationTest();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

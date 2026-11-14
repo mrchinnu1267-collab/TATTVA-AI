@@ -151,7 +151,12 @@ export class DatasetRegistry {
     }
 
     const root = this.resolveCanonicalDatasetsRoot();
-    const filePath = path.join(root, meta.relativePath);
+    const filePath = path.normalize(path.join(root, meta.relativePath));
+
+    // Security guard: Enforce sandbox boundary to prevent directory traversal
+    if (!filePath.startsWith(root)) {
+      throw new Error(`Security Exception: Dataset path traverses outside datasets directory`);
+    }
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`Dataset file '${meta.relativePath}' not found on disk at: ${filePath}`);
