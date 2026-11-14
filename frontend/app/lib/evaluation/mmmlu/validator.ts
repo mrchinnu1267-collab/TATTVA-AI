@@ -71,7 +71,7 @@ export class MMMLUDatasetValidator {
 
         for (const cand of candidatePaths) {
           try {
-            if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+            if (fs.existsSync(/*turbopackIgnore: true*/ cand) && fs.statSync(/*turbopackIgnore: true*/ cand).isFile()) {
               return cand;
             }
           } catch {
@@ -193,9 +193,9 @@ export class MMMLUDatasetValidator {
       fileSizeBytes = Buffer.byteLength(rawContent, "utf8");
     } else {
       resolvedPath = this.resolveDatasetPath(targetPathOrContent);
-      const stat = fs.statSync(resolvedPath);
+      const stat = fs.statSync(/*turbopackIgnore: true*/ resolvedPath);
       fileSizeBytes = stat.size;
-      rawContent = fs.readFileSync(resolvedPath, { encoding: "utf8" });
+      rawContent = fs.readFileSync(/*turbopackIgnore: true*/ resolvedPath, { encoding: "utf8" });
     }
 
     // Normalize Unicode to canonical NFC form

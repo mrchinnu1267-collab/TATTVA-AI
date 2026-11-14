@@ -117,8 +117,30 @@ try {
   await jiti("./human-intelligence.test.ts");
   await jiti("./prompt-intelligence.test.ts");
   await jiti("./research-file-engine.test.ts");
-  await jiti("./mmmlu-evaluation.test.ts");
-  await jiti("./mmmlu-validation.test.ts");
+  const mmmluEval = await jiti("./mmmlu-evaluation.test.ts");
+  if (mmmluEval?.runMMMLUEvaluationTests) {
+    await mmmluEval.runMMMLUEvaluationTests();
+  }
+  const mmmluVal = await jiti("./mmmlu-validation.test.ts");
+  if (mmmluVal?.runMMMLUValidationTests) {
+    await mmmluVal.runMMMLUValidationTests();
+  }
+  const dsMgmt = await jiti("./dataset-management.test.ts");
+  if (dsMgmt?.runDatasetManagementTests) {
+    await dsMgmt.runDatasetManagementTests();
+  }
+  const modelCmp = await jiti("./model-comparison.test.ts");
+  if (modelCmp?.runModelComparisonTests) {
+    await modelCmp.runModelComparisonTests();
+  }
+  const convEval = await jiti("./conversational-evaluation.test.ts");
+  if (convEval?.runConversationalEvaluationTests) {
+    await convEval.runConversationalEvaluationTests();
+  }
+  const perfImp = await jiti("./performance-improvement.test.ts");
+  if (perfImp?.runPerformanceImprovementTests) {
+    await perfImp.runPerformanceImprovementTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

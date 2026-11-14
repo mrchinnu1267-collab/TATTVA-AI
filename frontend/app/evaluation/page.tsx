@@ -34,12 +34,19 @@ import {
   Info,
   Check,
   AlertCircle,
+  Swords,
+  MessageSquareText,
+  Lightbulb,
 } from "lucide-react";
 import type {
   EvaluationRunSummary,
   QuestionEvaluationResult,
   EvaluationLiveProgress,
 } from "../lib/evaluation/mmmlu/types";
+import { DatasetLibraryTab } from "./components/DatasetLibraryTab";
+import { ModelComparisonTab } from "./components/ModelComparisonTab";
+import { ConversationalEvalTab } from "./components/ConversationalEvalTab";
+import { ImprovementAnalysisTab } from "./components/ImprovementAnalysisTab";
 
 interface ModelOption {
   id: string;
@@ -86,7 +93,8 @@ export default function AIEvaluationLabPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // History & Tabs
-  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
+  type EvaluationTab = "current" | "arena" | "conversational" | "datasets" | "improvements" | "history";
+  const [activeTab, setActiveTab] = useState<EvaluationTab>("current");
   const [historyRuns, setHistoryRuns] = useState<Array<Omit<EvaluationRunSummary, "results">>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -391,26 +399,72 @@ export default function AIEvaluationLabPage() {
 
         {/* Action Controls & Navigation Tabs */}
         <div className="flex items-center gap-3">
-          <div className="flex rounded-lg bg-slate-900 border border-slate-800 p-1">
+          <div className="flex flex-wrap rounded-lg bg-slate-900 border border-slate-800 p-1 gap-1">
             <button
               onClick={() => setActiveTab("current")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
                 activeTab === "current"
                   ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              Active Evaluation
+              <BrainCircuit className="w-3.5 h-3.5" />
+              <span>Knowledge Lab (MMMLU)</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("arena")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                activeTab === "arena"
+                  ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Swords className="w-3.5 h-3.5 text-amber-400" />
+              <span>Model Arena</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("conversational")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                activeTab === "conversational"
+                  ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <MessageSquareText className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Conversational Lab</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("datasets")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                activeTab === "datasets"
+                  ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Dataset Library</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("improvements")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                activeTab === "improvements"
+                  ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
+              <span>Weakness Analysis</span>
             </button>
             <button
               onClick={() => setActiveTab("history")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
                 activeTab === "history"
                   ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              Evaluation History
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>History</span>
             </button>
           </div>
 
@@ -463,7 +517,15 @@ export default function AIEvaluationLabPage() {
           </div>
         )}
 
-        {activeTab === "history" ? (
+        {activeTab === "datasets" ? (
+          <DatasetLibraryTab />
+        ) : activeTab === "arena" ? (
+          <ModelComparisonTab />
+        ) : activeTab === "conversational" ? (
+          <ConversationalEvalTab />
+        ) : activeTab === "improvements" ? (
+          <ImprovementAnalysisTab />
+        ) : activeTab === "history" ? (
           /* ======================================================== */
           /* EVALUATION HISTORY TAB                                    */
           /* ======================================================== */
