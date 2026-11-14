@@ -1,10 +1,45 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
+import os from "os";
 
 export const runtime = "nodejs";
 
-const LOCAL_VAULT_DIR = path.resolve(process.cwd(), ".tattva-vault");
+// Use runtime accessor to prevent static NFT AST from recursively analyzing the whole project workspace
+function getFs() {
+  return require("fs");
+}
+
+function findVaultFile(safeId: string): { fullPath: string; matched: string } | null {
+  const fsInstance = getFs();
+  const vaultDirs = [
+    path.join(/*turbopackIgnore: true*/ os.tmpdir(), ".tattva-vault"),
+    path.join(/*turbopackIgnore: true*/ "/tmp", ".tattva-vault"),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), ".tattva-vault"),
+  ];
+
+  for (const vaultDir of vaultDirs) {
+    try {
+      if (!fsInstance.existsSync(/*turbopackIgnore: true*/ vaultDir)) continue;
+      const userDirs = fsInstance.readdirSync(/*turbopackIgnore: true*/ vaultDir);
+      for (const dir of userDirs) {
+        const dirPath = path.join(/*turbopackIgnore: true*/ vaultDir, dir);
+        try {
+          if (!fsInstance.statSync(/*turbopackIgnore: true*/ dirPath).isDirectory()) continue;
+          const files = fsInstance.readdirSync(/*turbopackIgnore: true*/ dirPath);
+          const matched = files.find((f: string) => f.startsWith(safeId));
+          if (matched) {
+            return { fullPath: path.join(/*turbopackIgnore: true*/ dirPath, matched), matched };
+          }
+        } catch {
+          // ignore directory traversal errors
+        }
+      }
+    } catch {
+      // ignore missing vault directory
+    }
+  }
+  return null;
+}
 
 /**
  * Universal Document Download Streamer
@@ -19,38 +54,25 @@ export async function GET(request: Request) {
     const isInline = searchParams.get("inline") === "true";
 
     if (fileId) {
-      // Look for the file in the local vault directories (workspace and /tmp)
       const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const vaultDirs = [LOCAL_VAULT_DIR, path.join("/tmp", ".tattva-vault")];
+      const found = findVaultFile(safeId);
 
-      for (const vaultDir of vaultDirs) {
-        if (fs.existsSync(vaultDir)) {
-          const userDirs = fs.readdirSync(vaultDir);
-          for (const dir of userDirs) {
-            const dirPath = path.join(vaultDir, dir);
-            if (fs.statSync(dirPath).isDirectory()) {
-              const files = fs.readdirSync(dirPath);
-              const matched = files.find((f) => f.startsWith(safeId));
-              if (matched) {
-                const fullPath = path.join(dirPath, matched);
-                const buffer = fs.readFileSync(fullPath);
-                const ext = path.extname(matched).toLowerCase().replace(/^\./, "");
-                const mimeType = getMimeType(ext);
-                const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      if (found) {
+        const fsInstance = getFs();
+        const buffer = fsInstance.readFileSync(found.fullPath);
+        const ext = path.extname(found.matched).toLowerCase().replace(/^\./, "");
+        const mimeType = getMimeType(ext);
+        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-                return new Response(buffer, {
-                  status: 200,
-                  headers: {
-                    "Content-Type": mimeType,
-                    "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
-                    "Content-Length": buffer.length.toString(),
-                    "Cache-Control": "private, max-age=3600",
-                  },
-                });
-              }
-            }
-          }
-        }
+        return new Response(buffer, {
+          status: 200,
+          headers: {
+            "Content-Type": mimeType,
+            "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
+            "Content-Length": buffer.length.toString(),
+            "Cache-Control": "private, max-age=3600",
+          },
+        });
       }
     }
 
@@ -137,4 +159,3 @@ function getMimeType(ext: string): string {
       return "application/octet-stream";
   }
 }
-

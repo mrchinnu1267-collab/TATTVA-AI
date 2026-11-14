@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Rate limiter storage for middleware edge/node
+// Rate limiter storage for proxy edge/node
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
 function checkMiddlewareRateLimit(ip: string, limit: number, windowSec: number): boolean {
@@ -21,7 +21,7 @@ function checkMiddlewareRateLimit(ip: string, limit: number, windowSec: number):
   return true;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") || "";
 
@@ -90,7 +90,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Bypass middleware for sitemap and robots endpoints so nothing alters the pure XML/txt stream
+  // 3. Bypass proxy for sitemap and robots endpoints so nothing alters the pure XML/txt stream
   if (
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
@@ -139,6 +139,8 @@ export function middleware(request: NextRequest) {
 
   return response;
 }
+
+export const middleware = proxy;
 
 export const config = {
   matcher: [

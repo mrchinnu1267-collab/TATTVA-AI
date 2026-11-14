@@ -96,8 +96,8 @@ export async function saveGeneratedDocumentToVault(
   // Maintain in local vault for instant in-app streaming & zero-latency downloads
   try {
     const userDir = ensureVaultDir(safeUserId);
-    const localFilePath = path.join(userDir, `${fileId}${safeExtension}`);
-    fs.writeFileSync(localFilePath, buffer);
+    const localFilePath = path.join(/*turbopackIgnore: true*/ userDir, `${fileId}${safeExtension}`);
+    fs.writeFileSync(/*turbopackIgnore: true*/ localFilePath, buffer);
     if (!signedUrl) {
       signedUrl = `/api/download-document?fileId=${fileId}&name=${encodeURIComponent(filename)}`;
     }
