@@ -40,6 +40,7 @@ import {
 } from "../image-engine";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
+import { promptAnalyzer, promptEnhancer, responseValidator, AnalyzedPrompt } from "./intelligence";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -93,34 +94,8 @@ export class MasterAIOrchestrator {
     // PII Redaction
     const { text: cleanUserPrompt } = redactSensitiveInfo(guardResult.sanitizedPrompt);
 
-    // 1.5. HUMAN-CENTRED CONTEXT & INTENT ANALYSIS
-    const historyForAnalysis = messages.slice(0, -1).map((m) => ({
-      role: m.role,
-      content: m.content,
-      attachments: m.attachments,
-    }));
-    const humanAnalysis = humanIntelligence.analyzeConversation(cleanUserPrompt, historyForAnalysis);
-
-    if (humanAnalysis.goal === "clarification_needed") {
-      return {
-        role: "assistant",
-        content: "What specific topic, problem, or code would you like me to help you with?",
-        kind: "text",
-        intent: "general_chat",
-        modelUsed: "TATTVA-Human-Intelligence",
-        provider: "local",
-        latencyMs: Date.now() - startTime,
-        humanContext: {
-          goal: humanAnalysis.goal,
-          signal: humanAnalysis.primarySignal,
-        },
-      };
-    }
-
-    const queryForClassification = humanAnalysis.referenceResolution.resolvedQuery || cleanUserPrompt;
-
     // Check attached images or files
-    const userAttachedImage = latestMessage.attachments?.find((att) => {
+    const userAttachedImage = latestMessage?.attachments?.find((att) => {
       const d = att.data || (att as any).url || "";
       return typeof d === "string" && (d.startsWith("data:image/") || (att.type?.startsWith("image/") && d.length > 20));
     })?.data;
@@ -141,6 +116,57 @@ export class MasterAIOrchestrator {
       }
     }
     const hasAttachedFile = Boolean(attachmentBuf);
+
+    // 1.5. HUMAN-CENTRED CONTEXT & INTENT ANALYSIS
+    const historyForAnalysis = messages.slice(0, -1).map((m) => ({
+      role: m.role,
+      content: m.content,
+      attachments: m.attachments,
+    }));
+    const humanAnalysis = humanIntelligence.analyzeConversation(cleanUserPrompt, historyForAnalysis);
+
+    // 1.6. CENTRALIZED PROMPT UNDERSTANDING & INTELLIGENCE ENGINE
+    const promptAnalysis = promptAnalyzer.analyzePrompt(
+      cleanUserPrompt,
+      historyForAnalysis,
+      hasAttachedFile || Boolean(userAttachedImage)
+    );
+
+    // Early exit if genuinely ambiguous without any context or attachments
+    if (promptAnalysis.isAmbiguous && promptAnalysis.clarificationQuestion && !hasAttachedFile && !hasImageToEdit) {
+      return {
+        role: "assistant",
+        content: promptAnalysis.clarificationQuestion,
+        kind: "text",
+        intent: "general_chat",
+        modelUsed: "TATTVA-Prompt-Intelligence",
+        provider: "local",
+        latencyMs: Date.now() - startTime,
+        debugInfo: {
+          promptAnalysis,
+          reason: "Clarification requested due to ambiguous user instruction",
+        },
+      };
+    }
+
+    if (humanAnalysis.goal === "clarification_needed" && !hasAttachedFile && !hasImageToEdit) {
+      return {
+        role: "assistant",
+        content: "What specific topic, problem, or code would you like me to help you with?",
+        kind: "text",
+        intent: "general_chat",
+        modelUsed: "TATTVA-Human-Intelligence",
+        provider: "local",
+        latencyMs: Date.now() - startTime,
+        humanContext: {
+          goal: humanAnalysis.goal,
+          signal: humanAnalysis.primarySignal,
+        },
+      };
+    }
+
+    const queryForClassification =
+      promptAnalysis.resolvedPrompt || humanAnalysis.referenceResolution.resolvedQuery || cleanUserPrompt;
     const apiKey = process.env.GEMINI_API_KEY;
 
     // 2. EARLY ROUTING: RESEARCH-TO-FILE GENERATION ENGINE (Bypasses redundant 3-5s classification LLM call)
@@ -425,8 +451,12 @@ export class MasterAIOrchestrator {
         content: m.content,
         attachments: m.attachments,
       }));
+      const queryForReasoning =
+        promptAnalysis.resolvedPrompt ||
+        cleanUserPrompt ||
+        "Please analyze this file/handwriting thoroughly, explain the concepts, and provide complete step-by-step solutions for any questions or problems found.";
       const reasoningRes = await reasoningEngine.solveComplexTask(
-        cleanUserPrompt || "Please analyze this file/handwriting thoroughly, explain the concepts, and provide complete step-by-step solutions for any questions or problems found.",
+        queryForReasoning,
         effectiveIntent,
         convHistory,
         latestMessage.attachments
@@ -435,7 +465,7 @@ export class MasterAIOrchestrator {
       // Record experience
       void experienceEngine.recordExperience({
         taskType: effectiveIntent,
-        problemStatement: cleanUserPrompt || "File & Handwriting Analysis",
+        problemStatement: queryForReasoning,
         attemptedSolution: reasoningRes.finalAnswer,
         passedVerification: reasoningRes.verificationPassed,
         keyLearnings: reasoningRes.plan.steps.map((s) => s.title),
@@ -567,31 +597,44 @@ ${ragResults.combinedContext ? `RETRIEVED KNOWLEDGE CONTEXT:\n${ragResults.combi
 ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences.map((e) => e.attemptedSolution.slice(0, 200)).join("\n---\n")}` : ""}`;
 
     const humanGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
+    const promptIntelligenceGuidance = promptEnhancer.buildExecutionGuidance(promptAnalysis);
 
     const fullSystemInstruction = [
       identityPrompt,
+      promptIntelligenceGuidance,
       personalizationPrompt,
       humanGuidance,
     ]
       .filter(Boolean)
       .join("\n\n");
 
-    const modelMessages = messages.slice(-12).map((m) => ({
-      role: m.role,
-      content: m.content,
-      attachments: m.attachments,
-    }));
+    const modelMessages = messages.slice(-12).map((m, idx, arr) => {
+      const isLatestTurn = idx === arr.length - 1 && m.role === "user";
+      const contentToUse =
+        isLatestTurn && promptAnalysis.resolvedPrompt && promptAnalysis.contextReferences.hasAnaphora
+          ? promptAnalysis.resolvedPrompt
+          : m.content;
+
+      return {
+        role: m.role,
+        content: contentToUse,
+        attachments: m.attachments,
+      };
+    });
 
     const modelResult = await modelRouter.executeWithFallback(
       effectiveIntent,
-      classification.complexityScore,
+      promptAnalysis.complexityScore || classification.complexityScore,
       {
         messages: modelMessages,
         systemInstruction: fullSystemInstruction,
-        preferredModel,
-        temperature: 0.7,
+        preferredModel: preferredModel || promptAnalysis.appropriateModel,
+        temperature: promptAnalysis.expectedOutput.format === "code" || promptAnalysis.expectedOutput.format === "json" ? 0.2 : 0.7,
       }
     );
+
+    // Validate response against extracted requirements, constraints, and formats
+    const validation = responseValidator.validate(modelResult.text, promptAnalysis);
 
     const guardedReply = guardAIOutput(modelResult.text);
     const finalized = humanIntelligence.finalizeResponse(
@@ -615,7 +658,10 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
         content: m.content,
         category: m.category,
       })),
-      warnings: modelResult.warnings,
+      warnings: [
+        ...(modelResult.warnings || []),
+        ...(!validation.isValid && validation.missingRequirements.length > 0 ? validation.missingRequirements : []),
+      ],
       progressStage: "completed",
       humanContext: {
         goal: humanAnalysis.goal,
@@ -633,7 +679,21 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
         executionTimeMs: Date.now() - startTime,
         toolsUsed: webCitations ? ["web_search"] : [],
         intent: effectiveIntent,
-        complexityScore: classification.complexityScore,
+        complexityScore: promptAnalysis.complexityScore || classification.complexityScore,
+        promptAnalysis: {
+          userObjective: promptAnalysis.userObjective,
+          primaryIntent: promptAnalysis.primaryIntent,
+          entities: promptAnalysis.entities,
+          constraints: promptAnalysis.constraints,
+          expectedFormat: promptAnalysis.expectedOutput.format,
+          complexity: promptAnalysis.complexity,
+          dialect: promptAnalysis.detectedDialect,
+        },
+        validation: {
+          score: validation.score,
+          isValid: validation.isValid,
+          missingRequirements: validation.missingRequirements,
+        },
       },
     };
   }
