@@ -109,15 +109,41 @@ export async function runGsm8kDatasetIntegrationTests() {
   assert(evalRecords[0].metadata?.fullSolution.includes("####"), "Solution contains '####' delimiter");
   assert(/^\s*-?[\d,]+(?:\.\d+)?\s*$/.test(evalRecords[0].expectedAnswer!), `Final answer is valid numeric format: ${evalRecords[0].expectedAnswer}`);
 
-  // 7. Dataset Registry Integration
-  console.log("\n--- 7. Dataset Registry Integration ---");
+  // 7. Duplicate & Cross-Contamination Overlap Detection
+  console.log("\n--- 7. Duplicate & Cross-Contamination Overlap Detection ---");
+  const trainQuestionSet = new Set<string>();
+  let trainDuplicates = 0;
+  for (const r of trainRecords) {
+    const qNorm = r.question.trim().toLowerCase();
+    if (trainQuestionSet.has(qNorm)) trainDuplicates++;
+    else trainQuestionSet.add(qNorm);
+  }
+  assert(trainDuplicates === 0, `Training set contains 0 duplicate questions (all ${trainQuestionSet.size} unique)`);
+
+  const evalQuestionSet = new Set<string>();
+  let evalDuplicates = 0;
+  for (const r of evalRecords) {
+    const qNorm = r.question.trim().toLowerCase();
+    if (evalQuestionSet.has(qNorm)) evalDuplicates++;
+    else evalQuestionSet.add(qNorm);
+  }
+  assert(evalDuplicates === 0, `Evaluation set contains 0 duplicate questions (all ${evalQuestionSet.size} unique)`);
+
+  let crossLeakage = 0;
+  for (const q of evalQuestionSet) {
+    if (trainQuestionSet.has(q)) crossLeakage++;
+  }
+  assert(crossLeakage === 0, `Zero cross-contamination overlap between train and eval (0 leaked questions)`);
+
+  // 8. Dataset Registry Integration
+  console.log("\n--- 8. Dataset Registry Integration ---");
   const mathDatasets = datasetRegistry.listDatasetsByCategory("mathematics");
   const mathIds = mathDatasets.map((d) => d.id);
   assert(mathIds.includes("gsm8k-train"), "listDatasetsByCategory('mathematics') contains 'gsm8k-train'");
   assert(mathIds.includes("gsm8k-evaluation"), "listDatasetsByCategory('mathematics') contains 'gsm8k-evaluation'");
 
-  // 8. Training/Evaluation Separation
-  console.log("\n--- 8. Training/Evaluation Separation ---");
+  // 9. Training/Evaluation Separation
+  console.log("\n--- 9. Training/Evaluation Separation ---");
   const trainingDatasets = datasetRegistry.listDatasetsByType("training");
   const evalDatasets = datasetRegistry.listDatasetsByType("evaluation");
 
@@ -127,8 +153,8 @@ export async function runGsm8kDatasetIntegrationTests() {
   assert(!evalDatasets.some((d) => d.id === "gsm8k-train"), "Evaluation datasets list strictly excludes 'gsm8k-train'");
   assert(trainMeta!.relativePath !== evalMeta!.relativePath, "Training and evaluation have distinct relative paths");
 
-  // 9. Evaluation Data Contamination Prevention & Answer Masking
-  console.log("\n--- 9. Evaluation Contamination Prevention & Answer Masking ---");
+  // 10. Evaluation Data Contamination Prevention & Answer Masking
+  console.log("\n--- 10. Evaluation Contamination Prevention & Answer Masking ---");
   const leakageCheckTrain = datasetRegistry.preventTrainingDataLeakage({ datasetId: "gsm8k-train" });
   assert(leakageCheckTrain.allowed === true, "Training dataset allowed in training pipeline");
 
@@ -142,8 +168,8 @@ export async function runGsm8kDatasetIntegrationTests() {
   assert(maskedSample.metadata?.fullSolution === "[PROTECTED]", "Full solution masked in protected record");
   assert(maskedSample.question === evalRecords[0].question, "Original question preserved for model prompt");
 
-  // 10. File-Not-Found Handling
-  console.log("\n--- 10. File-Not-Found Handling ---");
+  // 11. File-Not-Found Handling
+  console.log("\n--- 11. File-Not-Found Handling ---");
   let fileNotFoundCaught = false;
   try {
     parquetDatasetLoader.inspectParquetFile("datasets/non_existent_file.parquet");
