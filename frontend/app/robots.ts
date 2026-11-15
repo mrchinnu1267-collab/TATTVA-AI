@@ -13,6 +13,8 @@ export default function robots(): MetadataRoute.Robots {
           "/image-studio",
           "/maps",
           "/download",
+          "/sitemap.xml",
+          "/sitemap",
           "/favicon.ico",
           "/favicon*.png",
           "/icon*.png",
