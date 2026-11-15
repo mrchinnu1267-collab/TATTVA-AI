@@ -3809,11 +3809,11 @@ export default function ChatPage() {
 
           {/* Action Buttons: New Chat & Global Search (Frozen) - Doubled & Touch Friendly */}
           <div className="flex-shrink-0 p-3 space-y-1.5 border-b border-black/[0.06] dark:border-white/[0.06]">
-            {/* New Chat Button - Minimal & Elegant */}
+            {/* New Chat Button - Minimal & Elegant with Micro-Interaction */}
             <button
               type="button"
               onClick={createNewChat}
-              className={`flex items-center justify-between w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium transition cursor-pointer select-none active:scale-98 ${
+              className={`flex items-center justify-between w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium transition cursor-pointer select-none fluid-press ${
                 isDark
                   ? "bg-white/[0.08] hover:bg-white/[0.12] text-white"
                   : "bg-neutral-900 hover:bg-neutral-800 text-white"
@@ -3834,7 +3834,7 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none fluid-press ${
                 isDark
                   ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
                   : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
@@ -3853,7 +3853,7 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none fluid-press ${
                 isDark
                   ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
                   : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
@@ -3864,30 +3864,11 @@ export default function ChatPage() {
               <span>Satellite Maps</span>
             </Link>
 
-            {/* AI Evaluation Lab */}
-            <Link
-              href="/evaluation"
-              onClick={() => {
-                if (typeof window !== "undefined" && window.innerWidth < 768) {
-                  setSidebarOpen(false);
-                }
-              }}
-              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
-                isDark
-                  ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
-                  : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-              }`}
-              title="Open Evaluation Lab"
-            >
-              <Brain className="w-4 h-4 text-neutral-400" />
-              <span>Evaluation Lab</span>
-            </Link>
-
             {/* Temporary Chat Button */}
             <button
               type="button"
               onClick={toggleTemporaryChat}
-              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none fluid-press ${
                 isTemporaryChat
                   ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
                   : isDark
@@ -3911,7 +3892,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none fluid-press ${
                 isDark
                   ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
                   : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
@@ -3929,7 +3910,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setIsArchiveModalOpen(true)}
-              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none fluid-press ${
                 isDark
                   ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
                   : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
@@ -4887,7 +4868,7 @@ export default function ChatPage() {
 
                       {isUser ? (
                         /* USER MESSAGE: Compact Bubble + Hover Edit/Copy Toolbar */
-                        <div className="flex flex-col items-end gap-1.5 group/user w-full">
+                        <div className="flex flex-col items-end gap-1.5 group/user w-full animate-fluid-message-in">
                           {editingMessageId === msg.id ? (
                             /* Inline Edit Form */
                             <div
@@ -4985,7 +4966,7 @@ export default function ChatPage() {
                         </div>
                       ) : (
                         /* ASSISTANT MESSAGE: Clean Surface Presentation (No Box), Pure Typography */
-                        <div className="flex gap-3 sm:gap-4 items-start w-full group/assistant">
+                        <div className="flex gap-3 sm:gap-4 items-start w-full group/assistant animate-fluid-message-in">
                           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-sm mt-1 p-0.5">
                             <img
                               src="/logo.png"
@@ -5496,11 +5477,11 @@ export default function ChatPage() {
               <input ref={sheetInputRef} type="file" multiple accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" />
               <input ref={codeInputRef} type="file" multiple accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat" onChange={handleFileSelect} className="hidden" />
 
-              {/* Fluid Minimalist Floating Composer */}
+              {/* Subtle Fluid Glass Floating Composer */}
               <div
-                className={`relative flex flex-col justify-between w-full rounded-2xl sm:rounded-3xl border p-2.5 sm:p-3 shadow-md transition-all duration-200 ${isDark
-                    ? "bg-[#141519] border-white/10 text-white focus-within:border-indigo-500/40 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-black/20"
-                    : "bg-neutral-100/90 border-neutral-200 text-neutral-900 focus-within:border-indigo-500/40 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-neutral-200/50"
+                className={`relative flex flex-col justify-between w-full rounded-2xl sm:rounded-3xl border p-2.5 sm:p-3 shadow-xs transition-all duration-200 backdrop-blur-md ${isDark
+                    ? "bg-[#13141a]/90 border-white/[0.08] text-white focus-within:border-neutral-500/60 focus-within:ring-2 focus-within:ring-white/5"
+                    : "bg-neutral-100/80 border-neutral-200/80 text-neutral-900 focus-within:border-neutral-400 focus-within:ring-2 focus-within:ring-neutral-400/10"
                   }`}
               >
                 {/* 1. Top Row: Text Input */}
@@ -5517,7 +5498,7 @@ export default function ChatPage() {
                   }}
                   rows={1}
                   placeholder="Ask TATTVA AI"
-                  className={`w-full resize-none bg-transparent px-2 pt-1 pb-1 text-base sm:text-base outline-none max-h-36 min-h-[38px] leading-relaxed ${isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
+                  className={`w-full resize-none bg-transparent px-2 pt-1 pb-1 text-sm sm:text-base outline-none max-h-36 min-h-[38px] leading-relaxed ${isDark ? "text-white placeholder:text-neutral-400" : "text-black placeholder:text-neutral-500"
                     }`}
                 />
 
@@ -5532,83 +5513,97 @@ export default function ChatPage() {
                         setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
                         setIsToolsMenuOpen(false);
                       }}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all cursor-pointer select-none active:scale-95 ${isAttachmentMenuOpen
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all cursor-pointer select-none fluid-press ${isAttachmentMenuOpen
                           ? "rotate-45 bg-white/20 text-white"
-                          : "text-neutral-300 hover:text-white hover:bg-white/10"
+                          : "text-neutral-400 hover:text-white hover:bg-white/10 dark:text-neutral-400 dark:hover:text-white"
                         }`}
                       title="Attach files, media, or AI tools"
                     >
-                      <Plus className="w-6 h-6 transition-transform duration-200 stroke-[2]" />
+                      <Plus className="w-5 h-5 transition-transform duration-200 stroke-[2]" />
                     </button>
 
-                    {/* Attachment & Tools Dropdown Popover matching Image 2 */}
+                    {/* Attachment & Tools Dropdown Popover */}
                     {isAttachmentMenuOpen && (
                       <div
-                        className={`absolute bottom-full left-0 mb-3 w-64 sm:w-72 rounded-[28px] border p-2 shadow-2xl backdrop-blur-2xl text-xs z-50 animate-in fade-in zoom-in-95 duration-150 ${isDark ? "border-neutral-700 bg-[#222222]/98 text-white" : "border-black/10 bg-white/98 text-neutral-900"
+                        className={`absolute bottom-full left-0 mb-3 w-64 sm:w-72 rounded-2xl border p-2 shadow-xl backdrop-blur-xl text-xs z-50 animate-fluid-dropdown ${isDark ? "border-white/[0.08] bg-[#161720]/95 text-white" : "border-neutral-200/90 bg-white/95 text-neutral-900"
                           }`}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* 1. Camera (Image 2) */}
+                        {/* 1. Camera */}
                         <button
                           type="button"
                           onClick={() => {
                             cameraInputRef.current?.click();
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-2xs ${
+                            isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
+                          }`}>
                             <Camera className="w-5 h-5 stroke-[2]" />
                           </div>
-                          <span className="font-semibold text-[15px] tracking-tight">Camera</span>
+                          <span className="font-medium text-sm tracking-tight">Camera</span>
                         </button>
 
-                        {/* 2. Photos (Image 2) */}
+                        {/* 2. Photos */}
                         <button
                           type="button"
                           onClick={() => {
                             imageInputRef.current?.click();
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-2xs ${
+                            isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
+                          }`}>
                             <ImageIcon className="w-5 h-5 stroke-[2]" />
                           </div>
-                          <span className="font-semibold text-[15px] tracking-tight">Photos</span>
+                          <span className="font-medium text-sm tracking-tight">Photos</span>
                         </button>
 
-
-
-                        {/* 3. Files (Image 2) */}
+                        {/* 3. Files */}
                         <button
                           type="button"
                           onClick={() => {
                             fileInputRef.current?.click();
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-2xs ${
+                            isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
+                          }`}>
                             <Paperclip className="w-5 h-5 stroke-[2]" />
                           </div>
-                          <span className="font-semibold text-[15px] tracking-tight">Files</span>
+                          <span className="font-medium text-sm tracking-tight">Files</span>
                         </button>
 
-                        {/* 4. Plugins / Connectors (Image 2 & 5) */}
+                        {/* 4. Plugins / Connectors */}
                         <button
                           type="button"
                           onClick={() => {
                             setIsAttachmentMenuOpen(false);
                             setIsBrowseConnectorsOpen(true);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-2xs ${
+                            isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
+                          }`}>
                             <Plug className="w-5 h-5 stroke-[2]" />
                           </div>
                           <div className="flex-1 min-w-0 flex items-center justify-between">
-                            <span className="font-semibold text-[15px] tracking-tight">Plugins</span>
+                            <span className="font-medium text-sm tracking-tight">Plugins</span>
                             {activeConnectorIds.length > 0 && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/25 text-purple-300">
                                 {activeConnectorIds.length} Active
@@ -5617,7 +5612,7 @@ export default function ChatPage() {
                           </div>
                         </button>
 
-                        {/* 5. Think harder (Image 2) */}
+                        {/* 5. Think harder */}
                         <button
                           type="button"
                           onClick={() => {
@@ -5625,14 +5620,16 @@ export default function ChatPage() {
                             showToast(!isThinkingEnabled ? "Think harder Enabled" : "Think harder Turned Off");
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition shadow-2xs ${isThinkingEnabled ? "bg-sky-500/30 text-sky-400" : "bg-white/10 text-white"
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition shadow-2xs ${isThinkingEnabled ? "bg-sky-500/30 text-sky-400" : isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
                             }`}>
                             <Gauge className="w-5 h-5 stroke-[2]" />
                           </div>
                           <div className="flex-1 min-w-0 flex items-center justify-between">
-                            <span className="font-semibold text-[15px] tracking-tight">Think harder</span>
+                            <span className="font-medium text-sm tracking-tight">Think harder</span>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isThinkingEnabled ? "bg-sky-500/25 text-sky-300" : "text-neutral-500"
                               }`}>
                               {isThinkingEnabled ? "ON" : "OFF"}
@@ -5646,12 +5643,16 @@ export default function ChatPage() {
                           onClick={() => {
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-2xs">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-2xs ${
+                            isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
+                          }`}>
                             <MapPin className="w-5 h-5 stroke-[2]" />
                           </div>
-                          <span className="font-semibold text-[15px] tracking-tight">Satellite Maps</span>
+                          <span className="font-medium text-sm tracking-tight">Satellite Maps</span>
                         </Link>
 
                         {/* 7. My Workspace */}
@@ -5660,14 +5661,16 @@ export default function ChatPage() {
                           onClick={() => {
                             setIsAttachmentMenuOpen(false);
                           }}
-                          className="flex items-center gap-4 w-full rounded-2xl px-3 py-2 text-left transition hover:bg-white/10 active:scale-98 cursor-pointer select-none"
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600/30 text-blue-400 shadow-2xs border border-blue-500/30">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600/25 text-blue-400 shadow-2xs border border-blue-500/20">
                             <Briefcase className="w-5 h-5 stroke-[2]" />
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-semibold text-[15px] tracking-tight text-white">My Workspace</span>
-                            <span className="text-[11px] text-blue-300">Word, Excel, PowerPoint & 4 more</span>
+                            <span className="font-medium text-sm tracking-tight">My Workspace</span>
+                            <span className="text-[11px] text-blue-400">Word, Excel, PowerPoint &amp; 4 more</span>
                           </div>
                         </Link>
                       </div>

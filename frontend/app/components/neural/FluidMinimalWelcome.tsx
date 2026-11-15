@@ -36,7 +36,7 @@ const SUGGESTIONS: SuggestionOption[] = [
   {
     id: "analyze",
     label: "Analyze a file",
-    prompt: "I want to analyze and extract core insights, structural trends, and takeaways from my uploaded files.",
+    prompt: "I want to analyze and extract core insights, structural trends, and key takeaways from my uploaded files.",
     toolMode: "file",
     icon: FileText,
   },
@@ -55,10 +55,10 @@ export default function FluidMinimalWelcome({
   onSelectPrompt,
 }: FluidMinimalWelcomeProps) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-8 max-w-2xl mx-auto my-auto animate-in fade-in duration-500 select-none">
-      {/* 1. Signature Neural Orb */}
-      <div className="mb-5 flex items-center justify-center">
-        <NeuralOrbMinimal state={coreState} isDark={isDark} size={108} />
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-6 sm:py-8 max-w-2xl mx-auto my-auto select-none animate-fluid-page-in">
+      {/* 1. Refined, Elegant Neural Orb */}
+      <div className="mb-4 sm:mb-5 flex items-center justify-center">
+        <NeuralOrbMinimal state={coreState} isDark={isDark} size={92} />
       </div>
 
       {/* 2. Minimal Category Label */}
@@ -72,26 +72,26 @@ export default function FluidMinimalWelcome({
         </span>
       </div>
 
-      {/* 3. Welcome Headline */}
+      {/* 3. Welcome Heading (30–36px on desktop, modern typography) */}
       <h1
-        className={`text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight transition-colors duration-200 ${
+        className={`text-2xl sm:text-3xl md:text-[34px] font-semibold tracking-tight leading-tight transition-colors duration-200 ${
           isDark ? "text-white" : "text-neutral-900"
         }`}
       >
-        What can we create today?
+        What would you like to work on?
       </h1>
 
-      {/* 4. Supporting Description */}
+      {/* 4. Supporting Text (14–16px, readable line-height, generous whitespace) */}
       <p
-        className={`mt-2 text-sm sm:text-base font-normal max-w-md mx-auto leading-relaxed transition-colors duration-200 ${
+        className={`mt-2.5 text-sm sm:text-base font-normal max-w-md mx-auto leading-relaxed transition-colors duration-200 ${
           isDark ? "text-neutral-400" : "text-neutral-600"
         }`}
       >
-        Think freely. Explore ideas. Get things done with TATTVA AI.
+        Explore ideas, create something new and get things done with TATTVA AI.
       </p>
 
-      {/* 5. Four Compact Suggestion Buttons (Clean, whitespace-focused, non-crowded) */}
-      <div className="mt-7 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 max-w-lg w-full">
+      {/* 5. Four Compact Suggestion Buttons (Subtle Fluid Glass, Level 3 Micro-Interactions) */}
+      <div className="mt-6 sm:mt-7 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 max-w-lg w-full">
         {SUGGESTIONS.map((item) => {
           const Icon = item.icon;
           return (
@@ -99,14 +99,14 @@ export default function FluidMinimalWelcome({
               key={item.id}
               type="button"
               onClick={() => onSelectPrompt(item.prompt, item.toolMode)}
-              className={`group inline-flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium border transition-all duration-200 cursor-pointer active:scale-97 select-none ${
+              className={`group inline-flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium border transition-all duration-150 cursor-pointer fluid-press select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 ${
                 isDark
-                  ? "border-white/[0.08] bg-white/[0.02] text-neutral-300 hover:text-white hover:bg-white/[0.06] hover:border-white/20 hover:shadow-xs"
-                  : "border-neutral-200 bg-white text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 hover:border-neutral-300 shadow-xs"
+                  ? "border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] text-neutral-300 hover:text-white hover:border-white/20"
+                  : "border-neutral-200/80 bg-neutral-100/70 hover:bg-neutral-200/70 text-neutral-700 hover:text-neutral-900 hover:border-neutral-300 shadow-xs"
               }`}
             >
               <Icon
-                className={`w-3.5 h-3.5 transition-colors duration-200 ${
+                className={`w-3.5 h-3.5 transition-colors duration-150 ${
                   isDark
                     ? "text-neutral-400 group-hover:text-indigo-400"
                     : "text-neutral-500 group-hover:text-indigo-600"

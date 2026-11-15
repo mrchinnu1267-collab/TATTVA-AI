@@ -15,7 +15,7 @@ export default function NeuralOrbMinimal({
   state = "idle",
   isDark = true,
   className = "",
-  size = 110,
+  size = 92,
 }: NeuralOrbMinimalProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -41,17 +41,17 @@ export default function NeuralOrbMinimal({
     canvas.width = size * dpr;
     canvas.height = size * dpr;
 
-    // 14 delicate ambient floating particles
-    const particleCount = 14;
+    // 10 delicate, subtle ambient micro-particles
+    const particleCount = 10;
     const particles = Array.from({ length: particleCount }, (_, i) => {
       const angle = (i / particleCount) * Math.PI * 2;
-      const dist = 24 + (i % 3) * 10;
+      const dist = 18 + (i % 3) * 8;
       return {
         baseAngle: angle,
         dist,
-        speed: 0.4 + (i % 4) * 0.15,
-        radius: 1 + (i % 3) * 0.5,
-        phase: i * 0.7,
+        speed: 0.3 + (i % 3) * 0.12,
+        radius: 0.8 + (i % 2) * 0.4,
+        phase: i * 0.8,
       };
     });
 
@@ -66,19 +66,19 @@ export default function NeuralOrbMinimal({
 
       const elapsed = (Date.now() - startTimeRef.current) / 1000;
 
-      // Dynamic animation speed by state
+      // Dynamic activity rate based on active state
       switch (state) {
         case "typing":
-          targetSpeed = 1.3;
+          targetSpeed = 1.25;
           break;
         case "processing":
-          targetSpeed = 2.0;
+          targetSpeed = 1.7;
           break;
         case "generating":
-          targetSpeed = 1.6;
+          targetSpeed = 1.45;
           break;
         case "error":
-          targetSpeed = 0.8;
+          targetSpeed = 0.7;
           break;
         default:
           targetSpeed = 1.0;
@@ -92,17 +92,17 @@ export default function NeuralOrbMinimal({
       ctx.clearRect(0, 0, size, size);
 
       const cx = size / 2;
-      const cy = size / 2 + Math.sin(t * 1.2) * 3; // gentle float
+      const cy = size / 2 + Math.sin(t * 1.0) * 2; // extremely subtle floating
 
-      // Palette configuration based on state & dark mode
-      let primaryColor = isDark ? "rgba(99, 102, 241, " : "rgba(79, 70, 229, "; // indigo
-      let secondaryColor = isDark ? "rgba(168, 85, 247, " : "rgba(147, 51, 234, "; // violet
-      let highlightColor = isDark ? "rgba(56, 189, 248, " : "rgba(14, 165, 233, "; // sky
+      // Elegant, restrained color palette
+      let primaryColor = isDark ? "rgba(99, 102, 241, " : "rgba(79, 70, 229, "; // soft indigo
+      let secondaryColor = isDark ? "rgba(147, 51, 234, " : "rgba(126, 34, 206, "; // soft violet
+      let highlightColor = isDark ? "rgba(56, 189, 248, " : "rgba(14, 165, 233, "; // soft sky
 
       if (state === "processing") {
         primaryColor = "rgba(14, 165, 233, ";
         secondaryColor = "rgba(99, 102, 241, ";
-        highlightColor = "rgba(168, 85, 247, ";
+        highlightColor = "rgba(147, 51, 234, ";
       } else if (state === "generating") {
         primaryColor = "rgba(16, 185, 129, ";
         secondaryColor = "rgba(56, 189, 248, ";
@@ -113,38 +113,38 @@ export default function NeuralOrbMinimal({
         highlightColor = "rgba(251, 146, 60, ";
       }
 
-      // 1. Soft Ambient Halo (Extremely gentle)
-      const haloRadius = 42 + Math.sin(t * 1.5) * 3;
-      const haloGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, haloRadius);
-      haloGrad.addColorStop(0, primaryColor + (isDark ? "0.22)" : "0.15)"));
-      haloGrad.addColorStop(0.5, secondaryColor + (isDark ? "0.10)" : "0.06)"));
+      // 1. Soft Ambient Halo (Less bright, soft & organic)
+      const haloRadius = 34 + Math.sin(t * 1.3) * 2;
+      const haloGrad = ctx.createRadialGradient(cx, cy, 6, cx, cy, haloRadius);
+      haloGrad.addColorStop(0, primaryColor + (isDark ? "0.15)" : "0.10)"));
+      haloGrad.addColorStop(0.6, secondaryColor + (isDark ? "0.06)" : "0.04)"));
       haloGrad.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = haloGrad;
       ctx.beginPath();
       ctx.arc(cx, cy, haloRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Translucent Fluid Core Sphere
-      const coreRadius = 26 + Math.sin(t * 2) * 1.5;
+      // 2. Translucent Fluid Core Sphere (Subtle fluid glass)
+      const coreRadius = 20 + Math.sin(t * 1.6) * 1.2;
       const coreGrad = ctx.createRadialGradient(
-        cx - 6 + Math.cos(t * 0.8) * 3,
-        cy - 6 + Math.sin(t * 0.8) * 3,
-        2,
+        cx - 4 + Math.cos(t * 0.7) * 2.5,
+        cy - 4 + Math.sin(t * 0.7) * 2.5,
+        1.5,
         cx,
         cy,
         coreRadius
       );
-      coreGrad.addColorStop(0, highlightColor + (isDark ? "0.85)" : "0.75)"));
-      coreGrad.addColorStop(0.35, primaryColor + (isDark ? "0.70)" : "0.60)"));
-      coreGrad.addColorStop(0.75, secondaryColor + (isDark ? "0.50)" : "0.40)"));
-      coreGrad.addColorStop(1, primaryColor + (isDark ? "0.15)" : "0.10)"));
+      coreGrad.addColorStop(0, highlightColor + (isDark ? "0.75)" : "0.65)"));
+      coreGrad.addColorStop(0.4, primaryColor + (isDark ? "0.55)" : "0.45)"));
+      coreGrad.addColorStop(0.8, secondaryColor + (isDark ? "0.35)" : "0.28)"));
+      coreGrad.addColorStop(1, primaryColor + (isDark ? "0.12)" : "0.08)"));
 
       ctx.fillStyle = coreGrad;
       ctx.beginPath();
       ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. Subtle Inner Specular Sheen (Translucent Glass Effect)
+      // 3. Subtle Inner Specular Reflection
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
@@ -153,46 +153,36 @@ export default function NeuralOrbMinimal({
       const sheenGrad = ctx.createLinearGradient(
         cx - coreRadius,
         cy - coreRadius,
-        cx + coreRadius,
-        cy + coreRadius
+        cx + coreRadius * 0.5,
+        cy + coreRadius * 0.5
       );
-      sheenGrad.addColorStop(0, "rgba(255, 255, 255, 0.45)");
-      sheenGrad.addColorStop(0.3, "rgba(255, 255, 255, 0.08)");
-      sheenGrad.addColorStop(0.7, "rgba(255, 255, 255, 0)");
-      sheenGrad.addColorStop(1, "rgba(255, 255, 255, 0.15)");
+      sheenGrad.addColorStop(0, isDark ? "rgba(255, 255, 255, 0.32)" : "rgba(255, 255, 255, 0.45)");
+      sheenGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.08)");
+      sheenGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
 
       ctx.fillStyle = sheenGrad;
-      ctx.fillRect(cx - coreRadius, cy - coreRadius, coreRadius * 2, coreRadius * 2);
-
-      // Generating wave distortion highlight
-      if (state === "generating") {
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        for (let angle = 0; angle <= Math.PI * 2; angle += 0.1) {
-          const waveR = coreRadius - 3 + Math.sin(angle * 6 + t * 4) * 1.5;
-          const px = cx + Math.cos(angle) * waveR;
-          const py = cy + Math.sin(angle) * waveR;
-          if (angle === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.stroke();
-      }
-
+      ctx.beginPath();
+      ctx.ellipse(
+        cx - 2 + Math.cos(t * 0.6) * 1.5,
+        cy - 4 + Math.sin(t * 0.6) * 1.5,
+        coreRadius * 0.75,
+        coreRadius * 0.4,
+        -Math.PI / 5,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
       ctx.restore();
 
-      // 4. Delicate Orbital Particles (Soft, non-distracting)
+      // 4. Delicate Ambient Orbital Micro-Particles
       particles.forEach((p) => {
-        const curAngle = p.baseAngle + t * p.speed * 0.35;
-        const curDist = p.dist + Math.sin(t * 1.5 + p.phase) * 3;
+        const curAngle = p.baseAngle + t * p.speed * 0.5;
+        const curDist = p.dist + Math.sin(t * 1.2 + p.phase) * 2;
         const px = cx + Math.cos(curAngle) * curDist;
-        const py = cy + Math.sin(curAngle) * (curDist * 0.75); // slight perspective flattening
-        const alpha = 0.25 + (Math.sin(t * 2 + p.phase) + 1) * 0.25;
+        const py = cy + Math.sin(curAngle) * curDist * 0.65; // subtle isometric tilt
+        const pAlpha = 0.35 + Math.sin(t * 2 + p.phase) * 0.2;
 
-        ctx.fillStyle = isDark
-          ? `rgba(224, 231, 255, ${alpha})`
-          : `rgba(99, 102, 241, ${alpha * 0.8})`;
+        ctx.fillStyle = highlightColor + (isDark ? `${pAlpha})` : `${pAlpha * 0.85})`);
         ctx.beginPath();
         ctx.arc(px, py, p.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -203,20 +193,22 @@ export default function NeuralOrbMinimal({
       animFrameRef.current = requestAnimationFrame(render);
     };
 
-    render();
+    animFrameRef.current = requestAnimationFrame(render);
 
     return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       document.removeEventListener("visibilitychange", handleVisibility);
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
     };
   }, [state, isDark, size]);
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center select-none ${className}`}
+      className={`relative flex items-center justify-center select-none ${className}`}
       style={{ width: size, height: size }}
-      aria-label="TATTVA AI Neural Intelligence Core"
       role="img"
+      aria-label={`TATTVA AI Neural Core state: ${state}`}
     >
       <canvas
         ref={canvasRef}

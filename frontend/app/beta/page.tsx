@@ -150,12 +150,6 @@ export default function BetaTestingPage() {
             >
               Open AI Chat
             </Link>
-            <Link
-              href="/evaluation"
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition"
-            >
-              Evaluation Lab
-            </Link>
           </div>
         </div>
 
@@ -262,8 +256,8 @@ export default function BetaTestingPage() {
                   <span className="text-slate-400">Generates downloadable presentations (.pptx) and documents (.docx) on demand.</span>
                 </div>
                 <div className="p-3 bg-slate-950 border border-slate-800/70 rounded-xl">
-                  <span className="font-semibold text-white block mb-1">MMMLU Evaluation Lab</span>
-                  <span className="text-slate-400">Empirical benchmarking across 57 academic subjects with seed parity.</span>
+                  <span className="font-semibold text-white block mb-1">Automated Model Verification</span>
+                  <span className="text-slate-400">Internal empirical benchmarking across GSM8K and reasoning suites.</span>
                 </div>
               </div>
             </div>

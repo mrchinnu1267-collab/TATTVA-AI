@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400;1,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -13,16 +13,27 @@
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
+
+  /* Centralized Motion Design Tokens */
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-micro: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --dur-major-in: 420ms;
+  --dur-major-out: 240ms;
+  --dur-component: 220ms;
+  --dur-micro-press: 120ms;
+  --dur-micro-hover: 180ms;
 }
 
 html.dark,
 body.dark {
-  --background: #0d0e11;
-  --foreground: #f5f5f5;
-  --muted: #a3a3a3;
-  --border: #262626;
+  --background: #0c0d12;
+  --foreground: #f4f4f6;
+  --muted: #a1a1aa;
+  --border: #24252e;
   --accent: #ffffff;
-  --soft: #16171b;
+  --soft: #14151c;
 }
 
 * {
@@ -50,9 +61,11 @@ body {
   min-height: 100%;
   background: var(--background);
   color: var(--foreground);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 code,
@@ -60,7 +73,131 @@ kbd,
 samp,
 pre,
 .font-mono {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+
+/* =========================================================================
+   TATTVA AI – CENTRALIZED MOTION & SUBTLE FLUID GLASS SYSTEM
+   ========================================================================= */
+
+/* Level 1: Major Navigation Transitions */
+.animate-fluid-page-in {
+  animation: fluidFadeZoomIn var(--dur-major-in) var(--ease-fluid) forwards;
+}
+
+/* Level 2: Component Transitions */
+.animate-fluid-dropdown {
+  animation: fluidDropdownIn var(--dur-component) var(--ease-fluid) forwards;
+}
+
+.animate-fluid-dialog {
+  animation: fluidDialogIn var(--dur-component) var(--ease-fluid) forwards;
+}
+
+/* Level 3: Micro-Interactions */
+.fluid-press {
+  transition: transform var(--dur-micro-press) var(--ease-micro), opacity var(--dur-micro-hover) var(--ease-micro);
+}
+.fluid-press:active {
+  transform: scale(0.97);
+}
+
+.fluid-hover-lift {
+  transition: transform var(--dur-micro-hover) var(--ease-fluid), box-shadow var(--dur-micro-hover) var(--ease-fluid);
+}
+.fluid-hover-lift:hover {
+  transform: translateY(-1px);
+}
+
+/* Chat Message Entrance */
+.animate-fluid-message-in {
+  animation: fluidMessageIn 280ms var(--ease-fluid) forwards;
+}
+
+/* Subtle Fluid Glass System */
+.fluid-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+html.dark .fluid-glass,
+body.dark .fluid-glass {
+  background: rgba(18, 19, 25, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fluid-glass-subtle {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+html.dark .fluid-glass-subtle,
+body.dark .fluid-glass-subtle {
+  background: rgba(20, 21, 28, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@keyframes fluidFadeZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.985) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fluidDropdownIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fluidDialogIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fluidMessageIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fluid-page-in,
+  .animate-fluid-dropdown,
+  .animate-fluid-dialog,
+  .animate-fluid-message-in,
+  .fluid-press,
+  .fluid-hover-lift {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 /* =========================================================================
