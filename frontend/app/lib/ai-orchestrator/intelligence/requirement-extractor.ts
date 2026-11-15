@@ -57,7 +57,7 @@ export class RequirementExtractor {
       }
     }
 
-    // 3. Extract explicit constraints
+    // 3. Extract explicit constraints & negative constraints
     if (
       lower.includes("no placeholder") ||
       lower.includes("zero placeholder") ||
@@ -84,6 +84,27 @@ export class RequirementExtractor {
     }
     if (lower.includes("in detail") || lower.includes("comprehensive") || lower.includes("deep dive")) {
       constraints.push("Comprehensive, in-depth technical analysis");
+    }
+    // Negative constraint parsing
+    if (/\b(do not|don't|never|cannot|no)\s+([^,\.;\n]+)/i.test(lower)) {
+      const matches = lower.matchAll(/\b(do not|don't|never|cannot)\s+([^,\.;\n]+)/gi);
+      for (const m of matches) {
+        constraints.push(`Prohibition: ${m[0].trim()}`);
+      }
+    }
+    // Strict format constraint parsing
+    if (/\b(strictly in|only respond in|must be strictly)\s+([^,\.;\n]+)/i.test(lower)) {
+      const match = lower.match(/\b(strictly in|only respond in|must be strictly)\s+([^,\.;\n]+)/i);
+      if (match) {
+        constraints.push(`Format constraint: ${match[0].trim()}`);
+      }
+    }
+    // Length bound constraint parsing
+    if (/\b(maximum|max|under|at most|less than)\s+([0-9]+\s+[a-zA-Z]+)/i.test(lower)) {
+      const match = lower.match(/\b(maximum|max|under|at most|less than)\s+([0-9]+\s+[a-zA-Z]+)/i);
+      if (match) {
+        constraints.push(`Length bound: ${match[0].trim()}`);
+      }
     }
 
     // 4. Infer implicit requirements based on task domain
@@ -167,7 +188,13 @@ export class RequirementExtractor {
         : "Hindi";
     }
 
-    const requiresZeroPlaceholders = format === "code" || format === "document" || lower.includes("production ready");
+    const requiresZeroPlaceholders =
+      format === "code" ||
+      format === "document" ||
+      format === "json" ||
+      lower.includes("production ready") ||
+      lower.includes("endpoint") ||
+      lower.includes("api");
 
     return {
       format,

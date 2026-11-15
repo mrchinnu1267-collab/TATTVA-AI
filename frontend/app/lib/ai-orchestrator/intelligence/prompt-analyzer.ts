@@ -98,6 +98,9 @@ export class PromptAnalyzer {
       complexity,
       complexityScore,
       isAmbiguous: ambiguity.isAmbiguous,
+      ambiguityScore: ambiguity.ambiguityScore,
+      missingDetails: ambiguity.missingDetails,
+      ambiguityReason: ambiguity.ambiguityReason,
       clarificationQuestion: ambiguity.clarificationQuestion,
       taskDecomposition,
       detectedDialect,
@@ -125,16 +128,25 @@ export class PromptAnalyzer {
     const rawLower = rawPrompt.toLowerCase();
     const secondary: TaskIntent[] = [];
 
-    // Document Generation Check
+    // 1. Image Generation Check
     if (
-      /\b(docx|pptx|xlsx|pdf|excel sheet|powerpoint|word doc|downloadable file|export as|save as a file)\b/i.test(lower) ||
-      /\b(create|generate|export)\s+.*\b(file|sheet|presentation|document)\b/i.test(lower)
+      /\b(generate|create|draw|paint|render)\b.*\b(image|picture|photo|artwork|illustration|portrait|wallpaper|avatar|logo)\b/i.test(lower) ||
+      /\b(photorealistic|hyperrealistic|cinematic)\s+(image|render|photo)\b/i.test(lower)
     ) {
-      if (lower.includes("code") || lower.includes("program")) secondary.push("coding");
-      return { primaryIntent: "document_generation", secondaryIntents: secondary };
+      return { primaryIntent: "image_generation", secondaryIntents: ["creative_writing"] };
     }
 
-    // Document / Handwriting / File Analysis Check
+    // 2. Troubleshooting / Debugging Check
+    if (
+      /\b(troubleshoot|debug|fix this error|stack trace|exception|typeerror|referenceerror|syntaxerror|unhandled|500 error|crash|not working|failed with)\b/i.test(lower) ||
+      rawLower.includes("error vachindi") ||
+      rawLower.includes("debug cheyyi")
+    ) {
+      if (lower.includes("code") || lower.includes("function") || lower.includes("api")) secondary.push("coding");
+      return { primaryIntent: "troubleshooting", secondaryIntents: secondary };
+    }
+
+    // 3. Document / Handwriting / File Analysis Check (Prioritized when attachments exist)
     if (hasAttachments && (
       /\b(analyze|summarize|what does it say|read|extract|transcribe|solve|findings|overview|key points|content)\b/i.test(lower) ||
       /\b(this|the)\s+(uploaded\s+)?(file|document|pdf|attachment|paper|image)\b/i.test(lower) ||
@@ -145,11 +157,48 @@ export class PromptAnalyzer {
       return { primaryIntent: "document_analysis", secondaryIntents: ["reasoning"] };
     }
 
-    // Coding & Application Development Check
+    // 4. Comparison / Trade-off Analysis Check
+    if (
+      /\b(compare|comparison|versus|\bvs\b|difference between|pros and cons|trade-offs|benchmark .* against|which is better)\b/i.test(lower)
+    ) {
+      return { primaryIntent: "comparison", secondaryIntents: ["reasoning"] };
+    }
+
+    // 5. Creative Writing Check
+    if (
+      /\b(write (a )?(creative )?(poem|story|essay|article|novel)|screenplay|script for a video|fiction|lyrics|compose a song|creative story|\bpoem\b|\bpoetry\b)\b/i.test(lower)
+    ) {
+      return { primaryIntent: "creative_writing", secondaryIntents: ["general_chat"] };
+    }
+
+    // 6. Summarization Check
+    if (
+      /\b(summarize|give me a summary|tldr|bullet point summary|condense|digest of)\b/i.test(lower)
+    ) {
+      return { primaryIntent: "summarization", secondaryIntents: ["document_analysis"] };
+    }
+
+    // 7. Conversational / Greeting Check
+    if (
+      /\b(hi|hello|hey|good (morning|afternoon|evening)|how are you|namaste|vanakkam|who are you|what can you do)\b/i.test(lower) &&
+      !lower.includes("code") && !lower.includes("function") && !lower.includes("build") && !lower.includes("error") && !lower.includes("calculate")
+    ) {
+      return { primaryIntent: "conversational", secondaryIntents: ["general_chat"] };
+    }
+
+    // 7. Document Generation Check
+    if (
+      /\b(docx|pptx|xlsx|pdf|excel sheet|powerpoint|word doc|downloadable file|export as|save as a file)\b/i.test(lower) ||
+      /\b(create|generate|export)\s+.*\b(file|sheet|presentation|document)\b/i.test(lower)
+    ) {
+      if (lower.includes("code") || lower.includes("program")) secondary.push("coding");
+      return { primaryIntent: "document_generation", secondaryIntents: secondary };
+    }
+
+    // 9. Coding & Application Development Check
     if (
       /\b(code|function|component|script|api|bug|error|refactor|database|schema|react|typescript|python|html|css|next\.js|frontend|backend)\b/i.test(lower) ||
       rawLower.includes("code rayi") ||
-      rawLower.includes("debug cheyyi") ||
       lower.includes("build") ||
       lower.includes("develop")
     ) {
@@ -157,40 +206,40 @@ export class PromptAnalyzer {
       return { primaryIntent: "coding", secondaryIntents: secondary };
     }
 
-    // Mathematical Reasoning Check
+    // 10. Data Analysis Check (prioritized when datasets/tabular metrics are referenced)
+    if (/\b(statistics|csv data|dataset|correlation|standard deviation|mean|median|data analysis|dataframe|tabular)\b/i.test(lower)) {
+      return { primaryIntent: "data_analysis", secondaryIntents: ["mathematics"] };
+    }
+
+    // 11. Mathematical Reasoning Check
     if (
-      /\b(calculate|solve equation|integral|derivative|algebra|matrix|formula|standard deviation|eigenvalue|arithmetic)\b/i.test(lower) ||
+      /\b(calculate|solve equation|integral|derivative|algebra|matrix|formula|eigenvalue|arithmetic)\b/i.test(lower) ||
       /[0-9]+\s*[\+\-\*\/\^]\s*[0-9]+/.test(lower)
     ) {
       return { primaryIntent: "mathematics", secondaryIntents: ["reasoning"] };
     }
 
-    // Web Research Check
+    // 12. Web Research Check
     if (
       /\b(search the web|latest news|current price|today|2025|2026|recent developments|browse internet)\b/i.test(lower)
     ) {
       return { primaryIntent: "web_research", secondaryIntents: ["summarization"] };
     }
 
-    // Deep Autonomous Agent Task
+    // 13. Deep Autonomous Agent Task
     if (
       /\b(audit|scan codebase|inspect repository|github repo|multi-step research)\b/i.test(lower)
     ) {
       return { primaryIntent: "agent_task", secondaryIntents: ["coding", "web_research"] };
     }
 
-    // Data Analysis
-    if (/\b(statistics|csv data|dataset|correlation|standard deviation|mean|median)\b/i.test(lower)) {
-      return { primaryIntent: "data_analysis", secondaryIntents: ["mathematics"] };
-    }
-
-    // Translation
+    // 14. Translation
     if (/\b(translate|convert to (telugu|hindi|spanish|french|german))\b/i.test(lower)) {
       return { primaryIntent: "translation", secondaryIntents: ["general_chat"] };
     }
 
-    // Default to general chat / reasoning
-    return { primaryIntent: "general_chat", secondaryIntents: [] };
+    // Default to general qa / chat
+    return { primaryIntent: "general_qa", secondaryIntents: ["general_chat"] };
   }
 
   private calculateComplexity(

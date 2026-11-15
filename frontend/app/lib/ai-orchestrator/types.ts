@@ -6,10 +6,14 @@
 
 export type TaskIntent =
   | "general_chat"
+  | "general_qa"
+  | "conversational"
   | "reasoning"
   | "coding"
   | "mathematics"
+  | "math"
   | "web_research"
+  | "research"
   | "document_analysis"
   | "document_generation"
   | "image_generation"
@@ -17,7 +21,11 @@ export type TaskIntent =
   | "data_analysis"
   | "translation"
   | "summarization"
-  | "agent_task";
+  | "agent_task"
+  | "agentic_execution"
+  | "creative_writing"
+  | "troubleshooting"
+  | "comparison";
 
 export type ModelProvider =
   | "gemini"
@@ -183,9 +191,30 @@ export interface RAGChunk {
   documentName: string;
   content: string;
   chunkIndex: number;
+  sectionTitle?: string;
+  pageNumber?: number;
+  format?: string;
+  workspaceId?: string;
+  userId?: string;
+  accessLevel?: "owner" | "editor" | "viewer" | "public";
   embedding?: number[];
   similarityScore?: number;
+  bm25Score?: number;
+  rerankScore?: number;
+  createdAt?: number;
+  tokenCount?: number;
   metadata?: Record<string, any>;
+}
+
+export interface RAGCitation {
+  documentName: string;
+  documentId: string;
+  chunkIndex: number;
+  sectionTitle?: string;
+  pageNumber?: number;
+  snippet: string;
+  score: number;
+  confidenceScore: number; // 0 - 100
 }
 
 export interface RAGSearchResult {
@@ -193,6 +222,9 @@ export interface RAGSearchResult {
   matchedChunks: RAGChunk[];
   combinedContext: string;
   sources: Array<{ documentName: string; chunkIndex: number; score: number }>;
+  citations?: RAGCitation[];
+  confidenceScore?: number;
+  retrievalMethod?: "vector" | "bm25" | "hybrid_reranked";
 }
 
 export interface OrchestratorResponse {

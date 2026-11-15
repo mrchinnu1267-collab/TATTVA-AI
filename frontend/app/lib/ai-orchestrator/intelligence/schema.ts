@@ -71,6 +71,9 @@ export interface AnalyzedPrompt {
   complexity: ComplexityLevel;
   complexityScore: number; // 1 - 10
   isAmbiguous: boolean;
+  ambiguityScore?: number; // 0 - 100
+  missingDetails?: string[];
+  ambiguityReason?: string;
   clarificationQuestion?: string;
   taskDecomposition?: TaskDecompositionResult;
   detectedDialect?: "english" | "telugu" | "telugu_english_mixed" | "hindi" | "multilingual";

@@ -72,6 +72,14 @@ export class PromptEnhancer {
 
     return parts.join("\n\n");
   }
+
+  /**
+   * Appends execution guidance onto a base system prompt
+   */
+  public enhanceSystemPrompt(baseSystemPrompt: string, analysis: AnalyzedPrompt): string {
+    const guidance = this.buildExecutionGuidance(analysis);
+    return `${baseSystemPrompt}\n\n=== TATTVA COGNITIVE EXECUTION GUIDANCE ===\n${guidance}`;
+  }
 }
 
 export const promptEnhancer = PromptEnhancer.getInstance();

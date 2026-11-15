@@ -68,11 +68,11 @@ export class ContextManager {
 
     // Check English pronoun / follow-up patterns
     const isEnglishFollowUp =
-      /^(make it|explain it|convert it|connect it|debug it|fix it|run it|show it|simplify it)\b/i.test(lower) ||
+      /\b(make it|explain it|convert it|connect it|debug it|fix it|run it|show it|simplify it|implement it|code it|write it|test it)\b/i.test(lower) ||
       /\b(make it (simpler|shorter|longer|better|faster|cleaner))\b/i.test(lower) ||
-      /^(now connect it to|now integrate it with|now add|now make|now update|now rewrite)\b/i.test(lower) ||
-      /^(what about it|why is this happening|how does that work|elaborate on that)\b/i.test(lower) ||
-      /^(this|that|it|previous one|last one|same thing)\b/i.test(lower);
+      /\b(now\s+(connect|integrate|add|make|update|rewrite|implement|code|build)\s+(it|this))\b/i.test(lower) ||
+      /\b(what about it|why is this happening|how does that work|elaborate on that)\b/i.test(lower) ||
+      /\b(this|that|it|previous one|last one|same thing)\b/i.test(lower);
 
     if ((isEnglishFollowUp || isTeluguFollowUp) && (lastUserTurn || lastAssistantTurn)) {
       referenceInfo.hasAnaphora = true;

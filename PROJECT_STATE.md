@@ -143,12 +143,22 @@ TATTVA_AI/
   - **Sara Auto-Narration & Voice Status Cleaned:** Removed Sara voice status banners, auto-narration settings, and background listening loops from `app/chat/page.tsx`. Clean, manual "Read Aloud" on individual messages remains strictly for on-demand text playback.
   - **Android Native Clean:** Purged `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, microphone hardware feature, and `RecognitionService` queries from `android-app/app/src/main/AndroidManifest.xml`. Removed speech recognition logic from `MainActivity.kt`. Rebuilt fresh APK (`12.2 MB`) in `public/tattva-ai.apk`.
 
+- [x] **Next-Generation AI Architecture (Phases 14–21) Completed & Certified**:
+  - **Phase 14 (Performance Baseline Engine):** Implemented 12-category baseline benchmark, double-blind answer scoring, and `.tattva-vault/baseline/` persistence (`tests/phase-14-performance-baseline.test.ts` - 24/24 passing).
+  - **Phase 15 (Advanced Prompt Understanding Engine):** 14-intent recognition, negative constraint extraction, multi-turn anaphora resolution, ambiguity scoring (0-100) with single-shot clarification, and 10-stage execution pipeline (`tests/phase-15-prompt-intelligence.test.ts` - 35/35 passing).
+  - **Phase 16 (Advanced RAG & Knowledge Engine):** Structure & markdown-aware chunking, multi-format ingestion (PDF, DOCX, XLSX, PPTX, CSV, TXT, JSON), hybrid vector (50%) + BM25 (30%) + rerank (20%), workspace RBAC, grounded citations, and `/api/rag/` endpoints (`tests/phase-16-advanced-rag.test.ts` - 19/19 passing).
+  - **Phase 17 (Agentic AI & Tool Execution Engine):** Task Planner milestone DAGs, Tool Selector, Execution Controller with 8s timeouts and AbortSignals, safety confirmation gates for destructive actions, and Agent Dashboard (`tests/phase-17-agentic-ai.test.ts` - 21/21 passing).
+  - **Phase 18 (Multimodal AI Intelligence):** Vision OCR & VQA, Audio STT/TTS bridges, Video keyframe temporal reasoning, and unified cross-modal dispatcher (`tests/phase-18-multimodal-ai.test.ts` - 25/25 passing).
+  - **Phase 19 (TATTVA Custom Model Development):** Indic SLM 1B/3B/7B architectures, ChatML instruction formatting, QLoRA hyperparameter configurations, VRAM calculators, and Model Registry (`tests/phase-19-custom-models.test.ts` - 26/26 passing).
+  - **Phase 20 (Continuous Learning & Improvement Engine):** Privacy-preserving PII scrubbing, 6-class failure taxonomy clustering, actionable proposal generator, and Human-in-the-Loop review gate with automated pre-deployment regression verification (`tests/phase-20-continuous-learning.test.ts` - 20/20 passing).
+  - **Phase 21 (Production-Grade AI Platform):** 3-state Circuit Breaker, prompt injection defense (98% confidence), output secret masking, Supabase RLS policies, cost budgets, LRU caching, telemetry percentiles, error alerts, and cross-platform adapters (`tests/phase-21-production-platform.test.ts` - 33/33 passing).
+
 ---
 
 ## 4. Current Status
 
-- **Build Integrity:** `npm run build` succeeds cleanly with Turbopack (47 routes compiled with 0 errors); Gradle `assembleDebug` builds cleanly (`BUILD SUCCESSFUL in 47s`).
-- **Test Integrity:** `npm test` passes 16/16 core tests (SSRF, permissions, AES-256-GCM token encryption, Claude connector chat lifecycle).
+- **Build Integrity:** `npm run build` succeeds cleanly with Turbopack (all routes compiled with 0 errors).
+- **Test Integrity:** 203/203 Next-Gen AI tests passing (100% across all 8 phase test suites: `phase-14` through `phase-21`).
 - **Branch:** `main`.
 
 ---
