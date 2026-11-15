@@ -8,3 +8,8 @@ export * from "./circuit-breaker";
 export * from "./security-sanitizer";
 export * from "./cost-optimizer";
 export * from "./telemetry-monitor";
+export * from "./environment";
+export * from "./version-manager";
+export * from "./deployment-guard";
+export * from "./beta-access";
+export * from "./feature-flags";

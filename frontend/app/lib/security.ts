@@ -559,6 +559,7 @@ export async function verifyUserSession(request: Request): Promise<Authenticated
 export type SecurityEventType =
   | "AUTH_SUCCESS"
   | "AUTH_FAILURE"
+  | "UNVERIFIED_AUTH_ATTEMPT"
   | "RATE_LIMIT_EXCEEDED"
   | "PROMPT_INJECTION_BLOCKED"
   | "NSFW_PROMPT_BLOCKED"

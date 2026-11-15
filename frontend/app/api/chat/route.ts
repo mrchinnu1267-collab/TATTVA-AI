@@ -28,23 +28,23 @@ export async function POST(request: Request) {
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
     let session = await verifyUserSession(request);
 
-    // If cookies were omitted in cross-origin / tunnel fetch, verify client-supplied auth
-    if (
-      !session.authenticated &&
-      body.isAuthenticated &&
-      body.userEmail &&
-      typeof body.userEmail === "string" &&
-      body.userEmail.includes("@")
-    ) {
-      const clientEmail = body.userEmail.toLowerCase().trim();
-      session = {
-        authenticated: true,
-        userId: clientEmail,
-        email: clientEmail,
-        name: body.userName || clientEmail.split("@")[0],
-        role: "authenticated",
-        isGuest: false,
-      };
+    // For unverified requests, enforce strict guest containment and prevent role escalation
+    if (!session.authenticated) {
+      if (body.isAuthenticated && !request.headers.get("authorization") && !request.headers.get("cookie")) {
+        logSecurityEvent("UNVERIFIED_AUTH_ATTEMPT", {
+          ip: clientIp,
+          endpoint: "/api/chat",
+          details: { claimedEmail: body.userEmail },
+        });
+        session = {
+          authenticated: false,
+          userId: `guest_${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}`,
+          email: "guest@tattva.ai",
+          name: "Guest User",
+          role: "guest",
+          isGuest: true,
+        };
+      }
     }
 
     // Rate Limiting: 60 requests per minute

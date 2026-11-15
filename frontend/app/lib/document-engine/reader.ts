@@ -15,6 +15,8 @@ export interface ExtractedDocumentContent {
  * Inspects magic bytes, validates structure, and extracts clean, readable text
  * for PDF, Word (DOCX), Excel (XLSX), PowerPoint (PPTX), CSV, TXT, JSON, and Images.
  */
+const MAX_SAFE_FILE_SIZE = 25 * 1024 * 1024; // 25MB limit to prevent memory exhaustion
+
 export async function inspectAndReadDocument(
   buffer: Buffer,
   filename: string,
@@ -27,6 +29,16 @@ export async function inspectAndReadDocument(
       detectedMime: claimedMime,
       extractedText: "",
       error: "The file is completely empty (0 bytes).",
+    };
+  }
+
+  if (buffer.length > MAX_SAFE_FILE_SIZE) {
+    return {
+      success: false,
+      format: "rejected",
+      detectedMime: claimedMime,
+      extractedText: "",
+      error: `File size (${(buffer.length / (1024 * 1024)).toFixed(1)}MB) exceeds maximum safe limit of 25MB.`,
     };
   }
 
