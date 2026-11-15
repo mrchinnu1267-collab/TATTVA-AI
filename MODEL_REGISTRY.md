@@ -79,7 +79,29 @@ Every model provider in the TATTVA AI ecosystem requires its **own independent c
 
 ---
 
-## 3. Proprietary TATTVA Model Fleet (Development Roadmap)
+### Microsoft Azure OpenAI Fleet
+| Model ID | Context | Modalities | Latency Tier | Primary Application | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `azure/gpt-4o` | 128,000 | Text, Code, Image | Low | Enterprise cloud reasoning, sovereign tenants | **Production** |
+| `azure/gpt-4o-mini` | 128,000 | Text, Code | Ultra Low | High-throughput data extraction | **Production** |
+
+*Required Credentials:* `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`
+
+---
+
+## 3. Local Indic Small Language Models (SLMs)
+
+| Model ID | Scale | Quantization | Serving Engine | Memory (VRAM) | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `tattva-slm-1b-indic-q4` | 1.1 Billion | 4-bit (AWQ/GGUF) | Ollama / vLLM Local Edge | 2.5 GB | **Operational** |
+| `tattva-slm-3b-indic-q4` | 3.2 Billion | 4-bit (AWQ/GGUF) | Ollama / vLLM Local Edge | 4.8 GB | **Operational** |
+| `tattva-slm-7b-indic-q4` | 7.0 Billion | 4-bit (AWQ/GGUF) | Ollama / vLLM Local Edge | 8.2 GB | **Operational** |
+
+*Strengths:* Native Indic tokenization, zero external API costs, 100% on-premise privacy.
+
+---
+
+## 4. Proprietary TATTVA Model Fleet (Development Roadmap)
 
 > [!IMPORTANT]
 > In strict adherence to scientific accuracy, TATTVA models are marked **Planned / Under Development** until their weights have been fully pre-trained, validated, and evaluated.
