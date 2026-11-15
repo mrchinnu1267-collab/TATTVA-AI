@@ -190,6 +190,10 @@ try {
   if (subscribedAgentsAutomation?.runSubscribedAgentsAutomationTests) {
     await subscribedAgentsAutomation.runSubscribedAgentsAutomationTests();
   }
+  const supabaseStorageActivation = await jiti("./supabase-storage-activation.test.ts");
+  if (supabaseStorageActivation?.runSupabaseStorageActivationTests) {
+    await supabaseStorageActivation.runSupabaseStorageActivationTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

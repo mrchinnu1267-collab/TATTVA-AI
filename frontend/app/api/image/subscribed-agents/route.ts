@@ -120,6 +120,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const authHeader = req.headers.get("authorization");
+    const userAccessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
     const safety = verifyMultiUserSafety(session.userId);
     if (!safety.allowed) {
       return NextResponse.json(
@@ -320,6 +323,7 @@ export async function POST(req: NextRequest) {
         originalPrompt: (originalPrompt || prompt || "Subscribed AI Image").trim(),
         provider: agentId === "agent_a" ? "subscribed_agent_a" : "subscribed_agent_b",
         model: agentName,
+        agentId,
         parameters: {
           width: validation.width,
           height: validation.height,
@@ -330,6 +334,7 @@ export async function POST(req: NextRequest) {
         operation: "subscribed_agent_generation",
         userId: session.userId,
         workspaceId,
+        userAccessToken,
       });
 
       return NextResponse.json({

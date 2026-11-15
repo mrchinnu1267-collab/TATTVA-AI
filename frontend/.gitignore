@@ -1,5 +1,7 @@
 # Next.js Dependencies & Build
 node_modules/
+.tattva_vault/
+.tattva-vault/
 .next/
 out/
 build/

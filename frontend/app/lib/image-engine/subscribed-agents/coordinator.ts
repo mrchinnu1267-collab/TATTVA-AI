@@ -27,6 +27,7 @@ export interface OrchestrationOptions {
   agentBMode?: ConnectionMode;
   onJobUpdate?: (job: GenerationJob) => void;
   timeoutMs?: number;
+  userAccessToken?: string;
 }
 
 export class AutomaticSubscribedAgentCoordinator {
@@ -144,6 +145,7 @@ export class AutomaticSubscribedAgentCoordinator {
           originalPrompt: prompt.trim(),
           provider: agentId === "agent_a" ? "subscribed_agent_a" : "subscribed_agent_b",
           model: agentDisplayName,
+          agentId,
           parameters: {
             width: validation.width,
             height: validation.height,
@@ -154,6 +156,7 @@ export class AutomaticSubscribedAgentCoordinator {
           operation: "subscribed_agent_automatic_generation",
           userId,
           workspaceId,
+          userAccessToken: options.userAccessToken,
         });
 
         // Step F: Mark SubJob Completed

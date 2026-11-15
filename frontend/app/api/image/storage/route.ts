@@ -40,12 +40,16 @@ export async function POST(req: NextRequest) {
     const session = await verifyUserSession(req);
     const body = await req.json();
 
+    const authHeader = req.headers.get("authorization");
+    const userAccessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
     const {
       image,
       prompt,
       originalPrompt,
       provider = "gemini",
       model = "gemini-2.5-flash-image",
+      agentId,
       parameters = {},
       accuracyScorecard,
       validatedChecklist,
@@ -67,6 +71,7 @@ export async function POST(req: NextRequest) {
       originalPrompt: originalPrompt || prompt.trim(),
       provider,
       model,
+      agentId,
       parameters,
       accuracyScorecard,
       validatedChecklist,
@@ -74,6 +79,7 @@ export async function POST(req: NextRequest) {
       operation,
       userId: session.userId,
       workspaceId,
+      userAccessToken,
     });
 
     return NextResponse.json({ success: true, record }, { status: 201 });

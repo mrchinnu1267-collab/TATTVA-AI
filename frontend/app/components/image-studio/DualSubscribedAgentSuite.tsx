@@ -26,6 +26,7 @@ import {
   StopCircle,
 } from "lucide-react";
 import { triggerDownload } from "../../lib/download-helper";
+import { WorkspaceHistorySuite } from "./WorkspaceHistorySuite";
 
 export type ImageCategory =
   | "photorealistic"
@@ -122,8 +123,9 @@ export function DualSubscribedAgentSuite({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxTitle, setLightboxTitle] = useState<string>("");
 
-  // Config Drawer
+  // Config Drawer & Gallery
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
   const [agentAMode, setAgentAMode] = useState("local_companion");
   const [agentBMode, setAgentBMode] = useState("local_companion");
 
@@ -578,6 +580,20 @@ export function DualSubscribedAgentSuite({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowGallery(!showGallery)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition cursor-pointer fluid-press ${
+                showGallery
+                  ? "border-indigo-500 bg-indigo-600/20 text-indigo-300"
+                  : isDark
+                  ? "border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-neutral-300 hover:text-white"
+                  : "border-neutral-200 bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+              }`}
+            >
+              <FolderPlus className="w-3.5 h-3.5 text-indigo-400" />
+              <span>{showGallery ? "Hide Gallery" : "Workspace Gallery"}</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsConfigOpen(!isConfigOpen)}
@@ -1275,6 +1291,18 @@ export function DualSubscribedAgentSuite({
           </div>
         </div>
       </div>
+
+      {/* Embedded Workspace Image Gallery */}
+      {showGallery && (
+        <div className="mt-8 pt-6 border-t border-black/10 dark:border-white/10 animate-fluid-dropdown">
+          <WorkspaceHistorySuite
+            onLoadImage={(url, prompt) => {
+              setLightboxUrl(url);
+              setLightboxTitle(prompt || "Workspace Image Asset");
+            }}
+          />
+        </div>
+      )}
 
       {/* Lightbox Modal */}
       {lightboxUrl && (
