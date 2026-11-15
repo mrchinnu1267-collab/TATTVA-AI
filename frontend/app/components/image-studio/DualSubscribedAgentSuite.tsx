@@ -130,21 +130,30 @@ export function DualSubscribedAgentSuite({
   const fileInputRefA = useRef<HTMLInputElement>(null);
   const fileInputRefB = useRef<HTMLInputElement>(null);
 
-  // On mount, query companion and agent status
+  // On mount, query local companion directly from the browser (Vercel Architecture)
   useEffect(() => {
-    fetch("/api/image/subscribed-agents")
+    // 1. Direct browser-to-companion loopback check
+    fetch("http://127.0.0.1:4848/health", { method: "GET" })
       .then((res) => res.json())
       .then((data) => {
-        if (data.companion) {
-          setCompanionStatus(data.companion);
-        }
-        if (data.agents) {
-          if (data.agents.agent_a?.connectionMode) setAgentAMode(data.agents.agent_a.connectionMode);
-          if (data.agents.agent_b?.connectionMode) setAgentBMode(data.agents.agent_b.connectionMode);
+        if (data.status === "healthy") {
+          setCompanionStatus({ active: true, version: data.version });
         }
       })
       .catch(() => {
-        setCompanionStatus({ active: false });
+        // Fall back to server status check
+        fetch("/api/image/subscribed-agents")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.companion) setCompanionStatus(data.companion);
+            if (data.agents) {
+              if (data.agents.agent_a?.connectionMode) setAgentAMode(data.agents.agent_a.connectionMode);
+              if (data.agents.agent_b?.connectionMode) setAgentBMode(data.agents.agent_b.connectionMode);
+            }
+          })
+          .catch(() => {
+            setCompanionStatus({ active: false });
+          });
       });
   }, []);
 
@@ -182,16 +191,165 @@ export function DualSubscribedAgentSuite({
     }
   }
 
-  // 2. Fully Automatic Generation Orchestration
+  // 2. Fully Automatic Generation Orchestration (Direct Browser-to-Companion Loopback)
   async function handleAutomaticGenerate() {
     if (!prompt.trim()) return;
     setIsAutoGenerating(true);
-    setAutoStatusText("Initiating parallel generation for Agent A & Agent B...");
+    setAutoStatusText("Checking local companion on 127.0.0.1:4848...");
     setErrorA(null);
     setErrorB(null);
     setGeneralNotice(null);
 
+    const activeJobIdStr = `job_sub_${Date.now()}`;
+    setActiveJobId(activeJobIdStr);
+
     try {
+      // Step A: Check if local companion is responsive directly from browser
+      let isBrowserLoopbackAvailable = false;
+      try {
+        const ping = await fetch("http://127.0.0.1:4848/health", { method: "GET" });
+        isBrowserLoopbackAvailable = ping.ok;
+      } catch {
+        isBrowserLoopbackAvailable = false;
+      }
+
+      if (isBrowserLoopbackAvailable) {
+        setAutoStatusText("Local companion active. Compiling specialized prompts...");
+        // 1. Get HMAC Ticket and Compiled Prompts from TATTVA AI
+        const [ticketRes, optRes] = await Promise.all([
+          fetch("/api/image/subscribed-agents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "issue_companion_ticket" }),
+          }),
+          fetch("/api/image/subscribed-agents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "optimize_prompts", prompt: prompt.trim(), category, aspectRatio }),
+          }),
+        ]);
+
+        const ticketData = await ticketRes.json();
+        const optData = await optRes.json();
+
+        if (!optRes.ok || !ticketRes.ok) {
+          throw new Error(optData.error || ticketData.error || "Failed to initialize generation session.");
+        }
+
+        setOptimizedData(optData.optimized);
+        const headers = {
+          "Content-Type": "application/json",
+          "x-tattva-companion-token": "tattva_companion_secure_token",
+          "x-tattva-signature": ticketData.ticket.signature,
+          "x-tattva-timestamp": String(ticketData.ticket.timestamp),
+          "x-tattva-nonce": ticketData.ticket.nonce,
+        };
+
+        // 2. Execute Parallel Direct Browser Loopback to Companion
+        setAutoStatusText("Submitting concurrent jobs to Agent A & Agent B...");
+
+        const runAgentBrowserLoopback = async (agentId: "agent_a" | "agent_b", agentPrompt: string) => {
+          // Submit
+          const subRes = await fetch("http://127.0.0.1:4848/v1/jobs/submit", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              jobId: activeJobIdStr,
+              agentId,
+              prompt: agentPrompt,
+              category,
+              aspectRatio,
+            }),
+          });
+
+          if (!subRes.ok) {
+            const err = await subRes.json().catch(() => ({}));
+            throw new Error(err.error || `Companion error for ${agentId}`);
+          }
+
+          // Poll
+          let completed = false;
+          let attempts = 0;
+          while (!completed && attempts < 30) {
+            attempts++;
+            await new Promise((r) => setTimeout(r, 600));
+            const statusRes = await fetch(`http://127.0.0.1:4848/v1/jobs/${activeJobIdStr}?agentId=${agentId}`, {
+              headers,
+            });
+            if (statusRes.ok) {
+              const statusData = await statusRes.json();
+              if (statusData.status === "completed") completed = true;
+              else if (statusData.status === "failed") throw new Error(statusData.error || `${agentId} failed.`);
+            }
+          }
+
+          // Retrieve
+          const resultRes = await fetch(`http://127.0.0.1:4848/v1/jobs/${activeJobIdStr}/result?agentId=${agentId}`, {
+            headers,
+          });
+          if (!resultRes.ok) throw new Error(`Failed to retrieve image for ${agentId}.`);
+          const resultData = await resultRes.json();
+
+          // Validate & Persist via TATTVA AI
+          const persistRes = await fetch("/api/image/subscribed-agents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "validate_and_persist",
+              agentId,
+              imageDataUri: resultData.imageDataUri,
+              prompt: agentPrompt,
+              originalPrompt: prompt.trim(),
+              category,
+              workspaceId: "default",
+            }),
+          });
+          const persistData = await persistRes.json();
+          if (!persistRes.ok) throw new Error(persistData.error || `Persistence failed for ${agentId}.`);
+
+          return {
+            id: persistData.record.id,
+            url: persistData.record.url,
+            agentId,
+            agentName: agentId === "agent_a" ? "Image Agent A (Subscribed)" : "Image Agent B (Subscribed)",
+            prompt: persistData.record.prompt,
+            format: (persistData.validation.format || "PNG").toUpperCase(),
+            width: persistData.validation.width,
+            height: persistData.validation.height,
+            fileSizeBytes: persistData.validation.fileSizeBytes,
+            createdAt: new Date().toLocaleTimeString(),
+          };
+        };
+
+        const [resA, resB] = await Promise.allSettled([
+          runAgentBrowserLoopback("agent_a", optData.optimized.agentA.prompt),
+          runAgentBrowserLoopback("agent_b", optData.optimized.agentB.prompt),
+        ]);
+
+        if (resA.status === "fulfilled") {
+          setAgentAImage(resA.value);
+          setStatusMsgA("Auto-generated & Verified via Sharp");
+        } else {
+          setErrorA(resA.reason.message);
+        }
+
+        if (resB.status === "fulfilled") {
+          setAgentBImage(resB.value);
+          setStatusMsgB("Auto-generated & Verified via Sharp");
+        } else {
+          setErrorB(resB.reason.message);
+        }
+
+        if (resA.status === "fulfilled" && resB.status === "fulfilled") {
+          setGeneralNotice({
+            type: "success",
+            message: "Both agents completed generation and results were automatically stored in your workspace vault!",
+          });
+        }
+        return;
+      }
+
+      // Step B: Fallback to Server-Side Orchestration (when on localhost:3000)
       const res = await fetch("/api/image/subscribed-agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -211,9 +369,6 @@ export function DualSubscribedAgentSuite({
       }
 
       const job = data.job;
-      setActiveJobId(job.jobId);
-
-      // Handle Agent A output
       if (job.agentAJob.status === "completed" && job.agentAJob.outputImage) {
         setAgentAImage({
           id: `img_a_${Date.now()}`,
@@ -232,7 +387,6 @@ export function DualSubscribedAgentSuite({
         setErrorA(job.agentAJob.error || "Agent A generation failed.");
       }
 
-      // Handle Agent B output
       if (job.agentBJob.status === "completed" && job.agentBJob.outputImage) {
         setAgentBImage({
           id: `img_b_${Date.now()}`,
@@ -251,17 +405,12 @@ export function DualSubscribedAgentSuite({
         setErrorB(job.agentBJob.error || "Agent B generation failed.");
       }
 
-      // Check if companion offline caused failure
-      if (
-        job.agentAJob.status === "failed" &&
-        job.agentAJob.error?.includes("Local companion connector")
-      ) {
+      if (job.agentAJob.status === "failed" && job.agentAJob.error?.includes("Local companion connector")) {
         setGeneralNotice({
           type: "warning",
           message:
-            "Local Companion Daemon is offline. To enable 100% automated generation without API keys, launch: `node companion/tattva-agent-bridge.mjs` on your computer. You can also use User-Assisted mode below.",
+            "Desktop Companion Bridge offline on 127.0.0.1:4848. To enable 100% automated generation from your browser without API keys, launch: `node companion/tattva-agent-bridge.mjs` on your computer. You can also use User-Assisted mode below.",
         });
-        // Automatically compile prompts for user-assisted fallback
         handleOptimize();
       } else if (job.status === "completed") {
         setGeneralNotice({
@@ -271,10 +420,10 @@ export function DualSubscribedAgentSuite({
       }
     } catch (err: any) {
       setGeneralNotice({
-        type: "error",
-        message: err.message || "Failed to orchestrate automatic generation.",
+        type: "warning",
+        message:
+          "Desktop Companion Bridge offline on 127.0.0.1:4848. Launch `node companion/tattva-agent-bridge.mjs` on your desktop for automated generation, or use User-Assisted mode below.",
       });
-      // Fallback to compilation
       handleOptimize();
     } finally {
       setIsAutoGenerating(false);

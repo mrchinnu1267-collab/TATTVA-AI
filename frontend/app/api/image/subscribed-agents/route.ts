@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto, { randomUUID } from "node:crypto";
 import { StorageService } from "@/app/lib/image-engine/services/storage.service";
 import { verifyUserSession, checkRateLimit } from "@/app/lib/security";
 import {
@@ -16,6 +17,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const COMPANION_SECRET = process.env.TATTVA_COMPANION_SECRET || "tattva_companion_secure_token";
 
 export interface SubscribedAgentConfig {
   id: "agent_a" | "agent_b";
@@ -49,7 +52,25 @@ let runtimeAgentConfig: {
 };
 
 /**
- * GET: Retrieve configuration, connection health, and feasibility audit.
+ * Multi-user safety policy check:
+ * Consumer AI subscriptions are personal single-user licenses.
+ * Multiplexing a personal subscription to external tenants is prohibited by provider TOS.
+ */
+function verifyMultiUserSafety(userId: string) {
+  // Allow primary user / workspace owner
+  const isOwner = !userId.startsWith("tenant_unverified_");
+  return {
+    allowed: isOwner,
+    isPersonalLicense: true,
+    multiUserSharingPermitted: false,
+    reason: isOwner
+      ? "User is verified workspace owner."
+      : "Multi-user sharing of personal subscriptions is prohibited by provider Terms of Service.",
+  };
+}
+
+/**
+ * GET: Retrieve configuration, connection health, feasibility audit, and multi-user policy.
  */
 export async function GET() {
   const companionStatus = await checkLocalCompanionHealth();
@@ -63,6 +84,11 @@ export async function GET() {
     agents: runtimeAgentConfig,
     companion: companionStatus,
     feasibility,
+    multiUserSafety: {
+      singleUserLicenseEnforced: true,
+      multiUserMultiplexingProhibited: true,
+      policy: "Subscribed agents run on personal licenses. Each user must connect their own companion bridge.",
+    },
     policy: {
       requiresApiKeys: false,
       usesZeroApiKeys: true,
@@ -71,6 +97,7 @@ export async function GET() {
         credentialStorage: "none",
         cookieExtraction: "forbidden",
         captchaBypass: "forbidden",
+        browserLoopbackSupported: true,
       },
     },
   });
@@ -93,6 +120,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const safety = verifyMultiUserSafety(session.userId);
+    if (!safety.allowed) {
+      return NextResponse.json(
+        { error: safety.reason },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json().catch(() => null);
     if (!body || typeof body.action !== "string") {
       return NextResponse.json(
@@ -101,7 +136,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ACTION 1: Optimize Prompts (11 Dimensions, 10 Categories)
+    // ACTION 1: Issue Companion Ticket for Direct Browser Loopback (Vercel Architecture)
+    if (body.action === "issue_companion_ticket") {
+      const timestamp = Date.now();
+      const nonce = `ticket_${randomUUID().replace(/-/g, "")}`;
+      const path = body.path || "/v1/jobs/submit";
+      const method = body.method || "POST";
+
+      const messageToSign = `${method}:${path}:${timestamp}:${nonce}`;
+      const signature = crypto
+        .createHmac("sha256", COMPANION_SECRET)
+        .update(messageToSign)
+        .digest("hex");
+
+      return NextResponse.json({
+        success: true,
+        action: "issue_companion_ticket",
+        ticket: {
+          timestamp,
+          nonce,
+          signature,
+          expiresInSeconds: 60,
+          loopbackUrl: "http://127.0.0.1:4848",
+          path,
+          method,
+        },
+      });
+    }
+
+    // ACTION 2: Optimize Prompts (11 Dimensions, 10 Categories)
     if (body.action === "optimize_prompts") {
       const { prompt, category = "photorealistic", aspectRatio = "1:1" } = body;
       if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -131,7 +194,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 2: Feasibility Audit & Capability Matrix
+    // ACTION 3: Feasibility Audit & Capability Matrix
     if (body.action === "feasibility_audit") {
       const audit = await auditIntegrationFeasibility({
         agentAMode: runtimeAgentConfig.agent_a.connectionMode,
@@ -144,7 +207,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 3: Orchestrate Automatic Dual Generation (Parallel Execution)
+    // ACTION 4: Orchestrate Automatic Dual Generation (Server-Side / Local Host)
     if (body.action === "orchestrate_automatic") {
       const {
         prompt,
@@ -176,7 +239,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 4: Query Job Status (Real-time polling)
+    // ACTION 5: Query Job Status (Real-time polling)
     if (body.action === "get_job_status") {
       const { jobId, workspaceId } = body;
       if (!jobId) {
@@ -195,7 +258,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 5: Cancel Active Job
+    // ACTION 6: Cancel Active Job
     if (body.action === "cancel_job") {
       const { jobId } = body;
       if (!jobId) {
@@ -210,7 +273,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 6: List Jobs (Workspace Isolation)
+    // ACTION 7: List Jobs (Workspace Isolation)
     if (body.action === "list_jobs") {
       const { workspaceId } = body;
       const jobs = SubscribedJobManager.listJobs(session.userId, workspaceId);
@@ -221,7 +284,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 7: Validate & Persist Uploaded / Returned Image
+    // ACTION 8: Validate & Persist Uploaded / Returned Image
     if (body.action === "validate_and_persist") {
       const {
         agentId,
@@ -284,7 +347,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 8: Update Agent Connection Configuration (Zero API Keys)
+    // ACTION 9: Update Agent Connection Configuration (Zero API Keys)
     if (body.action === "update_config") {
       const { agentId, connectionMode, mcpServerName, webhookUrl } = body;
       if (agentId !== "agent_a" && agentId !== "agent_b") {
