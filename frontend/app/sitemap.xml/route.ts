@@ -5,11 +5,11 @@ const BASE_URL = "https://tattva-ai-phi.vercel.app";
 // - /dashboard, /login, /signup, /register, /reset-password (private & authentication routes)
 // - /api/* (backend endpoints)
 const PUBLIC_ROUTES = [
-  { path: "", changefreq: "weekly", priority: "1.0", lastmod: "2026-11-07" },
-  { path: "/chat", changefreq: "daily", priority: "0.9", lastmod: "2026-11-07" },
-  { path: "/image-studio", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
-  { path: "/maps", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-07" },
-  { path: "/download", changefreq: "monthly", priority: "0.8", lastmod: "2026-11-07" },
+  { path: "", changefreq: "daily", priority: "1.0", lastmod: "2026-11-15" },
+  { path: "/chat", changefreq: "daily", priority: "0.9", lastmod: "2026-11-15" },
+  { path: "/image-studio", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-15" },
+  { path: "/maps", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-15" },
+  { path: "/download", changefreq: "monthly", priority: "0.8", lastmod: "2026-11-15" },
 ];
 
 export const dynamic = "force-static";
