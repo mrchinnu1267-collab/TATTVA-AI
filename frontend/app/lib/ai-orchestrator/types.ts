@@ -20,6 +20,7 @@ export type TaskIntent =
   | "image_editing"
   | "data_analysis"
   | "translation"
+  | "multilingual"
   | "summarization"
   | "agent_task"
   | "agentic_execution"

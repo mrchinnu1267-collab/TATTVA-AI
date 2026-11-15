@@ -182,6 +182,10 @@ try {
   if (gsm8kMathIntel?.runGsm8kMathematicalIntelligenceTests) {
     await gsm8kMathIntel.runGsm8kMathematicalIntelligenceTests();
   }
+  const customModelPipeline = await jiti("./custom-model-training-pipeline.test.ts");
+  if (customModelPipeline?.runCustomModelTrainingPipelineTests) {
+    await customModelPipeline.runCustomModelTrainingPipelineTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

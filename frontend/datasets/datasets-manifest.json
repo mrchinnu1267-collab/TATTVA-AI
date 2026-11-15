@@ -1,11 +1,12 @@
 {
-  "version": "2.0.0",
-  "lastUpdated": "2026-11-15T09:11:32.422Z",
+  "version": "2.1.0",
+  "lastUpdated": "2026-11-15T09:34:55.117Z",
   "canonicalRoot": "datasets/",
   "registryPolicy": {
     "evaluationTrainingSeparation": true,
     "preventTestContamination": true,
-    "enforceLicensesAndProvenance": true
+    "enforceLicensesAndProvenance": true,
+    "strictHumanInTheLoopFineTuning": true
   },
   "datasets": [
     {
@@ -151,7 +152,8 @@
       "categories": [
         "conversational",
         "instruction_following",
-        "multilingual"
+        "multilingual",
+        "conversations"
       ],
       "datasetType": "evaluation",
       "intendedPurpose": "Long-context conversation memory, topic transition, and bilingual code-switching assessment.",
@@ -382,6 +384,131 @@
         "curationMethodology": "Gold-standard held-out evaluation test set designed to measure multi-step mathematical problem solving and prevent data contamination.",
         "commercialUsePermitted": true,
         "redistributionTerms": "MIT License: Free to use, modify, distribute, and sublicense with copyright notice preserved."
+      }
+    },
+    {
+      "id": "smoltalk-oasst1-train",
+      "name": "SmolTalk & OASST1 Multi-Turn Dialogue (Training Split)",
+      "description": "Curated multi-turn dialogues across reasoning, active problem solving, and system design from SmolTalk and OpenAssistant.",
+      "source": "HuggingFaceTB/smoltalk & OpenAssistant/oasst1",
+      "license": "Apache-2.0",
+      "version": "1.0.0",
+      "language": "en",
+      "recordCount": 4,
+      "format": "jsonl",
+      "relativePath": "training/conversations/smoltalk_oasst1_train.jsonl",
+      "categories": [
+        "conversations",
+        "reasoning"
+      ],
+      "datasetType": "training",
+      "intendedPurpose": "Multi-turn conversation flow, tone, and long-horizon context retention training.",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "provenance": {
+        "originalAuthor": "Hugging Face & OpenAssistant",
+        "licenseType": "Apache-2.0",
+        "commercialUsePermitted": true
+      }
+    },
+    {
+      "id": "tulu3-flan-instruction-train",
+      "name": "Tülu 3 & Flan Instruction Following (Training Split)",
+      "description": "High-quality instruction-following mixture with explicit constraints, negative conditions, and structured formatting.",
+      "source": "allenai/tulu-3-sft-mixture & google/flan",
+      "license": "ODC-BY-1.0",
+      "version": "1.0.0",
+      "language": "en",
+      "recordCount": 3,
+      "format": "jsonl",
+      "relativePath": "training/instruction_following/tulu3_flan_train.jsonl",
+      "categories": [
+        "instruction_following",
+        "reasoning"
+      ],
+      "datasetType": "training",
+      "intendedPurpose": "Training models to follow complex, multi-constraint instructions without refusal.",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "provenance": {
+        "originalAuthor": "Allen Institute for AI & Google Research",
+        "licenseType": "ODC-BY-1.0",
+        "commercialUsePermitted": true
+      }
+    },
+    {
+      "id": "aya-indic-multilingual-train",
+      "name": "Aya Indic Multilingual & Telugu (Training Split)",
+      "description": "Human-curated multilingual training records covering Telugu, Telugu-English code switching, and Hindi.",
+      "source": "CohereForAI/aya_dataset",
+      "license": "Apache-2.0",
+      "version": "1.0.0",
+      "language": "te,hi,en",
+      "recordCount": 3,
+      "format": "jsonl",
+      "relativePath": "training/multilingual/aya_indic_train.jsonl",
+      "categories": [
+        "multilingual",
+        "reasoning"
+      ],
+      "datasetType": "training",
+      "intendedPurpose": "Training Telugu language comprehension, authentic cultural terminology, and code-switching.",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "provenance": {
+        "originalAuthor": "Cohere For AI Aya Research Initiative",
+        "licenseType": "Apache-2.0",
+        "commercialUsePermitted": true
+      }
+    },
+    {
+      "id": "starcoder-codealpaca-train",
+      "name": "StarCoder & CodeAlpaca Programming (Training Split)",
+      "description": "Multi-language programming dataset covering Python, TypeScript, SQL, React, and Java.",
+      "source": "CodeAlpaca & StarCoder SFT",
+      "license": "Apache-2.0",
+      "version": "1.0.0",
+      "language": "code",
+      "recordCount": 4,
+      "format": "jsonl",
+      "relativePath": "training/coding/starcoder_codealpaca_train.jsonl",
+      "categories": [
+        "coding",
+        "reasoning"
+      ],
+      "datasetType": "training",
+      "intendedPurpose": "Training code synthesis, refactoring, async handling, and type safety.",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "provenance": {
+        "originalAuthor": "BigCode Project & CodeAlpaca",
+        "licenseType": "Apache-2.0",
+        "commercialUsePermitted": true
+      }
+    },
+    {
+      "id": "xlam-tool-use-train",
+      "name": "Salesforce xLAM Function Calling (Training Split)",
+      "description": "Function-calling dataset with parameter schema validation, multi-tool workflows, and destructive operation guardrails.",
+      "source": "Salesforce/xlam-function-calling-60k",
+      "license": "CC-BY-4.0",
+      "version": "1.0.0",
+      "language": "en",
+      "recordCount": 2,
+      "format": "jsonl",
+      "relativePath": "training/tool_use/xlam_function_calling_train.jsonl",
+      "categories": [
+        "tool_use",
+        "reasoning"
+      ],
+      "datasetType": "training",
+      "intendedPurpose": "Training structured tool selection, argument formatting, and authorization safety.",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "provenance": {
+        "originalAuthor": "Salesforce Research",
+        "licenseType": "CC-BY-4.0",
+        "commercialUsePermitted": true
       }
     }
   ]
