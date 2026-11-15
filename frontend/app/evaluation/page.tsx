@@ -37,6 +37,7 @@ import {
   Swords,
   MessageSquareText,
   Lightbulb,
+  Calculator,
 } from "lucide-react";
 import type {
   EvaluationRunSummary,
@@ -47,6 +48,7 @@ import { DatasetLibraryTab } from "./components/DatasetLibraryTab";
 import { ModelComparisonTab } from "./components/ModelComparisonTab";
 import { ConversationalEvalTab } from "./components/ConversationalEvalTab";
 import { ImprovementAnalysisTab } from "./components/ImprovementAnalysisTab";
+import { Gsm8kMathEvalTab } from "./components/Gsm8kMathEvalTab";
 
 interface ModelOption {
   id: string;
@@ -93,7 +95,7 @@ export default function AIEvaluationLabPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // History & Tabs
-  type EvaluationTab = "current" | "arena" | "conversational" | "datasets" | "improvements" | "history";
+  type EvaluationTab = "current" | "arena" | "conversational" | "datasets" | "gsm8k" | "improvements" | "history";
   const [activeTab, setActiveTab] = useState<EvaluationTab>("current");
   const [historyRuns, setHistoryRuns] = useState<Array<Omit<EvaluationRunSummary, "results">>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -445,6 +447,17 @@ export default function AIEvaluationLabPage() {
               <span>Dataset Library</span>
             </button>
             <button
+              onClick={() => setActiveTab("gsm8k")}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                activeTab === "gsm8k"
+                  ? "bg-cyan-500 text-slate-950 font-semibold shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5 text-emerald-400" />
+              <span>GSM8K Math Reasoning</span>
+            </button>
+            <button
               onClick={() => setActiveTab("improvements")}
               className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
                 activeTab === "improvements"
@@ -519,6 +532,8 @@ export default function AIEvaluationLabPage() {
 
         {activeTab === "datasets" ? (
           <DatasetLibraryTab />
+        ) : activeTab === "gsm8k" ? (
+          <Gsm8kMathEvalTab availableModels={availableModels} />
         ) : activeTab === "arena" ? (
           <ModelComparisonTab />
         ) : activeTab === "conversational" ? (

@@ -178,6 +178,10 @@ try {
   if (gsm8kSuite?.runGsm8kDatasetIntegrationTests) {
     await gsm8kSuite.runGsm8kDatasetIntegrationTests();
   }
+  const gsm8kMathIntel = await jiti("./gsm8k-mathematical-intelligence.test.ts");
+  if (gsm8kMathIntel?.runGsm8kMathematicalIntelligenceTests) {
+    await gsm8kMathIntel.runGsm8kMathematicalIntelligenceTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {
