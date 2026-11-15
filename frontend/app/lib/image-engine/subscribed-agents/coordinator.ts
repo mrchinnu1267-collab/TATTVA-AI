@@ -5,16 +5,20 @@
  */
 
 import sharp from "sharp";
+import crypto from "crypto";
 import { StorageService } from "../services/storage.service";
 import { auditIntegrationFeasibility } from "./feasibility-auditor";
 import { compileDualPrompts } from "./prompt-intelligence";
 import { SubscribedJobManager } from "./job-manager";
 import { CompanionClient } from "./companion-client";
+import { ExternalImageAgentAAdapter } from "./external-agent-a-adapter";
+import { ExternalImageAgentBAdapter } from "./external-agent-b-adapter";
 import {
   ConnectionMode,
   GenerationJob,
   ImageIntentCategory,
   SubscribedAgentId,
+  ImageSourceClassification,
 } from "./types";
 
 export interface OrchestrationOptions {
@@ -134,6 +138,9 @@ export class AutomaticSubscribedAgentCoordinator {
 
         // Step D: Validate Returned Image Payload with Sharp
         const validation = await this.validateImagePayload(result.imageDataUri);
+        const sha256 = crypto.createHash("sha256").update(validation.buffer).digest("hex");
+        const sourceClassification: ImageSourceClassification =
+          agentId === "agent_a" ? "external_subscribed_agent_a" : "external_subscribed_agent_b";
 
         // Step E: Persist to Supabase Storage & Local Workspace Vault
         const agentDisplayName =
@@ -157,6 +164,7 @@ export class AutomaticSubscribedAgentCoordinator {
           userId,
           workspaceId,
           userAccessToken: options.userAccessToken,
+          sourceClassification,
         });
 
         // Step F: Mark SubJob Completed
@@ -172,6 +180,8 @@ export class AutomaticSubscribedAgentCoordinator {
             aspectRatio: validation.aspectRatio,
             fileSizeBytes: validation.fileSizeBytes,
             storagePath: storageRecord.url,
+            sourceClassification,
+            sha256,
           },
           completedAt: new Date().toISOString(),
         });

@@ -23,6 +23,12 @@ export type ConnectionMode =
   | "oauth"
   | "user_assisted";
 
+export type ImageSourceClassification =
+  | "external_subscribed_agent_a"
+  | "external_subscribed_agent_b"
+  | "local_procedural_fallback"
+  | "user_uploaded_image";
+
 export type AgentAutomationCapability =
   | "fully_automatable"
   | "automatable_local_connector"
@@ -86,6 +92,8 @@ export interface AgentSubJob {
     aspectRatio?: string;
     fileSizeBytes?: number;
     storagePath?: string;
+    sourceClassification?: ImageSourceClassification;
+    sha256?: string;
   };
   error?: string;
   startedAt?: string;

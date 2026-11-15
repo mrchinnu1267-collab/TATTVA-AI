@@ -14,6 +14,11 @@ import {
   ImageIntentCategory,
   SubscribedAgentId,
 } from "@/app/lib/image-engine/subscribed-agents/types";
+import { ExternalImageAgentAAdapter } from "@/app/lib/image-engine/subscribed-agents/external-agent-a-adapter";
+import { ExternalImageAgentBAdapter } from "@/app/lib/image-engine/subscribed-agents/external-agent-b-adapter";
+
+const adapterA = new ExternalImageAgentAAdapter();
+const adapterB = new ExternalImageAgentBAdapter();
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -380,6 +385,58 @@ export async function POST(req: NextRequest) {
         success: true,
         action: "update_config",
         agent: runtimeAgentConfig[targetId],
+      });
+    }
+
+    // ACTION 10: Get External Adapter Capabilities (Confidential & Zero-API-Key)
+    if (body.action === "adapter_capabilities") {
+      const capsA = adapterA.getCapabilities();
+      const capsB = adapterB.getCapabilities();
+      return NextResponse.json({
+        success: true,
+        action: "adapter_capabilities",
+        adapters: {
+          agent_a: capsA,
+          agent_b: capsB,
+        },
+      });
+    }
+
+    // ACTION 11: Test External Adapter Live Connection
+    if (body.action === "test_adapter_connection") {
+      const { agentId } = body;
+      const targetAdapter = agentId === "agent_b" ? adapterB : adapterA;
+      const connection = await targetAdapter.checkConnection();
+      return NextResponse.json({
+        success: true,
+        action: "test_adapter_connection",
+        agentId: agentId || "agent_a",
+        connection,
+      });
+    }
+
+    // ACTION 12: Connect External Adapter
+    if (body.action === "connect_adapter") {
+      const { agentId, credentials } = body;
+      const targetAdapter = agentId === "agent_b" ? adapterB : adapterA;
+      const connectResult = await targetAdapter.connect(credentials);
+      return NextResponse.json({
+        success: connectResult.success,
+        action: "connect_adapter",
+        agentId: agentId || "agent_a",
+        result: connectResult,
+      });
+    }
+
+    // ACTION 13: Disconnect External Adapter
+    if (body.action === "disconnect_adapter") {
+      const { agentId } = body;
+      const targetAdapter = agentId === "agent_b" ? adapterB : adapterA;
+      const disconnected = await targetAdapter.disconnect();
+      return NextResponse.json({
+        success: disconnected,
+        action: "disconnect_adapter",
+        agentId: agentId || "agent_a",
       });
     }
 

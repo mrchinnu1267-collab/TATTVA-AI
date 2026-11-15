@@ -47,6 +47,7 @@ export interface ImageStorageRecord {
   mimeType: string;
   storageType: "supabase_storage" | "vault_fallback";
   storagePath: string;
+  sourceClassification?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
   cloudError?: string;
 }
 
@@ -72,6 +73,7 @@ export interface PersistImageParams {
   userId?: string;
   workspaceId?: string;
   userAccessToken?: string;
+  sourceClassification?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
 }
 
 export interface ValidatedImageMetadata {
@@ -324,6 +326,7 @@ export class StorageService {
       mimeType: validation.mimeType,
       storageType,
       storagePath,
+      sourceClassification: params.sourceClassification,
       cloudError,
     };
 
@@ -406,6 +409,7 @@ export class StorageService {
             mimeType: d.mime_type || "image/png",
             storageType: d.storage_type || "supabase_storage",
             storagePath: d.storage_path || "",
+            sourceClassification: d.source_classification || (d.storage_type === "vault_fallback" ? "local_procedural_fallback" : undefined),
           }));
         }
       } catch {

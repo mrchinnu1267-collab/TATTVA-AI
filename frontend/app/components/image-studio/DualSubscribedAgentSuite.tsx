@@ -66,6 +66,7 @@ interface ValidatedImageRecord {
   height: number;
   fileSizeBytes: number;
   createdAt: string;
+  sourceClassification?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
 }
 
 interface DualSubscribedAgentSuiteProps {
@@ -320,6 +321,7 @@ export function DualSubscribedAgentSuite({
             height: persistData.validation.height,
             fileSizeBytes: persistData.validation.fileSizeBytes,
             createdAt: new Date().toLocaleTimeString(),
+            sourceClassification: agentId === "agent_a" ? "external_subscribed_agent_a" : "external_subscribed_agent_b",
           };
         };
 
@@ -383,6 +385,7 @@ export function DualSubscribedAgentSuite({
           height: job.agentAJob.metadata?.height || 1024,
           fileSizeBytes: job.agentAJob.metadata?.fileSizeBytes || 0,
           createdAt: new Date().toLocaleTimeString(),
+          sourceClassification: job.agentAJob.metadata?.sourceClassification || "external_subscribed_agent_a",
         });
         setStatusMsgA("Auto-generated & Verified via Sharp");
       } else if (job.agentAJob.status === "failed") {
@@ -401,6 +404,7 @@ export function DualSubscribedAgentSuite({
           height: job.agentBJob.metadata?.height || 1024,
           fileSizeBytes: job.agentBJob.metadata?.fileSizeBytes || 0,
           createdAt: new Date().toLocaleTimeString(),
+          sourceClassification: job.agentBJob.metadata?.sourceClassification || "external_subscribed_agent_b",
         });
         setStatusMsgB("Auto-generated & Verified via Sharp");
       } else if (job.agentBJob.status === "failed") {
@@ -985,6 +989,19 @@ export function DualSubscribedAgentSuite({
 
                   {/* Metadata Chips A */}
                   <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-neutral-400">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono border ${
+                      agentAImage.sourceClassification === "external_subscribed_agent_a"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                        : agentAImage.sourceClassification === "local_procedural_fallback"
+                        ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                        : "bg-indigo-500/10 text-indigo-300 border-indigo-500/30"
+                    }`}>
+                      {agentAImage.sourceClassification === "external_subscribed_agent_a"
+                        ? "External Agent A"
+                        : agentAImage.sourceClassification === "local_procedural_fallback"
+                        ? "Procedural Studio"
+                        : "Verified Asset"}
+                    </span>
                     <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10">
                       {agentAImage.format} • {agentAImage.width}×{agentAImage.height}
                     </span>
@@ -1204,6 +1221,19 @@ export function DualSubscribedAgentSuite({
 
                   {/* Metadata Chips B */}
                   <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-neutral-400">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono border ${
+                      agentBImage.sourceClassification === "external_subscribed_agent_b"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                        : agentBImage.sourceClassification === "local_procedural_fallback"
+                        ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                        : "bg-violet-500/10 text-violet-300 border-violet-500/30"
+                    }`}>
+                      {agentBImage.sourceClassification === "external_subscribed_agent_b"
+                        ? "External Agent B"
+                        : agentBImage.sourceClassification === "local_procedural_fallback"
+                        ? "Procedural Studio"
+                        : "Verified Asset"}
+                    </span>
                     <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10">
                       {agentBImage.format} • {agentBImage.width}×{agentBImage.height}
                     </span>
