@@ -196,6 +196,12 @@ STAGE 8: Production Serving (vLLM/SGLang), Evaluation & Optimization ───�
     - Verified all 18 primary user workflows across authentication, workspaces, RAG, agents, multimodal, evaluation, feedback, and settings.
     - Verified cross-platform synchronization across desktop browser, mobile browser, Android native app, and Electron desktop app.
     - Production readiness certified in `docs/TATTVA_AI_RELEASE_CANDIDATE_REPORT.md` with official "GO FOR CONTROLLED BETA LAUNCH" sign-off.
+  - **Phase 29: Controlled Beta Launch** (`tests/phase-29-controlled-beta-launch.test.ts` - 32/32 passed):
+    - Beta tester lifecycle manager with invitation verification, expiration bounds, admin approval and access revocation gates, daily request quotas.
+    - User-facing "TATTVA AI BETA TESTING" hub at `/beta` and API at `/api/beta` with live bug reporting and triage board.
+    - 7-stage bug resolution lifecycle (`New` -> `Under Review` -> `Confirmed` -> `In Progress` -> `Fixed` -> `Testing` -> `Closed`).
+    - Privacy-preserving aggregate beta telemetry engine with zero PII collection.
+    - Beta documentation suite: `BETA_LAUNCH_PLAN.md`, `BETA_TESTING_GUIDE.md`, `BETA_TEST_CASES.md`, `BETA_FEEDBACK_PROCESS.md`, and `BETA_RELEASE_NOTES.md`.
 
 * **Scope:** High-throughput production serving and continuous benchmark evaluation.
 * **Key Inputs:** Trained TATTVA model checkpoints, production GPU nodes, MMMLU Hindi dataset (14,042 questions), Indic multilingual benchmarks.
