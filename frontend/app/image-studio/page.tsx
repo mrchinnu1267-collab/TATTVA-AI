@@ -59,6 +59,7 @@ import { FinalAccuracyOptimizationDashboard } from "../components/image-studio/F
 import { RealWorldValidationDashboard } from "../components/image-studio/RealWorldValidationDashboard";
 import { FinalCertificationDashboard } from "../components/image-studio/FinalCertificationDashboard";
 import { EngineMaintenanceDashboard } from "../components/image-studio/EngineMaintenanceDashboard";
+import { DualSubscribedAgentSuite } from "../components/image-studio/DualSubscribedAgentSuite";
 import type { SpatialBoundingBox } from "../lib/image-engine/spatial-control/types";
 import { triggerDownload } from "../lib/download-helper";
 import { trackImageGeneration, trackFileUploaded } from "../lib/gtag";
@@ -324,6 +325,7 @@ export default function ImageStudioPage() {
     | "realworld"
     | "certification"
     | "maintenance"
+    | "dual-agents"
   >("none");
   const [savingToWorkspace, setSavingToWorkspace] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -1131,6 +1133,21 @@ export default function ImageStudioPage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setSuiteMode((prev) => (prev === "dual-agents" ? "none" : "dual-agents"))}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                  suiteMode === "dual-agents"
+                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]"
+                    : "text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border border-indigo-500/20"
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Subscribed Agents (A &amp; B)</span>
+                <span className="rounded bg-indigo-500/20 px-1 py-0.5 text-[9px] font-bold text-indigo-300">
+                  Zero Keys
+                </span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setSuiteMode((prev) => (prev === "spatial" ? "none" : "spatial"))}
                 className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
                   suiteMode === "spatial"
@@ -1371,6 +1388,13 @@ export default function ImageStudioPage() {
               </button>
             )}
           </div>
+
+          {suiteMode === "dual-agents" && (
+            <DualSubscribedAgentSuite
+              onBackToStudio={() => setSuiteMode("none")}
+              isDark={isDark}
+            />
+          )}
 
           {suiteMode === "spatial" && (
             <SpatialEditingSuite
