@@ -292,15 +292,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ACTION 8: Validate & Persist Uploaded / Returned Image
-    if (body.action === "validate_and_persist") {
+    // ACTION 8: User-Assisted Secure Image Import & Validation (Phase 44)
+    if (body.action === "import_user_image" || body.action === "validate_and_persist") {
       const {
         agentId,
         imageDataUri,
         prompt,
         originalPrompt,
+        declaredSourceLabel,
         category = "photorealistic",
+        aspectRatio = "1:1",
         workspaceId = "default",
+        requireCloudStorage = false,
       } = body;
 
       if (agentId !== "agent_a" && agentId !== "agent_b") {
@@ -317,34 +320,54 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // 1. Deep content validation & normalization with Sharp
       const validation = await AutomaticSubscribedAgentCoordinator.validateImagePayload(imageDataUri);
 
-      const agentName =
-        agentId === "agent_a" ? "Image Agent A (Subscribed)" : "Image Agent B (Subscribed)";
+      // 2. Strict Provenance Integrity Enforcement:
+      // Even if frontend attempts to pass external neural provenance, user-imported assets
+      // are ALWAYS strictly classified as 'user_uploaded_image' with 'provider_verified: false'.
+      const sourceClassification = "user_uploaded_image";
+      const originMethod = "manual_import";
+      const providerVerified = false;
+
+      const defaultLabel =
+        agentId === "agent_a" ? "External AI Tool A (User Import)" : "External AI Tool B (User Import)";
+      const finalModelLabel = (declaredSourceLabel && typeof declaredSourceLabel === "string" && declaredSourceLabel.trim())
+        ? declaredSourceLabel.trim()
+        : defaultLabel;
 
       const record = await StorageService.persistImage({
         dataUriOrBuffer: validation.buffer,
-        prompt: (prompt || originalPrompt || "Subscribed AI Image").trim(),
-        originalPrompt: (originalPrompt || prompt || "Subscribed AI Image").trim(),
-        provider: agentId === "agent_a" ? "subscribed_agent_a" : "subscribed_agent_b",
-        model: agentName,
+        prompt: (prompt || originalPrompt || "User Imported AI Image").trim(),
+        originalPrompt: (originalPrompt || prompt || "User Imported AI Image").trim(),
+        provider: agentId === "agent_a" ? "external_tool_a" : "external_tool_b",
+        model: finalModelLabel,
         agentId,
         parameters: {
           width: validation.width,
           height: validation.height,
-          aspectRatio: validation.aspectRatio,
-          quality: "subscribed_high",
+          aspectRatio: validation.aspectRatio || aspectRatio,
+          quality: "user_import",
           style: category,
+          provenance: sourceClassification,
+          originMethod,
+          declaredSourceLabel: finalModelLabel,
+          providerVerified,
         },
-        operation: "subscribed_agent_generation",
+        operation: "user_assisted_import",
         userId: session.userId,
         workspaceId,
         userAccessToken,
+        sourceClassification,
+        requireCloudStorage: Boolean(requireCloudStorage),
+        originMethod,
+        declaredSourceLabel: finalModelLabel,
+        providerVerified,
       });
 
       return NextResponse.json({
         success: true,
-        action: "validate_and_persist",
+        action: body.action,
         agentId,
         validation: {
           format: validation.format,

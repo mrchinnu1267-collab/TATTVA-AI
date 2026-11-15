@@ -34,6 +34,11 @@ export interface ImageStorageRecord {
     seed: number;
     quality: string;
     style?: string;
+    provenance?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
+    originMethod?: "manual_import" | "procedural_loopback" | "external_direct";
+    declaredSourceLabel?: string;
+    providerVerified?: boolean;
+    [key: string]: any;
   };
   accuracyScorecard?: AccuracyScorecard;
   validatedChecklist?: RequirementValidationItem[];
@@ -48,6 +53,9 @@ export interface ImageStorageRecord {
   storageType: "supabase_storage" | "vault_fallback";
   storagePath: string;
   sourceClassification?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
+  originMethod?: "manual_import" | "procedural_loopback" | "external_direct";
+  declaredSourceLabel?: string;
+  providerVerified?: boolean;
   cloudError?: string;
 }
 
@@ -65,6 +73,11 @@ export interface PersistImageParams {
     seed?: number;
     quality?: string;
     style?: string;
+    provenance?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
+    originMethod?: "manual_import" | "procedural_loopback" | "external_direct";
+    declaredSourceLabel?: string;
+    providerVerified?: boolean;
+    [key: string]: any;
   };
   accuracyScorecard?: AccuracyScorecard;
   validatedChecklist?: RequirementValidationItem[];
@@ -74,6 +87,10 @@ export interface PersistImageParams {
   workspaceId?: string;
   userAccessToken?: string;
   sourceClassification?: "external_subscribed_agent_a" | "external_subscribed_agent_b" | "local_procedural_fallback" | "user_uploaded_image";
+  requireCloudStorage?: boolean;
+  originMethod?: "manual_import" | "procedural_loopback" | "external_direct";
+  declaredSourceLabel?: string;
+  providerVerified?: boolean;
 }
 
 export interface ValidatedImageMetadata {
@@ -152,13 +169,28 @@ export async function validateImageWithSharp(
     throw new Error(`Invalid image dimensions: ${width}x${height}`);
   }
 
+  // 5. Re-encode and normalize image buffer using Sharp to strip unneeded EXIF/GPS metadata
+  let normalizedBuffer: Buffer;
+  try {
+    if (normalizedFormat === "png") {
+      normalizedBuffer = await sharp(rawBuffer).png({ compressionLevel: 8 }).toBuffer();
+    } else if (normalizedFormat === "webp") {
+      normalizedBuffer = await sharp(rawBuffer).webp({ quality: 92 }).toBuffer();
+    } else {
+      normalizedBuffer = await sharp(rawBuffer).jpeg({ quality: 92, mozjpeg: true }).toBuffer();
+    }
+  } catch {
+    // If re-encoding fails on edge cases, keep verified rawBuffer
+    normalizedBuffer = rawBuffer;
+  }
+
   return {
-    buffer: rawBuffer,
+    buffer: normalizedBuffer,
     format: normalizedFormat,
     mimeType,
     width,
     height,
-    fileSizeBytes: rawBuffer.length,
+    fileSizeBytes: normalizedBuffer.length,
   };
 }
 
@@ -276,6 +308,12 @@ export class StorageService {
 
     // 3. Local Vault Fallback if cloud upload did not succeed
     if (!uploadedToCloud) {
+      if (params.requireCloudStorage) {
+        throw new Error(
+          `Cloud storage upload failed: ${cloudError || "Could not upload to Supabase storage bucket."}`
+        );
+      }
+
       const vaultDir = ensureLocalVaultDir(cleanUserId);
       const localFilePath = path.join(vaultDir, filename);
       try {
@@ -313,6 +351,10 @@ export class StorageService {
         seed: params.parameters?.seed || 0,
         quality: params.parameters?.quality || "high",
         style: params.parameters?.style,
+        provenance: params.parameters?.provenance || params.sourceClassification || "user_uploaded_image",
+        originMethod: params.parameters?.originMethod || params.originMethod || "manual_import",
+        declaredSourceLabel: params.parameters?.declaredSourceLabel || params.declaredSourceLabel,
+        providerVerified: params.parameters?.providerVerified ?? params.providerVerified ?? false,
       },
       accuracyScorecard: params.accuracyScorecard,
       validatedChecklist: params.validatedChecklist,
@@ -327,6 +369,9 @@ export class StorageService {
       storageType,
       storagePath,
       sourceClassification: params.sourceClassification,
+      originMethod: params.originMethod || params.parameters?.originMethod || "manual_import",
+      declaredSourceLabel: params.declaredSourceLabel || params.parameters?.declaredSourceLabel,
+      providerVerified: params.providerVerified ?? params.parameters?.providerVerified ?? false,
       cloudError,
     };
 
@@ -365,14 +410,16 @@ export class StorageService {
 
   /**
    * Retrieves image generation history for a specific user and workspace.
+   * Dynamically issues fresh signed URLs for private Supabase Storage objects.
    */
   public static async listHistory(
     userId: string = "anonymous",
     workspaceId: string = "default",
-    limit: number = 50
+    limit: number = 50,
+    userAccessToken?: string
   ): Promise<ImageStorageRecord[]> {
     // 1. Query Supabase DB first if connected
-    const supabase = getSupabase();
+    const supabase = getSupabase(userAccessToken);
     if (supabase) {
       try {
         let query = supabase
@@ -390,27 +437,56 @@ export class StorageService {
 
         const { data, error } = await query;
         if (!error && Array.isArray(data) && data.length > 0) {
-          return data.map((d: any) => ({
-            id: d.id,
-            url: d.image_url,
-            prompt: d.prompt,
-            originalPrompt: d.original_prompt || d.prompt,
-            provider: d.provider,
-            model: d.model,
-            agentId: d.agent_id,
-            parameters: d.parameters || {},
-            accuracyScorecard: d.accuracy_scorecard,
-            parentImageId: d.parent_image_id,
-            version: d.version || 1,
-            userId: d.user_id,
-            workspaceId: d.workspace_id,
-            createdAt: d.created_at,
-            fileSizeBytes: d.file_size_bytes || 0,
-            mimeType: d.mime_type || "image/png",
-            storageType: d.storage_type || "supabase_storage",
-            storagePath: d.storage_path || "",
-            sourceClassification: d.source_classification || (d.storage_type === "vault_fallback" ? "local_procedural_fallback" : undefined),
-          }));
+          const records: ImageStorageRecord[] = [];
+
+          for (const d of data) {
+            let accessUrl = d.image_url;
+
+            // Generate fresh signed URL for authorized access to private bucket
+            if (d.storage_path && d.storage_type === "supabase_storage") {
+              try {
+                const { data: signedData } = await supabase.storage
+                  .from(STORAGE_BUCKET)
+                  .createSignedUrl(d.storage_path, 60 * 60 * 24);
+                if (signedData?.signedUrl) {
+                  accessUrl = signedData.signedUrl;
+                }
+              } catch {
+                // Keep original signed URL if refresh fails
+              }
+            }
+
+            records.push({
+              id: d.id,
+              url: accessUrl,
+              prompt: d.prompt,
+              originalPrompt: d.original_prompt || d.prompt,
+              provider: d.provider,
+              model: d.model,
+              agentId: d.agent_id,
+              parameters: d.parameters || {},
+              accuracyScorecard: d.accuracy_scorecard,
+              parentImageId: d.parent_image_id,
+              version: d.version || 1,
+              userId: d.user_id,
+              workspaceId: d.workspace_id,
+              createdAt: d.created_at,
+              fileSizeBytes: d.file_size_bytes || 0,
+              mimeType: d.mime_type || "image/png",
+              storageType: d.storage_type || "supabase_storage",
+              storagePath: d.storage_path || "",
+              sourceClassification:
+                d.source_classification ||
+                d.parameters?.provenance ||
+                d.parameters?.sourceClassification ||
+                (d.storage_type === "vault_fallback" ? "local_procedural_fallback" : "user_uploaded_image"),
+              originMethod: d.parameters?.originMethod || "manual_import",
+              declaredSourceLabel: d.parameters?.declaredSourceLabel,
+              providerVerified: d.parameters?.providerVerified ?? false,
+            });
+          }
+
+          return records;
         }
       } catch {
         // Fall back to in-memory store
@@ -431,12 +507,12 @@ export class StorageService {
   /**
    * Retrieves single image record by ID.
    */
-  public static async getRecord(imageId: string): Promise<ImageStorageRecord | null> {
+  public static async getRecord(imageId: string, userAccessToken?: string): Promise<ImageStorageRecord | null> {
     if (inMemoryHistoryRegistry.has(imageId)) {
       return inMemoryHistoryRegistry.get(imageId)!;
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabase(userAccessToken);
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -446,9 +522,17 @@ export class StorageService {
           .maybeSingle();
 
         if (!error && data) {
+          let accessUrl = data.image_url;
+          if (data.storage_path && data.storage_type === "supabase_storage") {
+            const { data: signedData } = await supabase.storage
+              .from(STORAGE_BUCKET)
+              .createSignedUrl(data.storage_path, 60 * 60 * 24);
+            if (signedData?.signedUrl) accessUrl = signedData.signedUrl;
+          }
+
           return {
             id: data.id,
-            url: data.image_url,
+            url: accessUrl,
             prompt: data.prompt,
             originalPrompt: data.original_prompt || data.prompt,
             provider: data.provider,
@@ -465,6 +549,10 @@ export class StorageService {
             mimeType: data.mime_type || "image/png",
             storageType: data.storage_type || "supabase_storage",
             storagePath: data.storage_path || "",
+            sourceClassification: data.source_classification || data.parameters?.provenance,
+            originMethod: data.parameters?.originMethod || "manual_import",
+            declaredSourceLabel: data.parameters?.declaredSourceLabel,
+            providerVerified: data.parameters?.providerVerified ?? false,
           };
         }
       } catch {
@@ -481,9 +569,10 @@ export class StorageService {
   public static async updateRecord(
     imageId: string,
     userId: string,
-    updates: Partial<Pick<ImageStorageRecord, "prompt" | "originalPrompt" | "parameters" | "accuracyScorecard">>
+    updates: Partial<Pick<ImageStorageRecord, "prompt" | "originalPrompt" | "parameters" | "accuracyScorecard">>,
+    userAccessToken?: string
   ): Promise<ImageStorageRecord> {
-    const record = await this.getRecord(imageId);
+    const record = await this.getRecord(imageId, userAccessToken);
     if (!record) {
       throw new Error(`Image record '${imageId}' not found.`);
     }
@@ -500,7 +589,7 @@ export class StorageService {
 
     inMemoryHistoryRegistry.set(imageId, record);
 
-    const supabase = getSupabase();
+    const supabase = getSupabase(userAccessToken);
     if (supabase) {
       try {
         await supabase
@@ -524,8 +613,8 @@ export class StorageService {
   /**
    * Deletes an image record and file asset.
    */
-  public static async deleteRecord(imageId: string, userId: string): Promise<boolean> {
-    const record = await this.getRecord(imageId);
+  public static async deleteRecord(imageId: string, userId: string, userAccessToken?: string): Promise<boolean> {
+    const record = await this.getRecord(imageId, userAccessToken);
     if (!record) return false;
 
     // Check authorization: User can only delete their own image (unless anonymous or admin)
@@ -535,7 +624,7 @@ export class StorageService {
 
     // 1. Delete from Supabase Storage if uploaded to cloud
     if (record.storageType === "supabase_storage" && record.storagePath) {
-      const supabase = getSupabase();
+      const supabase = getSupabase(userAccessToken);
       if (supabase) {
         try {
           await supabase.storage.from(STORAGE_BUCKET).remove([record.storagePath]);

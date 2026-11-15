@@ -140,6 +140,16 @@ CREATE POLICY "Users can view their own image history" ON public.image_history
         user_id = auth.uid()::text
     );
 
+DROP POLICY IF EXISTS "Users can update their own image history" ON public.image_history;
+CREATE POLICY "Users can update their own image history" ON public.image_history
+    FOR UPDATE TO authenticated
+    USING (
+        user_id = auth.uid()::text
+    )
+    WITH CHECK (
+        user_id = auth.uid()::text
+    );
+
 DROP POLICY IF EXISTS "Users can delete their own image history" ON public.image_history;
 CREATE POLICY "Users can delete their own image history" ON public.image_history
     FOR DELETE TO authenticated

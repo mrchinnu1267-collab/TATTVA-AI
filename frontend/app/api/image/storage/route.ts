@@ -16,15 +16,18 @@ export async function GET(req: NextRequest) {
     const workspaceId = searchParams.get("workspaceId") || "default";
     const limit = parseInt(searchParams.get("limit") || "30", 10);
 
+    const authHeader = req.headers.get("authorization");
+    const userAccessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
     if (imageId) {
-      const record = await StorageService.getRecord(imageId);
+      const record = await StorageService.getRecord(imageId, userAccessToken);
       if (!record) {
         return NextResponse.json({ error: "Image not found." }, { status: 404 });
       }
       return NextResponse.json({ record });
     }
 
-    const history = await StorageService.listHistory(session.userId, workspaceId, limit);
+    const history = await StorageService.listHistory(session.userId, workspaceId, limit, userAccessToken);
     return NextResponse.json({ history });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -97,11 +100,14 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const imageId = searchParams.get("id");
 
+    const authHeader = req.headers.get("authorization");
+    const userAccessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
     if (!imageId) {
       return NextResponse.json({ error: "Image ID is required." }, { status: 400 });
     }
 
-    const deleted = await StorageService.deleteRecord(imageId, session.userId);
+    const deleted = await StorageService.deleteRecord(imageId, session.userId, userAccessToken);
     return NextResponse.json({ success: deleted });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -117,16 +123,24 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { id, prompt, originalPrompt, parameters, accuracyScorecard } = body;
 
+    const authHeader = req.headers.get("authorization");
+    const userAccessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
     if (!id) {
       return NextResponse.json({ error: "Image ID is required." }, { status: 400 });
     }
 
-    const updated = await StorageService.updateRecord(id, session.userId, {
-      prompt,
-      originalPrompt,
-      parameters,
-      accuracyScorecard,
-    });
+    const updated = await StorageService.updateRecord(
+      id,
+      session.userId,
+      {
+        prompt,
+        originalPrompt,
+        parameters,
+        accuracyScorecard,
+      },
+      userAccessToken
+    );
 
     return NextResponse.json({ success: true, record: updated });
   } catch (err: any) {
