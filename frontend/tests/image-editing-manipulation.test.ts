@@ -34,11 +34,13 @@ import {
   EDITING_PROVIDER_CAPABILITIES,
   resolveEditingProvider,
 } from "../app/lib/image-engine/editing/editing-router";
+import { clearCooldowns } from "../app/lib/image-engine/providers";
 import {
   BENCHMARK_50_EDITING_SCENARIOS,
 } from "../app/lib/image-engine/editing/benchmark-50";
 
 export async function runImageEditingManipulationTests() {
+  clearCooldowns();
   console.log("\n🚀 Running Phase H: Advanced AI Image Editing & Manipulation Test Suite...\n");
 
   // Valid 128x128 PNG data URI fixture satisfying >= 64x64 reference dimension requirements
@@ -246,6 +248,7 @@ export async function runImageEditingManipulationTests() {
   assert.strictEqual(openaiCap.supportsInpainting, false, "DALL-E 3 must not be advertised as inpainting-capable");
 
   // Router must reject OpenAI for mask editing and re-route to Gemini
+  clearCooldowns();
   const routeDecision = resolveEditingProvider("inpainting", "openai", true, false);
   assert.strictEqual(routeDecision.primaryProvider, "gemini");
   assert.ok(routeDecision.warnings.some((w) => w.includes("DALL-E 3 does not support mask-conditioned inpainting")));

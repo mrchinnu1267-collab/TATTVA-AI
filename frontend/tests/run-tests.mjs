@@ -145,6 +145,7 @@ try {
   if (e2eFlow?.runE2EVerificationTest) {
     await e2eFlow.runE2EVerificationTest();
   }
+  await jiti("./phase-30-31-32-production-completion.test.ts");
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

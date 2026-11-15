@@ -22,8 +22,10 @@ import {
   getHistoricalBenchmarkRuns,
   getFailedBenchmarkCases,
 } from "../app/lib/image-engine/model-benchmarking/continuous-benchmarking";
+import { clearCooldowns } from "../app/lib/image-engine/providers";
 
 export async function runModelBenchmarkingIntelligenceTests() {
+  clearCooldowns();
   console.log("\n🚀 Running Phase J: Advanced Model Accuracy Benchmarking & Intelligence Test Suite...\n");
 
   // ---------------------------------------------------------------------------
@@ -154,6 +156,7 @@ export async function runModelBenchmarkingIntelligenceTests() {
   // Test 7: Live API Availability & Dynamic Failover
   // ---------------------------------------------------------------------------
   console.log("▶ Test 7: Real-time API availability checks and cooldown handling...");
+  clearCooldowns();
   const pollinationsStatus = checkModelApiAvailability(MODEL_BENCHMARK_PROFILES["flux-pollinations"]);
   assert.strictEqual(pollinationsStatus.isAvailable, true, "Pollinations must be available by default");
 

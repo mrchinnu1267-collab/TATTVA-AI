@@ -264,6 +264,11 @@ export function formatUserFacingImageError(rawError: unknown): string {
     return "The image service timed out or could not be reached. Please check your network connection and try again.";
   }
 
+  // Hardware / low-level driver failures (prevent internal register / bus address leakage)
+  if (/gpu failure|bus 0x|segfault|core dump|internal driver/i.test(lower)) {
+    return "All configured image providers are currently unavailable. Please try again shortly.";
+  }
+
   // Generic fallback with sanitized context
   const snippet = sanitizeDiagnosticMessage(message).slice(0, 160);
   if (snippet && snippet !== "Error") {
