@@ -130,7 +130,7 @@ import {
   resetGuestCount,
   getActiveSessionName,
 } from "../lib/local-auth";
-import NeuralWelcomeScreen from "../components/neural/NeuralWelcomeScreen";
+import FluidMinimalWelcome from "../components/neural/FluidMinimalWelcome";
 import NeuralCore3D, { NeuralCoreState } from "../components/neural/NeuralCore3D";
 
 type Role = "user" | "assistant";
@@ -3560,20 +3560,20 @@ export default function ChatPage() {
                   setSettingsActiveTab("providers");
                   setIsSettingsModalOpen(true);
                 }}
-                className={`hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all shadow-xs group cursor-pointer ${
+                className={`hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
                   isDark
-                    ? "border-violet-500/25 bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-transparent text-neutral-300 hover:border-violet-500/40 hover:text-white"
-                    : "border-violet-300/40 bg-violet-50 text-neutral-800 hover:border-violet-400"
+                    ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:text-white"
+                    : "border-neutral-200 bg-neutral-50 text-neutral-700 hover:border-neutral-300 hover:text-neutral-900"
                 }`}
-                title="TATTVA Neural Core • Click to configure AI Models"
+                title="AI Model • Click to configure"
               >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="font-medium text-neutral-300 dark:text-neutral-200">
+                  {customProviderSettings.enabled
+                    ? `${customProviderSettings.activeProvider} (${customProviderSettings.providers[customProviderSettings.activeProvider]?.model || "custom"})`
+                    : "Gemini 3.8 Flash"}
                 </span>
-                <span className="font-semibold text-neutral-200 dark:text-neutral-200">TATTVA Neural 3.0</span>
-                <span className="text-violet-400 text-[11px] font-mono">• Gemini 3.8</span>
-                <ChevronDown className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white group-hover:translate-y-0.5 transition-transform" />
+                <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
               </button>
             )}
           </div>
@@ -3808,21 +3808,25 @@ export default function ChatPage() {
           </div>
 
           {/* Action Buttons: New Chat & Global Search (Frozen) - Doubled & Touch Friendly */}
-          <div className="flex-shrink-0 p-3 space-y-2 border-b border-black/[0.06] dark:border-white/[0.06]">
-            {/* New Chat Button */}
+          <div className="flex-shrink-0 p-3 space-y-1.5 border-b border-black/[0.06] dark:border-white/[0.06]">
+            {/* New Chat Button - Minimal & Elegant */}
             <button
               type="button"
               onClick={createNewChat}
-              className="flex items-center justify-between w-full rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold transition-all shadow-lg min-h-[50px] cursor-pointer select-none active:scale-98 bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-700 text-white shadow-violet-500/25 hover:shadow-violet-500/40 hover:brightness-110"
+              className={`flex items-center justify-between w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium transition cursor-pointer select-none active:scale-98 ${
+                isDark
+                  ? "bg-white/[0.08] hover:bg-white/[0.12] text-white"
+                  : "bg-neutral-900 hover:bg-neutral-800 text-white"
+              }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Plus className="w-5 h-5 stroke-[2.5]" />
-                <span className="tracking-tight">New Chat</span>
+              <div className="flex items-center gap-2">
+                <Plus className="w-4 h-4 stroke-[2.2]" />
+                <span>New Chat</span>
               </div>
-              <span className="text-xs font-mono opacity-80">✦</span>
+              <span className="text-[10px] font-mono opacity-70">⌘N</span>
             </button>
 
-            {/* My Workspace Button */}
+            {/* My Workspace */}
             <Link
               href="/workspace"
               onClick={() => {
@@ -3830,22 +3834,18 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08] hover:border-blue-500/30 hover:text-white"
-                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
-                }`}
-              title="Open TATTVA AI My Workspace (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access)"
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+                isDark
+                  ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              }`}
+              title="Open My Workspace"
             >
-              <div className="flex items-center gap-2.5">
-                <Briefcase className="w-4.5 h-4.5 text-blue-400" />
-                <span>My Workspace</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
-                7 Apps ✨
-              </span>
+              <Briefcase className="w-4 h-4 text-neutral-400" />
+              <span>My Workspace</span>
             </Link>
 
-            {/* Maps Button matching Image 2 */}
+            {/* Satellite Maps */}
             <Link
               href="/maps"
               onClick={() => {
@@ -3853,22 +3853,18 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08] hover:border-emerald-500/30 hover:text-white"
-                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
-                }`}
-              title="Open full interactive Satellite Maps"
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+                isDark
+                  ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              }`}
+              title="Open Satellite Maps"
             >
-              <div className="flex items-center gap-2.5">
-                <MapPin className="w-4.5 h-4.5 text-emerald-400" />
-                <span>Satellite Maps</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/25">
-                Live 🛰️
-              </span>
+              <MapPin className="w-4 h-4 text-neutral-400" />
+              <span>Satellite Maps</span>
             </Link>
 
-            {/* AI Evaluation Lab Button */}
+            {/* AI Evaluation Lab */}
             <Link
               href="/evaluation"
               onClick={() => {
@@ -3876,84 +3872,80 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08] hover:border-cyan-500/30 hover:text-white"
-                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
-                }`}
-              title="Open TATTVA AI Evaluation Lab (OpenAI MMMLU Benchmark)"
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+                isDark
+                  ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              }`}
+              title="Open Evaluation Lab"
             >
-              <div className="flex items-center gap-2.5">
-                <Brain className="w-4.5 h-4.5 text-cyan-400" />
-                <span>Evaluation Lab</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/25">
-                MMMLU 🧠
-              </span>
+              <Brain className="w-4 h-4 text-neutral-400" />
+              <span>Evaluation Lab</span>
             </Link>
-
-
 
             {/* Temporary Chat Button */}
             <button
               type="button"
               onClick={toggleTemporaryChat}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isTemporaryChat
-                  ? "border-amber-500/50 bg-amber-500/15 text-amber-400 shadow-2xs"
+              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+                isTemporaryChat
+                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
                   : isDark
-                    ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08]"
-                    : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-                }`}
-              title="Temporary chat (not saved in history)"
+                    ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                    : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              }`}
+              title="Temporary chat"
             >
               <div className="flex items-center gap-2.5">
-                <Ghost className={`w-4.5 h-4.5 ${isTemporaryChat ? "text-amber-400" : "text-neutral-400"}`} />
+                <Ghost className={`w-4 h-4 ${isTemporaryChat ? "text-amber-400" : "text-neutral-400"}`} />
                 <span>Temporary Chat</span>
               </div>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${isTemporaryChat ? "bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10 text-neutral-400"
-                }`}>
-                {isTemporaryChat ? "ON" : "OFF"}
-              </span>
+              {isTemporaryChat && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">
+                  ON
+                </span>
+              )}
             </button>
 
             {/* Search Conversations Button */}
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-medium transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08]"
-                  : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-                }`}
+              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+                isDark
+                  ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              }`}
               title="Search all conversations (Ctrl+K)"
             >
               <div className="flex items-center gap-2.5">
-                <Search className="w-4.5 h-4.5 text-neutral-400" />
+                <Search className="w-4 h-4 text-neutral-400" />
                 <span>Search chats</span>
               </div>
-              <kbd className="text-xs font-mono px-2 py-0.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-400">
-                ⌘K
-              </kbd>
+              <kbd className="text-[10px] font-mono text-neutral-500">⌘K</kbd>
             </button>
 
-            {/* Quick Links: Archived Chats */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setIsArchiveModalOpen(true)}
-                className={`flex items-center justify-center gap-2 w-full rounded-2xl border py-2.5 px-3 text-xs sm:text-sm font-medium transition cursor-pointer min-h-[42px] select-none active:scale-98 ${isDark
-                    ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08]"
-                    : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
-                  }`}
-                title="View archived chats"
-              >
-                <FolderArchive className="w-4 h-4 text-blue-500" />
+            {/* Archived Chats */}
+            <button
+              type="button"
+              onClick={() => setIsArchiveModalOpen(true)}
+              className={`flex items-center justify-between w-full rounded-lg px-3 py-2 text-xs font-medium transition cursor-pointer select-none ${
+                isDark
+                  ? "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              }`}
+              title="View archived chats"
+            >
+              <div className="flex items-center gap-2.5">
+                <FolderArchive className="w-4 h-4 text-neutral-400" />
                 <span>Archived Chats</span>
-                {sessions.filter((s) => s.is_archived).length > 0 && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold">
-                    {sessions.filter((s) => s.is_archived).length}
-                  </span>
-                )}
-              </button>
-            </div>
+              </div>
+              {sessions.filter((s) => s.is_archived).length > 0 && (
+                <span className="text-[10px] font-mono text-neutral-400">
+                  {sessions.filter((s) => s.is_archived).length}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Scrollable Chat History (Only this part scrolls inside the sidebar) */}
@@ -4819,13 +4811,7 @@ export default function ChatPage() {
             onScroll={handleChatScroll}
             className="flex-1 min-h-0 overflow-y-auto w-full relative flex flex-col"
           >
-            {/* Subtle Animated Ambient Glow Background for TATTVA NEURAL EXPERIENCE */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-              <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[650px] h-[550px] bg-gradient-to-b from-violet-600/10 via-indigo-600/5 to-transparent rounded-full blur-[140px] opacity-80" />
-              <div className="absolute bottom-[10%] right-[10%] w-[350px] h-[350px] bg-cyan-500/5 rounded-full blur-[120px] opacity-60" />
-            </div>
-
-            <div className={`p-3 sm:p-6 lg:p-8 relative z-10 w-full mx-auto ${messages.length === 0 ? "max-w-4xl flex-1 flex flex-col justify-between" : "max-w-3xl space-y-6"}`}>
+            <div className={`p-3 sm:p-6 lg:p-8 relative z-10 w-full mx-auto ${messages.length === 0 ? "max-w-3xl flex-1 flex flex-col justify-center" : "max-w-3xl space-y-6"}`}>
               {messages.length === 0 ? (
                 isTemporaryChat ? (
                   <div className="my-auto py-12 text-center max-w-md mx-auto flex flex-col items-center justify-center animate-in fade-in select-none">
@@ -4838,7 +4824,7 @@ export default function ChatPage() {
                     </p>
                   </div>
                 ) : (
-                  <NeuralWelcomeScreen
+                  <FluidMinimalWelcome
                     coreState={
                       error
                         ? "error"
@@ -5510,15 +5496,13 @@ export default function ChatPage() {
               <input ref={sheetInputRef} type="file" multiple accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" />
               <input ref={codeInputRef} type="file" multiple accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat" onChange={handleFileSelect} className="hidden" />
 
-              {/* Seamless Box matching ChatGPT Mobile interface with TATTVA Neural Glow */}
+              {/* Fluid Minimalist Floating Composer */}
               <div
-                className={`relative flex flex-col justify-between w-full rounded-[28px] border p-2.5 sm:p-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 ${isDark
-                    ? "bg-[#14151b]/95 border-white/[0.12] text-white focus-within:border-violet-500/50 focus-within:ring-2 focus-within:ring-violet-500/20 shadow-violet-950/20"
-                    : "bg-white/95 border-black/10 text-black shadow-xl focus-within:border-violet-500/50 focus-within:ring-2 focus-within:ring-violet-500/20"
+                className={`relative flex flex-col justify-between w-full rounded-2xl sm:rounded-3xl border p-2.5 sm:p-3 shadow-md transition-all duration-200 ${isDark
+                    ? "bg-[#141519] border-white/10 text-white focus-within:border-indigo-500/40 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-black/20"
+                    : "bg-neutral-100/90 border-neutral-200 text-neutral-900 focus-within:border-indigo-500/40 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-neutral-200/50"
                   }`}
               >
-                {/* Subtle Neural Core top accent line */}
-                <div className="absolute top-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-violet-500/35 to-transparent pointer-events-none" />
                 {/* 1. Top Row: Text Input */}
                 <textarea
                   ref={textareaRef}
@@ -5709,7 +5693,7 @@ export default function ChatPage() {
                         <button
                           type="button"
                           onClick={stopGeneration}
-                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-500/30 active:scale-95 transition cursor-pointer shrink-0"
+                          className="flex h-9 w-9 sm:h-9.5 sm:w-9.5 items-center justify-center rounded-full bg-neutral-800 hover:bg-neutral-700 text-white transition-all cursor-pointer shrink-0 active:scale-95 shadow-xs"
                           title="Stop generation"
                         >
                           <Square className="w-3.5 h-3.5 fill-current" />
@@ -5718,10 +5702,14 @@ export default function ChatPage() {
                         <button
                           type="button"
                           onClick={() => sendMessage()}
-                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-105 active:scale-95 transition cursor-pointer shrink-0"
+                          className={`flex h-9 w-9 sm:h-9.5 sm:w-9.5 items-center justify-center rounded-full transition-all cursor-pointer shrink-0 active:scale-95 shadow-xs ${
+                            isDark
+                              ? "bg-white text-neutral-900 hover:bg-neutral-200"
+                              : "bg-neutral-900 text-white hover:bg-black"
+                          }`}
                           title="Send message"
                         >
-                          <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+                          <ArrowUp className="w-4.5 h-4.5 stroke-[2.2]" />
                         </button>
                       )}
                     </div>
