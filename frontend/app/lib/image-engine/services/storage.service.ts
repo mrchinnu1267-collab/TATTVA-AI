@@ -315,7 +315,7 @@ export class StorageService {
       }
 
       const vaultDir = ensureLocalVaultDir(cleanUserId);
-      const localFilePath = path.join(vaultDir, filename);
+      const localFilePath = path.join(/*turbopackIgnore: true*/ vaultDir, filename);
       try {
         fs.writeFileSync(localFilePath, validation.buffer);
       } catch (writeErr: any) {

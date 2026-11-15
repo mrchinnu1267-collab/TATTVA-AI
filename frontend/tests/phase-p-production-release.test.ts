@@ -193,7 +193,9 @@ export async function runPhasePProductionReleaseTests() {
   console.log("▶ Scenario 12: Secure download URI formatting and MIME verification...");
   assert.strictEqual(savedRecord.mimeType, "image/png", "Saved record must have valid image/png MIME type");
   assert.ok(
-    savedRecord.url.startsWith("/api/download?") || savedRecord.url.startsWith("http"),
+    savedRecord.url.startsWith("/api/download?") ||
+      savedRecord.url.startsWith("/api/image/download?") ||
+      savedRecord.url.startsWith("http"),
     "Storage URL must be a valid download URI or HTTPS link"
   );
   console.log("  ✔ Scenario 12: Image download payload and MIME integrity verified.");

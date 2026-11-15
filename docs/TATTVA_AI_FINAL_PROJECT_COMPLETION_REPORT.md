@@ -94,7 +94,7 @@ TATTVA AI is an advanced, production-grade, multilingual, multimodal, multi-mode
 | **9** | Conversational Eval | Multi-turn coherence, context retention, clarification | ✅ Implemented & Tested |
 | **10** | Multilingual Eval | Indic evaluation (Telugu, Hindi) with code-switching tests | ✅ Implemented & Tested |
 | **11** | Security & Privacy | Supabase RLS, answer key protection, zero secret leaks | ✅ Implemented & Tested |
-| **12** | Documentation | Complete system documentation and architecture runbooks | ✅ Implemented & Tested |
+| **12** | Technical Documentation | Complete system documentation and architecture runbooks | ✅ Implemented & Tested |
 | **13** | System Verification | Mocked automated verification with zero billing leakage | ✅ Implemented & Tested |
 | **14** | Performance Baseline | 12-category baseline benchmark corpus and scoring | ✅ Implemented & Tested |
 | **15** | Prompt Understanding | 14-intent parsing, Telugu-English code-switching, anaphora | ✅ Implemented & Tested |
