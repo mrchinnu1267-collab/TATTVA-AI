@@ -6,7 +6,7 @@ let mainWindow = null;
 
 // Fallback endpoint sequence: local dev server or cloud HTTPS tunnel
 const LOCAL_URL = 'http://localhost:3000';
-const CLOUD_URL = 'https://disco-care-buyers-copyright.trycloudflare.com';
+const CLOUD_URL = 'https://tattva-ai-phi.vercel.app';
 
 function checkUrlLive(url, timeoutMs = 1500) {
   return new Promise((resolve) => {
@@ -60,7 +60,7 @@ async function createWindow() {
   // Open external links in user default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http:') || url.startsWith('https:')) {
-      if (!url.includes('localhost:3000') && !url.includes('trycloudflare.com') && !url.includes('tattva-ai.vercel.app')) {
+      if (!url.includes('localhost:3000') && !url.includes('trycloudflare.com') && !url.includes('tattva-ai.vercel.app') && !url.includes('tattva-ai-phi.vercel.app')) {
         shell.openExternal(url);
         return { action: 'deny' };
       }
@@ -109,10 +109,10 @@ function createApplicationMenu() {
           }
         },
         {
-          label: 'Sara Live Voice Assistant',
-          accelerator: 'CmdOrCtrl+Shift+V',
+          label: 'AI Evaluation Lab',
+          accelerator: 'CmdOrCtrl+Shift+E',
           click: () => {
-            if (mainWindow) mainWindow.webContents.send('navigate-to', '/voice');
+            if (mainWindow) mainWindow.webContents.send('navigate-to', '/evaluation');
           }
         },
         {

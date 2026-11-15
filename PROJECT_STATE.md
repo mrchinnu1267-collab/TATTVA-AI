@@ -168,13 +168,19 @@ TATTVA_AI/
   - **Automated Test Verification:** 35 / 35 assertions passing (100%) in `tests/continuous-devops-operations.test.ts`.
   - **Operational Documentation:** Maintained `CHANGELOG.md`, `SECURITY_REPORT.md`, `PERFORMANCE_REPORT.md`, and `RELEASE_NOTES.md`.
 
+- [x] **Release Candidate 1 (RC1) & Launch Preparation Completed & Certified**:
+  - **Comprehensive 18 User Journey Verification:** Executed and passed all 18 end-to-end user workflows (registration, login/logout, password recovery, Google OAuth canonical domain binding, personal/org workspaces with RBAC, ChatML/SSE streaming, conversation history, file uploads with magic bytes, document extraction, RAG token compression, dynamic model routing, image fallback mesh, audio operations with verified microphone removal, agent safety gates, MMMLU Hindi evaluation, feedback GDPR purge, and BYOK AES-256-GCM key encryption).
+  - **Cross-Platform Hardening:** Synchronized desktop Electron app (`desktop-app/main.js`) with official cloud URL (`https://tattva-ai-phi.vercel.app`) and direct Evaluation Lab menu access; confirmed Android native app (`android-app/`) configuration.
+  - **Automated Test Verification:** 41 / 41 assertions passing (100%) in `tests/release-candidate-user-journeys.test.ts`.
+  - **Official Launch Report:** Published `docs/TATTVA_AI_RELEASE_CANDIDATE_REPORT.md` with official "GO FOR CONTROLLED BETA LAUNCH" sign-off.
+
 ---
 
 ## 4. Current Status
 
 - **Build Integrity:** `npm run build` succeeds cleanly with Turbopack (all routes compiled with 0 errors).
-- **Test Integrity:** 372 / 372 automated test assertions passing (100% across all 15 test suites: `phase-14` through `phase-27` and `continuous-devops-operations`) with $0.00 API cost.
-- **Version Tag:** `2.1.0-beta.1`.
+- **Test Integrity:** 413 / 413 automated test assertions passing (100% across all 16 test suites: `phase-14` through `phase-27`, `continuous-devops-operations`, and `release-candidate-user-journeys`) with $0.00 API cost.
+- **Version Tag:** `2.1.0-rc.1`.
 - **Branch:** `main`.
 
 ---
