@@ -1,5 +1,5 @@
 // TATTVA AI - Production Service Worker (PWA)
-const CACHE_NAME = 'tattva-ai-v4';
+const CACHE_NAME = 'tattva-ai-v5';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
