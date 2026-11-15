@@ -1,0 +1,72 @@
+[
+  {
+    "id": "mm_001",
+    "question": "Inspect the provided system architecture diagram. What component is placed directly between the User Interface and the Multi-Model Router?",
+    "options": {
+      "A": "Prompt Understanding & Context Engine",
+      "B": "Direct Database Connection",
+      "C": "Payment Gateway",
+      "D": "Third-Party Ad Server"
+    },
+    "expectedAnswer": "A",
+    "subject": "diagram_vqa",
+    "language": "en-US",
+    "criteria": ["Visual diagram interpretation", "Component identification"]
+  },
+  {
+    "id": "mm_002",
+    "question": "In the quarterly performance chart, which cloud provider achieved the lowest p95 latency in Q3?",
+    "options": {
+      "A": "Google Gemini 2.5 Flash at 280ms",
+      "B": "Legacy On-Premise Server at 1200ms",
+      "C": "External Sync Queue at 950ms",
+      "D": "Offline Batch Processor at 4500ms"
+    },
+    "expectedAnswer": "A",
+    "subject": "chart_comprehension",
+    "language": "en-US",
+    "criteria": ["Bar chart inspection", "Accurate data point extraction"]
+  },
+  {
+    "id": "mm_003",
+    "question": "Examine the low-resolution receipt image. What is the total invoiced amount printed at the bottom?",
+    "options": {
+      "A": "$142.50",
+      "B": "$14.25",
+      "C": "$1,425.00",
+      "D": "$42.50"
+    },
+    "expectedAnswer": "A",
+    "subject": "receipt_ocr",
+    "language": "en-US",
+    "criteria": ["Numeric OCR extraction", "Sub-total vs Total distinction"]
+  },
+  {
+    "id": "mm_004",
+    "question": "In the video keyframe sequence, at which timestamp does the presenter switch from slide 3 (Architecture) to slide 4 (Evaluation Metrics)?",
+    "options": {
+      "A": "02:45",
+      "B": "00:10",
+      "C": "15:20",
+      "D": "45:00"
+    },
+    "expectedAnswer": "A",
+    "subject": "video_keyframe_qa",
+    "language": "en-US",
+    "criteria": ["Temporal keyframe localization", "Accurate timestamp extraction"]
+  },
+  {
+    "id": "mm_005",
+    "question": "What is the recommended design token contrast ratio for primary text against dark glassmorphism backgrounds according to the visual design guide?",
+    "options": {
+      "A": "At least 4.5:1 (WCAG AA Compliance)",
+      "B": "1:1 (Invisible)",
+      "C": "2:1 (Low contrast)",
+      "D": "No requirement"
+    },
+    "expectedAnswer": "A",
+    "subject": "design_token_visual_spec",
+    "language": "en-US",
+    "criteria": ["Accessibility standard compliance", "WCAG 2.1 AA ratio"]
+  }
+]

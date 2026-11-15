@@ -7,11 +7,25 @@
 export type DatasetFormat = "csv" | "json" | "jsonl";
 export type DatasetCategory =
   | "knowledge"
-  | "reasoning"
-  | "instruction_following"
-  | "coding"
   | "conversational"
-  | "multilingual";
+  | "instruction_following"
+  | "reasoning"
+  | "coding"
+  | "mathematics"
+  | "multilingual"
+  | "tool_use"
+  | "rag_evaluation"
+  | "multimodal_evaluation";
+
+export type DatasetType = "evaluation" | "training" | "benchmark";
+
+export interface DatasetProvenance {
+  originalAuthor: string;
+  sourceUrl: string;
+  curationMethodology: string;
+  commercialUsePermitted: boolean;
+  redistributionTerms: string;
+}
 
 export interface DatasetMetadata {
   id: string;
@@ -31,7 +45,18 @@ export interface DatasetMetadata {
   dateImported: string;
   isActive: boolean;
   hasVerifiedAnswers: boolean;
-  schemaType: "mmmlu_mcq" | "indic_mcq" | "instruction_json" | "conversational_multiturn";
+  schemaType:
+    | "mmmlu_mcq"
+    | "indic_mcq"
+    | "instruction_json"
+    | "conversational_multiturn"
+    | "coding_problem"
+    | "math_problem"
+    | "tool_use"
+    | "rag_eval"
+    | "multimodal_eval";
+  datasetType?: DatasetType;
+  provenance?: DatasetProvenance;
 }
 
 export interface UniversalQuestionRecord {

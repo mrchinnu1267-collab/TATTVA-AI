@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const language = searchParams.get("language");
+    const type = searchParams.get("type");
 
     let datasets = datasetRegistry.listDatasets();
 
@@ -21,6 +22,10 @@ export async function GET(req: NextRequest) {
 
     if (language && language !== "all") {
       datasets = datasets.filter((d) => d.language === language);
+    }
+
+    if (type && type !== "all") {
+      datasets = datasets.filter((d) => d.datasetType === type);
     }
 
     return NextResponse.json({

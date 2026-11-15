@@ -11,6 +11,7 @@ import {
   DatasetValidationReport,
   OptionLetter,
 } from "./types";
+import { datasetRegistry } from "../datasets/dataset-registry";
 
 export class MMMLUCSVLoader {
   private static instance: MMMLUCSVLoader;
@@ -51,10 +52,19 @@ export class MMMLUCSVLoader {
       ? "MMMLU_HI-IN_456_question_sample.csv"
       : "mmlu_HI-IN.csv";
 
+    let canonicalRoot = "";
+    try {
+      canonicalRoot = datasetRegistry.resolveCanonicalDatasetsRoot();
+    } catch {
+      // Fallback to relative discovery
+    }
+
     const candidatePaths = [
+      ...(canonicalRoot ? [path.join(canonicalRoot, "MMMLU", preferredFilename)] : []),
       path.join(process.cwd(), "datasets", "MMMLU", preferredFilename),
       path.resolve(process.cwd(), "..", "datasets", "MMMLU", preferredFilename),
       ...(process.env.MMMLU_DATASET_PATH ? [process.env.MMMLU_DATASET_PATH] : []),
+      ...(canonicalRoot ? [path.join(canonicalRoot, "MMMLU", fallbackFilename)] : []),
       path.join(process.cwd(), "datasets", "MMMLU", fallbackFilename),
       path.resolve(process.cwd(), "..", "datasets", "MMMLU", fallbackFilename),
     ];

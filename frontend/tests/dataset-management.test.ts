@@ -88,6 +88,51 @@ export async function runDatasetManagementTests() {
   const restored = datasetRegistry.getDatasetById(targetId);
   assert(restored?.isActive === initialStatus, `Restored active status back to ${initialStatus}`);
 
+  // 7. Expanded 10-Category & Dedicated Domain Dataset Verification
+  console.log("--- 7. Expanded 10-Category Benchmark Verification ---");
+  const codingRecords = datasetRegistry.loadRecords("coding-benchmark-eval", true);
+  assert(codingRecords.length === 5, `Loaded 5 verified coding benchmark problems`);
+  assert(codingRecords[0].subject === "typescript_algorithms", "Coding problem subject is typescript_algorithms");
+
+  const mathRecords = datasetRegistry.loadRecords("mathematics-benchmark-eval", true);
+  assert(mathRecords.length === 5, `Loaded 5 verified quantitative mathematics problems`);
+  assert(mathRecords[0].subject === "algebra", "Math problem subject is algebra");
+
+  const toolRecords = datasetRegistry.loadRecords("tool-use-benchmark-eval", true);
+  assert(toolRecords.length === 5, `Loaded 5 verified autonomous tool invocation problems`);
+  assert(toolRecords[0].subject === "tool_invocation", "Tool problem subject is tool_invocation");
+
+  const ragRecords = datasetRegistry.loadRecords("rag-grounding-eval", true);
+  assert(ragRecords.length === 5, `Loaded 5 verified RAG grounding and citation problems`);
+  assert(ragRecords[0].subject === "fact_extraction", "RAG problem subject is fact_extraction");
+
+  const mmRecords = datasetRegistry.loadRecords("multimodal-vision-eval", true);
+  assert(mmRecords.length === 5, `Loaded 5 verified multimodal vision & OCR evaluation items`);
+  assert(mmRecords[0].subject === "diagram_vqa", "Multimodal problem subject is diagram_vqa");
+
+  // 8. Category & Dataset Type Filtering
+  console.log("--- 8. Category & Type Segregation Verification ---");
+  const evalDatasets = datasetRegistry.listDatasetsByType("evaluation");
+  assert(evalDatasets.length === 10, `All 10 benchmark datasets are strictly segregated as 'evaluation' type`);
+
+  const codingDatasets = datasetRegistry.listDatasetsByCategory("coding");
+  assert(codingDatasets.length >= 1, `Filtered datasets by 'coding' category: ${codingDatasets[0].id}`);
+
+  const toolDatasets = datasetRegistry.listDatasetsByCategory("tool_use");
+  assert(toolDatasets.length >= 1, `Filtered datasets by 'tool_use' category: ${toolDatasets[0].id}`);
+
+  // 9. Integrity Verification & Test Contamination Prevention
+  console.log("--- 9. Integrity Verification & Contamination Prevention ---");
+  const integrity = datasetRegistry.verifyDatasetIntegrity("coding-benchmark-eval");
+  assert(integrity.valid === true, "Integrity check passed with zero errors");
+  assert(integrity.recordCount === 5, "Integrity record count matches manifest");
+
+  const leakageAttempt = datasetRegistry.preventTrainingDataLeakage({
+    datasetId: "mmmlu-hi-in-sample",
+  });
+  assert(leakageAttempt.allowed === false, "Training leakage prevention strictly blocks evaluation dataset ingestion");
+  assert(Boolean(leakageAttempt.reason?.includes("test contamination")), "Surfaced test contamination security reason");
+
   // Summary
   console.log("\n========================================================");
   console.log(`🏁 DATASET MANAGEMENT TEST RESULTS: ${passed}/${total} PASSED (${Math.round((passed / total) * 100)}%)`);

@@ -7,8 +7,10 @@
 import fs from "fs";
 import path from "path";
 import {
+  DatasetCategory,
   DatasetMetadata,
   DatasetRegistryManifest,
+  DatasetType,
   UniversalQuestionRecord,
 } from "./types";
 import { mmmluValidator } from "../mmmlu/validator";
@@ -131,6 +133,84 @@ export class DatasetRegistry {
   public getDatasetById(id: string): DatasetMetadata | null {
     const datasets = this.listDatasets();
     return datasets.find((d) => d.id === id) || null;
+  }
+
+  /**
+   * Lists datasets filtered by category
+   */
+  public listDatasetsByCategory(category: DatasetCategory): DatasetMetadata[] {
+    return this.listDatasets().filter((d) => d.categories.includes(category));
+  }
+
+  /**
+   * Lists datasets filtered by datasetType (evaluation vs training vs benchmark)
+   */
+  public listDatasetsByType(type: DatasetType): DatasetMetadata[] {
+    return this.listDatasets().filter((d) => d.datasetType === type);
+  }
+
+  /**
+   * Verifies dataset file integrity on disk
+   */
+  public verifyDatasetIntegrity(id: string): {
+    valid: boolean;
+    recordCount: number;
+    errors: string[];
+    warnings: string[];
+  } {
+    const meta = this.getDatasetById(id);
+    if (!meta) {
+      return { valid: false, recordCount: 0, errors: [`Dataset '${id}' not found in registry`], warnings: [] };
+    }
+
+    try {
+      const records = this.loadRecords(id, true);
+      const errors: string[] = [];
+      const warnings: string[] = [];
+
+      if (records.length === 0) {
+        errors.push("Dataset contains 0 valid question records");
+      }
+
+      if (records.length !== meta.recordCount && meta.recordCount > 0) {
+        warnings.push(`Record count mismatch: manifest expects ${meta.recordCount}, loaded ${records.length}`);
+      }
+
+      return {
+        valid: errors.length === 0,
+        recordCount: records.length,
+        errors,
+        warnings,
+      };
+    } catch (err: any) {
+      return {
+        valid: false,
+        recordCount: 0,
+        errors: [err instanceof Error ? err.message : String(err)],
+        warnings: [],
+      };
+    }
+  }
+
+  /**
+   * Test contamination prevention guard: Ensures benchmark/evaluation samples
+   * are NEVER ingested into model fine-tuning or pre-training sets.
+   */
+  public preventTrainingDataLeakage(candidate: {
+    datasetId?: string;
+    text?: string;
+    question?: string;
+  }): { allowed: boolean; reason?: string } {
+    if (candidate.datasetId) {
+      const meta = this.getDatasetById(candidate.datasetId);
+      if (meta && meta.datasetType === "evaluation") {
+        return {
+          allowed: false,
+          reason: `Security violation: Evaluation dataset '${candidate.datasetId}' is strictly prohibited from being used for model training to prevent test contamination.`,
+        };
+      }
+    }
+    return { allowed: true };
   }
 
   /**

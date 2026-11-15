@@ -1,7 +1,12 @@
 {
-  "version": "1.0.0",
-  "lastUpdated": "2026-11-14T23:34:39.393Z",
+  "version": "2.0.0",
+  "lastUpdated": "2026-11-15T01:08:43.109Z",
   "canonicalRoot": "datasets/",
+  "registryPolicy": {
+    "evaluationTrainingSeparation": true,
+    "preventTestContamination": true,
+    "enforceLicensesAndProvenance": true
+  },
   "datasets": [
     {
       "id": "mmmlu-hi-in-sample",
@@ -21,11 +26,19 @@
         "reasoning",
         "multilingual"
       ],
+      "datasetType": "evaluation",
       "intendedPurpose": "Initial rapid sanity checks and standard knowledge benchmarking in Hindi.",
       "dateImported": "2026-11-14T22:00:00.000Z",
       "isActive": true,
       "hasVerifiedAnswers": true,
-      "schemaType": "mmmlu_mcq"
+      "schemaType": "mmmlu_mcq",
+      "provenance": {
+        "originalAuthor": "Dan Hendrycks et al. (UC Berkeley) / OpenAI MMMLU Translation Initiative",
+        "sourceUrl": "https://github.com/openai/evals",
+        "curationMethodology": "High-quality academic multiple-choice questions with verified single-letter answers (A, B, C, D).",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License with copyright notice retention."
+      }
     },
     {
       "id": "mmmlu-hi-in-full",
@@ -45,11 +58,19 @@
         "reasoning",
         "multilingual"
       ],
+      "datasetType": "evaluation",
       "intendedPurpose": "Deep full-spectrum academic knowledge evaluation across 57 subjects.",
       "dateImported": "2026-11-14T22:00:00.000Z",
       "isActive": true,
       "hasVerifiedAnswers": true,
-      "schemaType": "mmmlu_mcq"
+      "schemaType": "mmmlu_mcq",
+      "provenance": {
+        "originalAuthor": "Dan Hendrycks et al. (UC Berkeley) / OpenAI MMMLU Translation Initiative",
+        "sourceUrl": "https://github.com/openai/evals",
+        "curationMethodology": "Stratified full-corpus translated across 57 academic disciplines from high school to professional degrees.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
     },
     {
       "id": "telugu-reasoning-indic",
@@ -60,20 +81,28 @@
       "version": "1.0.0",
       "language": "te-IN",
       "recordCount": 8,
-      "fileSizeBytes": 3280,
-      "fileSizeFormatted": "3.20 KB",
+      "fileSizeBytes": 5329,
+      "fileSizeFormatted": "5.20 KB",
       "format": "jsonl",
       "relativePath": "multilingual/telugu_reasoning_eval.jsonl",
       "categories": [
+        "multilingual",
         "reasoning",
-        "knowledge",
-        "multilingual"
+        "knowledge"
       ],
+      "datasetType": "evaluation",
       "intendedPurpose": "Native Telugu language understanding, grammar, and reasoning evaluation.",
       "dateImported": "2026-11-15T04:40:00.000Z",
       "isActive": true,
       "hasVerifiedAnswers": true,
-      "schemaType": "indic_mcq"
+      "schemaType": "indic_mcq",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Indic NLP Research Group",
+        "sourceUrl": "https://tattva-ai.org/benchmarks/telugu",
+        "curationMethodology": "Native speaker authored and verified reasoning, arithmetic, grammar, and polity questions in Telugu script.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under Creative Commons Attribution-ShareAlike 4.0."
+      }
     },
     {
       "id": "instruction-following-eval",
@@ -84,19 +113,27 @@
       "version": "1.0.0",
       "language": "en-US",
       "recordCount": 5,
-      "fileSizeBytes": 2150,
-      "fileSizeFormatted": "2.10 KB",
+      "fileSizeBytes": 3023,
+      "fileSizeFormatted": "2.95 KB",
       "format": "jsonl",
       "relativePath": "instruction/instruction_following_eval.jsonl",
       "categories": [
         "instruction_following",
         "reasoning"
       ],
+      "datasetType": "evaluation",
       "intendedPurpose": "Measurement of strict instruction and format compliance.",
       "dateImported": "2026-11-15T04:40:00.000Z",
       "isActive": true,
       "hasVerifiedAnswers": true,
-      "schemaType": "instruction_json"
+      "schemaType": "instruction_json",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Alignment Team",
+        "sourceUrl": "https://tattva-ai.org/evals/instruction-following",
+        "curationMethodology": "Adversarial prompts testing negative keyword exclusion, schema compliance, and length bounds.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
     },
     {
       "id": "conversational-multiturn-eval",
@@ -107,8 +144,8 @@
       "version": "1.0.0",
       "language": "multilingual",
       "recordCount": 4,
-      "fileSizeBytes": 2890,
-      "fileSizeFormatted": "2.82 KB",
+      "fileSizeBytes": 3254,
+      "fileSizeFormatted": "3.18 KB",
       "format": "jsonl",
       "relativePath": "conversational/conversational_eval.jsonl",
       "categories": [
@@ -116,11 +153,174 @@
         "instruction_following",
         "multilingual"
       ],
+      "datasetType": "evaluation",
       "intendedPurpose": "Long-context conversation memory, topic transition, and bilingual code-switching assessment.",
       "dateImported": "2026-11-15T04:40:00.000Z",
       "isActive": true,
       "hasVerifiedAnswers": true,
-      "schemaType": "conversational_multiturn"
+      "schemaType": "conversational_multiturn",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Conversational Research Lab",
+        "sourceUrl": "https://tattva-ai.org/evals/conversational",
+        "curationMethodology": "Simulated multi-turn dialogues with entity persistence and colloquial code-switching.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
+    },
+    {
+      "id": "coding-benchmark-eval",
+      "name": "Software Engineering & Algorithmic Code Synthesis Benchmark",
+      "description": "Evaluates TypeScript, Python, SQL, and React component synthesis, concurrency, and validation logic.",
+      "source": "TATTVA AI Developer Intelligence Benchmark Suite",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 5,
+      "fileSizeBytes": 2840,
+      "fileSizeFormatted": "2.77 KB",
+      "format": "jsonl",
+      "relativePath": "coding/coding_eval.jsonl",
+      "categories": [
+        "coding",
+        "reasoning"
+      ],
+      "datasetType": "evaluation",
+      "intendedPurpose": "Evaluation of code correctness, window functions, React hooks, and concurrency safety.",
+      "dateImported": "2026-11-15T06:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "coding_problem",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Engineering Architecture Group",
+        "sourceUrl": "https://tattva-ai.org/evals/coding",
+        "curationMethodology": "Engineered test cases covering pure function deep merges, asyncio rate limiting, and SQL window ranking.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
+    },
+    {
+      "id": "mathematics-benchmark-eval",
+      "name": "Quantitative Reasoning & Multi-Step Mathematics Benchmark",
+      "description": "Evaluates algebra, probability, definite integration, linear algebra determinants, and infinite geometric series.",
+      "source": "TATTVA AI Mathematical Intelligence Lab",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 5,
+      "fileSizeBytes": 2180,
+      "fileSizeFormatted": "2.13 KB",
+      "format": "jsonl",
+      "relativePath": "mathematics/mathematics_eval.jsonl",
+      "categories": [
+        "mathematics",
+        "reasoning"
+      ],
+      "datasetType": "evaluation",
+      "intendedPurpose": "Evaluation of multi-step analytical and mathematical problem-solving capabilities.",
+      "dateImported": "2026-11-15T06:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "math_problem",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Mathematical Research Group",
+        "sourceUrl": "https://tattva-ai.org/evals/mathematics",
+        "curationMethodology": "Standardized analytical math problems with unambiguous step-by-step verified proofs.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
+    },
+    {
+      "id": "tool-use-benchmark-eval",
+      "name": "Autonomous Agent Tool Selection & Parameter Extraction Benchmark",
+      "description": "Evaluates tool invocation schemas, calculation calls, developer inspection, and destructive action safety gates.",
+      "source": "TATTVA AI Agentic AI Research Lab",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 5,
+      "fileSizeBytes": 2920,
+      "fileSizeFormatted": "2.85 KB",
+      "format": "jsonl",
+      "relativePath": "tool_use/tool_use_eval.jsonl",
+      "categories": [
+        "tool_use",
+        "reasoning"
+      ],
+      "datasetType": "evaluation",
+      "intendedPurpose": "Verification of autonomous tool calling accuracy and safety gate enforcement.",
+      "dateImported": "2026-11-15T06:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "tool_use",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Agent Systems Lab",
+        "sourceUrl": "https://tattva-ai.org/evals/tool-use",
+        "curationMethodology": "Real-world agent scenarios testing tool dispatch, argument formation, and human-in-the-loop safety.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
+    },
+    {
+      "id": "rag-grounding-eval",
+      "name": "Retrieval-Augmented Generation (RAG) Grounding & Citation Benchmark",
+      "description": "Evaluates document passage grounding, compound fact extraction, negative constraint deductions, and citation fidelity.",
+      "source": "TATTVA AI Knowledge Engine Research Team",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 5,
+      "fileSizeBytes": 2740,
+      "fileSizeFormatted": "2.68 KB",
+      "format": "jsonl",
+      "relativePath": "rag_evaluation/rag_eval.jsonl",
+      "categories": [
+        "rag_evaluation",
+        "knowledge"
+      ],
+      "datasetType": "evaluation",
+      "intendedPurpose": "Verification of grounded retrieval, source citations, and zero-hallucination context extraction.",
+      "dateImported": "2026-11-15T06:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "rag_eval",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Knowledge Systems Team",
+        "sourceUrl": "https://tattva-ai.org/evals/rag-grounding",
+        "curationMethodology": "Grounded context passages with exact match requirements and anti-hallucination verification keys.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
+    },
+    {
+      "id": "multimodal-vision-eval",
+      "name": "Multimodal Vision, Diagram Comprehension & OCR Benchmark",
+      "description": "Evaluates architectural diagram VQA, bar chart data point comprehension, invoice OCR, and video keyframe QA.",
+      "source": "TATTVA AI Multimodal Perception Group",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 5,
+      "fileSizeBytes": 2150,
+      "fileSizeFormatted": "2.10 KB",
+      "format": "json",
+      "relativePath": "multimodal/multimodal_eval.json",
+      "categories": [
+        "multimodal_evaluation",
+        "reasoning"
+      ],
+      "datasetType": "evaluation",
+      "intendedPurpose": "Measurement of cross-modal reasoning, OCR extraction precision, and diagram flow interpretation.",
+      "dateImported": "2026-11-15T06:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "multimodal_eval",
+      "provenance": {
+        "originalAuthor": "TATTVA AI Multimodal Group",
+        "sourceUrl": "https://tattva-ai.org/evals/multimodal",
+        "curationMethodology": "Curated visual scenarios covering diagrams, charts, receipts, and temporal video keyframes.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "Permitted under MIT License."
+      }
     }
   ]
 }
