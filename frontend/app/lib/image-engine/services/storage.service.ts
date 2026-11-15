@@ -472,6 +472,52 @@ export class StorageService {
   }
 
   /**
+   * Updates an image record with strict authorization checks.
+   */
+  public static async updateRecord(
+    imageId: string,
+    userId: string,
+    updates: Partial<Pick<ImageStorageRecord, "prompt" | "originalPrompt" | "parameters" | "accuracyScorecard">>
+  ): Promise<ImageStorageRecord> {
+    const record = await this.getRecord(imageId);
+    if (!record) {
+      throw new Error(`Image record '${imageId}' not found.`);
+    }
+
+    // Verify ownership: users can only update their own records
+    if (record.userId !== userId && userId !== "anonymous" && record.userId !== "anonymous") {
+      throw new Error("Unauthorized to update this image record.");
+    }
+
+    if (updates.prompt) record.prompt = updates.prompt;
+    if (updates.originalPrompt) record.originalPrompt = updates.originalPrompt;
+    if (updates.parameters) record.parameters = { ...record.parameters, ...updates.parameters };
+    if (updates.accuracyScorecard) record.accuracyScorecard = updates.accuracyScorecard;
+
+    inMemoryHistoryRegistry.set(imageId, record);
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase
+          .from("image_history")
+          .update({
+            prompt: record.prompt,
+            original_prompt: record.originalPrompt,
+            parameters: record.parameters,
+            accuracy_scorecard: record.accuracyScorecard,
+          })
+          .eq("id", imageId)
+          .eq("user_id", record.userId);
+      } catch (err) {
+        console.warn("[StorageService] Supabase metadata update warning:", err);
+      }
+    }
+
+    return record;
+  }
+
+  /**
    * Deletes an image record and file asset.
    */
   public static async deleteRecord(imageId: string, userId: string): Promise<boolean> {

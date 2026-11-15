@@ -108,3 +108,31 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
+/**
+ * PATCH: Updates an authorized image record's metadata.
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await verifyUserSession(req);
+    const body = await req.json();
+    const { id, prompt, originalPrompt, parameters, accuracyScorecard } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Image ID is required." }, { status: 400 });
+    }
+
+    const updated = await StorageService.updateRecord(id, session.userId, {
+      prompt,
+      originalPrompt,
+      parameters,
+      accuracyScorecard,
+    });
+
+    return NextResponse.json({ success: true, record: updated });
+  } catch (err: any) {
+    const status = err.message?.includes("Unauthorized") ? 403 : 500;
+    return NextResponse.json({ error: err.message }, { status });
+  }
+}
+
+

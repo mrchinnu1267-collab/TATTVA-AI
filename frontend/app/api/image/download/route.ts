@@ -74,6 +74,16 @@ export async function GET(req: NextRequest) {
       const safeUserId = requestedUserId.replace(/[^a-zA-Z0-9_-]/g, "_");
       const safeFileId = fileId.replace(/[^a-zA-Z0-9_-]/g, "");
 
+      // Enforce cross-user vault isolation
+      if (
+        session.authenticated &&
+        safeUserId !== "anonymous" &&
+        safeUserId !== session.userId &&
+        session.role !== "admin"
+      ) {
+        return NextResponse.json({ error: "Unauthorized image access." }, { status: 403 });
+      }
+
       const userDir = path.join(LOCAL_VAULT_DIR, safeUserId);
       if (!fs.existsSync(userDir)) {
         return NextResponse.json({ error: "Vault directory not found." }, { status: 404 });

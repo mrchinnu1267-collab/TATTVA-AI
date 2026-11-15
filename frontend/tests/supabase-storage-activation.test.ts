@@ -150,7 +150,7 @@ export async function runSupabaseStorageActivationTests() {
     // -------------------------------------------------------------------------
     process.stdout.write("▶ Test 5: Verifying image deletion authorization... ");
     // Unauthorized delete attempt from different user
-    assert.rejects(
+    await assert.rejects(
       async () => {
         await StorageService.deleteRecord(record.id, "unauthorized_attacker_user");
       },
@@ -158,12 +158,52 @@ export async function runSupabaseStorageActivationTests() {
       "Cross-user deletion must be rejected."
     );
 
+    // -------------------------------------------------------------------------
+    // TEST 5b: Authorized & Unauthorized Metadata Updates
+    // -------------------------------------------------------------------------
+    // Unauthorized update attempt from different user
+    await assert.rejects(
+      async () => {
+        await StorageService.updateRecord(record.id, "unauthorized_attacker_user", {
+          prompt: "Tampered prompt",
+        });
+      },
+      /Unauthorized to update this image record/,
+      "Cross-user update must be rejected."
+    );
+
+    // Authorized update by owner
+    const updatedRecord = await StorageService.updateRecord(record.id, testUserId, {
+      prompt: "Majestic blue digital sphere with glowing particle trails (Refined)",
+    });
+    assert.strictEqual(
+      updatedRecord.prompt,
+      "Majestic blue digital sphere with glowing particle trails (Refined)"
+    );
+
+    // -------------------------------------------------------------------------
+    // TEST 5c: Database Metadata Consistency Verification
+    // -------------------------------------------------------------------------
+    assert.strictEqual(updatedRecord.id, record.id);
+    assert.strictEqual(updatedRecord.originalPrompt, "blue digital sphere");
+    assert.strictEqual(updatedRecord.provider, "subscribed_agent_a");
+    assert.strictEqual(updatedRecord.model, "Image Agent A (Subscribed)");
+    assert.strictEqual(updatedRecord.parameters.width, 512);
+    assert.strictEqual(updatedRecord.parameters.height, 512);
+    assert.strictEqual(updatedRecord.mimeType, "image/png");
+    assert.strictEqual(updatedRecord.userId, testUserId);
+    assert.strictEqual(updatedRecord.workspaceId, testWorkspaceId);
+    assert.ok(updatedRecord.createdAt, "Creation timestamp must be present.");
+    assert.ok(
+      updatedRecord.storageType === "supabase_storage" || updatedRecord.storageType === "vault_fallback"
+    );
+
     // Authorized delete by owner
     const deleteSuccess = await StorageService.deleteRecord(record.id, testUserId);
     assert.strictEqual(deleteSuccess, true, "Authorized deletion must return true.");
     const postDeleteRecord = await StorageService.getRecord(record.id);
     assert.strictEqual(postDeleteRecord, null, "Record must be null after deletion.");
-    console.log("✔ Cross-user deletion blocked; authorized deletion succeeded.");
+    console.log("✔ Cross-user deletion & updates blocked; authorized updates and deletion verified.");
 
     // -------------------------------------------------------------------------
     // TEST 6: RLS Authorization & Path Enforcement
