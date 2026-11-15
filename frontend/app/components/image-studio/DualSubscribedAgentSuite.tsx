@@ -21,6 +21,9 @@ import {
   Maximize2,
   X,
   Lock,
+  Zap,
+  Radio,
+  StopCircle,
 } from "lucide-react";
 import { triggerDownload } from "../../lib/download-helper";
 
@@ -30,7 +33,11 @@ export type ImageCategory =
   | "poster"
   | "logo"
   | "advertising"
-  | "variations";
+  | "anime"
+  | "artwork_3d"
+  | "social_creative"
+  | "marketing_banner"
+  | "product_mockup";
 
 interface OptimizedResult {
   category: string;
@@ -74,7 +81,17 @@ export function DualSubscribedAgentSuite({
   const [aspectRatio, setAspectRatio] = useState("1:1");
 
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+  const [autoStatusText, setAutoStatusText] = useState<string>("");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+
   const [optimizedData, setOptimizedData] = useState<OptimizedResult | null>(null);
+
+  // Companion status from server
+  const [companionStatus, setCompanionStatus] = useState<{
+    active: boolean;
+    version?: string;
+  }>({ active: false });
 
   // Agent Results
   const [agentAImage, setAgentAImage] = useState<ValidatedImageRecord | null>(null);
@@ -92,6 +109,10 @@ export function DualSubscribedAgentSuite({
   const [statusMsgB, setStatusMsgB] = useState<string | null>(null);
   const [errorA, setErrorA] = useState<string | null>(null);
   const [errorB, setErrorB] = useState<string | null>(null);
+  const [generalNotice, setGeneralNotice] = useState<{
+    type: "info" | "warning" | "error" | "success";
+    message: string;
+  } | null>(null);
 
   // Workspace Saved Feedback
   const [savedWorkspaceA, setSavedWorkspaceA] = useState(false);
@@ -103,11 +124,29 @@ export function DualSubscribedAgentSuite({
 
   // Config Drawer
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [agentAMode, setAgentAMode] = useState("user_assisted");
-  const [agentBMode, setAgentBMode] = useState("user_assisted");
+  const [agentAMode, setAgentAMode] = useState("local_companion");
+  const [agentBMode, setAgentBMode] = useState("local_companion");
 
   const fileInputRefA = useRef<HTMLInputElement>(null);
   const fileInputRefB = useRef<HTMLInputElement>(null);
+
+  // On mount, query companion and agent status
+  useEffect(() => {
+    fetch("/api/image/subscribed-agents")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.companion) {
+          setCompanionStatus(data.companion);
+        }
+        if (data.agents) {
+          if (data.agents.agent_a?.connectionMode) setAgentAMode(data.agents.agent_a.connectionMode);
+          if (data.agents.agent_b?.connectionMode) setAgentBMode(data.agents.agent_b.connectionMode);
+        }
+      })
+      .catch(() => {
+        setCompanionStatus({ active: false });
+      });
+  }, []);
 
   // 1. Initial Prompt Optimization
   async function handleOptimize() {
@@ -115,6 +154,7 @@ export function DualSubscribedAgentSuite({
     setIsOptimizing(true);
     setErrorA(null);
     setErrorB(null);
+    setGeneralNotice(null);
 
     try {
       const res = await fetch("/api/image/subscribed-agents", {
@@ -142,7 +182,123 @@ export function DualSubscribedAgentSuite({
     }
   }
 
-  // 2. Clipboard Helpers
+  // 2. Fully Automatic Generation Orchestration
+  async function handleAutomaticGenerate() {
+    if (!prompt.trim()) return;
+    setIsAutoGenerating(true);
+    setAutoStatusText("Initiating parallel generation for Agent A & Agent B...");
+    setErrorA(null);
+    setErrorB(null);
+    setGeneralNotice(null);
+
+    try {
+      const res = await fetch("/api/image/subscribed-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "orchestrate_automatic",
+          prompt: prompt.trim(),
+          category,
+          aspectRatio,
+          workspaceId: "default",
+          timeoutMs: 60_000,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Automatic generation failed.");
+      }
+
+      const job = data.job;
+      setActiveJobId(job.jobId);
+
+      // Handle Agent A output
+      if (job.agentAJob.status === "completed" && job.agentAJob.outputImage) {
+        setAgentAImage({
+          id: `img_a_${Date.now()}`,
+          url: job.agentAJob.imageUrl || job.agentAJob.outputImage,
+          agentId: "agent_a",
+          agentName: "Image Agent A (Subscribed)",
+          prompt: job.agentAJob.prompt,
+          format: (job.agentAJob.metadata?.format || "PNG").toUpperCase(),
+          width: job.agentAJob.metadata?.width || 1024,
+          height: job.agentAJob.metadata?.height || 1024,
+          fileSizeBytes: job.agentAJob.metadata?.fileSizeBytes || 0,
+          createdAt: new Date().toLocaleTimeString(),
+        });
+        setStatusMsgA("Auto-generated & Verified via Sharp");
+      } else if (job.agentAJob.status === "failed") {
+        setErrorA(job.agentAJob.error || "Agent A generation failed.");
+      }
+
+      // Handle Agent B output
+      if (job.agentBJob.status === "completed" && job.agentBJob.outputImage) {
+        setAgentBImage({
+          id: `img_b_${Date.now()}`,
+          url: job.agentBJob.imageUrl || job.agentBJob.outputImage,
+          agentId: "agent_b",
+          agentName: "Image Agent B (Subscribed)",
+          prompt: job.agentBJob.prompt,
+          format: (job.agentBJob.metadata?.format || "PNG").toUpperCase(),
+          width: job.agentBJob.metadata?.width || 1024,
+          height: job.agentBJob.metadata?.height || 1024,
+          fileSizeBytes: job.agentBJob.metadata?.fileSizeBytes || 0,
+          createdAt: new Date().toLocaleTimeString(),
+        });
+        setStatusMsgB("Auto-generated & Verified via Sharp");
+      } else if (job.agentBJob.status === "failed") {
+        setErrorB(job.agentBJob.error || "Agent B generation failed.");
+      }
+
+      // Check if companion offline caused failure
+      if (
+        job.agentAJob.status === "failed" &&
+        job.agentAJob.error?.includes("Local companion connector")
+      ) {
+        setGeneralNotice({
+          type: "warning",
+          message:
+            "Local Companion Daemon is offline. To enable 100% automated generation without API keys, launch: `node companion/tattva-agent-bridge.mjs` on your computer. You can also use User-Assisted mode below.",
+        });
+        // Automatically compile prompts for user-assisted fallback
+        handleOptimize();
+      } else if (job.status === "completed") {
+        setGeneralNotice({
+          type: "success",
+          message: "Both agents completed generation and results were automatically stored in your workspace vault!",
+        });
+      }
+    } catch (err: any) {
+      setGeneralNotice({
+        type: "error",
+        message: err.message || "Failed to orchestrate automatic generation.",
+      });
+      // Fallback to compilation
+      handleOptimize();
+    } finally {
+      setIsAutoGenerating(false);
+      setAutoStatusText("");
+    }
+  }
+
+  // 3. Cancel Active Generation
+  async function handleCancelJob() {
+    if (!activeJobId) return;
+    try {
+      await fetch("/api/image/subscribed-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel_job", jobId: activeJobId }),
+      });
+      setIsAutoGenerating(false);
+      setAutoStatusText("Job cancelled.");
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 4. Clipboard Helpers
   function copyToClipboard(text: string, isA: boolean) {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(text);
@@ -156,24 +312,25 @@ export function DualSubscribedAgentSuite({
     }
   }
 
-  // 3. File Validation & Ingestion Handler
-  async function handleFileUpload(file: File, agentId: "agent_a" | "agent_b") {
+  // 5. File Processing & Validation Helper
+  async function processUploadedFile(file: File, agentId: "agent_a" | "agent_b") {
     if (agentId === "agent_a") {
       setValidatingA(true);
       setErrorA(null);
+      setStatusMsgA("Validating MIME and dimensions...");
     } else {
       setValidatingB(true);
       setErrorB(null);
+      setStatusMsgB("Validating MIME and dimensions...");
     }
 
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
+      const base64Uri = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
-      reader.readAsDataURL(file);
-      const dataUri = await base64Promise;
 
       const res = await fetch("/api/image/subscribed-agents", {
         method: "POST",
@@ -181,11 +338,8 @@ export function DualSubscribedAgentSuite({
         body: JSON.stringify({
           action: "validate_and_persist",
           agentId,
-          imageDataUri: dataUri,
-          prompt:
-            agentId === "agent_a"
-              ? optimizedData?.agentA.prompt || prompt
-              : optimizedData?.agentB.prompt || prompt,
+          imageDataUri: base64Uri,
+          prompt: optimizedData?.[agentId === "agent_a" ? "agentA" : "agentB"]?.prompt || prompt,
           originalPrompt: prompt,
           category,
           workspaceId: "default",
@@ -193,13 +347,13 @@ export function DualSubscribedAgentSuite({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Image validation failed.");
+      if (!res.ok) throw new Error(data.error || "Validation and persistence failed.");
 
       const record: ValidatedImageRecord = {
         id: data.record.id,
         url: data.record.url,
         agentId,
-        agentName: agentId === "agent_a" ? "Image Agent A" : "Image Agent B",
+        agentName: agentId === "agent_a" ? "Image Agent A (Subscribed)" : "Image Agent B (Subscribed)",
         prompt: data.record.prompt,
         format: data.validation.format.toUpperCase(),
         width: data.validation.width,
@@ -216,18 +370,15 @@ export function DualSubscribedAgentSuite({
         setStatusMsgB("Validated & Saved to Workspace Storage");
       }
     } catch (err: any) {
-      if (agentId === "agent_a") {
-        setErrorA(err.message);
-      } else {
-        setErrorB(err.message);
-      }
+      if (agentId === "agent_a") setErrorA(err.message);
+      else setErrorB(err.message);
     } finally {
       if (agentId === "agent_a") setValidatingA(false);
       else setValidatingB(false);
     }
   }
 
-  // 4. Save to Workspace feedback
+  // 6. Save to Workspace feedback
   function handleSaveToWorkspace(agentId: "agent_a" | "agent_b") {
     if (agentId === "agent_a") {
       setSavedWorkspaceA(true);
@@ -257,13 +408,23 @@ export function DualSubscribedAgentSuite({
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 100% TOS Compliant
               </span>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold tracking-wider uppercase border flex items-center gap-1 ${
+                  companionStatus.active
+                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                    : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                }`}
+              >
+                <Radio className={`w-2.5 h-2.5 ${companionStatus.active ? "animate-pulse text-emerald-400" : "text-amber-400"}`} />
+                {companionStatus.active ? "Local Companion Online" : "Companion Standby / Offline"}
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">
-              Two Subscribed Image Agents Hub
+              Dual Subscribed Image Agents Hub
             </h2>
             <p className="text-xs sm:text-sm text-neutral-400 mt-1 max-w-2xl leading-relaxed">
-              Dispatch prompts simultaneously to your two existing AI subscriptions (Image Agent A &amp; Image Agent B).
-              Inspect and validate outputs side-by-side with zero additional API keys, subscription fees, or security compromises.
+              Orchestrate parallel image generation across your two existing AI subscriptions (Image Agent A &amp; Image Agent B).
+              Supports fully automatic local companion execution and zero-key compliant prompt synthesis with Supabase vault storage.
             </p>
           </div>
 
@@ -278,7 +439,7 @@ export function DualSubscribedAgentSuite({
               }`}
             >
               <Sliders className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Connection Mode</span>
+              <span>Connection Matrix</span>
             </button>
             {onBackToStudio && (
               <button
@@ -308,12 +469,17 @@ export function DualSubscribedAgentSuite({
                 onChange={(e) => setAgentAMode(e.target.value)}
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-xs text-white outline-none"
               >
+                <option value="local_companion">Local Companion Bridge (127.0.0.1:4848)</option>
                 <option value="user_assisted">User-Assisted Mode (Zero API Key, 100% Permitted)</option>
                 <option value="mcp">Local MCP Server Connector (Claude / Antigravity)</option>
-                <option value="webhook">Local Desktop Webhook Daemon</option>
+                <option value="oauth">Official OAuth 2.0 PKCE</option>
               </select>
               <p className="text-[11px] text-neutral-400 mt-1.5">
-                Uses official clipboard synthesis and browser dropzone. Zero credential risk.
+                {agentAMode === "local_companion"
+                  ? companionStatus.active
+                    ? "🟢 Companion active on 127.0.0.1:4848. Full automatic execution enabled."
+                    : "🟡 Companion offline. Start with 'node companion/tattva-agent-bridge.mjs'."
+                  : "Uses official clipboard synthesis and browser dropzone. Zero credential risk."}
               </p>
             </div>
 
@@ -326,17 +492,49 @@ export function DualSubscribedAgentSuite({
                 onChange={(e) => setAgentBMode(e.target.value)}
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-xs text-white outline-none"
               >
+                <option value="local_companion">Local Companion Bridge (127.0.0.1:4848)</option>
                 <option value="user_assisted">User-Assisted Mode (Zero API Key, 100% Permitted)</option>
                 <option value="mcp">Local MCP Server Connector (Claude / Antigravity)</option>
-                <option value="webhook">Local Desktop Webhook Daemon</option>
+                <option value="oauth">Official OAuth 2.0 PKCE</option>
               </select>
               <p className="text-[11px] text-neutral-400 mt-1.5">
-                Respects provider TOS by using authorized local dispatch. Never requires passwords.
+                {agentBMode === "local_companion"
+                  ? companionStatus.active
+                    ? "🟢 Companion active on 127.0.0.1:4848. Full automatic execution enabled."
+                    : "🟡 Companion offline. Start with 'node companion/tattva-agent-bridge.mjs'."
+                  : "Respects provider TOS by using authorized local dispatch. Never requires passwords."}
               </p>
             </div>
           </div>
         )}
       </div>
+
+      {/* General Notice Banner */}
+      {generalNotice && (
+        <div
+          className={`p-4 rounded-xl border flex items-start gap-3 text-xs leading-relaxed animate-fluid-dropdown ${
+            generalNotice.type === "warning"
+              ? "bg-amber-500/10 border-amber-500/30 text-amber-200"
+              : generalNotice.type === "error"
+              ? "bg-rose-500/10 border-rose-500/30 text-rose-200"
+              : generalNotice.type === "success"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
+              : "bg-indigo-500/10 border-indigo-500/30 text-indigo-200"
+          }`}
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span>{generalNotice.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setGeneralNotice(null)}
+            className="text-white/60 hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Step 1: Prompt & Creative Intent Studio */}
       <div
@@ -349,7 +547,7 @@ export function DualSubscribedAgentSuite({
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-mono font-medium tracking-wide uppercase text-neutral-400">
-              Creative Intent &amp; Category
+              Creative Intent &amp; Category (10 Distinct Domains)
             </span>
 
             {/* Aspect Ratio Selector */}
@@ -373,7 +571,7 @@ export function DualSubscribedAgentSuite({
             </div>
           </div>
 
-          {/* Category Chips */}
+          {/* Category Chips (10 Categories) */}
           <div className="flex flex-wrap gap-2">
             {[
               { id: "photorealistic", label: "Photorealistic" },
@@ -381,7 +579,11 @@ export function DualSubscribedAgentSuite({
               { id: "poster", label: "Poster Design" },
               { id: "logo", label: "Logo & Brand" },
               { id: "advertising", label: "Product Ad" },
-              { id: "variations", label: "Creative Variations" },
+              { id: "anime", label: "Anime Art" },
+              { id: "artwork_3d", label: "3D Art & Octane" },
+              { id: "social_creative", label: "Social Creative" },
+              { id: "marketing_banner", label: "Marketing Banner" },
+              { id: "product_mockup", label: "Product Mockup" },
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -408,7 +610,7 @@ export function DualSubscribedAgentSuite({
               rows={3}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe the image, poster, logo, or product advertisement you want to create..."
+              placeholder="Describe the image, poster, logo, anime visual, 3D artwork, or product mockup to generate..."
               className={`w-full p-3.5 rounded-xl border text-sm sm:text-base outline-none resize-none transition-all leading-relaxed ${
                 isDark
                   ? "bg-black/30 border-white/10 text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 placeholder-neutral-500"
@@ -417,142 +619,230 @@ export function DualSubscribedAgentSuite({
             />
           </div>
 
-          {/* Dispatch Action */}
-          <div className="flex items-center justify-between pt-1">
+          {/* Action Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
             <div className="flex items-center gap-1.5 text-xs text-neutral-400">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Zero credentials required. Prompts compiled client-side.</span>
+              <span>Zero credentials required. Automatic loopback &amp; Sharp validation.</span>
             </div>
 
-            <button
-              type="button"
-              disabled={isOptimizing || !prompt.trim()}
-              onClick={handleOptimize}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer select-none fluid-press disabled:opacity-50 ${
-                isDark
-                  ? "bg-white hover:bg-neutral-200 text-neutral-950 shadow-xs"
-                  : "bg-neutral-950 hover:bg-neutral-800 text-white shadow-xs"
-              }`}
-            >
-              {isOptimizing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Synthesizing Prompts...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Dispatch to Both Agents</span>
-                </>
+            <div className="flex items-center gap-2">
+              {isAutoGenerating && (
+                <button
+                  type="button"
+                  onClick={handleCancelJob}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 transition cursor-pointer"
+                >
+                  <StopCircle className="w-3.5 h-3.5" />
+                  <span>Cancel Job</span>
+                </button>
               )}
-            </button>
+
+              {/* 1. Fully Automatic Button */}
+              <button
+                type="button"
+                disabled={isAutoGenerating || isOptimizing || !prompt.trim()}
+                onClick={handleAutomaticGenerate}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer select-none fluid-press disabled:opacity-50 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.35)]"
+              >
+                {isAutoGenerating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>{autoStatusText || "Generating Automatically..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 text-amber-300" />
+                    <span>Generate Automatically (A &amp; B)</span>
+                  </>
+                )}
+              </button>
+
+              {/* 2. Manual User-Assisted Compile */}
+              <button
+                type="button"
+                disabled={isOptimizing || isAutoGenerating || !prompt.trim()}
+                onClick={handleOptimize}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer select-none fluid-press disabled:opacity-50 ${
+                  isDark
+                    ? "bg-white/[0.06] hover:bg-white/[0.12] text-neutral-200 border border-white/10"
+                    : "bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-300"
+                }`}
+              >
+                {isOptimizing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Compiling...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-indigo-400" />
+                    <span>Compile Prompts</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Step 2: Two-Agent Dual Workspaces */}
+      {/* Step 2: Side-by-Side Dual Agent Workspaces */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* ============================================================== */}
-        {/* COLUMN 1: IMAGE AGENT A                                        */}
-        {/* ============================================================== */}
+        {/* ================================================= Image Agent A Workspace */}
         <div
-          className={`p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
+          className={`flex flex-col rounded-2xl border transition-all duration-200 overflow-hidden ${
             isDark
-              ? "bg-[#14151c]/90 border-white/[0.08] text-white"
-              : "bg-white border-neutral-200 text-neutral-900 shadow-xs"
-          }`}
+              ? "bg-[#14151c]/90 border-white/[0.08]"
+              : "bg-white border-neutral-200 shadow-xs"
+          } ${preferredAgent === "agent_a" ? "ring-2 ring-indigo-500" : ""}`}
         >
-          <div>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-xs">
-                  A
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Image Agent A</h3>
-                  <span className="text-[11px] text-neutral-400 font-mono">
-                    Focus: Photorealism &amp; Depth
-                  </span>
-                </div>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Connected
+          {/* Header A */}
+          <div className="p-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between bg-indigo-500/5">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+              <h3 className="font-semibold text-sm sm:text-base text-indigo-400 tracking-tight">
+                Image Agent A
+              </h3>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+                  companionStatus.active && agentAMode === "local_companion"
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                }`}
+              >
+                {companionStatus.active && agentAMode === "local_companion"
+                  ? "Automated Loopback"
+                  : "User-Assisted Mode"}
               </span>
             </div>
 
-            {/* Optimized Prompt Box */}
-            <div className="p-3 rounded-xl bg-black/20 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2 mb-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
-                  Targeted Agent A Prompt
+            <button
+              type="button"
+              onClick={() => setPreferredAgent("agent_a")}
+              className={`text-xs px-2.5 py-1 rounded-lg transition cursor-pointer select-none ${
+                preferredAgent === "agent_a"
+                  ? "bg-indigo-600 text-white font-semibold"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              {preferredAgent === "agent_a" ? "★ Preferred" : "Mark Preferred"}
+            </button>
+          </div>
+
+          {/* Content A */}
+          <div className="p-5 flex-1 flex flex-col gap-4">
+            {/* Prompt Card A */}
+            <div className="p-3.5 rounded-xl bg-black/5 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-neutral-400">
+                <span className="font-mono uppercase text-[10px] tracking-wider text-indigo-400 font-semibold">
+                  Compiled Agent A Prompt
                 </span>
+                <span className="text-[11px] text-neutral-500">
+                  Focus: Cinematic &amp; Photorealistic Depth
+                </span>
+              </div>
+
+              <p className="text-xs leading-relaxed text-neutral-300 min-h-[48px] select-text">
+                {optimizedData?.agentA.prompt ||
+                  (prompt
+                    ? `${prompt}, cinematic 35mm lens, volumetric lighting, natural skin textures, 8k --ar ${aspectRatio}`
+                    : "Enter a prompt above to compile specialized Agent A syntax.")}
+              </p>
+
+              <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  disabled={!optimizedData}
                   onClick={() =>
-                    copyToClipboard(optimizedData?.agentA.prompt || prompt, true)
+                    copyToClipboard(
+                      optimizedData?.agentA.prompt || `${prompt} --ar ${aspectRatio}`,
+                      true
+                    )
                   }
-                  className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer fluid-press"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/30 transition cursor-pointer select-none fluid-press"
                 >
                   {copiedA ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied!</span>
+                      <span>Copied Prompt!</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Prompt</span>
+                      <span>Copy Agent A Prompt</span>
                     </>
                   )}
                 </button>
-              </div>
 
-              <p className="text-xs text-neutral-300 leading-relaxed font-mono select-all break-words max-h-24 overflow-y-auto">
-                {optimizedData
-                  ? optimizedData.agentA.prompt
-                  : "Click 'Dispatch to Both Agents' to generate tailored syntax for Agent A."}
-              </p>
+                <a
+                  href="https://discord.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-indigo-300 transition"
+                >
+                  <span>Open Portal</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
 
-            {/* Error Message */}
-            {errorA && (
-              <div className="p-3 mb-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{errorA}</span>
-              </div>
-            )}
-
-            {/* Result Preview / Ingestion Dropzone */}
-            <div className="relative">
+            {/* Ingestion & Output Viewport A */}
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[280px] rounded-xl border border-dashed border-black/10 dark:border-white/10 p-4 relative group">
               {agentAImage ? (
-                <div className="space-y-3">
-                  <div
-                    className="relative group rounded-xl overflow-hidden border border-black/10 dark:border-white/10 aspect-square bg-neutral-900 cursor-pointer"
-                    onClick={() => {
-                      setLightboxUrl(agentAImage.url);
-                      setLightboxTitle("Image Agent A Result");
-                    }}
-                  >
+                <div className="w-full flex flex-col items-center gap-3">
+                  <div className="relative w-full aspect-square max-w-[340px] rounded-lg overflow-hidden bg-black/40 border border-white/10 group">
                     <img
                       src={agentAImage.url}
-                      alt="Agent A Generated Output"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-102"
+                      alt="Agent A Result"
+                      className="w-full h-full object-contain"
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <span className="text-xs text-white font-medium bg-black/60 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-                        <Maximize2 className="w-3.5 h-3.5" /> Fullscreen
-                      </span>
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLightboxUrl(agentAImage.url);
+                          setLightboxTitle("Image Agent A (Subscribed Result)");
+                        }}
+                        className="p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition"
+                        title="Fullscreen Preview"
+                      >
+                        <Maximize2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => triggerDownload(agentAImage.url, `agent_a_${Date.now()}.png`)}
+                        className="p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition"
+                        title="Download High-Res"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Metadata Row */}
-                  <div className="flex items-center justify-between text-[11px] text-neutral-400 font-mono px-1">
-                    <span>
-                      {agentAImage.width} × {agentAImage.height} ({agentAImage.format})
+                  {/* Metadata Chips A */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-neutral-400">
+                    <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10">
+                      {agentAImage.format} • {agentAImage.width}×{agentAImage.height}
                     </span>
-                    <span>{(agentAImage.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB</span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10">
+                      {(agentAImage.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveToWorkspace("agent_a")}
+                      className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition flex items-center gap-1"
+                    >
+                      {savedWorkspaceA ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span>Saved!</span>
+                        </>
+                      ) : (
+                        <>
+                          <FolderPlus className="w-3 h-3" />
+                          <span>Saved to Workspace</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -560,186 +850,218 @@ export function DualSubscribedAgentSuite({
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (e.dataTransfer.files?.[0]) {
-                      handleFileUpload(e.dataTransfer.files[0], "agent_a");
+                    if (e.dataTransfer.files?.[0]) processUploadedFile(e.dataTransfer.files[0], "agent_a");
+                  }}
+                  onPaste={(e) => {
+                    const item = e.clipboardData.items[0];
+                    if (item?.type.startsWith("image/")) {
+                      const file = item.getAsFile();
+                      if (file) processUploadedFile(file, "agent_a");
                     }
                   }}
+                  tabIndex={0}
+                  className="w-full h-full flex flex-col items-center justify-center text-center p-6 cursor-pointer focus:outline-none"
                   onClick={() => fileInputRefA.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center transition cursor-pointer ${
-                    isDark
-                      ? "border-white/10 hover:border-white/30 bg-white/[0.02]"
-                      : "border-neutral-200 hover:border-neutral-400 bg-neutral-50"
-                  }`}
                 >
                   <input
-                    ref={fileInputRefA}
                     type="file"
+                    ref={fileInputRefA}
                     accept="image/png,image/jpeg,image/webp"
                     className="hidden"
                     onChange={(e) => {
-                      if (e.target.files?.[0]) {
-                        handleFileUpload(e.target.files[0], "agent_a");
-                      }
+                      if (e.target.files?.[0]) processUploadedFile(e.target.files[0], "agent_a");
                     }}
                   />
                   {validatingA ? (
                     <div className="flex flex-col items-center gap-2">
-                      <RefreshCw className="w-6 h-6 animate-spin text-indigo-400" />
-                      <span className="text-xs text-neutral-300">Validating File Integrity...</span>
+                      <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                      <span className="text-xs text-neutral-300 font-medium">
+                        {statusMsgA || "Processing image..."}
+                      </span>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <Upload className="w-6 h-6 text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-200">
-                        Drop or Paste Agent A Output
-                      </span>
-                      <span className="text-[11px] text-neutral-400 max-w-xs leading-normal">
-                        Generate in your Agent A subscription, then drop or paste the result here.
-                      </span>
+                    <div className="flex flex-col items-center gap-2.5">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-neutral-300 block">
+                          Paste (Ctrl+V) or Drop Agent A Result
+                        </span>
+                        <span className="text-[11px] text-neutral-500 block mt-0.5">
+                          Or click to browse JPEG, PNG, WebP up to 25MB
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
               )}
+
+              {errorA && (
+                <div className="mt-2 text-[11px] text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{errorA}</span>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Action Footer for Agent A */}
-          {agentAImage && (
-            <div className="mt-4 pt-4 border-t border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setPreferredAgent("agent_a")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer fluid-press ${
-                  preferredAgent === "agent_a"
-                    ? "bg-emerald-600 text-white font-semibold shadow-xs"
-                    : "bg-white/[0.06] hover:bg-white/10 text-neutral-300"
-                }`}
-              >
-                {preferredAgent === "agent_a" ? "✓ Preferred Choice" : "Pick as Preferred"}
-              </button>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => triggerDownload(agentAImage.url, `agent_a_${agentAImage.id}.png`)}
-                  className="p-2 rounded-lg bg-white/[0.06] hover:bg-white/10 text-neutral-300 hover:text-white transition cursor-pointer fluid-press"
-                  title="Download Image"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveToWorkspace("agent_a")}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition cursor-pointer fluid-press"
-                >
-                  {savedWorkspaceA ? "Saved ✓" : "Save to Workspace"}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* ============================================================== */}
-        {/* COLUMN 2: IMAGE AGENT B                                        */}
-        {/* ============================================================== */}
+        {/* ================================================= Image Agent B Workspace */}
         <div
-          className={`p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
+          className={`flex flex-col rounded-2xl border transition-all duration-200 overflow-hidden ${
             isDark
-              ? "bg-[#14151c]/90 border-white/[0.08] text-white"
-              : "bg-white border-neutral-200 text-neutral-900 shadow-xs"
-          }`}
+              ? "bg-[#14151c]/90 border-white/[0.08]"
+              : "bg-white border-neutral-200 shadow-xs"
+          } ${preferredAgent === "agent_b" ? "ring-2 ring-violet-500" : ""}`}
         >
-          <div>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center font-bold text-xs">
-                  B
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Image Agent B</h3>
-                  <span className="text-[11px] text-neutral-400 font-mono">
-                    Focus: Graphic Layout &amp; Style
-                  </span>
-                </div>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Connected
+          {/* Header B */}
+          <div className="p-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between bg-violet-500/5">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]" />
+              <h3 className="font-semibold text-sm sm:text-base text-violet-400 tracking-tight">
+                Image Agent B
+              </h3>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+                  companionStatus.active && agentBMode === "local_companion"
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                }`}
+              >
+                {companionStatus.active && agentBMode === "local_companion"
+                  ? "Automated Loopback"
+                  : "User-Assisted Mode"}
               </span>
             </div>
 
-            {/* Optimized Prompt Box */}
-            <div className="p-3 rounded-xl bg-black/20 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2 mb-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
-                  Targeted Agent B Prompt
+            <button
+              type="button"
+              onClick={() => setPreferredAgent("agent_b")}
+              className={`text-xs px-2.5 py-1 rounded-lg transition cursor-pointer select-none ${
+                preferredAgent === "agent_b"
+                  ? "bg-violet-600 text-white font-semibold"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              {preferredAgent === "agent_b" ? "★ Preferred" : "Mark Preferred"}
+            </button>
+          </div>
+
+          {/* Content B */}
+          <div className="p-5 flex-1 flex flex-col gap-4">
+            {/* Prompt Card B */}
+            <div className="p-3.5 rounded-xl bg-black/5 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-neutral-400">
+                <span className="font-mono uppercase text-[10px] tracking-wider text-violet-400 font-semibold">
+                  Compiled Agent B Prompt
                 </span>
+                <span className="text-[11px] text-neutral-500">
+                  Focus: Graphic Layout &amp; Typographic Purity
+                </span>
+              </div>
+
+              <p className="text-xs leading-relaxed text-neutral-300 min-h-[48px] select-text">
+                {optimizedData?.agentB.prompt ||
+                  (prompt
+                    ? `${prompt}, Swiss modern poster layout, bold vector graphic, high contrast visual --ar ${aspectRatio}`
+                    : "Enter a prompt above to compile specialized Agent B syntax.")}
+              </p>
+
+              <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  disabled={!optimizedData}
                   onClick={() =>
-                    copyToClipboard(optimizedData?.agentB.prompt || prompt, false)
+                    copyToClipboard(
+                      optimizedData?.agentB.prompt || `${prompt} --ar ${aspectRatio}`,
+                      false
+                    )
                   }
-                  className="inline-flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 font-medium transition cursor-pointer fluid-press"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 border border-violet-500/30 transition cursor-pointer select-none fluid-press"
                 >
                   {copiedB ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied!</span>
+                      <span>Copied Prompt!</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Prompt</span>
+                      <span>Copy Agent B Prompt</span>
                     </>
                   )}
                 </button>
-              </div>
 
-              <p className="text-xs text-neutral-300 leading-relaxed font-mono select-all break-words max-h-24 overflow-y-auto">
-                {optimizedData
-                  ? optimizedData.agentB.prompt
-                  : "Click 'Dispatch to Both Agents' to generate tailored syntax for Agent B."}
-              </p>
+                <a
+                  href="https://chatgpt.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-violet-300 transition"
+                >
+                  <span>Open Portal</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
 
-            {/* Error Message */}
-            {errorB && (
-              <div className="p-3 mb-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{errorB}</span>
-              </div>
-            )}
-
-            {/* Result Preview / Ingestion Dropzone */}
-            <div className="relative">
+            {/* Ingestion & Output Viewport B */}
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[280px] rounded-xl border border-dashed border-black/10 dark:border-white/10 p-4 relative group">
               {agentBImage ? (
-                <div className="space-y-3">
-                  <div
-                    className="relative group rounded-xl overflow-hidden border border-black/10 dark:border-white/10 aspect-square bg-neutral-900 cursor-pointer"
-                    onClick={() => {
-                      setLightboxUrl(agentBImage.url);
-                      setLightboxTitle("Image Agent B Result");
-                    }}
-                  >
+                <div className="w-full flex flex-col items-center gap-3">
+                  <div className="relative w-full aspect-square max-w-[340px] rounded-lg overflow-hidden bg-black/40 border border-white/10 group">
                     <img
                       src={agentBImage.url}
-                      alt="Agent B Generated Output"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-102"
+                      alt="Agent B Result"
+                      className="w-full h-full object-contain"
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <span className="text-xs text-white font-medium bg-black/60 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-                        <Maximize2 className="w-3.5 h-3.5" /> Fullscreen
-                      </span>
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLightboxUrl(agentBImage.url);
+                          setLightboxTitle("Image Agent B (Subscribed Result)");
+                        }}
+                        className="p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition"
+                        title="Fullscreen Preview"
+                      >
+                        <Maximize2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => triggerDownload(agentBImage.url, `agent_b_${Date.now()}.png`)}
+                        className="p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition"
+                        title="Download High-Res"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Metadata Row */}
-                  <div className="flex items-center justify-between text-[11px] text-neutral-400 font-mono px-1">
-                    <span>
-                      {agentBImage.width} × {agentBImage.height} ({agentBImage.format})
+                  {/* Metadata Chips B */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-neutral-400">
+                    <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10">
+                      {agentBImage.format} • {agentBImage.width}×{agentBImage.height}
                     </span>
-                    <span>{(agentBImage.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB</span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10">
+                      {(agentBImage.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveToWorkspace("agent_b")}
+                      className="px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition flex items-center gap-1"
+                    >
+                      {savedWorkspaceB ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span>Saved!</span>
+                        </>
+                      ) : (
+                        <>
+                          <FolderPlus className="w-3 h-3" />
+                          <span>Saved to Workspace</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -747,110 +1069,90 @@ export function DualSubscribedAgentSuite({
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (e.dataTransfer.files?.[0]) {
-                      handleFileUpload(e.dataTransfer.files[0], "agent_b");
+                    if (e.dataTransfer.files?.[0]) processUploadedFile(e.dataTransfer.files[0], "agent_b");
+                  }}
+                  onPaste={(e) => {
+                    const item = e.clipboardData.items[0];
+                    if (item?.type.startsWith("image/")) {
+                      const file = item.getAsFile();
+                      if (file) processUploadedFile(file, "agent_b");
                     }
                   }}
+                  tabIndex={0}
+                  className="w-full h-full flex flex-col items-center justify-center text-center p-6 cursor-pointer focus:outline-none"
                   onClick={() => fileInputRefB.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center transition cursor-pointer ${
-                    isDark
-                      ? "border-white/10 hover:border-white/30 bg-white/[0.02]"
-                      : "border-neutral-200 hover:border-neutral-400 bg-neutral-50"
-                  }`}
                 >
                   <input
-                    ref={fileInputRefB}
                     type="file"
+                    ref={fileInputRefB}
                     accept="image/png,image/jpeg,image/webp"
                     className="hidden"
                     onChange={(e) => {
-                      if (e.target.files?.[0]) {
-                        handleFileUpload(e.target.files[0], "agent_b");
-                      }
+                      if (e.target.files?.[0]) processUploadedFile(e.target.files[0], "agent_b");
                     }}
                   />
                   {validatingB ? (
                     <div className="flex flex-col items-center gap-2">
-                      <RefreshCw className="w-6 h-6 animate-spin text-purple-400" />
-                      <span className="text-xs text-neutral-300">Validating File Integrity...</span>
+                      <RefreshCw className="w-8 h-8 text-violet-400 animate-spin" />
+                      <span className="text-xs text-neutral-300 font-medium">
+                        {statusMsgB || "Processing image..."}
+                      </span>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <Upload className="w-6 h-6 text-neutral-400" />
-                      <span className="text-xs font-semibold text-neutral-200">
-                        Drop or Paste Agent B Output
-                      </span>
-                      <span className="text-[11px] text-neutral-400 max-w-xs leading-normal">
-                        Generate in your Agent B subscription, then drop or paste the result here.
-                      </span>
+                    <div className="flex flex-col items-center gap-2.5">
+                      <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-neutral-300 block">
+                          Paste (Ctrl+V) or Drop Agent B Result
+                        </span>
+                        <span className="text-[11px] text-neutral-500 block mt-0.5">
+                          Or click to browse JPEG, PNG, WebP up to 25MB
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
               )}
+
+              {errorB && (
+                <div className="mt-2 text-[11px] text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{errorB}</span>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Action Footer for Agent B */}
-          {agentBImage && (
-            <div className="mt-4 pt-4 border-t border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setPreferredAgent("agent_b")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer fluid-press ${
-                  preferredAgent === "agent_b"
-                    ? "bg-emerald-600 text-white font-semibold shadow-xs"
-                    : "bg-white/[0.06] hover:bg-white/10 text-neutral-300"
-                }`}
-              >
-                {preferredAgent === "agent_b" ? "✓ Preferred Choice" : "Pick as Preferred"}
-              </button>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => triggerDownload(agentBImage.url, `agent_b_${agentBImage.id}.png`)}
-                  className="p-2 rounded-lg bg-white/[0.06] hover:bg-white/10 text-neutral-300 hover:text-white transition cursor-pointer fluid-press"
-                  title="Download Image"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveToWorkspace("agent_b")}
-                  className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition cursor-pointer fluid-press"
-                >
-                  {savedWorkspaceB ? "Saved ✓" : "Save to Workspace"}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
       {/* Lightbox Modal */}
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fluid-dialog"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fluid-modal"
           onClick={() => setLightboxUrl(null)}
         >
           <div
             className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full flex items-center justify-between mb-2 px-1 text-white">
-              <span className="text-sm font-semibold">{lightboxTitle}</span>
+            <div className="w-full flex items-center justify-between text-white text-xs mb-2">
+              <span className="font-medium">{lightboxTitle}</span>
               <button
                 type="button"
                 onClick={() => setLightboxUrl(null)}
-                className="p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
+                className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
             <img
               src={lightboxUrl}
-              alt={lightboxTitle}
-              className="max-w-full max-h-[80vh] rounded-xl object-contain shadow-2xl"
+              alt="Lightbox Preview"
+              className="max-w-full max-h-[80vh] object-contain rounded-xl border border-white/10 shadow-2xl"
             />
           </div>
         </div>

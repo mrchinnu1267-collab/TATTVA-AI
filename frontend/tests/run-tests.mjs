@@ -186,6 +186,10 @@ try {
   if (customModelPipeline?.runCustomModelTrainingPipelineTests) {
     await customModelPipeline.runCustomModelTrainingPipelineTests();
   }
+  const subscribedAgentsAutomation = await jiti("./phase-subscribed-agents-automation.test.ts");
+  if (subscribedAgentsAutomation?.runSubscribedAgentsAutomationTests) {
+    await subscribedAgentsAutomation.runSubscribedAgentsAutomationTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {
