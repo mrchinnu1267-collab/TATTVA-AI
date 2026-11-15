@@ -49,10 +49,10 @@ export class MMMLUDatasetValidator {
 
     const searchBases = [
       process.cwd(),
-      path.resolve(process.cwd(), ".."),
-      path.resolve(process.cwd(), "frontend"),
-      path.resolve(__dirname, "../../../.."),
-      path.resolve(__dirname, "../../.."),
+      path.resolve(/*turbopackIgnore: true*/ process.cwd(), ".."),
+      path.resolve(/*turbopackIgnore: true*/ process.cwd(), "frontend"),
+      path.resolve(/*turbopackIgnore: true*/ __dirname, "../../../.."),
+      path.resolve(/*turbopackIgnore: true*/ __dirname, "../../.."),
     ];
 
     for (const target of targets) {

@@ -71,7 +71,7 @@ async function verifyGeminiIntegration() {
   assert.strictEqual(connStatus.capabilities.text, true, "Text capability must be active");
   console.log("  ✔ Successfully authenticated backend session with Google Gemini API.");
   console.log(`  ✔ Provider: ${connStatus.accountLabel}`);
-  console.log(`  ✔ Latency: ${connStatus.latencyMs}ms\n`);
+  console.log(`  ✔ Connected: ${connStatus.isConnected}\n`);
 
   // 5. SEND HARMLESS TEST PROMPT & VERIFY ACTUAL RESPONSE
   console.log("▶ [5] Sending Harmless Test Prompt to Gemini API...");
