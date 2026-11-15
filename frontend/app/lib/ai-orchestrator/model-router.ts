@@ -46,6 +46,20 @@ export class ModelRouter {
     // 1. Google Gemini Fleet (Required: GEMINI_API_KEY)
     // ------------------------------------------------------------------------
     {
+      id: "gemini-3.8-flash",
+      name: "Gemini 3.8 Flash",
+      provider: "gemini",
+      contextWindow: 1048576,
+      maxOutputTokens: 8192,
+      latencyTier: "ultra_low",
+      strengths: ["coding", "reasoning", "mathematics", "document_analysis", "agent_task"],
+      isAvailable: false, // Retired / high latency on standard tier
+      parameterScale: "Undisclosed",
+      supportsStreaming: true,
+      supportsVision: true,
+      pricingPer1MTokens: { prompt: 0.15, completion: 0.60 },
+    },
+    {
       id: "gemini-3.5-flash-lite",
       name: "Gemini 3.5 Flash Lite",
       provider: "gemini",
@@ -81,7 +95,7 @@ export class ModelRouter {
       maxOutputTokens: 8192,
       latencyTier: "medium",
       strengths: ["reasoning", "document_analysis", "web_research"],
-      isAvailable: Boolean(process.env.GEMINI_API_KEY),
+      isAvailable: false, // 404 deprecated on AI Studio endpoint
       parameterScale: "Undisclosed",
       supportsStreaming: true,
       supportsVision: true,
@@ -510,9 +524,9 @@ export class ModelRouter {
       });
     }
 
-    try {
-      const res = await ai.models.generateContent({
-        model: modelId,
+    const runWithTimeout = async (targetModel: string) => {
+      const callPromise = ai.models.generateContent({
+        model: targetModel,
         contents,
         config: {
           systemInstruction: options.systemInstruction,
@@ -520,21 +534,35 @@ export class ModelRouter {
           maxOutputTokens: options.maxTokens,
         },
       });
+      const timeoutMs = options.timeoutMs || 15000;
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Gemini request to ${targetModel} timed out after ${timeoutMs}ms`)), timeoutMs)
+      );
+      return Promise.race([callPromise, timeoutPromise]);
+    };
+
+    try {
+      const res = await runWithTimeout(modelId);
       return res.text || "";
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      // Auto-retry once on 429 rate limit or temporary resource exhaustion
+      // Auto-fallback to gemini-3.5-flash if requested model is deprecated / not found
+      if (
+        (errMsg.includes("no longer available") || errMsg.includes("404") || errMsg.includes("NOT_FOUND")) &&
+        modelId !== "gemini-3.5-flash"
+      ) {
+        try {
+          const fallbackRes = await runWithTimeout("gemini-3.5-flash");
+          return fallbackRes.text || "";
+        } catch {
+          // If fallback also fails, continue to standard error handling
+        }
+      }
+
+      // Auto-retry once on 429 rate limit or temporary resource exhaustion with 4.5s backoff
       if (err?.status === 429 || errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("limit: 0")) {
-        await new Promise((r) => setTimeout(r, 1200));
-        const retryRes = await ai.models.generateContent({
-          model: modelId,
-          contents,
-          config: {
-            systemInstruction: options.systemInstruction,
-            temperature: options.temperature ?? 0.7,
-            maxOutputTokens: options.maxTokens,
-          },
-        });
+        await new Promise((r) => setTimeout(r, 4500));
+        const retryRes = await runWithTimeout(modelId);
         return retryRes.text || "";
       }
       throw err;

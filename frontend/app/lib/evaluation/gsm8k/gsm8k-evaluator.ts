@@ -204,6 +204,14 @@ ${questionText}`;
           topic,
           calculationSteps,
         });
+
+        console.log(
+          `[GSM8K Eval] Q${i + 1}/${selectedRecords.length}: ${comparison.isCorrect ? "CORRECT" : comparison.isInvalid ? "INVALID" : "INCORRECT"} (${qLatency}ms) | Exp: ${expectedAns} | Got: ${comparison.extractedAnswer}`
+        );
+      }
+
+      if (!request.mockInference && i < selectedRecords.length - 1) {
+        await new Promise((r) => setTimeout(r, 2500));
       }
     }
 
