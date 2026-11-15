@@ -59,8 +59,8 @@ export class ModelRouter {
       pricingPer1MTokens: { prompt: 0.075, completion: 0.30 },
     },
     {
-      id: "gemini-3.6-flash",
-      name: "Gemini 3.6 Flash",
+      id: "gemini-3.5-flash",
+      name: "Gemini 3.5 Flash",
       provider: "gemini",
       contextWindow: 1048576,
       maxOutputTokens: 8192,
@@ -169,7 +169,7 @@ export class ModelRouter {
     // 4. OpenRouter Fleet (Required: OPENROUTER_API_KEY)
     // ------------------------------------------------------------------------
     {
-      id: "meta-llama/llama-3.3-70b-instruct:free",
+      id: "meta-llama/llama-3.3-70b-instruct",
       name: "Llama 3.3 70B Instruct",
       provider: "openrouter",
       contextWindow: 131072,
@@ -183,18 +183,18 @@ export class ModelRouter {
       pricingPer1MTokens: { prompt: 0.12, completion: 0.30 },
     },
     {
-      id: "deepseek/deepseek-r1:free",
-      name: "DeepSeek R1 Reasoning",
+      id: "deepseek/deepseek-chat",
+      name: "DeepSeek V3 Chat",
       provider: "openrouter",
       contextWindow: 65536,
       maxOutputTokens: 4096,
       latencyTier: "medium",
-      strengths: ["reasoning", "mathematics", "coding"],
+      strengths: ["reasoning", "mathematics", "coding", "general_chat"],
       isAvailable: Boolean(process.env.OPENROUTER_API_KEY),
       parameterScale: "671B MoE",
       supportsStreaming: true,
       supportsVision: false,
-      pricingPer1MTokens: { prompt: 0.55, completion: 2.19 },
+      pricingPer1MTokens: { prompt: 0.14, completion: 0.28 },
     },
 
     // ------------------------------------------------------------------------
@@ -310,14 +310,14 @@ export class ModelRouter {
       const claudeSonnet = activeModels.find((m) => m.id === "claude-3-5-sonnet-20241022" && m.isAvailable);
       if (claudeSonnet && !candidates.includes(claudeSonnet)) candidates.push(claudeSonnet);
 
-      const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.6-flash" && m.isAvailable);
+      const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.5-flash" && m.isAvailable);
       if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
 
       const gpt4o = activeModels.find((m) => m.id === "gpt-4o" && m.isAvailable);
       if (gpt4o && !candidates.includes(gpt4o)) candidates.push(gpt4o);
 
-      const deepseekR1 = activeModels.find((m) => m.id === "deepseek/deepseek-r1:free" && m.isAvailable);
-      if (deepseekR1 && !candidates.includes(deepseekR1)) candidates.push(deepseekR1);
+      const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
+      if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
     }
 
     // 4. Fast conversational & general tasks

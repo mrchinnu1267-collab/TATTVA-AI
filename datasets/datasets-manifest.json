@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "lastUpdated": "2026-11-15T06:30:00.000Z",
+  "lastUpdated": "2026-11-15T01:26:49.032Z",
   "canonicalRoot": "datasets/",
   "registryPolicy": {
     "evaluationTrainingSeparation": true,
@@ -21,7 +21,11 @@
       "fileSizeFormatted": "405.28 KB",
       "format": "csv",
       "relativePath": "MMMLU/MMMLU_HI-IN_456_question_sample.csv",
-      "categories": ["knowledge", "reasoning", "multilingual"],
+      "categories": [
+        "knowledge",
+        "reasoning",
+        "multilingual"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Initial rapid sanity checks and standard knowledge benchmarking in Hindi.",
       "dateImported": "2026-11-14T22:00:00.000Z",
@@ -49,7 +53,11 @@
       "fileSizeFormatted": "15.44 MB",
       "format": "csv",
       "relativePath": "MMMLU/mmlu_HI-IN.csv",
-      "categories": ["knowledge", "reasoning", "multilingual"],
+      "categories": [
+        "knowledge",
+        "reasoning",
+        "multilingual"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Deep full-spectrum academic knowledge evaluation across 57 subjects.",
       "dateImported": "2026-11-14T22:00:00.000Z",
@@ -77,7 +85,11 @@
       "fileSizeFormatted": "5.20 KB",
       "format": "jsonl",
       "relativePath": "multilingual/telugu_reasoning_eval.jsonl",
-      "categories": ["multilingual", "reasoning", "knowledge"],
+      "categories": [
+        "multilingual",
+        "reasoning",
+        "knowledge"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Native Telugu language understanding, grammar, and reasoning evaluation.",
       "dateImported": "2026-11-15T04:40:00.000Z",
@@ -105,7 +117,10 @@
       "fileSizeFormatted": "2.95 KB",
       "format": "jsonl",
       "relativePath": "instruction/instruction_following_eval.jsonl",
-      "categories": ["instruction_following", "reasoning"],
+      "categories": [
+        "instruction_following",
+        "reasoning"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Measurement of strict instruction and format compliance.",
       "dateImported": "2026-11-15T04:40:00.000Z",
@@ -133,7 +148,11 @@
       "fileSizeFormatted": "3.18 KB",
       "format": "jsonl",
       "relativePath": "conversational/conversational_eval.jsonl",
-      "categories": ["conversational", "instruction_following", "multilingual"],
+      "categories": [
+        "conversational",
+        "instruction_following",
+        "multilingual"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Long-context conversation memory, topic transition, and bilingual code-switching assessment.",
       "dateImported": "2026-11-15T04:40:00.000Z",
@@ -161,7 +180,10 @@
       "fileSizeFormatted": "2.77 KB",
       "format": "jsonl",
       "relativePath": "coding/coding_eval.jsonl",
-      "categories": ["coding", "reasoning"],
+      "categories": [
+        "coding",
+        "reasoning"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Evaluation of code correctness, window functions, React hooks, and concurrency safety.",
       "dateImported": "2026-11-15T06:30:00.000Z",
@@ -189,7 +211,10 @@
       "fileSizeFormatted": "2.13 KB",
       "format": "jsonl",
       "relativePath": "mathematics/mathematics_eval.jsonl",
-      "categories": ["mathematics", "reasoning"],
+      "categories": [
+        "mathematics",
+        "reasoning"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Evaluation of multi-step analytical and mathematical problem-solving capabilities.",
       "dateImported": "2026-11-15T06:30:00.000Z",
@@ -217,7 +242,10 @@
       "fileSizeFormatted": "2.85 KB",
       "format": "jsonl",
       "relativePath": "tool_use/tool_use_eval.jsonl",
-      "categories": ["tool_use", "reasoning"],
+      "categories": [
+        "tool_use",
+        "reasoning"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Verification of autonomous tool calling accuracy and safety gate enforcement.",
       "dateImported": "2026-11-15T06:30:00.000Z",
@@ -245,7 +273,10 @@
       "fileSizeFormatted": "2.68 KB",
       "format": "jsonl",
       "relativePath": "rag_evaluation/rag_eval.jsonl",
-      "categories": ["rag_evaluation", "knowledge"],
+      "categories": [
+        "rag_evaluation",
+        "knowledge"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Verification of grounded retrieval, source citations, and zero-hallucination context extraction.",
       "dateImported": "2026-11-15T06:30:00.000Z",
@@ -273,7 +304,10 @@
       "fileSizeFormatted": "2.10 KB",
       "format": "json",
       "relativePath": "multimodal/multimodal_eval.json",
-      "categories": ["multimodal_evaluation", "reasoning"],
+      "categories": [
+        "multimodal_evaluation",
+        "reasoning"
+      ],
       "datasetType": "evaluation",
       "intendedPurpose": "Measurement of cross-modal reasoning, OCR extraction precision, and diagram flow interpretation.",
       "dateImported": "2026-11-15T06:30:00.000Z",

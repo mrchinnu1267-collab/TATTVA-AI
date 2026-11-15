@@ -29,8 +29,11 @@ export class ProductionMonitoringDashboardService {
     if (auth.userRole === "admin" || auth.userRole === "engineer") {
       return true;
     }
-    // Development fallback when run in verified local test contexts
-    if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
+    if (auth.userRole === "unauthorized_viewer" || auth.userRole === "user" || auth.userRole === "guest") {
+      return false;
+    }
+    // Development fallback when run in verified local test contexts without explicit restricted roles
+    if (!auth.userRole && (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test")) {
       return true;
     }
     return false;
