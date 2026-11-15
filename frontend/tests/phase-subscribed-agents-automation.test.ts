@@ -25,6 +25,7 @@ export interface AcceptanceTestRunRecord {
     width: number;
     height: number;
     fileSizeBytes: number;
+    sha256: string;
     storagePath: string;
     format: string;
   };
@@ -33,6 +34,7 @@ export interface AcceptanceTestRunRecord {
     width: number;
     height: number;
     fileSizeBytes: number;
+    sha256: string;
     storagePath: string;
     format: string;
   };
@@ -76,9 +78,9 @@ export async function runSubscribedAgentsAutomationTests() {
     console.log("✔ Agent B connection and loopback capability verified.");
 
     // -------------------------------------------------------------------------
-    // TEST 3: Allowed Origin & CORS Protection
+    // TEST 3: Allowed Origin & CORS Protection (Including Private Network Access)
     // -------------------------------------------------------------------------
-    process.stdout.write("▶ Test 3: Allowed origin enforcement (blocking arbitrary websites)... ");
+    process.stdout.write("▶ Test 3: Allowed origin enforcement & Private Network Access (PNA)... ");
     // Test that an unauthorized origin (e.g. evil.com) is rejected with 403 Forbidden
     const evilRes = await fetch(`http://127.0.0.1:${TEST_PORT}/health`, {
       method: "GET",
@@ -86,13 +88,26 @@ export async function runSubscribedAgentsAutomationTests() {
     });
     assert.strictEqual(evilRes.status, 403);
 
-    // Test that authorized origin is accepted
+    // Test that authorized origin is accepted with PNA header
     const allowedRes = await fetch(`http://127.0.0.1:${TEST_PORT}/health`, {
       method: "GET",
       headers: { Origin: "https://tattva-ai-phi.vercel.app" },
     });
     assert.strictEqual(allowedRes.status, 200);
-    console.log("✔ Forbidden origin blocked (403); TATTVA AI domain allowed (200).");
+    assert.strictEqual(allowedRes.headers.get("access-control-allow-private-network"), "true");
+
+    // Test OPTIONS preflight for HTTPS-to-localhost PNA
+    const optionsRes = await fetch(`http://127.0.0.1:${TEST_PORT}/v1/jobs/submit`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://tattva-ai-phi.vercel.app",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Private-Network": "true",
+      },
+    });
+    assert.strictEqual(optionsRes.status, 204);
+    assert.strictEqual(optionsRes.headers.get("access-control-allow-private-network"), "true");
+    console.log("✔ Forbidden origin blocked (403); TATTVA AI domain & PNA allowed (200/204).");
 
     // -------------------------------------------------------------------------
     // TEST 4: HMAC Signature Verification & 60s Replay Protection
@@ -306,6 +321,11 @@ export async function runSubscribedAgentsAutomationTests() {
     assert.ok(endToEndJob.agentAJob.outputImage);
     assert.ok(endToEndJob.agentBJob.outputImage);
 
+    const bufA = Buffer.from(endToEndJob.agentAJob.outputImage!.split(",")[1], "base64");
+    const bufB = Buffer.from(endToEndJob.agentBJob.outputImage!.split(",")[1], "base64");
+    const sha256A = crypto.createHash("sha256").update(bufA).digest("hex");
+    const sha256B = crypto.createHash("sha256").update(bufB).digest("hex");
+
     // Save acceptance record
     latestAcceptanceRecord = {
       jobId: endToEndJob.jobId,
@@ -315,7 +335,8 @@ export async function runSubscribedAgentsAutomationTests() {
         status: endToEndJob.agentAJob.status,
         width: endToEndJob.agentAJob.metadata?.width || 512,
         height: endToEndJob.agentAJob.metadata?.height || 512,
-        fileSizeBytes: endToEndJob.agentAJob.metadata?.fileSizeBytes || 0,
+        fileSizeBytes: bufA.length,
+        sha256: sha256A,
         storagePath: endToEndJob.agentAJob.imageUrl || "",
         format: endToEndJob.agentAJob.metadata?.format || "PNG",
       },
@@ -323,7 +344,8 @@ export async function runSubscribedAgentsAutomationTests() {
         status: endToEndJob.agentBJob.status,
         width: endToEndJob.agentBJob.metadata?.width || 512,
         height: endToEndJob.agentBJob.metadata?.height || 512,
-        fileSizeBytes: endToEndJob.agentBJob.metadata?.fileSizeBytes || 0,
+        fileSizeBytes: bufB.length,
+        sha256: sha256B,
         storagePath: endToEndJob.agentBJob.imageUrl || "",
         format: endToEndJob.agentBJob.metadata?.format || "PNG",
       },
@@ -447,10 +469,45 @@ export async function runSubscribedAgentsAutomationTests() {
     assert.strictEqual(offlineAudit.matrix.agent_a.canAutoSubmit, false);
     console.log("✔ Clean offline detection & graceful user-assisted fallback verified.");
 
-    console.log("\n✨ All 18 Subscribed Image Agent Acceptance & Security tests PASSED successfully!\n");
+    // -------------------------------------------------------------------------
+    // TEST 19: Companion Recovery After Restart
+    // -------------------------------------------------------------------------
+    process.stdout.write("▶ Test 19: Companion restart and recovery verification... ");
+    testServer = createCompanionServer();
+    await new Promise<void>((resolve) => {
+      testServer.listen(TEST_PORT, "127.0.0.1", () => resolve());
+    });
+
+    const restartedStatus = await checkLocalCompanionHealth();
+    assert.strictEqual(restartedStatus.active, true);
+
+    const recoverySubmit = await CompanionClient.submitJob({
+      jobId: "job_recovery_test",
+      agentId: "agent_a",
+      prompt: "Recovery prompt after restart",
+      category: "logo",
+      aspectRatio: "1:1",
+    });
+    assert.strictEqual(recoverySubmit.success, true);
+    const recoveryResult = await CompanionClient.pollUntilCompletion("job_recovery_test", "agent_a", undefined, 5000);
+    assert.strictEqual(recoveryResult.format, "png");
+    console.log("✔ Server restarted and successfully served new generation job.");
+
+    console.log("\n✨ All 19 Subscribed Image Agent Acceptance & Security tests PASSED successfully!\n");
   } finally {
     if (testServer) {
       await new Promise<void>((resolve) => testServer.close(() => resolve()));
     }
   }
 }
+
+// Auto-run if executed directly via tsx/node
+if (process.argv[1]?.includes("phase-subscribed-agents-automation")) {
+  runSubscribedAgentsAutomationTests()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error("Test failed:", err);
+      process.exit(1);
+    });
+}
+

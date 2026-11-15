@@ -177,13 +177,14 @@ export function createCompanionServer() {
       );
     }
 
-    // CORS headers
+    // CORS & Private Network Access (PNA) headers for HTTPS-to-localhost communication
     res.setHeader("Access-Control-Allow-Origin", origin || "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, x-tattva-companion-token, x-tattva-signature, x-tattva-timestamp, x-tattva-nonce"
+      "Content-Type, x-tattva-companion-token, x-tattva-signature, x-tattva-timestamp, x-tattva-nonce, Access-Control-Request-Private-Network"
     );
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
