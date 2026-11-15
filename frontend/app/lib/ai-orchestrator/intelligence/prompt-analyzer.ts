@@ -31,9 +31,10 @@ export class PromptAnalyzer {
     hasAttachments: boolean = false
   ): AnalyzedPrompt {
     const cleanRaw = rawPrompt.trim();
+    const typoCleaned = this.normalizeTypos(cleanRaw);
 
     // 1. Context Resolution & Anaphora
-    const contextResult = contextManager.resolveContext(cleanRaw, history, hasAttachments);
+    const contextResult = contextManager.resolveContext(typoCleaned, history, hasAttachments);
     const resolvedPrompt = contextResult.resolvedPrompt;
 
     // 2. Language & Dialect Detection
@@ -67,8 +68,9 @@ export class PromptAnalyzer {
       hasAttachments || Boolean(contextResult.referencedAttachment)
     );
 
-    // 8. Task Decomposition
+    // 8. Task Decomposition & Complex Multi-Deliverable Planning
     const taskDecomposition = taskDecomposer.decompose(resolvedPrompt, entities, complexityScore);
+    const complexTaskPlan = taskDecomposer.decomposeComplexPlan(resolvedPrompt, entities, complexityScore);
 
     // 9. Required Tools Determination
     const requiredTools = this.determineRequiredTools(primaryIntent, secondaryIntents, resolvedPrompt);
@@ -103,20 +105,37 @@ export class PromptAnalyzer {
       ambiguityReason: ambiguity.ambiguityReason,
       clarificationQuestion: ambiguity.clarificationQuestion,
       taskDecomposition,
+      complexTaskPlan,
       detectedDialect,
     };
+  }
+
+  /**
+   * Normalizes common spelling mistakes and phonological typos
+   */
+  public normalizeTypos(prompt: string): string {
+    return prompt
+      .replace(/\bwether\b|\bwheather\b/gi, "weather")
+      .replace(/\bprgrm\b|\bprgm\b/gi, "program")
+      .replace(/\bprojct\b|\bprojeckt\b/gi, "project")
+      .replace(/\bdatabse\b|\bdatabae\b/gi, "database")
+      .replace(/\bdocumnt\b|\bdocumet\b/gi, "document")
+      .replace(/\bpresntation\b|\bpresentaion\b/gi, "presentation")
+      .replace(/\breaserch\b|\breserch\b/gi, "research")
+      .replace(/\bcalculte\b|\bcalcutale\b/gi, "calculate")
+      .replace(/\balgoritm\b|\balgorithim\b/gi, "algorithm");
   }
 
   private detectLanguageDialect(prompt: string): AnalyzedPrompt["detectedDialect"] {
     const lower = prompt.toLowerCase();
     const hasTeluguScript = /[\u0C00-\u0C7F]/.test(prompt);
-    const hasTeluguKeywords = /\b(cheppu|cheyyi|rayi|deeni|dini|idi|ela|emiti|enti|meeru|nenu|unnaya|vachindi|gurinchi|enduku|evaru|edhi|eedi)\b/i.test(lower);
+    const hasTeluguKeywords = /\b(cheppu|cheyyi|rayi|deeni|dini|daanini|dannini|idi|ela|emiti|enti|meeru|nenu|unnaya|vachindi|gurinchi|enduku|evaru|edhi|eedi|kavali|kavaali|chesi|pettali|chudu|choodu|matladu|eppudu|ekkada|ippudu)\b/i.test(lower);
 
     if (hasTeluguScript) {
       return /[a-zA-Z]/.test(prompt) ? "telugu_english_mixed" : "telugu";
     }
     if (hasTeluguKeywords) return "telugu_english_mixed";
-    if (/[\u0900-\u097F]/.test(prompt) || /\b(batao|karo|kaise|kya|hai|karein)\b/i.test(lower)) return "hindi";
+    if (/[\u0900-\u097F]/.test(prompt) || /\b(batao|karo|kaise|kya|hai|karein|chahiye|banao|likho)\b/i.test(lower)) return "hindi";
     return "english";
   }
 
@@ -175,7 +194,9 @@ export class PromptAnalyzer {
 
     // 6. Summarization Check
     if (
-      /\b(summarize|give me a summary|tldr|bullet point summary|condense|digest of)\b/i.test(lower)
+      /\b(summarize|give me a summary|tldr|bullet point summary|condense|digest of)\b/i.test(lower) ||
+      rawLower.includes("short ga cheppu") ||
+      rawLower.includes("brief ga cheppu")
     ) {
       return { primaryIntent: "summarization", secondaryIntents: ["document_analysis"] };
     }
@@ -188,10 +209,12 @@ export class PromptAnalyzer {
       return { primaryIntent: "conversational", secondaryIntents: ["general_chat"] };
     }
 
-    // 7. Document Generation Check
+    // 8. Document Generation Check
     if (
       /\b(docx|pptx|xlsx|pdf|excel sheet|powerpoint|word doc|downloadable file|export as|save as a file)\b/i.test(lower) ||
-      /\b(create|generate|export)\s+.*\b(file|sheet|presentation|document)\b/i.test(lower)
+      /\b(create|generate|export)\s+.*\b(file|sheet|presentation|document)\b/i.test(lower) ||
+      rawLower.includes("pdf ga convert") ||
+      rawLower.includes("pdf cheyyi")
     ) {
       if (lower.includes("code") || lower.includes("program")) secondary.push("coding");
       return { primaryIntent: "document_generation", secondaryIntents: secondary };
@@ -199,8 +222,12 @@ export class PromptAnalyzer {
 
     // 9. Coding & Application Development Check
     if (
-      /\b(code|function|component|script|api|bug|error|refactor|database|schema|react|typescript|python|html|css|next\.js|frontend|backend)\b/i.test(lower) ||
+      /\b(code|function|component|script|api|bug|error|refactor|database|schema|react|typescript|python|html|css|next\.js|frontend|backend|java)\b/i.test(lower) ||
       rawLower.includes("code rayi") ||
+      rawLower.includes("project kavali") ||
+      rawLower.includes("code kavali") ||
+      rawLower.includes("website create cheyyi") ||
+      rawLower.includes("errors fix cheyyi") ||
       lower.includes("build") ||
       lower.includes("develop")
     ) {

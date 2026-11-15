@@ -49,7 +49,7 @@ export function scrubCredentials(raw: string, userKey?: string): string {
   }
   return clean
     .replace(/sk-[a-zA-Z0-9_\-]{8,}/gi, "sk-••••••••[REDACTED]")
-    .replace(/AIza[0-9A-Za-z-_]{30,}/g, "AIza••••••••[REDACTED]")
+    .replace(/AIza[0-9A-Za-z-_]{15,}/g, "AIza••••••••[REDACTED]")
     .replace(/bearer\s+[a-zA-Z0-9_\-\.]{15,}/gi, "Bearer [REDACTED]")
     .replace(/key=[a-zA-Z0-9_\-]{15,}/gi, "key=[REDACTED]");
 }

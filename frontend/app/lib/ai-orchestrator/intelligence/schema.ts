@@ -52,6 +52,27 @@ export interface TaskDecompositionResult {
   subtasks: SubtaskPlanItem[];
 }
 
+export interface StructuredDeliverable {
+  name: string;
+  type: "code" | "schema" | "documentation" | "presentation" | "spreadsheet" | "report" | "chart" | "pdf";
+  format: string; // e.g. "java", "sql", "docx", "pptx", "xlsx", "pdf"
+  description: string;
+}
+
+export interface ComplexTaskPlan {
+  isComplex: boolean;
+  domain: "software_engineering" | "academic_research" | "data_analytics" | "multimedia_creative" | "general";
+  projectRequirements: string[];
+  programmingLanguage?: string;
+  technicalConcepts: string[];
+  databaseRequirement?: string;
+  documentationRequirement?: string;
+  presentationRequirement?: string;
+  developmentDependencies: string[];
+  deliverables: StructuredDeliverable[];
+  executionSteps: SubtaskPlanItem[];
+}
+
 export interface AnalyzedPrompt {
   rawPrompt: string;
   resolvedPrompt: string;
@@ -76,6 +97,7 @@ export interface AnalyzedPrompt {
   ambiguityReason?: string;
   clarificationQuestion?: string;
   taskDecomposition?: TaskDecompositionResult;
+  complexTaskPlan?: ComplexTaskPlan;
   detectedDialect?: "english" | "telugu" | "telugu_english_mixed" | "hindi" | "multilingual";
 }
 

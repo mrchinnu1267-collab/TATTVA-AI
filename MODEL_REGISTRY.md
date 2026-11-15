@@ -1,7 +1,7 @@
 # TATTVA AI — Universal Model Registry & Catalog
 
-> **Registry Version:** `2.0.0-catalog`  
-> **Status:** Live Dynamic Catalog  
+> **Registry Version:** `3.0.0-catalog`  
+> **Status:** Live Dynamic Catalog (Phases 1–40 Certified)  
 > **Lead Architect & Maintainer:** kotapati Gowtham Chowdary  
 > **Design Pattern:** Provider-Independent Capability Abstraction  
 

@@ -150,6 +150,30 @@ try {
   if (phase34?.runPhase34IntelligenceOptimizationTests) {
     await phase34.runPhase34IntelligenceOptimizationTests();
   }
+  const phase35 = await jiti("./phase-35-real-world-intelligence.test.ts");
+  if (phase35?.runPhase35RealWorldIntelligenceTests) {
+    await phase35.runPhase35RealWorldIntelligenceTests();
+  }
+  const phase36 = await jiti("./phase-36-end-to-end-task-execution.test.ts");
+  if (phase36?.runPhase36EndToEndTaskExecutionTests) {
+    await phase36.runPhase36EndToEndTaskExecutionTests();
+  }
+  const phase37 = await jiti("./phase-37-ai-safety-and-trust.test.ts");
+  if (phase37?.runPhase37AISafetyAndTrustTests) {
+    await phase37.runPhase37AISafetyAndTrustTests();
+  }
+  const phase38 = await jiti("./phase-38-user-experience.test.ts");
+  if (phase38?.runPhase38UserExperienceTests) {
+    await phase38.runPhase38UserExperienceTests();
+  }
+  const phase39 = await jiti("./phase-39-enterprise-reliability.test.ts");
+  if (phase39?.runPhase39EnterpriseReliabilityTests) {
+    await phase39.runPhase39EnterpriseReliabilityTests();
+  }
+  const phase40 = await jiti("./phase-40-final-acceptance.test.ts");
+  if (phase40?.runPhase40FinalAcceptanceTests) {
+    await phase40.runPhase40FinalAcceptanceTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

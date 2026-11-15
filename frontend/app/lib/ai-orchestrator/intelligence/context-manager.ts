@@ -61,11 +61,12 @@ export class ContextManager {
     let resolvedPrompt = raw;
 
     // Check Telugu-English follow-up patterns
-    // e.g., "deeni explain cheyyi" (explain this), "idi simpler ga cheppu" (say this simpler), "dini code rayi" (write code for this), "next step enti", "malli cheppu"
+    // e.g., "deeni explain cheyyi", "idi simpler ga cheppu", "previous answer short ga cheppu", "daanini pdf ga convert cheyyi", "same design lo website create cheyyi", "ee code lo errors fix cheyyi"
     const isTeluguFollowUp =
-      /\b(deeni|dini|idi|edi|danini|dannini)\b/i.test(lower) ||
-      /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi)\b/i.test(lower) ||
-      /\b(next step (enti|emiti)|malli cheppu|inka cheppu|dini ela cheyyali)\b/i.test(lower);
+      /\b(deeni|dini|daanini|dannini|idi|edi|danini|ee|aa)\b/i.test(lower) ||
+      /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi|convert cheyyi|errors fix cheyyi|create cheyyi|fix cheyyi)\b/i.test(lower) ||
+      /\b(next step (enti|emiti)|malli cheppu|inka cheppu|dini ela cheyyali|previous answer short ga)\b/i.test(lower) ||
+      /\b(same design lo|same design tho|ikkada nunchi continue|errors fix)\b/i.test(lower);
 
     // Check English pronoun / follow-up patterns
     const isEnglishFollowUp =
@@ -73,7 +74,8 @@ export class ContextManager {
       /\b(make it (simpler|shorter|longer|better|faster|cleaner))\b/i.test(lower) ||
       /\b(now\s+(connect|integrate|add|make|update|rewrite|implement|code|build)\s+(it|this))\b/i.test(lower) ||
       /\b(what about it|why is this happening|how does that work|elaborate on that|what (is|are) the next steps?|what next)\b/i.test(lower) ||
-      /\b(this|that|it|previous one|last one|same thing)\b/i.test(lower);
+      /\b(this|that|it|previous one|last one|same thing|same as before|continue from there|add this feature)\b/i.test(lower) ||
+      /\b(previous answer|previous code|convert to pdf|convert it to pdf|fix errors in this code)\b/i.test(lower);
 
     if ((isEnglishFollowUp || isTeluguFollowUp) && (lastUserTurn || lastAssistantTurn)) {
       referenceInfo.hasAnaphora = true;
@@ -90,6 +92,54 @@ export class ContextManager {
         resolvedPrompt = `Explain ${previousTopic} in simpler, easy-to-understand terms with clear analogies`;
         referenceInfo.resolvedMeaning = `Simplify the explanation of ${previousTopic}`;
       }
+      // Case A2: "Previous answer short ga cheppu" / "make previous one shorter"
+      else if (
+        /previous answer short ga/i.test(lower) ||
+        /previous answer brief ga/i.test(lower) ||
+        /make (it|this|previous one|previous answer) (shorter|brief|concise)/i.test(lower)
+      ) {
+        resolvedPrompt = `Summarize the previous explanation of ${previousTopic} in concise, brief bullet points without fluff`;
+        referenceInfo.resolvedMeaning = `Summarize previous explanation of ${previousTopic} concisely`;
+      }
+      // Case A3: "Daanini PDF ga convert cheyyi" / "Convert it to PDF"
+      else if (
+        /daanini pdf/i.test(lower) ||
+        /dini pdf/i.test(lower) ||
+        /convert (it|this|that|previous one) to pdf/i.test(lower) ||
+        /export (it|this) as pdf/i.test(lower)
+      ) {
+        resolvedPrompt = `Convert the previously discussed ${previousTopic} into a structured downloadable PDF document`;
+        referenceInfo.resolvedMeaning = `Convert ${previousTopic} to PDF format`;
+      }
+      // Case A4: "Same design lo website create cheyyi" / "Create website in the same design"
+      else if (
+        /same design lo/i.test(lower) ||
+        /same design tho/i.test(lower) ||
+        /in (the )?same design/i.test(lower) ||
+        /using the same styling/i.test(lower)
+      ) {
+        resolvedPrompt = `Create a responsive website adhering to the same design styling, theme colors, and layout established in ${previousTopic}`;
+        referenceInfo.resolvedMeaning = `Replicate design styling from ${previousTopic}`;
+      }
+      // Case A5: "Ee code lo errors fix cheyyi" / "Fix errors in this code"
+      else if (
+        /ee code lo errors fix/i.test(lower) ||
+        /ee code fix/i.test(lower) ||
+        /fix errors in this code/i.test(lower) ||
+        /debug this code/i.test(lower)
+      ) {
+        resolvedPrompt = `Debug and fix all syntax, logic, and runtime errors in the previously provided code for ${previousTopic}, providing corrected complete code`;
+        referenceInfo.resolvedMeaning = `Fix errors in code for ${previousTopic}`;
+      }
+      // Case A6: "Continue from there" / "ikkada nunchi continue"
+      else if (
+        /continue from (there|here)/i.test(lower) ||
+        /ikkada nunchi continue/i.test(lower) ||
+        /carry on from where we left/i.test(lower)
+      ) {
+        resolvedPrompt = `Continue the implementation of ${previousTopic} from the last established milestone without repeating prior steps`;
+        referenceInfo.resolvedMeaning = `Continue progress on ${previousTopic}`;
+      }
       // Case B: "Now connect it to <technology>" (e.g. Supabase, Firebase, MongoDB)
       else if (/now connect (it|this) to\s+([a-zA-Z0-9_\- ]+)/i.test(lower)) {
         const targetTechMatch = lower.match(/now connect (it|this) to\s+([a-zA-Z0-9_\- ]+)/i);
@@ -98,9 +148,9 @@ export class ContextManager {
         referenceInfo.resolvedMeaning = `Connect ${previousTopic} to ${targetTech}`;
       }
       // Case C: "Now add <feature> to it"
-      else if (/now add\s+([a-zA-Z0-9_\- ]+)\s+to (it|this)/i.test(lower)) {
+      else if (/now add\s+([a-zA-Z0-9_\- ]+)\s+to (it|this)/i.test(lower) || /add this feature/i.test(lower)) {
         const featureMatch = lower.match(/now add\s+([a-zA-Z0-9_\- ]+)\s+to (it|this)/i);
-        const feature = featureMatch ? featureMatch[1].trim() : "new features";
+        const feature = featureMatch ? featureMatch[1].trim() : "the requested feature";
         resolvedPrompt = `Add ${feature} to the ${previousTopic} created earlier`;
         referenceInfo.resolvedMeaning = `Extend ${previousTopic} with ${feature}`;
       }
@@ -121,7 +171,7 @@ export class ContextManager {
       }
       // Case G: General pronoun substitution
       else if (previousTopic) {
-        resolvedPrompt = raw.replace(/\b(it|this|that|deeni|dini|idi)\b/gi, previousTopic);
+        resolvedPrompt = raw.replace(/\b(it|this|that|deeni|dini|daanini|dannini|idi)\b/gi, previousTopic);
         referenceInfo.resolvedMeaning = `Replaced reference with: ${previousTopic}`;
       }
     }
@@ -148,6 +198,53 @@ export class ContextManager {
       persistedConstraints,
       referencedAttachment,
     };
+  }
+
+  /**
+   * Intelligently filters and extracts the most semantically relevant conversation turns,
+   * avoiding context degradation from blindly dumping long historical logs
+   */
+  public selectRelevantContextTurns(
+    history: ConversationTurn[],
+    currentPrompt: string,
+    maxTurns: number = 6
+  ): ConversationTurn[] {
+    if (history.length <= maxTurns) {
+      return history;
+    }
+
+    const currentLower = currentPrompt.toLowerCase();
+    const queryTokens = new Set(
+      currentLower
+        .replace(/[^a-z0-9\s]/gi, " ")
+        .split(/\s+/)
+        .filter((w) => w.length >= 3)
+    );
+
+    // Always preserve the latest 2 turns for immediate conversational flow
+    const recentTail = history.slice(-2);
+    const earlierCandidates = history.slice(0, -2);
+
+    // Score earlier candidate turns based on semantic token overlap and attachment presence
+    const scored = earlierCandidates.map((turn, index) => {
+      let score = 0;
+      const turnTokens = turn.content.toLowerCase().split(/\s+/);
+      for (const t of turnTokens) {
+        if (queryTokens.has(t)) score += 2;
+      }
+      if (turn.attachments && turn.attachments.length > 0) score += 4;
+      if (turn.role === "system") score += 5;
+      return { turn, index, score };
+    });
+
+    const needed = Math.max(1, maxTurns - recentTail.length);
+    const topScored = scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, needed)
+      .sort((a, b) => a.index - b.index)
+      .map((item) => item.turn);
+
+    return [...topScored, ...recentTail];
   }
 
   private extractRecentTopics(history: ConversationTurn[]): string[] {

@@ -1,67 +1,76 @@
-# TATTVA AI — Production Deployment Guide
+# TATTVA AI – PRODUCTION DEPLOYMENT & INFRASTRUCTURE GUIDE
+## Production Configuration, Vercel Setup, Supabase Initialization & Android Build Runbook
 
-**Lead DevOps Engineer & Release Manager:** kotapati Gowtham Chowdary  
-**Target Environment:** Vercel (Edge Runtime) + Supabase (PostgreSQL)  
-**Production Domain:** `https://tattva-ai-phi.vercel.app`  
-
----
-
-## 1. Prerequisites
-- Node.js v20+ or v22 LTS
-- Git
-- Access to Supabase Project & Vercel Dashboard
+**Document Version:** 3.0.0  
+**Lead DevOps Architect:** kotapati Gowtham Chowdary  
+**Target Repository:** `C:\Users\mrchi\TATTVA_AI\TATTVA_AI`  
 
 ---
 
-## 2. Environment Variables Configuration
+## 1. PREREQUISITES & ENVIRONMENT CONFIGURATION
 
-Copy `.env.example` to `.env.local`:
+### 1.1. Required Runtime Environments
+- **Node.js**: v20.10.0+ LTS
+- **npm / pnpm**: npm v10+ or pnpm v9+
+- **Database**: Supabase PostgreSQL with `pgvector` extension enabled
+- **Hosting**: Vercel Serverless (Next.js 15 App Router) or Node.js Docker Container
+
+### 1.2. Production Environment Variables (`.env.local`)
+```ini
+# Core AI Provider Credentials
+GEMINI_API_KEY=AIzaSy...
+OPENROUTER_API_KEY=sk-or-v1-...
+ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# Supabase Production Database & Auth
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+
+# Application URLs
+NEXT_PUBLIC_APP_URL=https://tattva-ai.vercel.app
+NEXT_PUBLIC_ENVIRONMENT=production
+```
+
+---
+
+## 2. STEP-BY-STEP DEPLOYMENT RUNBOOK
+
+### 2.1. Local Build & Test Verification
+Before triggering deployment, run local verification:
 ```bash
-# Core Foundation Model Credentials
-GEMINI_API_KEY="AIzaSy..."
-
-# Supabase Managed Database & Auth
-NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOi..."
-SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOi..."
-
-# Security Encryption Master Key (AES-256-GCM)
-APP_ENCRYPTION_KEY="your-32-byte-hex-secret"
-
-# Canonical Production Domain
-NEXT_PUBLIC_SITE_URL="https://tattva-ai-phi.vercel.app"
+cd frontend
+npm install
+npx tsc --noEmit
+npm test
+npm run build
 ```
 
----
+### 2.2. Vercel Deployment
+Deploy to Vercel via CLI or GitHub Continuous Integration:
+```bash
+vercel --prod
+```
 
-## 3. Database Schema Migration
-
-Apply the canonical migration script to your Supabase PostgreSQL instance:
+### 2.3. Supabase Schema Migration
+Apply database migrations in the Supabase SQL editor:
 ```sql
--- Run in Supabase SQL Editor:
--- File: supabase_evaluation_schema.sql
+-- Enable Vector Search Extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Ensure Row Level Security is active
+ALTER TABLE user_workspaces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversation_turns ENABLE ROW LEVEL SECURITY;
 ```
-This enables Row-Level Security (RLS) across all tables and establishes `auth.uid()` evaluation policies.
+
+### 2.4. Android PWA / TWA Build
+For Android deployment using Bubblewrap or Capacitor:
+```bash
+npx @bubblewrap/cli build
+```
+Verify the Android asset links configuration:
+`https://tattva-ai.vercel.app/.well-known/assetlinks.json`
 
 ---
 
-## 4. Building and Deploying to Production
-
-1. **Verify TypeScript Compilation:**
-   ```bash
-   cd frontend
-   npx tsc --noEmit
-   ```
-2. **Execute Full Automated Test Suites:**
-   ```bash
-   npx tsx tests/phase-30-31-32-production-completion.test.ts
-   npx tsx tests/release-candidate-user-journeys.test.ts
-   ```
-3. **Execute Production Turbopack Build:**
-   ```bash
-   npm run build
-   ```
-4. **Deploy to Vercel Production:**
-   ```bash
-   vercel --prod
-   ```
+*Certified and Approved by kotapati Gowtham Chowdary, Lead Architect & DevOps Engineer, TATTVA AI.*

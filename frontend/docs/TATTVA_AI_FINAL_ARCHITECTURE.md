@@ -1,56 +1,89 @@
-# TATTVA AI — Final System Architecture (v2.1.0)
+# TATTVA AI – FINAL SYSTEM ARCHITECTURE SPECIFICATION
+## Comprehensive End-to-End Architectural Reference & Component Taxonomy
 
-**Architect, Conceptualizer & Lead Engineer:** kotapati Gowtham Chowdary  
-**Release Tag:** `v2.1.0` (Production General Availability)  
-**Status:** Certified & Deployed  
-
----
-
-## 1. Architectural Philosophy
-
-TATTVA AI is architected around five fundamental principles:
-1. **Zero-Trust Security**: Every request undergoes server-side authentication, tenant RLS isolation, and input/output sanitization.
-2. **Provider-Agnostic Model Routing**: Intelligent intent, complexity, and latency-based routing across Gemini, Claude, Azure, and Local Indic SLMs.
-3. **Query-Salient RAG Context Compression**: Multi-tier knowledge retrieval reducing token footprint by 73% while preserving citation attribution.
-4. **Self-Evaluating Feedback Loops**: Built-in MMMLU Hindi evaluation, Model Arena benchmarking, and anti-regression deployment gates.
-5. **Cross-Platform Synchronization**: Uniform experiences across Web, Mobile, Android, and Desktop.
+**Document Version:** 3.0.0  
+**Lead AI Architect:** kotapati Gowtham Chowdary  
+**Target Repository:** `C:\Users\mrchi\TATTVA_AI\TATTVA_AI`  
 
 ---
 
-## 2. Full-Stack End-to-End Topology
+## 1. HIGH-LEVEL TOPOLOGY
 
-```text
-+-----------------------------------------------------------------------------------------------+
-|                                      CLIENT INTERFACE LAYER                                   |
-|   - Next.js 16 (App Router, Turbopack) + React 19 + Tailwind CSS v4 + Lucide Icons           |
-|   - Real-Time Server-Sent Events (SSE) Streaming Chat & Markdown Renderer                     |
-|   - Cross-Platform Wrappers: Android Native (Kotlin) & Desktop App (Electron 28)              |
-+-----------------------------------------------+-----------------------------------------------+
-                                                │
-                                                ▼
-+-----------------------------------------------------------------------------------------------+
-|                                  SECURITY & INGRESS GATEWAY                                   |
-|   - Server-Side Session Verification (verifyUserSession) & Guest Sandboxing                   |
-|   - File Upload Guard: 25MB Hard Cap (MAX_SAFE_FILE_SIZE) & Magic Byte Validation             |
-|   - Adversarial Prompt Sanitizer (98% Confidence) & Content Moderation Filter                 |
-|   - Strict HTTPS Enforcement & Host Allowlist Webhook Dispatcher                              |
-+-----------------------------------------------+-----------------------------------------------+
-                                                │
-                                                ▼
-+-----------------------------------------------------------------------------------------------+
-|                                   AI ORCHESTRATION ENGINE                                     |
-|   - Prompt Intelligence: 14-Class Intent Classifier, Complexity & Entity Anaphora Resolver    |
-|   - Dynamic Model Router: Low-Latency Tier vs Frontier Reasoning vs Local Indic SLM          |
-|   - Hybrid RAG Engine: Vector Embeddings (50%) + BM25 (30%) + Reciprocal Reranking (20%)       |
-|   - Agentic Execution Controller: Milestone DAGs, Safe Tool Sandbox & User Confirmation Gate  |
-|   - Resilient Image Fallback Chain: Cloudflare FLUX -> Stability SDXL -> HF Diffusers         |
-+-----------------------------------------------+-----------------------------------------------+
-                                                │
-                                                ▼
-+-----------------------------------------------------------------------------------------------+
-|                                 DATA PERSISTENCE & VAULT                                      |
-|   - Supabase Managed PostgreSQL: Row-Level Security (RLS) Enforced by auth.uid()              |
-|   - Encrypted Local Fallback Vault (.tattva-vault/) with AES-256-GCM BYOK Storage             |
-|   - MMMLU Hindi Corpus (14,042 Questions Across 57 Subjects) & Evaluation Results Matrix      |
-+-----------------------------------------------------------------------------------------------+
 ```
++-------------------------------------------------------------------------+
+|                        USER CLIENT PLATFORMS                            |
+| Desktop Browser | Responsive Mobile | Android Webview / PWA | Desktop   |
++------------------------------------+------------------------------------+
+                                     | (HTTPS / WSS / JWT Auth)
+                                     v
++-------------------------------------------------------------------------+
+|                     NEXT.JS 15 APP ROUTER & GATEWAY                     |
+| Rate Limiter (60 req/min) | Zero Trust Session Validator | Security Log |
++------------------------------------+------------------------------------+
+                                     |
+                                     v
++-------------------------------------------------------------------------+
+|                 MASTER AI ORCHESTRATOR & COGNITIVE CORE                 |
+|                                                                         |
+|  1. Content Safety & Sanitization (Prompt Injection Neutralizer)        |
+|  2. Central Prompt Analyzer (Intent, Dialect, Typo Normalizer)          |
+|  3. Context Manager (Anaphora Resolver, Selective Context Turns)        |
+|  4. Task Decomposer (Multi-Step DAG Planner, ComplexTaskPlan)           |
+|  5. Result Verifier (Non-zero bytes, valid formats, 0 placeholders)     |
++---------+--------------------------+--------------------------+---------+
+          |                          |                          |
+          v                          v                          v
++-------------------+      +-------------------+      +-------------------+
+|   MODEL ROUTER    |      |    RAG ENGINE     |      |   AGENT ENGINE    |
+| Task-Weighted     |      | Hybrid Dense +    |      | 10-Step DAG       |
+| Empirical Score   |      | BM25 Keyword      |      | Execution Runner  |
+| Provider Circuit  |      | Unicode NFC Norm  |      | Tool Registry     |
+| Breaker Cooldown  |      | 73% Context Comp. |      | Human Conf. Gate  |
+| Vision Gating     |      | Workspace RBAC    |      | Result Verification|
++---------+---------+      +---------+---------+      +---------+---------+
+          |                          |                          |
+          +--------------------------+--------------------------+
+                                     |
+                                     v
++-------------------------------------------------------------------------+
+|                       UNIVERSAL MULTIMODAL STUDIO                       |
+| Diffusion Engine (FLUX, SDXL) | ControlNet Spatial Guidance              |
+| Surgical Inpainting & Outpainting | Real-ESRGAN 2x/4x Super-Resolution  |
+| Multimodal VQA Vision | Whisper Audio STT / TTS | Video Chapters        |
++------------------------------------+------------------------------------+
+                                     |
+                                     v
++-------------------------------------------------------------------------+
+|                      STORAGE & PERSISTENCE LAYER                        |
+| Supabase PostgreSQL (RLS) | Encrypted Client Vault | Point-in-time Snap |
++-------------------------------------------------------------------------+
+```
+
+---
+
+## 2. SUBSYSTEM INTERFACES & RESPONSIBILITIES
+
+### 2.1. Central Prompt Understanding Engine (`app/lib/ai-orchestrator/intelligence/`)
+- **`prompt-analyzer.ts`**: Coordinates semantic extraction, entity mapping, and intent classification across 14 discrete task types (`coding`, `agent_task`, `mathematics`, `reasoning`, `document_generation`, `image_generation`, etc.).
+- **`context-manager.ts`**: Resolves pronoun anaphora (`"it"`, `"this"`, `"that"`) and colloquial Telugu-English phrasing (`"Previous answer short ga cheppu"`, `"Daanini PDF ga convert cheyyi"`). Selectively filters the top relevant turns via semantic keyword scoring, avoiding context saturation.
+- **`task-decomposer.ts`**: Generates a typed `ComplexTaskPlan` identifying deliverables, domains, language stacks, database layers, documentation, and presentation requirements.
+- **`response-validator.ts`**: Enforces strict negative constraints (forbidden word detection), native `JSON.parse` validity, and tool execution honesty checks.
+
+### 2.2. Intelligent Model Router (`app/lib/ai-orchestrator/model-router.ts`)
+- **Empirical Task Weighting**: Automatically sorts candidates according to empirical benchmark performance (DeepSeek V3 for math/reasoning, Gemini 3.5 Flash Lite for coding/chat/vision).
+- **Multimodal Vision Gating**: Excludes text-only foundation models whenever active image attachments are present.
+- **Circuit Breaker Cooldown**: Catches provider exhaustion (e.g. Anthropic 400 credit errors) and enforces a 60-second bypass to prevent 6–10s retry latency spikes.
+- **Rate Limit Resilience**: Catches 429 quota exhaustion spikes with a single 1.2s backoff retry.
+
+### 2.3. End-to-End Autonomous Agent Engine (`app/lib/ai-orchestrator/agent-engine/`)
+- **`end-to-end-orchestrator.ts`**: Implements full multi-step workflows (Workflow A College Project, Workflow B Academic Research, Workflow C Data Analysis) from user request to verified deliverable files.
+- **`result-verifier.ts`**: Ground-truth artifact verification checking non-zero byte existence, format extensions (`.java`, `.sql`, `.docx`, `.pptx`, `.xlsx`, `.pdf`), zero `// TODO` placeholders, and mathematical calculations.
+- **Human Confirmation Gate**: Pauses execution on destructive operations (`DROP`, `DELETE`, `KILL`) until explicit confirmation is provided.
+
+### 2.4. Zero-Trust Security & Indirect Injection Guard (`app/lib/security/`)
+- **`content-safety-guard.ts`**: Neutralizes adversarial prompt injections (`ignore previous instructions`, control delimiters `<|im_start|>`) in external files and web text, wrapping them in `<untrusted_external_data>` boundaries.
+- **`client-vault.ts` & `security.ts`**: Enforces multi-tenant workspace isolation (403 Forbidden for cross-tenant access) and scrubs API keys from logs.
+
+---
+
+*Certified and Approved by kotapati Gowtham Chowdary, Lead Architect & Principal AI Engineer, TATTVA AI.*
