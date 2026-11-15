@@ -33,6 +33,7 @@ export interface CompanionJobResultResponse {
   width: number;
   height: number;
   fileSizeBytes: number;
+  generationSource?: string;
 }
 
 export class CompanionClient {

@@ -131,14 +131,15 @@ export async function runExternalAgentIntegrationTests() {
     process.stdout.write("▶ Test 6: Image retrieval and provenance classification... ");
     const imgA = await adapterA.retrieveImage(testJobId, submitA.providerJobId);
     assert.ok(imgA.imageDataUri.startsWith("data:image/png;base64,"));
-    assert.strictEqual(imgA.sourceClassification, "external_subscribed_agent_a");
+    // Strict audit: companion loopback is classified truthfully as local_procedural_fallback
+    assert.strictEqual(imgA.sourceClassification, "local_procedural_fallback");
     assert.ok(imgA.width > 0);
     assert.ok(imgA.height > 0);
     assert.ok(imgA.sha256.length === 64);
 
     const imgB = await adapterB.retrieveImage(testJobId, submitB.providerJobId);
     assert.ok(imgB.imageDataUri.startsWith("data:image/png;base64,"));
-    assert.strictEqual(imgB.sourceClassification, "external_subscribed_agent_b");
+    assert.strictEqual(imgB.sourceClassification, "local_procedural_fallback");
     assert.ok(imgB.width > 0);
     assert.ok(imgB.height > 0);
     assert.ok(imgB.sha256.length === 64);
@@ -167,8 +168,8 @@ export async function runExternalAgentIntegrationTests() {
     assert.strictEqual(dualJob.status, "completed");
     assert.strictEqual(dualJob.agentAJob.status, "completed");
     assert.strictEqual(dualJob.agentBJob.status, "completed");
-    assert.strictEqual(dualJob.agentAJob.metadata?.sourceClassification, "external_subscribed_agent_a");
-    assert.strictEqual(dualJob.agentBJob.metadata?.sourceClassification, "external_subscribed_agent_b");
+    assert.strictEqual(dualJob.agentAJob.metadata?.sourceClassification, "local_procedural_fallback");
+    assert.strictEqual(dualJob.agentBJob.metadata?.sourceClassification, "local_procedural_fallback");
     assert.ok(dualJob.agentAJob.metadata?.sha256);
     assert.ok(dualJob.agentBJob.metadata?.sha256);
     console.log("✔ Dual coordinator orchestrated both adapters and recorded full provenance.");

@@ -179,9 +179,14 @@ export class ExternalImageAgentAAdapter implements IExternalImageAgentAdapter {
     const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
 
     // Provenance Classification:
-    // When generated through the local companion bridge without external neural API credentials,
-    // the output is accurately classified as external_subscribed_agent_a (loopback).
-    const sourceClassification: ImageSourceClassification = "external_subscribed_agent_a";
+    // Strict Independent Software Audit Rule:
+    // When generated through the local companion bridge without verified external neural API invocation,
+    // the output is truthfully classified as 'local_procedural_fallback'.
+    // It is NEVER classified as 'external_subscribed_agent_a' without verified external execution.
+    const sourceClassification: ImageSourceClassification =
+      pollResult.generationSource === "local_procedural_fallback" || !this.authToken
+        ? "local_procedural_fallback"
+        : "external_subscribed_agent_a";
 
     return {
       imageDataUri: pollResult.imageDataUri,

@@ -346,6 +346,7 @@ export function createCompanionServer() {
           width: meta.width,
           height: meta.height,
           fileSizeBytes: record.imageBuffer.length,
+          generationSource: "local_procedural_fallback",
         })
       );
     }

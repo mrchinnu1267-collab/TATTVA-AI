@@ -140,7 +140,9 @@ export class AutomaticSubscribedAgentCoordinator {
         const validation = await this.validateImagePayload(result.imageDataUri);
         const sha256 = crypto.createHash("sha256").update(validation.buffer).digest("hex");
         const sourceClassification: ImageSourceClassification =
-          agentId === "agent_a" ? "external_subscribed_agent_a" : "external_subscribed_agent_b";
+          result.generationSource === "local_procedural_fallback"
+            ? "local_procedural_fallback"
+            : (agentId === "agent_a" ? "external_subscribed_agent_a" : "external_subscribed_agent_b");
 
         // Step E: Persist to Supabase Storage & Local Workspace Vault
         const agentDisplayName =
