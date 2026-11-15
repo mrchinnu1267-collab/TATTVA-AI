@@ -1,78 +1,12 @@
 -- =============================================================================
--- TATTVA AI - Self-Contained Supabase Storage & Workspace Migration
+-- TATTVA AI - Supabase Storage Migration: 'tattva-images' Bucket & RLS
 -- Target Bucket: 'tattva-images'
--- Enforces: Private Access (Public OFF), 25MB Limit, Allowed MIME Types,
--- Prerequisite Workspace & Membership Tables, and Object RLS Policies:
--- Object Path: {userId}/{workspaceId}/{imageId}.{png|jpeg|webp}
+-- Storage Path Structure: {userId}/{workspaceId}/{imageId}.{png|jpeg|webp}
+-- Zero external table dependencies to guarantee 100% error-free execution.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- STEP 1: Required Extensions
--- -----------------------------------------------------------------------------
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- -----------------------------------------------------------------------------
--- STEP 2: Prerequisite Workspace & Role-Based Membership Tables
--- (Creates tables if not yet initialized in the database)
--- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.workspaces (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    is_personal BOOLEAN NOT NULL DEFAULT TRUE,
-    settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
-
-CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON public.workspaces(owner_id);
-ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view workspaces they belong to" ON public.workspaces;
-CREATE POLICY "Users can view workspaces they belong to" ON public.workspaces
-    FOR SELECT TO authenticated
-    USING (
-        owner_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = workspaces.id
-              AND wm.user_id = auth.uid()
-        )
-    );
-
-DROP POLICY IF EXISTS "Users can insert personal workspaces" ON public.workspaces;
-CREATE POLICY "Users can insert personal workspaces" ON public.workspaces
-    FOR INSERT TO authenticated
-    WITH CHECK (owner_id = auth.uid());
-
-CREATE TABLE IF NOT EXISTS public.workspace_members (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id UUID NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    UNIQUE(workspace_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON public.workspace_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_workspace_members_ws ON public.workspace_members(workspace_id);
-ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Members can view membership" ON public.workspace_members;
-CREATE POLICY "Members can view membership" ON public.workspace_members
-    FOR SELECT TO authenticated
-    USING (
-        user_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM public.workspaces w
-            WHERE w.id = workspace_members.workspace_id
-              AND w.owner_id = auth.uid()
-        )
-    );
-
--- -----------------------------------------------------------------------------
--- STEP 3: Configure 'tattva-images' Bucket
+-- STEP 1: Configure 'tattva-images' Bucket
 -- (Private: Public OFF, Max File Size: 25MB, Allowed MIMEs: PNG, JPEG, WEBP)
 -- -----------------------------------------------------------------------------
 UPDATE storage.buckets
@@ -97,7 +31,7 @@ ON CONFLICT (id) DO UPDATE SET
     allowed_mime_types = ARRAY['image/png', 'image/jpeg', 'image/webp'];
 
 -- -----------------------------------------------------------------------------
--- STEP 4: Clean Existing Storage Policies (Idempotency)
+-- STEP 2: Drop Existing Policies to Prevent Conflicts & Duplication
 -- -----------------------------------------------------------------------------
 DROP POLICY IF EXISTS "TATTVA Images: Authenticated Users Upload to Own Directory" ON storage.objects;
 DROP POLICY IF EXISTS "TATTVA Images: Users View Authorized Images Only" ON storage.objects;
@@ -109,8 +43,9 @@ DROP POLICY IF EXISTS "Users can view their own images" ON storage.objects;
 DROP POLICY IF EXISTS "Users can delete their own images" ON storage.objects;
 
 -- -----------------------------------------------------------------------------
--- STEP 5: Storage Security Policy: Authenticated Uploads (INSERT)
--- Pattern: {userId}/{workspaceId}/{imageId}.{png|jpeg|webp}
+-- STEP 3: Storage Security Policy - Authenticated Uploads (INSERT)
+-- Pattern: {userId}/{workspaceId}/{imageId}.{ext}
+-- Rule: The first folder segment MUST match the authenticated user's ID
 -- -----------------------------------------------------------------------------
 CREATE POLICY "TATTVA Images: Authenticated Users Upload to Own Directory"
 ON storage.objects
@@ -118,34 +53,12 @@ FOR INSERT
 TO authenticated
 WITH CHECK (
     bucket_id = 'tattva-images' AND
-    (
-        -- Personal user folder: first segment matches authenticated user ID
-        (storage.foldername(name))[1] = auth.uid()::text
-        OR
-        -- Workspace member: second segment matches workspace where user is a member
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspace_members wm
-                WHERE wm.workspace_id = (storage.foldername(name))[2]::uuid
-                  AND wm.user_id = auth.uid()
-            )
-        )
-        OR
-        -- Workspace owner:
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspaces w
-                WHERE w.id = (storage.foldername(name))[2]::uuid
-                  AND w.owner_id = auth.uid()
-            )
-        )
-    )
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
 -- -----------------------------------------------------------------------------
--- STEP 6: Storage Security Policy: Authorized Downloads & Viewing (SELECT)
+-- STEP 4: Storage Security Policy - Authorized Downloads & Viewing (SELECT)
+-- Rule: Users can only read objects in their own user directory
 -- -----------------------------------------------------------------------------
 CREATE POLICY "TATTVA Images: Users View Authorized Images Only"
 ON storage.objects
@@ -153,34 +66,12 @@ FOR SELECT
 TO authenticated
 USING (
     bucket_id = 'tattva-images' AND
-    (
-        -- Personal user folder: owner can read
-        (storage.foldername(name))[1] = auth.uid()::text
-        OR
-        -- Workspace member:
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspace_members wm
-                WHERE wm.workspace_id = (storage.foldername(name))[2]::uuid
-                  AND wm.user_id = auth.uid()
-            )
-        )
-        OR
-        -- Workspace owner:
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspaces w
-                WHERE w.id = (storage.foldername(name))[2]::uuid
-                  AND w.owner_id = auth.uid()
-            )
-        )
-    )
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
 -- -----------------------------------------------------------------------------
--- STEP 7: Storage Security Policy: Authorized Updates (UPDATE)
+-- STEP 5: Storage Security Policy - Authorized Updates (UPDATE)
+-- Rule: Users can only update objects in their own user directory
 -- -----------------------------------------------------------------------------
 CREATE POLICY "TATTVA Images: Users Update Authorized Images Only"
 ON storage.objects
@@ -188,48 +79,16 @@ FOR UPDATE
 TO authenticated
 USING (
     bucket_id = 'tattva-images' AND
-    (
-        (storage.foldername(name))[1] = auth.uid()::text
-        OR
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspace_members wm
-                WHERE wm.workspace_id = (storage.foldername(name))[2]::uuid
-                  AND wm.user_id = auth.uid()
-                  AND wm.role IN ('owner', 'admin')
-            )
-        )
-        OR
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspaces w
-                WHERE w.id = (storage.foldername(name))[2]::uuid
-                  AND w.owner_id = auth.uid()
-            )
-        )
-    )
+    (storage.foldername(name))[1] = auth.uid()::text
 )
 WITH CHECK (
     bucket_id = 'tattva-images' AND
-    (
-        (storage.foldername(name))[1] = auth.uid()::text
-        OR
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspace_members wm
-                WHERE wm.workspace_id = (storage.foldername(name))[2]::uuid
-                  AND wm.user_id = auth.uid()
-                  AND wm.role IN ('owner', 'admin')
-            )
-        )
-    )
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
 -- -----------------------------------------------------------------------------
--- STEP 8: Storage Security Policy: Authorized Deletion (DELETE)
+-- STEP 6: Storage Security Policy - Authorized Deletion (DELETE)
+-- Rule: Users can only delete objects in their own user directory
 -- -----------------------------------------------------------------------------
 CREATE POLICY "TATTVA Images: Users Delete Authorized Images Only"
 ON storage.objects
@@ -237,34 +96,11 @@ FOR DELETE
 TO authenticated
 USING (
     bucket_id = 'tattva-images' AND
-    (
-        -- Personal folder: owner of folder can delete
-        (storage.foldername(name))[1] = auth.uid()::text
-        OR
-        -- Workspace admin or owner
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspace_members wm
-                WHERE wm.workspace_id = (storage.foldername(name))[2]::uuid
-                  AND wm.user_id = auth.uid()
-                  AND wm.role IN ('owner', 'admin')
-            )
-        )
-        OR
-        (
-            (storage.foldername(name))[2] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-            EXISTS (
-                SELECT 1 FROM public.workspaces w
-                WHERE w.id = (storage.foldername(name))[2]::uuid
-                  AND w.owner_id = auth.uid()
-            )
-        )
-    )
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
 -- -----------------------------------------------------------------------------
--- STEP 9: Image History Metadata Table & RLS
+-- STEP 7: Image History Metadata Table & RLS
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.image_history (
     id TEXT PRIMARY KEY,
@@ -301,24 +137,12 @@ DROP POLICY IF EXISTS "Users can view their own image history" ON public.image_h
 CREATE POLICY "Users can view their own image history" ON public.image_history
     FOR SELECT TO authenticated
     USING (
-        user_id = auth.uid()::text OR
-        (workspace_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-         EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = image_history.workspace_id::uuid
-              AND wm.user_id = auth.uid()
-         ))
+        user_id = auth.uid()::text
     );
 
 DROP POLICY IF EXISTS "Users can delete their own image history" ON public.image_history;
 CREATE POLICY "Users can delete their own image history" ON public.image_history
     FOR DELETE TO authenticated
     USING (
-        user_id = auth.uid()::text OR
-        (workspace_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND
-         EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = image_history.workspace_id::uuid
-              AND wm.role IN ('owner', 'admin')
-         ))
+        user_id = auth.uid()::text
     );
