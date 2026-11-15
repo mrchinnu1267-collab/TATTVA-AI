@@ -132,7 +132,7 @@ export function sanitizeAndGuardPrompt(rawPrompt: string): PromptGuardResult {
 const PII_RULES = [
   // Common API Key formats
   { pattern: /\b(sk-[a-zA-Z0-9-_]{20,})\b/g, replacement: "[REDACTED_API_KEY]" },
-  { pattern: /\b(AIza[0-9A-Za-z-_]{35})\b/g, replacement: "[REDACTED_GOOGLE_KEY]" },
+  { pattern: /\b(AIza[0-9A-Za-z-_]{30,45})\b/g, replacement: "[REDACTED_GOOGLE_KEY]" },
   { pattern: /\b(nvapi-[a-zA-Z0-9-_]{30,})\b/g, replacement: "[REDACTED_NVIDIA_KEY]" },
   { pattern: /\b(hf_[a-zA-Z0-9]{30,})\b/g, replacement: "[REDACTED_HF_TOKEN]" },
   { pattern: /\b(ghp_[a-zA-Z0-9]{36})\b/g, replacement: "[REDACTED_GITHUB_TOKEN]" },
