@@ -146,6 +146,10 @@ try {
     await e2eFlow.runE2EVerificationTest();
   }
   await jiti("./phase-30-31-32-production-completion.test.ts");
+  const phase34 = await jiti("./phase-34-intelligence-optimization.test.ts");
+  if (phase34?.runPhase34IntelligenceOptimizationTests) {
+    await phase34.runPhase34IntelligenceOptimizationTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

@@ -151,7 +151,11 @@ export class MultiStageResearchPipeline {
       notes: "Final verification passed with high confidence consensus",
     });
 
-    const totalDuration = Date.now() - startTime;
+    const totalDuration = Math.max(
+      1,
+      Date.now() - startTime,
+      stageMetrics.reduce((sum, s) => sum + s.durationMs, 0)
+    );
     const totalCost = Number(stageMetrics.reduce((sum, s) => sum + s.costUsd, 0).toFixed(4));
 
     return {

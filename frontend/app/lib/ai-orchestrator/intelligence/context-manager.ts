@@ -61,17 +61,18 @@ export class ContextManager {
     let resolvedPrompt = raw;
 
     // Check Telugu-English follow-up patterns
-    // e.g., "deeni explain cheyyi" (explain this), "idi simpler ga cheppu" (say this simpler), "dini code rayi" (write code for this)
+    // e.g., "deeni explain cheyyi" (explain this), "idi simpler ga cheppu" (say this simpler), "dini code rayi" (write code for this), "next step enti", "malli cheppu"
     const isTeluguFollowUp =
       /\b(deeni|dini|idi|edi|danini|dannini)\b/i.test(lower) ||
-      /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi)\b/i.test(lower);
+      /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi)\b/i.test(lower) ||
+      /\b(next step (enti|emiti)|malli cheppu|inka cheppu|dini ela cheyyali)\b/i.test(lower);
 
     // Check English pronoun / follow-up patterns
     const isEnglishFollowUp =
       /\b(make it|explain it|convert it|connect it|debug it|fix it|run it|show it|simplify it|implement it|code it|write it|test it)\b/i.test(lower) ||
       /\b(make it (simpler|shorter|longer|better|faster|cleaner))\b/i.test(lower) ||
       /\b(now\s+(connect|integrate|add|make|update|rewrite|implement|code|build)\s+(it|this))\b/i.test(lower) ||
-      /\b(what about it|why is this happening|how does that work|elaborate on that)\b/i.test(lower) ||
+      /\b(what about it|why is this happening|how does that work|elaborate on that|what (is|are) the next steps?|what next)\b/i.test(lower) ||
       /\b(this|that|it|previous one|last one|same thing)\b/i.test(lower);
 
     if ((isEnglishFollowUp || isTeluguFollowUp) && (lastUserTurn || lastAssistantTurn)) {
@@ -108,7 +109,17 @@ export class ContextManager {
         resolvedPrompt = `Write complete production code implementing ${previousTopic}`;
         referenceInfo.resolvedMeaning = `Generate code for ${previousTopic}`;
       }
-      // Case E: General pronoun substitution
+      // Case E: "Next step enti" / "What is the next step"
+      else if (/next step (enti|emiti)/i.test(lower) || /what (is|are) the next steps?/i.test(lower)) {
+        resolvedPrompt = `Explain the immediate next steps to execute or continue ${previousTopic}`;
+        referenceInfo.resolvedMeaning = `Provide next implementation steps for ${previousTopic}`;
+      }
+      // Case F: "Malli cheppu" / "Explain again"
+      else if (/malli cheppu/i.test(lower) || /explain (again|once more)/i.test(lower)) {
+        resolvedPrompt = `Re-explain ${previousTopic} from fundamentals with different illustrative examples`;
+        referenceInfo.resolvedMeaning = `Re-explain ${previousTopic}`;
+      }
+      // Case G: General pronoun substitution
       else if (previousTopic) {
         resolvedPrompt = raw.replace(/\b(it|this|that|deeni|dini|idi)\b/gi, previousTopic);
         referenceInfo.resolvedMeaning = `Replaced reference with: ${previousTopic}`;

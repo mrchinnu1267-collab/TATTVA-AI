@@ -50,7 +50,43 @@ export class ResponseValidator {
       if (!raw.includes("{") || !raw.includes("}")) {
         matchesRequestedFormat = false;
         missing.push("Expected structured JSON output format.");
+      } else {
+        // Validate JSON parseability
+        try {
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            JSON.parse(jsonMatch[0]);
+          } else {
+            matchesRequestedFormat = false;
+            missing.push("Malformed JSON syntax in response.");
+          }
+        } catch {
+          matchesRequestedFormat = false;
+          missing.push("JSON payload failed strict parse validation.");
+        }
       }
+    }
+
+    // 2b. Check negative constraints & forbidden words
+    if (analysis.constraints && analysis.constraints.length > 0) {
+      for (const c of analysis.constraints) {
+        const forbiddenMatch = c.match(/do not use (?:the word )?['"]?([a-zA-Z0-9_-]+)['"]?/i);
+        if (forbiddenMatch) {
+          const forbiddenWord = forbiddenMatch[1].toLowerCase();
+          const wordRegex = new RegExp(`\\b${forbiddenWord}\\b`, "i");
+          if (wordRegex.test(raw)) {
+            missing.push(`Negative constraint violation: Output contains forbidden word '${forbiddenWord}'.`);
+          }
+        }
+      }
+    }
+
+    // 2c. Check tool execution integrity: prevent presenting failed actions as completed
+    if (
+      /\b(tool execution failed|error executing tool|internal server error|failed to fetch)\b/i.test(raw) &&
+      /\b(successfully completed|operation succeeded|task completed)\b/i.test(raw)
+    ) {
+      missing.push("Contradictory state: presents failed tool action as successful.");
     }
 
     // 3. Check for mandatory entities mentioned
@@ -66,9 +102,12 @@ export class ResponseValidator {
     }
 
     // 5. Score computation
-    const deduction = missing.length * 18;
+    const hasHardViolation = missing.some(
+      (m) => m.includes("Negative constraint") || m.includes("Contradictory state")
+    );
+    const deduction = missing.length * 18 + (hasHardViolation ? 40 : 0);
     const score = Math.max(0, 100 - deduction);
-    const isValid = score >= 70 && matchesRequestedFormat;
+    const isValid = !hasHardViolation && score >= 70 && matchesRequestedFormat;
 
     let correctionGuidance: string | undefined = undefined;
     if (!isValid) {
@@ -79,7 +118,7 @@ export class ResponseValidator {
       isValid,
       answersActualQuestion: score >= 60,
       satisfiesRequirements: missing.length === 0,
-      preservesConstraints: missing.filter((m) => m.includes("boundary") || m.includes("TODO")).length === 0,
+      preservesConstraints: missing.filter((m) => m.includes("boundary") || m.includes("TODO") || m.includes("constraint") || m.includes("forbidden")).length === 0,
       usesCorrectContext: true,
       matchesRequestedFormat,
       hasUnsupportedAssumptions: false,

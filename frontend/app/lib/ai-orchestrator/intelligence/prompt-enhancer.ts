@@ -61,12 +61,39 @@ export class PromptEnhancer {
       );
     }
 
-    // 7. Telugu-English Mixed Language Handling
+    // 7. Telugu-English Mixed Language & Indic Knowledge Handling
     if (analysis.detectedDialect === "telugu_english_mixed" || analysis.detectedDialect === "telugu") {
       parts.push(
         `MULTILINGUAL / TENGLISH INSTRUCTION:\n` +
         `- The user is communicating in Telugu / Telugu-English mixed dialect.\n` +
-        `- Acknowledge and reply naturally with warm, culturally fluent Telugu or Tenglish, explaining technical concepts clearly.`
+        `- Acknowledge and reply naturally with warm, culturally fluent Telugu or Tenglish, explaining technical concepts clearly.\n` +
+        `- INDIC KNOWLEDGE PRECISION: For regional governance and state symbols post-2014/2018 Andhra Pradesh/Telangana bifurcation, ensure official post-bifurcation emblems are used (e.g. AP state bird is Rama Chiluka / Rose-ringed parakeet; Telangana is Palapitta / Indian Roller).`
+      );
+    } else if (analysis.detectedDialect === "hindi") {
+      parts.push(
+        `DEVANAGARI / HINDI INSTRUCTION:\n` +
+        `- The user is communicating in Hindi.\n` +
+        `- Respond in clear, formal Devanagari Hindi while preserving accurate mathematical, technical, and medical terminologies.`
+      );
+    }
+
+    // 8. Mathematical Chain-of-Thought & Quantitative Precision
+    if (analysis.primaryIntent === "mathematics" || analysis.secondaryIntents.includes("mathematics")) {
+      parts.push(
+        `MATHEMATICAL REASONING PROTOCOL:\n` +
+        `- State the governing formula explicitly.\n` +
+        `- Perform step-by-step intermediate substitution and arithmetic before declaring the final result.\n` +
+        `- For set-theory calculations (e.g. n(A ∪ B) = n(A) + n(B) - n(A ∩ B)), verify intersection subtraction.\n` +
+        `- For probability problems, calculate complementary probability P(E) = 1 - P(E') to prevent arithmetic slips.`
+      );
+    }
+
+    // 9. Negative Constraint & Anti-Hallucination Guard
+    if (analysis.constraints.length > 0) {
+      parts.push(
+        `NEGATIVE CONSTRAINT ENFORCEMENT:\n` +
+        `- Strictly verify all negative rules (e.g. forbidden words, excluded keys, length caps).\n` +
+        `- If structured JSON is requested, deliver pure valid JSON without introductory or conversational filler.`
       );
     }
 

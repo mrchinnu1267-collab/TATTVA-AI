@@ -318,7 +318,8 @@ export class RAGEngine {
       combinedScore: number;
     }> = [];
 
-    const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const normalizedQuery = query.normalize("NFC").toLowerCase();
+    const queryWords = normalizedQuery.split(/\s+/).filter((w) => w.length >= 2);
 
     for (const chunk of candidates) {
       // 1. Dense Vector Cosine Similarity (weight: 0.50)
@@ -332,8 +333,8 @@ export class RAGEngine {
 
       // 3. Exact Phrase & Named Entity Rerank Bonus (weight: 0.20)
       let rerankBonus = 0;
-      const lowerContent = chunk.content.toLowerCase();
-      if (lowerContent.includes(query.toLowerCase())) {
+      const lowerContent = chunk.content.normalize("NFC").toLowerCase();
+      if (lowerContent.includes(normalizedQuery)) {
         rerankBonus += 0.5;
       }
       const matchingWordsCount = queryWords.filter((w) => lowerContent.includes(w)).length;

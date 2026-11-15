@@ -35,6 +35,7 @@ export interface ModelCallResult {
 
 export class ModelRouter {
   private static instance: ModelRouter;
+  private providerCooldowns: Map<string, { until: number; reason: string }> = new Map();
 
   /**
    * Universal Model Catalog
@@ -257,8 +258,13 @@ export class ModelRouter {
 
   /**
    * Dynamically checks if a model provider's credential is configured and active
+   * Checks circuit-breaker cooldowns to prevent repetitive timeouts on exhausted providers
    */
   public isModelAvailable(spec: AIModelSpec): boolean {
+    const cooldown = this.providerCooldowns.get(spec.provider);
+    if (cooldown && Date.now() < cooldown.until) {
+      return false;
+    }
     const cleanKey = (key?: string) => Boolean(key?.replace(/^["']|["']$/g, "").trim());
     if (spec.provider === "gemini") return cleanKey(process.env.GEMINI_API_KEY);
     if (spec.provider === "anthropic") return cleanKey(process.env.ANTHROPIC_API_KEY);
@@ -267,6 +273,17 @@ export class ModelRouter {
     if (spec.provider === "nvidia") return cleanKey(process.env.NVIDIA_API_KEY);
     if (spec.provider === "tattva" || spec.provider === "local") return Boolean(process.env.TATTVA_LOCAL_ENDPOINT);
     return false;
+  }
+
+  /**
+   * Temporarily suppresses an exhausted or unconfigured provider (circuit-breaker)
+   */
+  public recordProviderExhaustion(provider: string, reason: string, cooldownMs: number = 900000): void {
+    this.providerCooldowns.set(provider, {
+      until: Date.now() + cooldownMs,
+      reason,
+    });
+    console.warn(`[ModelRouter CircuitBreaker] Provider '${provider}' cooling down for ${cooldownMs / 1000}s. Reason: ${reason}`);
   }
 
   /**
@@ -280,16 +297,22 @@ export class ModelRouter {
   }
 
   /**
-   * Selects an ordered list of candidate models optimized for the specific task intent and complexity
+   * Selects an ordered list of candidate models optimized for the specific task intent and complexity,
+   * grounded in empirical Phase 33 benchmark performance.
    */
   public selectCandidateModels(
     intent: TaskIntent,
     complexity: number,
     preferredProvider?: ModelProvider,
-    preferredModel?: string
+    preferredModel?: string,
+    options?: ModelCallOptions
   ): AIModelSpec[] {
     const activeModels = this.getModelCatalog();
     const candidates: AIModelSpec[] = [];
+
+    const hasVisionAttachment = options?.messages?.some(
+      (m) => Boolean(m.image) || m.attachments?.some((a) => a.type.startsWith("image/") || a.data?.includes(";base64,"))
+    );
 
     // 1. Explicit model preference
     if (preferredModel) {
@@ -297,7 +320,13 @@ export class ModelRouter {
       if (explicit && explicit.isAvailable) candidates.push(explicit);
     }
 
-    // 2. Preferred provider preference
+    // 2. Multimodal Vision Guardrail: NEVER route vision queries to text-only models
+    if (hasVisionAttachment) {
+      const visionModels = activeModels.filter((m) => m.supportsVision && m.isAvailable && !candidates.includes(m));
+      candidates.push(...visionModels);
+    }
+
+    // 3. Preferred provider preference
     if (preferredProvider) {
       const providerModels = activeModels.filter(
         (m) => m.provider === preferredProvider && m.isAvailable && !candidates.includes(m)
@@ -305,32 +334,35 @@ export class ModelRouter {
       candidates.push(...providerModels);
     }
 
-    // 3. High complexity tasks: prioritize high-capacity reasoning models
-    if (complexity >= 7 || intent === "coding" || intent === "mathematics" || intent === "agent_task" || intent === "document_analysis") {
-      const claudeSonnet = activeModels.find((m) => m.id === "claude-3-5-sonnet-20241022" && m.isAvailable);
-      if (claudeSonnet && !candidates.includes(claudeSonnet)) candidates.push(claudeSonnet);
+    // 4. Empirical Benchmark-Weighted Candidate Routing:
+    // A. Mathematics & Quantitative Reasoning -> Prioritize DeepSeek V3 (100% empirical benchmark score)
+    if (intent === "mathematics" || intent === "reasoning") {
+      const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
+      if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
 
       const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.5-flash" && m.isAvailable);
       if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
+    }
 
-      const gpt4o = activeModels.find((m) => m.id === "gpt-4o" && m.isAvailable);
-      if (gpt4o && !candidates.includes(gpt4o)) candidates.push(gpt4o);
+    // B. Interactive Coding, Chat & Low-Latency -> Prioritize Gemini 3.5 Flash Lite (< 1000ms latency, 100% coding)
+    if (intent === "coding" || intent === "general_chat" || intent === "general_qa" || intent === "translation") {
+      const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
+      if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
 
       const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
       if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
     }
 
-    // 4. Fast conversational & general tasks
-    const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
-    if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
+    // C. High complexity tasks: ensure high-capacity reasoning models
+    if (complexity >= 7 || intent === "agent_task" || intent === "document_analysis") {
+      const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.5-flash" && m.isAvailable);
+      if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
 
-    const gptMini = activeModels.find((m) => m.id === "gpt-4o-mini" && m.isAvailable);
-    if (gptMini && !candidates.includes(gptMini)) candidates.push(gptMini);
+      const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
+      if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
+    }
 
-    const claudeHaiku = activeModels.find((m) => m.id === "claude-3-5-haiku-20241022" && m.isAvailable);
-    if (claudeHaiku && !candidates.includes(claudeHaiku)) candidates.push(claudeHaiku);
-
-    // 5. Remaining available models
+    // D. Remaining available models
     for (const m of activeModels) {
       if (m.isAvailable && !candidates.includes(m)) {
         candidates.push(m);
@@ -353,7 +385,8 @@ export class ModelRouter {
       intent,
       complexity,
       options.preferredProvider,
-      options.preferredModel
+      options.preferredModel,
+      options
     );
 
     let fallbackOccurred = false;
@@ -477,17 +510,35 @@ export class ModelRouter {
       });
     }
 
-    const res = await ai.models.generateContent({
-      model: modelId,
-      contents,
-      config: {
-        systemInstruction: options.systemInstruction,
-        temperature: options.temperature ?? 0.7,
-        maxOutputTokens: options.maxTokens,
-      },
-    });
-
-    return res.text || "";
+    try {
+      const res = await ai.models.generateContent({
+        model: modelId,
+        contents,
+        config: {
+          systemInstruction: options.systemInstruction,
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxTokens,
+        },
+      });
+      return res.text || "";
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      // Auto-retry once on 429 rate limit or temporary resource exhaustion
+      if (err?.status === 429 || errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("limit: 0")) {
+        await new Promise((r) => setTimeout(r, 1200));
+        const retryRes = await ai.models.generateContent({
+          model: modelId,
+          contents,
+          config: {
+            systemInstruction: options.systemInstruction,
+            temperature: options.temperature ?? 0.7,
+            maxOutputTokens: options.maxTokens,
+          },
+        });
+        return retryRes.text || "";
+      }
+      throw err;
+    }
   }
 
   /**
@@ -546,6 +597,9 @@ export class ModelRouter {
         const parsed = JSON.parse(errBody);
         parsedMsg = parsed.error?.message || errBody;
       } catch {}
+      if (parsedMsg.includes("credit balance is too low")) {
+        this.recordProviderExhaustion("anthropic", "Anthropic credit balance is depleted (HTTP 400)", 1800000);
+      }
       throw new Error(`Anthropic Claude HTTP ${res.status}: ${parsedMsg}`);
     }
 

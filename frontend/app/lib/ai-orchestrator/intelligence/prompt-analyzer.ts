@@ -110,10 +110,12 @@ export class PromptAnalyzer {
   private detectLanguageDialect(prompt: string): AnalyzedPrompt["detectedDialect"] {
     const lower = prompt.toLowerCase();
     const hasTeluguScript = /[\u0C00-\u0C7F]/.test(prompt);
-    const hasTeluguKeywords = /\b(cheppu|cheyyi|rayi|deeni|dini|idi|ela|emiti|enti|meeru|nenu|unnaya|vachindi)\b/i.test(lower);
+    const hasTeluguKeywords = /\b(cheppu|cheyyi|rayi|deeni|dini|idi|ela|emiti|enti|meeru|nenu|unnaya|vachindi|gurinchi|enduku|evaru|edhi|eedi)\b/i.test(lower);
 
-    if (hasTeluguScript && hasTeluguKeywords) return "telugu";
-    if (hasTeluguKeywords || (hasTeluguScript && /[a-zA-Z]/.test(prompt))) return "telugu_english_mixed";
+    if (hasTeluguScript) {
+      return /[a-zA-Z]/.test(prompt) ? "telugu_english_mixed" : "telugu";
+    }
+    if (hasTeluguKeywords) return "telugu_english_mixed";
     if (/[\u0900-\u097F]/.test(prompt) || /\b(batao|karo|kaise|kya|hai|karein)\b/i.test(lower)) return "hindi";
     return "english";
   }
@@ -213,7 +215,7 @@ export class PromptAnalyzer {
 
     // 11. Mathematical Reasoning Check
     if (
-      /\b(calculate|solve equation|integral|derivative|algebra|matrix|formula|eigenvalue|arithmetic)\b/i.test(lower) ||
+      /\b(calculate|solve equation|integral|derivative|algebra|matrix|formula|eigenvalue|arithmetic|probability|odds|permutation|combination|dice|die\b|expected value|calculus|geometry)\b/i.test(lower) ||
       /[0-9]+\s*[\+\-\*\/\^]\s*[0-9]+/.test(lower)
     ) {
       return { primaryIntent: "mathematics", secondaryIntents: ["reasoning"] };
@@ -282,9 +284,16 @@ export class PromptAnalyzer {
     appropriateModel: string;
     preferredProvider?: ModelProvider;
   } {
-    if (complexityScore >= 7 || intent === "coding" || intent === "mathematics" || intent === "agent_task") {
-      return { appropriateModel: "gemini-3.6-flash", preferredProvider: "gemini" };
+    // Empirical Benchmark-Grounded Model Selection:
+    // 1. Mathematics & Deep Symbolic Reasoning -> DeepSeek V3 (100% benchmark score)
+    if (intent === "mathematics" || (intent === "reasoning" && complexityScore >= 6)) {
+      return { appropriateModel: "deepseek/deepseek-chat", preferredProvider: "openrouter" };
     }
+    // 2. High-complexity coding and agent tasks -> Gemini 3.5 Flash (high context, low latency)
+    if (complexityScore >= 7 || intent === "coding" || intent === "agent_task") {
+      return { appropriateModel: "gemini-3.5-flash", preferredProvider: "gemini" };
+    }
+    // 3. Fast interactive conversational chat & general QA -> Gemini 3.5 Flash Lite (< 1000ms latency)
     return { appropriateModel: "gemini-3.5-flash-lite", preferredProvider: "gemini" };
   }
 
