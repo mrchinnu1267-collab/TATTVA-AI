@@ -4,7 +4,7 @@
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
-export type DatasetFormat = "csv" | "json" | "jsonl";
+export type DatasetFormat = "csv" | "json" | "jsonl" | "parquet";
 export type DatasetCategory =
   | "knowledge"
   | "conversational"

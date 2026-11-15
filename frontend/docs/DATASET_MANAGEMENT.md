@@ -5,7 +5,7 @@
 
 ## 1. Overview & Purpose
 
-The **TATTVA Dataset Management System** provides a unified registry and universal loader for all evaluation datasets used across TATTVA AI. It abstracts differences in file formats (`CSV`, `JSON`, `JSONL`), handles character encodings (including UTF-8 BOM stripping and Indic Unicode canonical NFC normalization), validates schemas against strict rules, and enforces dataset metadata governance.
+The **TATTVA Dataset Management System** provides a unified registry and universal loader for all evaluation datasets used across TATTVA AI. It abstracts differences in file formats (`CSV`, `JSON`, `JSONL`, `Parquet`), handles character encodings (including UTF-8 BOM stripping and Indic Unicode canonical NFC normalization), validates schemas against strict rules, and enforces dataset metadata governance and training/evaluation contamination boundaries.
 
 ---
 
@@ -52,6 +52,8 @@ All active benchmark datasets are cataloged in `datasets/datasets-manifest.json`
 | `telugu-reasoning-indic` | JSONL | `te-IN` | 8 | Native Telugu arithmetic & Indic QA | `indic_mcq` |
 | `instruction-following-eval` | JSONL | `en-US` | 5 | Complex multi-constraint format testing | `instruction_json` |
 | `conversational-multiturn-eval` | JSONL | `multilingual` | 4 | Context retention & Telugu code-switching | `conversational_multiturn` |
+| `gsm8k-train` | Parquet | `en-US` | 7,473 | Mathematical model fine-tuning experiments | `math_problem` |
+| `gsm8k-evaluation` | Parquet | `en-US` | 1,319 | Mathematical reasoning evaluation (test split) | `math_problem` |
 
 ---
 

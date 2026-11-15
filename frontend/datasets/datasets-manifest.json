@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "lastUpdated": "2026-11-15T02:04:24.652Z",
+  "lastUpdated": "2026-11-15T02:15:17.789Z",
   "canonicalRoot": "datasets/",
   "registryPolicy": {
     "evaluationTrainingSeparation": true,
@@ -320,6 +320,68 @@
         "curationMethodology": "Curated visual scenarios covering diagrams, charts, receipts, and temporal video keyframes.",
         "commercialUsePermitted": true,
         "redistributionTerms": "Permitted under MIT License."
+      }
+    },
+    {
+      "id": "gsm8k-train",
+      "name": "OpenAI GSM8K Grade School Math (Training Set)",
+      "description": "OpenAI Grade School Math 8K training split consisting of 7,473 diverse, multi-step elementary math word problems with step-by-step solutions and calculator annotations.",
+      "source": "OpenAI (Cobbe et al., 2021) / GSM8K",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 7473,
+      "fileSizeBytes": 2306545,
+      "fileSizeFormatted": "2.20 MB",
+      "format": "parquet",
+      "relativePath": "training/mathematics/gsm8k/train-00000-of-00001.parquet",
+      "categories": [
+        "mathematics",
+        "reasoning"
+      ],
+      "datasetType": "training",
+      "intendedPurpose": "Mathematical model fine-tuning experiments.",
+      "dateImported": "2026-11-15T07:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "math_problem",
+      "provenance": {
+        "originalAuthor": "Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, John Schulman (OpenAI)",
+        "sourceUrl": "https://github.com/openai/grade-school-math",
+        "curationMethodology": "High-quality multi-step grade school mathematical word problems crafted by human problem writers, featuring step-by-step natural language reasoning and final numerical solutions.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "MIT License: Free to use, modify, distribute, and sublicense with copyright notice preserved."
+      }
+    },
+    {
+      "id": "gsm8k-evaluation",
+      "name": "OpenAI GSM8K Grade School Math (Evaluation Benchmark)",
+      "description": "OpenAI Grade School Math 8K official test split consisting of 1,319 gold-standard multi-step mathematical reasoning problems for double-blind benchmark evaluation.",
+      "source": "OpenAI (Cobbe et al., 2021) / GSM8K",
+      "license": "MIT",
+      "version": "1.0.0",
+      "language": "en-US",
+      "recordCount": 1319,
+      "fileSizeBytes": 419088,
+      "fileSizeFormatted": "409.27 KB",
+      "format": "parquet",
+      "relativePath": "evaluation/mathematics/gsm8k/test-00000-of-00001.parquet",
+      "categories": [
+        "mathematics",
+        "reasoning"
+      ],
+      "datasetType": "evaluation",
+      "intendedPurpose": "Mathematical reasoning evaluation.",
+      "dateImported": "2026-11-15T07:30:00.000Z",
+      "isActive": true,
+      "hasVerifiedAnswers": true,
+      "schemaType": "math_problem",
+      "provenance": {
+        "originalAuthor": "Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, John Schulman (OpenAI)",
+        "sourceUrl": "https://github.com/openai/grade-school-math",
+        "curationMethodology": "Gold-standard held-out evaluation test set designed to measure multi-step mathematical problem solving and prevent data contamination.",
+        "commercialUsePermitted": true,
+        "redistributionTerms": "MIT License: Free to use, modify, distribute, and sublicense with copyright notice preserved."
       }
     }
   ]

@@ -14,6 +14,7 @@ import {
   UniversalQuestionRecord,
 } from "./types";
 import { mmmluValidator } from "../mmmlu/validator";
+import { parquetDatasetLoader } from "./parquet-loader";
 
 export class DatasetRegistry {
   private static instance: DatasetRegistry;
@@ -325,10 +326,47 @@ export class DatasetRegistry {
           });
         }
       }
+    } else if (meta.format === "parquet") {
+      const parquetRecords = parquetDatasetLoader.readParquetRecordsSync(filePath, datasetId);
+      records.push(...parquetRecords);
     }
 
     this.cachedRecords.set(datasetId, records);
     return records;
+  }
+
+  /**
+   * Asynchronous universal record loader supporting Parquet, CSV, JSON, and JSONL
+   */
+  public async loadRecordsAsync(
+    datasetId: string,
+    forceReload = false
+  ): Promise<UniversalQuestionRecord[]> {
+    if (!forceReload && this.cachedRecords.has(datasetId)) {
+      return this.cachedRecords.get(datasetId)!;
+    }
+
+    const meta = this.getDatasetById(datasetId);
+    if (!meta) {
+      throw new Error(`Dataset with ID '${datasetId}' not found in registry.`);
+    }
+
+    if (meta.format === "parquet") {
+      const root = this.resolveCanonicalDatasetsRoot();
+      const filePath = path.normalize(path.join(root, meta.relativePath));
+      const records = await parquetDatasetLoader.readParquetRecords(filePath, datasetId);
+      this.cachedRecords.set(datasetId, records);
+      return records;
+    }
+
+    return this.loadRecords(datasetId, forceReload);
+  }
+
+  /**
+   * Masks expected answers for evaluation records to prevent model evaluation contamination
+   */
+  public maskEvaluationAnswers(record: UniversalQuestionRecord): UniversalQuestionRecord {
+    return parquetDatasetLoader.maskEvaluationAnswers(record);
   }
 
   /**

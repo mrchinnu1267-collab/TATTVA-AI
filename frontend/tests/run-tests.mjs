@@ -174,6 +174,10 @@ try {
   if (phase40?.runPhase40FinalAcceptanceTests) {
     await phase40.runPhase40FinalAcceptanceTests();
   }
+  const gsm8kSuite = await jiti("./gsm8k-dataset-integration.test.ts");
+  if (gsm8kSuite?.runGsm8kDatasetIntegrationTests) {
+    await gsm8kSuite.runGsm8kDatasetIntegrationTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

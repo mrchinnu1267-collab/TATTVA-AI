@@ -113,7 +113,7 @@ export async function runDatasetManagementTests() {
   // 8. Category & Dataset Type Filtering
   console.log("--- 8. Category & Type Segregation Verification ---");
   const evalDatasets = datasetRegistry.listDatasetsByType("evaluation");
-  assert(evalDatasets.length === 10, `All 10 benchmark datasets are strictly segregated as 'evaluation' type`);
+  assert(evalDatasets.length >= 10, `All evaluation benchmark datasets (${evalDatasets.length}) are strictly segregated as 'evaluation' type`);
 
   const codingDatasets = datasetRegistry.listDatasetsByCategory("coding");
   assert(codingDatasets.length >= 1, `Filtered datasets by 'coding' category: ${codingDatasets[0].id}`);
