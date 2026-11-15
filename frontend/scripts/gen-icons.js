@@ -4,36 +4,44 @@ const fs = require('fs');
 
 const src = path.join(__dirname, '../public/logo.jpg');
 const publicDir = path.join(__dirname, '../public');
+const appDir = path.join(__dirname, '../app');
 
 async function generate() {
   console.log('Generating icons from:', src);
   
   // logo.png - full size (512x512)
-  await sharp(src).resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png().toFile(path.join(publicDir, 'logo.png'));
+  await sharp(src).resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png({ quality: 95 }).toFile(path.join(publicDir, 'logo.png'));
   console.log('✓ logo.png');
 
   // icon-512.png
-  await sharp(src).resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png().toFile(path.join(publicDir, 'icon-512.png'));
+  await sharp(src).resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png({ quality: 95 }).toFile(path.join(publicDir, 'icon-512.png'));
   console.log('✓ icon-512.png');
 
   // icon-192.png
-  await sharp(src).resize(192, 192, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png().toFile(path.join(publicDir, 'icon-192.png'));
+  await sharp(src).resize(192, 192, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png({ quality: 95 }).toFile(path.join(publicDir, 'icon-192.png'));
   console.log('✓ icon-192.png');
 
   // apple-touch-icon.png (180x180)
-  await sharp(src).resize(180, 180, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png().toFile(path.join(publicDir, 'apple-touch-icon.png'));
+  await sharp(src).resize(180, 180, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png({ quality: 95 }).toFile(path.join(publicDir, 'apple-touch-icon.png'));
   console.log('✓ apple-touch-icon.png');
 
   // favicon.png (32x32)
   await sharp(src).resize(32, 32, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png().toFile(path.join(publicDir, 'favicon.png'));
   console.log('✓ favicon.png');
 
-  // favicon.ico (32x32 ICO)
-  await sharp(src).resize(32, 32, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png().toFile(path.join(publicDir, 'favicon.ico'));
+  // favicon.ico (32x32)
+  await sharp(src).resize(32, 32, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).toFormat('png').toFile(path.join(publicDir, 'favicon.ico'));
   console.log('✓ favicon.ico');
+
+  // app/icon.png (512x512)
+  await sharp(src).resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png({ quality: 95 }).toFile(path.join(appDir, 'icon.png'));
+  console.log('✓ app/icon.png');
+
+  // app/apple-icon.png (180x180)
+  await sharp(src).resize(180, 180, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } }).png({ quality: 95 }).toFile(path.join(appDir, 'apple-icon.png'));
+  console.log('✓ app/apple-icon.png');
 
   console.log('\nAll icons generated successfully!');
 }
 
 generate().catch(console.error);
-
