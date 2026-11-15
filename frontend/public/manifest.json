@@ -1,39 +1,52 @@
 {
   "name": "TATTVA AI - Advanced Multi-Model AI Assistant",
   "short_name": "TATTVA AI",
-  "id": "/?source=pwa",
+  "version": "2.0.0",
+  "id": "/?source=pwa_v2",
   "description": "Next-generation multi-model AI assistant with deep reasoning, document generation, image synthesis, and personalized intelligence.",
   "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0d0e11",
-  "theme_color": "#0d0e11",
+  "background_color": "#eceefb",
+  "theme_color": "#eceefb",
   "categories": ["productivity", "utilities", "business", "education"],
   "icons": [
     {
+      "src": "/icon-192-v2.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-192-v2.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -41,13 +54,13 @@
       "name": "New Chat",
       "url": "/chat",
       "description": "Start a fresh AI conversation",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192" }]
     },
     {
       "name": "Image Studio",
       "url": "/image-studio",
       "description": "Generate and synthesize AI imagery",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192-v2.png", "sizes": "192x192" }]
     }
   ]
 }

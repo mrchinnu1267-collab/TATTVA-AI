@@ -1,12 +1,22 @@
 // TATTVA AI - Production Service Worker (PWA)
-const CACHE_NAME = 'tattva-ai-v3';
+const CACHE_NAME = 'tattva-ai-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/icon-192.png',
+  '/icon-192-v2.png',
   '/icon-512.png',
+  '/icon-512-v2.png',
+  '/maskable-icon-192.png',
+  '/maskable-icon-192-v2.png',
+  '/maskable-icon-512.png',
+  '/maskable-icon-512-v2.png',
   '/favicon.png',
-  '/apple-touch-icon.png'
+  '/favicon-v2.png',
+  '/apple-touch-icon.png',
+  '/apple-touch-icon-v2.png',
+  '/logo.png',
+  '/logo-v2.png'
 ];
 
 // Install: Cache static shell assets
@@ -18,13 +28,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: Purge old cache versions
+// Activate: Purge old cache versions immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => {
           if (name !== CACHE_NAME) {
+            console.log('[SW] Purging outdated cache:', name);
             return caches.delete(name);
           }
         })
@@ -33,7 +44,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Network-first for APIs and navigations, cache-fallback for assets
+// Fetch: Network-first for APIs, navigations, manifest and icons; cache-fallback for other static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -57,7 +68,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (images, fonts, scripts): Cache-first with network fallback
+  // Always fetch manifest.json and icons NETWORK-FIRST so brand/icon updates apply immediately
+  if (
+    url.pathname === '/manifest.json' ||
+    url.pathname.includes('icon') ||
+    url.pathname.includes('logo') ||
+    url.pathname.includes('favicon')
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Other static assets (fonts, stylesheets): Cache-first with network fallback
   if (
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.jpg') ||

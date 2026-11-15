@@ -34,15 +34,20 @@ export const metadata: Metadata = {
 
   applicationName: "TATTVA AI",
 
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=2",
 
   icons: {
     icon: [
+      { url: "/favicon-v2.png", sizes: "64x64", type: "image/png" },
+      { url: "/icon-192-v2.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512-v2.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico", sizes: "32x32" },
       { url: "/favicon.png", sizes: "64x64", type: "image/png" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
+      { url: "/apple-touch-icon-v2.png", sizes: "180x180", type: "image/png" },
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
@@ -62,7 +67,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/logo.png",
+        url: "/logo-v2.png",
         width: 512,
         height: 512,
         alt: "TATTVA AI Logo",
@@ -74,7 +79,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "TATTVA AI – Your Intelligent AI Assistant",
     description: "Discover TATTVA AI, your intelligent AI platform.",
-    images: ["/logo.png"],
+    images: ["/logo-v2.png"],
   },
 
   robots: {
