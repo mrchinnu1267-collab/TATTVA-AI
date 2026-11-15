@@ -130,6 +130,8 @@ import {
   resetGuestCount,
   getActiveSessionName,
 } from "../lib/local-auth";
+import NeuralWelcomeScreen from "../components/neural/NeuralWelcomeScreen";
+import NeuralCore3D, { NeuralCoreState } from "../components/neural/NeuralCore3D";
 
 type Role = "user" | "assistant";
 
@@ -3529,7 +3531,7 @@ export default function ChatPage() {
           1. TOP NAVIGATION BAR (MINIMALIST CHATGPT STYLE)
       ========================================================================= */}
       <header
-        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),24px)] sm:pt-0 ${isDark ? "border-transparent bg-black text-neutral-100" : "border-black/[0.06] bg-white/95 text-neutral-900"
+        className={`sticky top-0 left-0 right-0 w-full flex-shrink-0 z-30 border-b backdrop-blur-2xl select-none transition-colors duration-200 pt-[max(env(safe-area-inset-top,0px),24px)] sm:pt-0 ${isDark ? "border-white/[0.06] bg-[#0c0d12]/85 text-neutral-100" : "border-black/[0.06] bg-white/90 text-neutral-900"
           }`}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2 sm:py-3">
@@ -3545,12 +3547,34 @@ export default function ChatPage() {
             </button>
           </div>
 
-          {/* Center: Clean & empty on new chat; shows title during active session */}
+          {/* Center: Shows model selector pill on new chat; shows title during active session */}
           <div className="flex items-center gap-2 select-none">
-            {messages.length > 0 && (
+            {messages.length > 0 ? (
               <span className="text-sm font-semibold tracking-wide text-neutral-400 truncate max-w-[200px] sm:max-w-md">
                 {getActiveSessionName()}
               </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsActiveTab("providers");
+                  setIsSettingsModalOpen(true);
+                }}
+                className={`hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all shadow-xs group cursor-pointer ${
+                  isDark
+                    ? "border-violet-500/25 bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-transparent text-neutral-300 hover:border-violet-500/40 hover:text-white"
+                    : "border-violet-300/40 bg-violet-50 text-neutral-800 hover:border-violet-400"
+                }`}
+                title="TATTVA Neural Core • Click to configure AI Models"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
+                </span>
+                <span className="font-semibold text-neutral-200 dark:text-neutral-200">TATTVA Neural 3.0</span>
+                <span className="text-violet-400 text-[11px] font-mono">• Gemini 3.8</span>
+                <ChevronDown className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white group-hover:translate-y-0.5 transition-transform" />
+              </button>
             )}
           </div>
 
@@ -3750,11 +3774,11 @@ export default function ChatPage() {
           className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col flex-shrink-0 h-full max-h-full border-r transition-all duration-300 ease-in-out ${sidebarOpen
               ? "w-[285px] sm:w-[300px] max-w-[85vw] translate-x-0"
               : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden pointer-events-none"
-            } ${isDark ? "border-neutral-800 bg-[#121316]" : "border-black/[0.06] bg-neutral-50/95"
-            } backdrop-blur-xl shadow-xl md:shadow-none`}
+            } ${isDark ? "border-white/[0.08] bg-[#0c0d12]/95 text-neutral-200" : "border-black/[0.06] bg-neutral-50/95 text-neutral-900"
+            } backdrop-blur-2xl shadow-2xl md:shadow-none`}
         >
           {/* Sidebar Top: Enlarged Logo + Close Button (Frozen) */}
-          <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top,0px),36px)] sm:pt-4 px-3.5 sm:px-4 pb-3.5 sm:pb-4 border-b border-black/[0.06] flex items-center justify-between">
+          <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top,0px),36px)] sm:pt-4 px-3.5 sm:px-4 pb-3.5 sm:pb-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-white shadow-xs p-1 shrink-0">
                 <img
@@ -3784,19 +3808,16 @@ export default function ChatPage() {
           </div>
 
           {/* Action Buttons: New Chat & Global Search (Frozen) - Doubled & Touch Friendly */}
-          <div className="flex-shrink-0 p-3 space-y-2 border-b border-black/[0.06]">
+          <div className="flex-shrink-0 p-3 space-y-2 border-b border-black/[0.06] dark:border-white/[0.06]">
             {/* New Chat Button */}
             <button
               type="button"
               onClick={createNewChat}
-              className={`flex items-center justify-between w-full rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold transition shadow-xs min-h-[50px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "bg-neutral-800 text-white hover:bg-neutral-700"
-                  : "bg-black text-white hover:bg-neutral-800"
-                }`}
+              className="flex items-center justify-between w-full rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold transition-all shadow-lg min-h-[50px] cursor-pointer select-none active:scale-98 bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-700 text-white shadow-violet-500/25 hover:shadow-violet-500/40 hover:brightness-110"
             >
               <div className="flex items-center gap-2.5">
-                <Plus className="w-5 h-5" />
-                <span>New Chat</span>
+                <Plus className="w-5 h-5 stroke-[2.5]" />
+                <span className="tracking-tight">New Chat</span>
               </div>
               <span className="text-xs font-mono opacity-80">✦</span>
             </button>
@@ -3809,17 +3830,17 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
+                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08] hover:border-blue-500/30 hover:text-white"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
                 }`}
               title="Open TATTVA AI My Workspace (Word, Excel, PowerPoint, Outlook, OneNote, Publisher, Access)"
             >
               <div className="flex items-center gap-2.5">
-                <Briefcase className="w-4.5 h-4.5 text-blue-500" />
+                <Briefcase className="w-4.5 h-4.5 text-blue-400" />
                 <span>My Workspace</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-bold border border-blue-500/20">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
                 7 Apps ✨
               </span>
             </Link>
@@ -3832,17 +3853,17 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
+                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08] hover:border-emerald-500/30 hover:text-white"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
                 }`}
               title="Open full interactive Satellite Maps"
             >
               <div className="flex items-center gap-2.5">
-                <MapPin className="w-4.5 h-4.5 text-emerald-500" />
+                <MapPin className="w-4.5 h-4.5 text-emerald-400" />
                 <span>Satellite Maps</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/20">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/25">
                 Live 🛰️
               </span>
             </Link>
@@ -3855,8 +3876,8 @@ export default function ChatPage() {
                   setSidebarOpen(false);
                 }
               }}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
+                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08] hover:border-cyan-500/30 hover:text-white"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100 hover:text-black"
                 }`}
               title="Open TATTVA AI Evaluation Lab (OpenAI MMMLU Benchmark)"
@@ -3865,7 +3886,7 @@ export default function ChatPage() {
                 <Brain className="w-4.5 h-4.5 text-cyan-400" />
                 <span>Evaluation Lab</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/20">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/25">
                 MMMLU 🧠
               </span>
             </Link>
@@ -3876,10 +3897,10 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={toggleTemporaryChat}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isTemporaryChat
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isTemporaryChat
                   ? "border-amber-500/50 bg-amber-500/15 text-amber-400 shadow-2xs"
                   : isDark
-                    ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                    ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08]"
                     : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
                 }`}
               title="Temporary chat (not saved in history)"
@@ -3898,8 +3919,8 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-medium transition min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
-                  ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+              className={`flex items-center justify-between w-full rounded-2xl border px-4 py-3 text-sm font-medium transition-all min-h-[46px] cursor-pointer select-none active:scale-98 ${isDark
+                  ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08]"
                   : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
                 }`}
               title="Search all conversations (Ctrl+K)"
@@ -3919,7 +3940,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => setIsArchiveModalOpen(true)}
                 className={`flex items-center justify-center gap-2 w-full rounded-2xl border py-2.5 px-3 text-xs sm:text-sm font-medium transition cursor-pointer min-h-[42px] select-none active:scale-98 ${isDark
-                    ? "border-neutral-800 bg-neutral-900/60 text-neutral-300 hover:bg-neutral-800"
+                    ? "border-white/[0.06] bg-white/[0.03] text-neutral-300 hover:bg-white/[0.08]"
                     : "border-black/10 bg-white/80 text-neutral-700 hover:bg-neutral-100"
                   }`}
                 title="View archived chats"
@@ -4798,7 +4819,13 @@ export default function ChatPage() {
             onScroll={handleChatScroll}
             className="flex-1 min-h-0 overflow-y-auto w-full relative flex flex-col"
           >
-            <div className={`p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full ${messages.length === 0 ? "flex-1 flex flex-col justify-between" : "space-y-6"}`}>
+            {/* Subtle Animated Ambient Glow Background for TATTVA NEURAL EXPERIENCE */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+              <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[650px] h-[550px] bg-gradient-to-b from-violet-600/10 via-indigo-600/5 to-transparent rounded-full blur-[140px] opacity-80" />
+              <div className="absolute bottom-[10%] right-[10%] w-[350px] h-[350px] bg-cyan-500/5 rounded-full blur-[120px] opacity-60" />
+            </div>
+
+            <div className={`p-3 sm:p-6 lg:p-8 relative z-10 w-full mx-auto ${messages.length === 0 ? "max-w-4xl flex-1 flex flex-col justify-between" : "max-w-3xl space-y-6"}`}>
               {messages.length === 0 ? (
                 isTemporaryChat ? (
                   <div className="my-auto py-12 text-center max-w-md mx-auto flex flex-col items-center justify-center animate-in fade-in select-none">
@@ -4811,63 +4838,41 @@ export default function ChatPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col justify-between py-4 sm:py-8 w-full select-none min-h-[55vh] sm:min-h-[65vh]">
-                    {/* Vertically Centered Title matching Screenshot */}
-                    <div className="my-auto text-center py-12 sm:py-20 animate-in fade-in duration-300">
-                      <h1 className="text-2xl sm:text-3xl font-medium tracking-normal text-white">
-                        Where should we begin?
-                      </h1>
-                    </div>
-
-                    {/* 3 Stacked Suggestions directly above composer matching Screenshot */}
-                    <div className="space-y-4 pb-2 px-1 text-sm sm:text-base animate-in fade-in duration-300">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInput("Create an image or sticker of ");
-                          textareaRef.current?.focus();
-                        }}
-                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                      >
-                        <ImageIcon className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Create an image or sticker</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInput("Help me write and edit ");
-                          textareaRef.current?.focus();
-                        }}
-                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                      >
-                        <Edit3 className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Write or edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
+                  <NeuralWelcomeScreen
+                    coreState={
+                      error
+                        ? "error"
+                        : loading && statusMessage
+                        ? "generating"
+                        : loading
+                        ? "processing"
+                        : input.trim().length > 0
+                        ? "typing"
+                        : "idle"
+                    }
+                    isDark={isDark}
+                    onSelectPrompt={(promptText, toolMode) => {
+                      setInput(promptText);
+                      if (toolMode && toolMode !== "none") {
+                        if (toolMode === "web") {
                           setActiveTool("web");
-                          textareaRef.current?.focus();
                           showToast("Web Search mode enabled 🌐");
-                        }}
-                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                      >
-                        <Globe className="w-5 h-5 text-neutral-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Search the web</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInput("What is the exact time right now?");
-                          textareaRef.current?.focus();
-                        }}
-                        className="flex items-center gap-3.5 text-neutral-300 hover:text-white transition cursor-pointer group text-left w-full"
-                      >
-                        <Clock className="w-5 h-5 text-sky-400 group-hover:text-white shrink-0 stroke-[1.6]" />
-                        <span className="font-normal text-[15px] sm:text-base text-neutral-200 group-hover:text-white">Check live clock &amp; time</span>
-                      </button>
-                    </div>
-                  </div>
+                        } else if (toolMode === "research") {
+                          setActiveTool("research");
+                          showToast("Deep Research mode enabled 🔬");
+                        } else if (toolMode === "file") {
+                          setActiveTool("file");
+                          showToast("File Analysis mode enabled 📄");
+                        } else if (toolMode === "code") {
+                          setActiveTool("code");
+                          showToast("Code Assistance mode enabled 💻");
+                        }
+                      }
+                      setTimeout(() => {
+                        textareaRef.current?.focus();
+                      }, 50);
+                    }}
+                  />
                 )
               ) : (
                 messages.map((msg, idx) => {
@@ -5505,13 +5510,15 @@ export default function ChatPage() {
               <input ref={sheetInputRef} type="file" multiple accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" />
               <input ref={codeInputRef} type="file" multiple accept=".py,.ts,.tsx,.js,.json,.html,.css,.sql,.sh,.bat" onChange={handleFileSelect} className="hidden" />
 
-              {/* Seamless Box matching ChatGPT Mobile interface (Screenshot) */}
+              {/* Seamless Box matching ChatGPT Mobile interface with TATTVA Neural Glow */}
               <div
-                className={`relative flex flex-col justify-between w-full rounded-[28px] border p-2.5 sm:p-3 shadow-xl transition-all duration-200 ${isDark
-                    ? "bg-[#212124] border-white/10 text-white focus-within:border-white/20"
-                    : "bg-[#f4f4f4] border-black/10 text-black shadow-md focus-within:border-black/25"
+                className={`relative flex flex-col justify-between w-full rounded-[28px] border p-2.5 sm:p-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 ${isDark
+                    ? "bg-[#14151b]/95 border-white/[0.12] text-white focus-within:border-violet-500/50 focus-within:ring-2 focus-within:ring-violet-500/20 shadow-violet-950/20"
+                    : "bg-white/95 border-black/10 text-black shadow-xl focus-within:border-violet-500/50 focus-within:ring-2 focus-within:ring-violet-500/20"
                   }`}
               >
+                {/* Subtle Neural Core top accent line */}
+                <div className="absolute top-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-violet-500/35 to-transparent pointer-events-none" />
                 {/* 1. Top Row: Text Input */}
                 <textarea
                   ref={textareaRef}
@@ -5702,7 +5709,7 @@ export default function ChatPage() {
                         <button
                           type="button"
                           onClick={stopGeneration}
-                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-sm hover:opacity-90 active:scale-95 transition cursor-pointer shrink-0"
+                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-500/30 active:scale-95 transition cursor-pointer shrink-0"
                           title="Stop generation"
                         >
                           <Square className="w-3.5 h-3.5 fill-current" />
@@ -5711,7 +5718,7 @@ export default function ChatPage() {
                         <button
                           type="button"
                           onClick={() => sendMessage()}
-                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-sm hover:opacity-90 active:scale-95 transition cursor-pointer shrink-0"
+                          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-105 active:scale-95 transition cursor-pointer shrink-0"
                           title="Send message"
                         >
                           <ArrowUp className="w-5 h-5 stroke-[2.5]" />
