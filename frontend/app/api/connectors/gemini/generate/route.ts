@@ -44,6 +44,12 @@ export async function POST(request: Request) {
     }
 
     const service = GeminiConnectorService.getInstance();
+    if (body.providerMode) {
+      service.setProviderMode(body.providerMode);
+    } else if (process.env.GEMINI_API_KEY) {
+      service.setProviderMode("developer_api");
+    }
+
     const detectedTask = service.detectTask(prompt);
 
     const result = await service.executeTask(guard.sanitizedPrompt, {

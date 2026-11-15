@@ -26,14 +26,22 @@ export class GeminiApiAdapter implements GeminiProvider {
   private readonly DAILY_LIMIT = 1500;  // Official Free Tier RPD
 
   constructor(customApiKey?: string) {
-    this.apiKey =
-      customApiKey ||
-      process.env.GEMINI_API_KEY?.replace(/^["']|["']$/g, "").trim() ||
-      null;
+    this.apiKey = customApiKey || null;
+  }
+
+  private getEffectiveApiKey(): string | null {
+    if (this.apiKey) return this.apiKey;
+    const envKey = process.env.GEMINI_API_KEY?.replace(/^["']|["']$/g, "").trim();
+    if (envKey) {
+      this.apiKey = envKey;
+      return envKey;
+    }
+    return null;
   }
 
   public async connect(): Promise<ConnectionStatus> {
-    if (!this.apiKey) {
+    const key = this.getEffectiveApiKey();
+    if (!key) {
       this.isConnectedState = false;
       return {
         isConnected: false,
@@ -52,7 +60,7 @@ export class GeminiApiAdapter implements GeminiProvider {
     }
 
     try {
-      this.client = new GoogleGenAI({ apiKey: this.apiKey });
+      this.client = new GoogleGenAI({ apiKey: key });
 
       // Live verification ping with fast lightweight model
       const probeStart = performance.now();
