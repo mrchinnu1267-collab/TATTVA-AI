@@ -163,12 +163,17 @@ type ChatMessage = {
   imageMetadata?: ImageMetadata;
   imageJob?: {
     id: string;
-    status: "queued" | "processing" | "generating" | "verifying" | "refining" | "completed" | "failed" | "cancelled";
+    status: "queued" | "processing" | "generating" | "verifying" | "refining" | "uploading" | "completed" | "failed" | "cancelled";
     currentStage?: string;
     progressPercent?: number;
     prompt?: string;
     statusMessage?: string;
     error?: string;
+    attempts?: number;
+    maxAttempts?: number;
+    accuracy?: number;
+    verificationStatus?: string;
+    timestamps?: any;
   };
   attachments?: ChatAttachment[];
   timestamp?: number;
@@ -2239,11 +2244,19 @@ export default function ChatPage() {
           prev.map((m) => {
             if (m.id !== msgId) return m;
 
-            let resolvedStatus: "generating" | "verifying" | "refining" = "generating";
-            if (job.currentStage === "independent_evaluation") {
+            let resolvedStatus: "queued" | "generating" | "verifying" | "refining" | "uploading" | "completed" | "failed" = "generating";
+            if (job.status === "failed") {
+              resolvedStatus = "failed";
+            } else if (job.status === "completed") {
+              resolvedStatus = "completed";
+            } else if (job.currentStage === "queued" || job.status === "queued") {
+              resolvedStatus = "queued";
+            } else if (job.currentStage === "independent_evaluation" || job.currentStage === "verifying") {
               resolvedStatus = "verifying";
-            } else if (job.currentStage === "targeted_correction" || (job.attempts && job.attempts > 1)) {
+            } else if (job.currentStage === "targeted_correction" || job.currentStage === "refining" || (job.attempts && job.attempts > 1 && job.currentStage !== "storage_upload")) {
               resolvedStatus = "refining";
+            } else if (job.currentStage === "storage_upload" || job.currentStage === "uploading") {
+              resolvedStatus = "uploading";
             }
 
             return {
@@ -2255,6 +2268,10 @@ export default function ChatPage() {
                 progressPercent: job.progressPercent || 15,
                 statusMessage: job.statusMessage,
                 timestamps: job.timestamps,
+                attempts: job.attempts || 1,
+                maxAttempts: job.maxAttempts || 4,
+                accuracy: job.accuracy,
+                verificationStatus: job.verificationStatus,
               },
             };
           })
@@ -5342,11 +5359,17 @@ export default function ChatPage() {
                             {msg.imageJob && (!msg.image || msg.imageJob.status !== "completed") && (
                               <div className="mt-3.5 overflow-hidden rounded-2xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/60 backdrop-blur-md p-4 shadow-sm">
                                 <div className="flex items-center justify-between gap-3 mb-2.5">
-                                  <div className="flex items-center gap-2">
-                                    {(msg.imageJob.status === "generating" || msg.imageJob.status === "queued" || msg.imageJob.status === "processing") && (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {msg.imageJob.status === "queued" && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-neutral-500/10 text-neutral-600 dark:text-neutral-400 border border-neutral-500/20">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span>Queued</span>
+                                      </span>
+                                    )}
+                                    {(msg.imageJob.status === "generating" || msg.imageJob.status === "processing") && (
                                       <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
                                         <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Generating</span>
+                                        <span>Generating{msg.imageJob.attempts && msg.imageJob.attempts > 1 ? ` (${msg.imageJob.attempts}/${msg.imageJob.maxAttempts || 4})` : ""}</span>
                                       </span>
                                     )}
                                     {msg.imageJob.status === "verifying" && (
@@ -5358,13 +5381,36 @@ export default function ChatPage() {
                                     {msg.imageJob.status === "refining" && (
                                       <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Refining</span>
+                                        <span>Refining ({msg.imageJob.attempts || 2}/{msg.imageJob.maxAttempts || 4})</span>
+                                      </span>
+                                    )}
+                                    {msg.imageJob.status === "uploading" && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        <UploadCloud className="w-3.5 h-3.5 animate-pulse" />
+                                        <span>Uploading</span>
+                                      </span>
+                                    )}
+                                    {msg.imageJob.status === "completed" && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        <span>Completed</span>
                                       </span>
                                     )}
                                     {msg.imageJob.status === "failed" && (
                                       <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
                                         <AlertCircle className="w-3.5 h-3.5" />
                                         <span>Failed</span>
+                                      </span>
+                                    )}
+                                    {msg.imageJob.accuracy !== undefined && (
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                        msg.imageJob.accuracy >= 95
+                                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                          : msg.imageJob.accuracy >= 70
+                                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                                          : "bg-neutral-500/15 text-neutral-600 dark:text-neutral-400 border border-neutral-500/30"
+                                      }`}>
+                                        {msg.imageJob.accuracy >= 95 ? "VERIFIED" : msg.imageJob.accuracy >= 70 ? "PARTIAL" : "UNVERIFIED"} {msg.imageJob.accuracy}%
                                       </span>
                                     )}
                                     <span className="text-[11px] font-mono text-neutral-400">FLUX.1 Schnell + Gemini Vision</span>
@@ -5380,10 +5426,14 @@ export default function ChatPage() {
                                     className={`h-full transition-all duration-500 rounded-full ${
                                       msg.imageJob.status === "failed"
                                         ? "bg-red-500 w-full"
+                                        : msg.imageJob.status === "uploading"
+                                        ? "bg-emerald-500 animate-pulse"
                                         : msg.imageJob.status === "refining"
                                         ? "bg-gradient-to-r from-cyan-500 via-purple-500 to-amber-500 animate-pulse"
                                         : msg.imageJob.status === "verifying"
                                         ? "bg-gradient-to-r from-cyan-500 to-purple-500 animate-pulse"
+                                        : msg.imageJob.status === "queued"
+                                        ? "bg-neutral-400"
                                         : "bg-gradient-to-r from-cyan-400 to-cyan-500"
                                     }`}
                                     style={{
@@ -5395,12 +5445,16 @@ export default function ChatPage() {
                                 {/* Status Description */}
                                 <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
                                   {msg.imageJob.statusMessage ||
-                                    (msg.imageJob.status === "generating"
+                                    (msg.imageJob.status === "queued"
+                                      ? "Job queued for generation..."
+                                      : msg.imageJob.status === "generating"
                                       ? "Generating image with Cloudflare Workers AI FLUX.1 Schnell..."
                                       : msg.imageJob.status === "verifying"
                                       ? "Auditing visual prompt adherence with Gemini Vision..."
                                       : msg.imageJob.status === "refining"
                                       ? "Refining prompt adherence against visual feedback..."
+                                      : msg.imageJob.status === "uploading"
+                                      ? "Persisting generated image asset to Supabase Storage..."
                                       : msg.imageJob.error || "Generation encountered an issue.")}
                                 </p>
 

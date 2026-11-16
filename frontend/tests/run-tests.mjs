@@ -206,6 +206,10 @@ try {
   if (asyncImageJob?.runAsyncImageJobReliabilityTests) {
     await asyncImageJob.runAsyncImageJobReliabilityTests();
   }
+  const durableJobDbStorage = await jiti("./durable-image-job-db-storage.test.ts");
+  if (durableJobDbStorage?.runDurableJobDbStorageTests) {
+    await durableJobDbStorage.runDurableJobDbStorageTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

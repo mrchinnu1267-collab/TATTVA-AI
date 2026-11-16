@@ -409,7 +409,13 @@ export async function runAsyncImageJobReliabilityTests() {
     assert.ok(retrievedJob, "Job must be retrievable from job store");
     assert.equal(retrievedJob?.status, "completed");
     assert.ok(retrievedJob?.resultImage);
-    assert.ok(retrievedJob?.resultImage.startsWith("data:image/"));
+    assert.ok(
+      retrievedJob?.resultImage &&
+        (retrievedJob.resultImage.startsWith("data:image/") ||
+          retrievedJob.resultImage.startsWith("http") ||
+          retrievedJob.resultImage.startsWith("/api/image/")),
+      "resultImage must be a valid image payload or storage URL"
+    );
     console.log(`  ✓ Job "${completedShortJob.id}" retrievable with full metadata and valid image payload.`);
 
   } finally {

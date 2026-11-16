@@ -137,6 +137,15 @@ export async function runIntelligentRefinementTests(): Promise<void> {
         });
       }
       if (urlStr.includes("generativelanguage.googleapis.com")) {
+        const bodyStr = init?.body ? String(init.body) : "";
+        if (bodyStr.includes("isSafe")) {
+          return new Response(
+            JSON.stringify({
+              candidates: [{ content: { parts: [{ text: JSON.stringify({ isSafe: true }) }] } }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
         attemptCounter += 1;
         if (attemptCounter === 1) {
           // Attempt 1: Low score due to missing blue lighting
@@ -252,6 +261,15 @@ export async function runIntelligentRefinementTests(): Promise<void> {
         });
       }
       if (urlStr.includes("generativelanguage.googleapis.com")) {
+        const bodyStr = init?.body ? String(init.body) : "";
+        if (bodyStr.includes("isSafe")) {
+          return new Response(
+            JSON.stringify({
+              candidates: [{ content: { parts: [{ text: JSON.stringify({ isSafe: true }) }] } }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
         attemptCounter += 1;
         return new Response(
           JSON.stringify({
@@ -326,6 +344,15 @@ export async function runIntelligentRefinementTests(): Promise<void> {
         });
       }
       if (urlStr.includes("generativelanguage.googleapis.com")) {
+        const bodyStr = init?.body ? String(init.body) : "";
+        if (bodyStr.includes("isSafe")) {
+          return new Response(
+            JSON.stringify({
+              candidates: [{ content: { parts: [{ text: JSON.stringify({ isSafe: true }) }] } }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
         const s = attemptScores[attemptCounter] || 70;
         attemptCounter += 1;
         return new Response(

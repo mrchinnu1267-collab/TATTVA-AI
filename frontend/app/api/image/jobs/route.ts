@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createImageJob,
   getJob,
+  getJobAsync,
   getOrCreateJob,
   checkAndRecoverStaleJob,
   cancelJob,
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (jobId) {
-      let job = getJob(jobId);
+      let job = await getJobAsync(jobId);
       if (!job) {
         const rawParams = searchParams.get("params");
         if (rawParams) {
@@ -106,7 +107,10 @@ export async function POST(req: NextRequest) {
 
     // Action: Process existing job asynchronously with dedicated function execution budget
     if (body.action === "process" && body.jobId) {
-      let job = getOrCreateJob(body.jobId, body.jobParams);
+      let job = await getJobAsync(body.jobId);
+      if (!job && body.jobParams) {
+        job = getOrCreateJob(body.jobId, body.jobParams);
+      }
       if (!job) {
         return NextResponse.json(
           { success: false, error: `Job "${body.jobId}" not found.` },

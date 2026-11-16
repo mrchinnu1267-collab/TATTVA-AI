@@ -61,15 +61,23 @@ export interface ImageJob {
   progressPercent: number; // 0 to 100
   currentStage: JobStage;
   resultImage?: string;
+  resultStoragePath?: string;
+  resultImageUrl?: string;
+  verificationStatus?: "VERIFIED" | "PARTIALLY_VERIFIED" | "UNVERIFIED" | string;
+  verificationResult?: any;
   error?: string;
+  errorMessage?: string;
   attempts: number;
   maxRetries: number;
   providerUsed?: ImageProviderId;
   modelUsed?: string;
   totalCostUsd: number;
+  createdAt?: string;
   startedAt: string;
   updatedAt: string;
   completedAt?: string;
+  deadlineAt?: string;
+  workerHeartbeatAt?: string;
   latencyMs?: number;
   accuracy?: number;
   verification?: any;

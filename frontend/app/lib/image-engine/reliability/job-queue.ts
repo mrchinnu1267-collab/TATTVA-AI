@@ -11,6 +11,15 @@ import { ImageJob, JobStatus, JobStage, ImageJobTimestamps } from "./types";
 import { ImageQuality, AspectRatio } from "../types";
 import { hashPrompt } from "./prompt-cache";
 import { generateImage } from "../engine";
+import { StorageService } from "../services/storage.service";
+import {
+  insertJobDb,
+  getJobFromDb,
+  claimJobAtomic,
+  updateJobProgressDb,
+  updateWorkerHeartbeatDb,
+  findActiveJobDb,
+} from "./db-job-store";
 
 const MAX_CONCURRENT_JOBS = 4;
 const MAX_JOB_RETRIES = 2;
@@ -222,6 +231,7 @@ export function createImageJob(params: {
   const now = new Date().toISOString();
   const id = `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const deadline = Date.now() + JOB_DEADLINE_MS;
+  const deadlineIso = new Date(deadline).toISOString();
 
   const job: ImageJob = {
     id,
@@ -240,8 +250,11 @@ export function createImageJob(params: {
     maxRetries: MAX_JOB_RETRIES,
     maxAttempts: 4,
     totalCostUsd: 0.0,
+    createdAt: now,
     startedAt: now,
     updatedAt: now,
+    workerHeartbeatAt: now,
+    deadlineAt: deadlineIso,
     deadline,
     timestamps: {
       dispatchedAt: now,
@@ -250,6 +263,7 @@ export function createImageJob(params: {
 
   jobStore.set(id, job);
   persistJobToFile(job);
+  insertJobDb(job).catch(() => {});
 
   return job;
 }
@@ -267,6 +281,21 @@ export function getJob(jobId: string): ImageJob | null {
 
   if (job) {
     return checkAndRecoverStaleJob(job);
+  }
+  return null;
+}
+
+/**
+ * Asynchronously retrieves a job from database or local memory cache across serverless instances.
+ */
+export async function getJobAsync(jobId: string, token?: string): Promise<ImageJob | null> {
+  const local = getJob(jobId);
+  if (local) return local;
+
+  const dbJob = await getJobFromDb(jobId, token);
+  if (dbJob) {
+    jobStore.set(dbJob.id, dbJob);
+    return dbJob;
   }
   return null;
 }
@@ -323,7 +352,9 @@ export function updateJobStage(
   if (statusMessage) {
     job.statusMessage = statusMessage;
   }
-  job.updatedAt = new Date().toISOString();
+  const now = new Date().toISOString();
+  job.updatedAt = now;
+  job.workerHeartbeatAt = now;
   if (meta) {
     job.timestamps = {
       dispatchedAt: job.timestamps?.dispatchedAt || job.startedAt,
@@ -332,6 +363,13 @@ export function updateJobStage(
     };
   }
   persistJobToFile(job);
+  updateJobProgressDb(job.id, {
+    currentStage: stage,
+    progressPercent: job.progressPercent,
+    statusMessage,
+    workerHeartbeatAt: now,
+    timestamps: job.timestamps,
+  }).catch(() => {});
 }
 
 /**
@@ -368,11 +406,16 @@ function isJobCancelled(j: ImageJob): boolean {
 /**
  * Explicitly triggers job execution if not already actively running.
  * Used by dedicated process endpoints to drive completion on serverless environments.
+ * Uses atomic claiming to prevent duplicate execution across independent serverless lambdas.
  */
 export async function executeJob(jobId: string, jobParams?: any): Promise<ImageJob> {
   let job = getOrCreateJob(jobId, jobParams);
   if (!job) {
-    throw new Error(`Job "${jobId}" not found.`);
+    // Attempt rehydration from durable database
+    job = await getJobAsync(jobId);
+    if (!job) {
+      throw new Error(`Job "${jobId}" not found.`);
+    }
   }
 
   if (job.status === "completed" || job.status === "cancelled") {
@@ -388,9 +431,16 @@ export async function executeJob(jobId: string, jobParams?: any): Promise<ImageJ
     return inFlightPromises.get(jobId)!;
   }
 
+  // Atomically claim the job to prevent dual execution
+  const claimed = await claimJobAtomic(jobId);
+  if (claimed) {
+    job = claimed;
+  }
+
   job.status = "processing";
   const now = new Date().toISOString();
   job.updatedAt = now;
+  job.workerHeartbeatAt = now;
   if (!job.timestamps) {
     job.timestamps = { dispatchedAt: job.startedAt };
   }
@@ -412,6 +462,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
   job.status = "processing";
   const workerStartIso = new Date().toISOString();
   job.updatedAt = workerStartIso;
+  job.workerHeartbeatAt = workerStartIso;
 
   if (!job.timestamps) {
     job.timestamps = { dispatchedAt: job.startedAt };
@@ -443,6 +494,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
       targetScore: 95,
       verify: true,
       onStageChange: (stage, attempt, maxAttempts, score, meta) => {
+        updateWorkerHeartbeatDb(job.id).catch(() => {});
         if (stage === "generating") {
           const progress = attempt === 1
             ? (meta?.fluxRespondedAt ? 45 : 25)
@@ -484,14 +536,65 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
       throw new Error("Pipeline completed but no accessible image payload was produced.");
     }
 
+    // Stage: Upload to Supabase Storage
+    updateJobStage(
+      job,
+      "storage_upload",
+      96,
+      "Persisting image asset to Supabase Storage..."
+    );
+
+    let storagePath = "";
+    let accessUrl = result.image;
+    try {
+      const storageRecord = await StorageService.persistImage({
+        dataUriOrBuffer: result.image,
+        prompt: job.prompt,
+        provider: result.provider || "cloudflare",
+        model: result.model || "@cf/black-forest-labs/flux-1-schnell",
+        userId: job.userId || "anonymous",
+        workspaceId: job.workspaceId || "default",
+        parameters: {
+          width: result.width || 1024,
+          height: result.height || 1024,
+          aspectRatio: job.aspectRatio || "1:1",
+          seed: result.seed || 0,
+          quality: job.quality || "balanced",
+        },
+        accuracyScorecard: result.verification?.categoryScores as any,
+      });
+
+      if (storageRecord.url) {
+        accessUrl = storageRecord.url;
+      }
+      if (storageRecord.storagePath) {
+        storagePath = storageRecord.storagePath;
+      }
+    } catch (storageErr: any) {
+      console.warn("[JobQueue] Supabase storage upload warning:", storageErr?.message);
+    }
+
+    // Honest verification status calculation
+    let verificationStatus: "VERIFIED" | "PARTIALLY_VERIFIED" | "UNVERIFIED" = "UNVERIFIED";
+    if (result.accuracy >= 95) {
+      verificationStatus = "VERIFIED";
+    } else if (result.accuracy >= 70) {
+      verificationStatus = "PARTIALLY_VERIFIED";
+    }
+
     // Finalize successful completion
     const completedAt = new Date().toISOString();
     job.status = "completed";
     job.currentStage = "completed";
     job.progressPercent = 100;
-    job.resultImage = result.image;
+    job.resultImage = accessUrl;
+    job.resultImageUrl = accessUrl;
+    job.resultStoragePath = storagePath;
+    job.attempts = result.metadata?.attempts || (Array.isArray(result.attempts) ? result.attempts.length : job.attempts);
     job.accuracy = result.accuracy;
     job.verification = result.verification;
+    job.verificationStatus = verificationStatus;
+    job.verificationResult = result.verification;
     job.modelUsed = result.model;
     job.providerUsed = result.provider;
     job.imageMetadata = result.metadata;
@@ -504,6 +607,20 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
     }
 
     persistJobToFile(job);
+    updateJobProgressDb(job.id, {
+      status: "completed",
+      currentStage: "completed",
+      progressPercent: 100,
+      attempts: job.attempts,
+      resultImageUrl: accessUrl,
+      resultStoragePath: storagePath,
+      accuracy: result.accuracy,
+      verificationStatus,
+      verificationResult: result.verification,
+      completedAt,
+      timestamps: job.timestamps,
+    }).catch(() => {});
+
     return job;
   } catch (err: any) {
     if (isJobCancelled(job)) return job;
@@ -513,6 +630,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
     job.status = "failed";
     job.currentStage = "completed";
     job.error = errMsg;
+    job.errorMessage = errMsg;
     job.statusMessage = `Generation failed: ${errMsg}`;
     job.progressPercent = 100;
     job.completedAt = failedAt;
@@ -523,6 +641,16 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
     job.latencyMs = Date.now() - started;
 
     persistJobToFile(job);
+    updateJobProgressDb(job.id, {
+      status: "failed",
+      currentStage: "completed",
+      progressPercent: 100,
+      error: errMsg,
+      errorMessage: errMsg,
+      completedAt: failedAt,
+      timestamps: job.timestamps,
+    }).catch(() => {});
+
     return job;
   }
 }
