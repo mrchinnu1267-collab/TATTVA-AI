@@ -169,112 +169,130 @@ export class MasterAIOrchestrator {
       promptAnalysis.resolvedPrompt || humanAnalysis.referenceResolution.resolvedQuery || cleanUserPrompt;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // 2. EARLY ROUTING: RESEARCH-TO-FILE GENERATION ENGINE (Bypasses redundant 3-5s classification LLM call)
-    const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
-      history: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        generatedDocument: (m as any).generatedDocument,
-        attachments: m.attachments,
-      })),
-      hasAttachments: hasAttachedFile,
-      inChatConversation: true,
-    });
+    // 2. EARLY ROUTING: IMAGE GENERATION & RESEARCH-TO-FILE ENGINE
+    // Detect image-generation intent accurately:
+    // Requests containing terms such as poster, banner, flyer, logo, illustration, wallpaper, and image
+    // MUST route to the Image Generation Engine and never generate a PPTX file.
+    // PPTX generation is reserved strictly for explicit requests for presentations, PowerPoint, or slides.
+    const isExplicitPresentation =
+      /\b(ppt|pptx|powerpoint|presentation|slide deck|slides|slideshow)\b/i.test(queryForClassification || cleanUserPrompt) ||
+      /\b\d+\s*[- ]*(slide|slides|sld)\b/i.test(queryForClassification || cleanUserPrompt);
 
-    if (docIntent.isDocumentRequest) {
-      if (docIntent.needsClarification) {
-        return {
-          role: "assistant",
-          content: docIntent.clarificationQuestion || "Could you please specify the topic or content you would like me to prepare?",
-          kind: "text",
-          intent: "document_generation",
-          modelUsed: "TATTVA-Intent-Detector",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-        };
-      }
+    const isImageIntent =
+      !hasAttachedFile &&
+      !isExplicitPresentation &&
+      !/\b(excel sheet|xlsx|spreadsheet|workbook|csv file|\.csv|\.xlsx|\.docx|word doc|word document)\b/i.test(queryForClassification || cleanUserPrompt) &&
+      (/\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|painting|avatar)\b/i.test(queryForClassification || cleanUserPrompt) ||
+        /\b(generate|create|make|draw|paint|render|design)\s+.*?\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|avatar)\b/i.test(queryForClassification || cleanUserPrompt) ||
+        /\b(photo of|portrait of|picture of|illustration of|render of|wallpaper of|poster of|banner of|logo of)\b/i.test(queryForClassification || cleanUserPrompt));
 
-      try {
-        const docPkg = await synthesizeResearchToFile(docIntent, {
-          apiKey,
-          userId: context.userId || "user_workspace",
-          attachmentBuffer: attachmentBuf,
-          attachmentFilename: attachmentName,
-        });
+    if (!isImageIntent) {
+      const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
+        history: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          generatedDocument: (m as any).generatedDocument,
+          attachments: m.attachments,
+        })),
+        hasAttachments: hasAttachedFile,
+        inChatConversation: true,
+      });
 
-        // Resolve clean, concise accompanying message (e.g., "Your presentation on The Evolution of Gaming is ready.")
-        let fileTypeLabel = "file";
-        const fmt = (docPkg.document.format || "").toLowerCase();
-        if (fmt === "pptx" || docPkg.intent.archetype === "presentation") {
-          fileTypeLabel = "presentation";
-        } else if (fmt === "xlsx" || fmt === "csv" || docPkg.intent.archetype === "spreadsheet") {
-          fileTypeLabel = "spreadsheet";
-        } else if (docPkg.intent.archetype === "resume") {
-          fileTypeLabel = "resume";
-        } else if (docPkg.intent.archetype === "poster") {
-          fileTypeLabel = "poster";
-        } else if (docPkg.intent.archetype === "project_documentation") {
-          fileTypeLabel = "project documentation";
-        } else if (docPkg.intent.archetype === "chart_diagram") {
-          fileTypeLabel = "diagram";
-        } else if (fmt === "pdf") {
-          fileTypeLabel = "PDF";
-        } else if (fmt === "docx") {
-          fileTypeLabel = "document";
-        } else if (["py", "java", "c", "cpp", "js", "ts", "html", "css", "sql"].includes(fmt)) {
-          fileTypeLabel = "program file";
+      if (docIntent.isDocumentRequest) {
+        if (docIntent.needsClarification) {
+          return {
+            role: "assistant",
+            content: docIntent.clarificationQuestion || "Could you please specify the topic or content you would like me to prepare?",
+            kind: "text",
+            intent: "document_generation",
+            modelUsed: "TATTVA-Intent-Detector",
+            provider: "local",
+            latencyMs: Date.now() - startTime,
+          };
         }
-        const shortMessage = docPkg.summary || (docIntent.isRevision
-          ? `Your revised ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`
-          : `Your ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`);
 
-        return {
-          role: "assistant",
-          content: shortMessage,
-          kind: "text",
-          intent: "document_generation",
-          modelUsed: "TATTVA Universal File Engine",
-          provider: "gemini",
-          latencyMs: Date.now() - startTime,
-          attachments: [
-            {
-              name: docPkg.document.filename,
-              type: docPkg.document.mimeType,
-              size: docPkg.document.sizeBytes,
-              url: docPkg.vault.signedUrl,
+        try {
+          const docPkg = await synthesizeResearchToFile(docIntent, {
+            apiKey,
+            userId: context.userId || "user_workspace",
+            attachmentBuffer: attachmentBuf,
+            attachmentFilename: attachmentName,
+          });
+
+          // Resolve clean, concise accompanying message (e.g., "Your presentation on The Evolution of Gaming is ready.")
+          let fileTypeLabel = "file";
+          const fmt = (docPkg.document.format || "").toLowerCase();
+          if (fmt === "pptx" || docPkg.intent.archetype === "presentation") {
+            fileTypeLabel = "presentation";
+          } else if (fmt === "xlsx" || fmt === "csv" || docPkg.intent.archetype === "spreadsheet") {
+            fileTypeLabel = "spreadsheet";
+          } else if (docPkg.intent.archetype === "resume") {
+            fileTypeLabel = "resume";
+          } else if (docPkg.intent.archetype === "poster") {
+            fileTypeLabel = "poster";
+          } else if (docPkg.intent.archetype === "project_documentation") {
+            fileTypeLabel = "project documentation";
+          } else if (docPkg.intent.archetype === "chart_diagram") {
+            fileTypeLabel = "diagram";
+          } else if (fmt === "pdf") {
+            fileTypeLabel = "PDF";
+          } else if (fmt === "docx") {
+            fileTypeLabel = "document";
+          } else if (["py", "java", "c", "cpp", "js", "ts", "html", "css", "sql"].includes(fmt)) {
+            fileTypeLabel = "program file";
+          }
+          const shortMessage = docPkg.summary || (docIntent.isRevision
+            ? `Your revised ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`
+            : `Your ${fileTypeLabel} on ${docPkg.intent.topic} is ready.`);
+
+          return {
+            role: "assistant",
+            content: shortMessage,
+            kind: "text",
+            intent: "document_generation",
+            modelUsed: "TATTVA Universal File Engine",
+            provider: "gemini",
+            latencyMs: Date.now() - startTime,
+            attachments: [
+              {
+                name: docPkg.document.filename,
+                type: docPkg.document.mimeType,
+                size: docPkg.document.sizeBytes,
+                url: docPkg.vault.signedUrl,
+              },
+            ],
+            generatedDocument: {
+              fileId: docPkg.vault.fileId,
+              filename: docPkg.document.filename,
+              format: docPkg.document.format,
+              mimeType: docPkg.document.mimeType,
+              sizeBytes: docPkg.document.sizeBytes,
+              downloadUrl: docPkg.vault.signedUrl,
+              title: docPkg.intent.topic,
+              archetype: docPkg.intent.archetype,
+              dataUri: docPkg.document.dataUri,
+              summary: shortMessage,
+              outlineMarkdown: docPkg.outlineMarkdown,
+              slides: docPkg.slides,
+              sections: docPkg.sections,
             },
-          ],
-          generatedDocument: {
-            fileId: docPkg.vault.fileId,
-            filename: docPkg.document.filename,
-            format: docPkg.document.format,
-            mimeType: docPkg.document.mimeType,
-            sizeBytes: docPkg.document.sizeBytes,
-            downloadUrl: docPkg.vault.signedUrl,
-            title: docPkg.intent.topic,
-            archetype: docPkg.intent.archetype,
-            dataUri: docPkg.document.dataUri,
-            summary: shortMessage,
-            outlineMarkdown: docPkg.outlineMarkdown,
-            slides: docPkg.slides,
-            sections: docPkg.sections,
-          },
-          progressStages: docPkg.progressStages,
-        };
-      } catch (docErr: any) {
-        const errorMsg = docErr instanceof Error ? docErr.message : String(docErr);
-        console.error("[TATTVA Orchestrator] Document generation error:", errorMsg);
-        // Explicit file creation request failed: return accurate error, never fall back to chat text improvisation
-        return {
-          role: "assistant",
-          content: `I encountered an issue generating your ${docIntent.format.toUpperCase()} file: ${errorMsg}. Please try again.`,
-          kind: "text",
-          intent: "document_generation",
-          modelUsed: "TATTVA Universal File Engine",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-          warnings: [errorMsg],
-        };
+            progressStages: docPkg.progressStages,
+          };
+        } catch (docErr: any) {
+          const errorMsg = docErr instanceof Error ? docErr.message : String(docErr);
+          console.error("[TATTVA Orchestrator] Document generation error:", errorMsg);
+          // Explicit file creation request failed: return accurate error, never fall back to chat text improvisation
+          return {
+            role: "assistant",
+            content: `I encountered an issue generating your ${docIntent.format.toUpperCase()} file: ${errorMsg}. Please try again.`,
+            kind: "text",
+            intent: "document_generation",
+            modelUsed: "TATTVA Universal File Engine",
+            provider: "local",
+            latencyMs: Date.now() - startTime,
+            warnings: [errorMsg],
+          };
+        }
       }
     }
 
@@ -334,12 +352,20 @@ export class MasterAIOrchestrator {
       }
 
       try {
-        const imageResult = await generateImageWithMultimodalRAG({
-          prompt: candidatePrompt,
-          referenceImage: imageToModerate,
-          quality: "balanced",
-          userId: context.userId,
-        });
+        const imageResult = imageToModerate
+          ? await generateImageWithMultimodalRAG({
+              prompt: candidatePrompt,
+              referenceImage: imageToModerate,
+              quality: "balanced",
+              userId: context.userId,
+            })
+          : await generateImage({
+              prompt: candidatePrompt,
+              quality: "balanced",
+              userId: context.userId,
+              maxAttempts: 4,
+              targetScore: 95,
+            });
 
         const failed = imageResult.verification.requirements.filter(
           (item) => item.met === false

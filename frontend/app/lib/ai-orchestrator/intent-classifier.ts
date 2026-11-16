@@ -22,11 +22,15 @@ const INTENT_PATTERNS: Array<{ intent: TaskIntent; patterns: RegExp[] }> = [
   {
     intent: "image_generation",
     patterns: [
-      /\b(generate|create|draw|paint|render)\b.*\b(ai image|illustration|digital art|drawing|avatar|logo)\b/i,
+      /\b(generate|create|draw|paint|render|design|make)\b.*\b(poster|banner|flyer|logo|illustration|wallpaper|ai image|image|digital art|drawing|avatar|graphic|artwork)\b/i,
       /\b(draw|paint|sketch|illustrate)\b\s+(me\s+)?(a|an|the)\b/i,
       /\bgenerate\s+(an?\s+)?image\b/i,
-      /\b(a|an)?\s*(high-resolution|3d|digital|photorealistic|cinematic|realistic|ultra-detailed|detailed|anime|studio)\s+(render|digital render|render of|photo|portrait|illustration|painting|drawing|artwork|image)\b/i,
-      /\bphoto of\b|\bportrait of\b|\bpicture of\b|\billustration of\b|\brender of\b/i,
+      /\b(poster|banner|flyer|logo|illustration|wallpaper)\s+(for|about|of|depicting|with)\b/i,
+      /\b(a|an)\s+(poster|banner|flyer|logo|illustration|wallpaper|digital painting|digital artwork)\b/i,
+      /\b(a|an)?\s*(high-resolution|3d|digital|photorealistic|cinematic|realistic|ultra-detailed|detailed|anime|studio)\s+(render|digital render|render of|photo|portrait|illustration|painting|drawing|artwork|image|poster|banner|wallpaper)\b/i,
+      /\bphoto of\b|\bportrait of\b|\bpicture of\b|\billustration of\b|\brender of\b|\bwallpaper of\b|\bposter of\b|\bbanner of\b|\blogo of\b/i,
+      /చిత్రం|పోస్టర్|లోగో|బానర్|ఫోటో/i,
+      /पोस्टर|बैनर|लोगो|चित्र|तस्वीर|फोटो/i,
     ],
   },
   {
@@ -134,8 +138,18 @@ export async function classifyIntent(
     }
   }
 
+  // Explicit Presentation / PPTX Check
+  const isExplicitPresentation =
+    /\b(ppt|pptx|powerpoint|presentation|slide deck|slides|slideshow)\b/i.test(cleanPrompt) ||
+    /\b\d+\s*[- ]*(slide|slides|sld)\b/i.test(cleanPrompt);
+
   // Scan patterns
   for (const group of INTENT_PATTERNS) {
+    // If user explicitly asks for slides/presentation/PPTX, don't classify as pure image_generation
+    if (group.intent === "image_generation" && isExplicitPresentation) {
+      continue;
+    }
+
     if (group.patterns.some((p) => p.test(cleanPrompt))) {
       if (primaryIntent === "general_chat") {
         primaryIntent = group.intent;

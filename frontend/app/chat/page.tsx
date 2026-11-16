@@ -5188,6 +5188,17 @@ export default function ChatPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        regenerateResponse(msg.id);
+                                      }}
+                                      className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
+                                      title="Regenerate Image"
+                                    >
+                                      <RefreshCw className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
                                       }}
                                       className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
@@ -5198,15 +5209,34 @@ export default function ChatPage() {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 text-xs">
+                                <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 px-3 text-xs">
                                   <div className="text-neutral-500 font-mono text-[11px] flex items-center gap-1.5">
                                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">HD 1024px</span>
-                                    <span>{msg.imageMetadata?.model || "TATTVA Neural Vision HD"}</span>
+                                    <span>{msg.imageMetadata?.model || "FLUX.1 Schnell"}</span>
                                     {msg.imageMetadata?.generation_time_seconds && (
                                       <span> • {msg.imageMetadata.generation_time_seconds}s</span>
                                     )}
                                   </div>
-                                  <span className="text-[10px] text-neutral-400">Long-press image for options</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => downloadImage(msg.image!)}
+                                      className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition cursor-pointer"
+                                      title="Download Image"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                      <span>Download</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => regenerateResponse(msg.id)}
+                                      className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition cursor-pointer"
+                                      title="Regenerate Image"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                      <span>Regenerate</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             )}

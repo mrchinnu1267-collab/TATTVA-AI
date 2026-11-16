@@ -198,6 +198,10 @@ try {
   if (intelligentRefinement?.runIntelligentRefinementTests) {
     await intelligentRefinement.runIntelligentRefinementTests();
   }
+  const outputRouting = await jiti("./output-routing-intent.test.ts");
+  if (outputRouting?.runOutputRoutingTests) {
+    await outputRouting.runOutputRoutingTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

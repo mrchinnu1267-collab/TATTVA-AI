@@ -239,11 +239,12 @@ export function detectDocumentIntent(
     /\b(create|draft|generate|make|build|write)\s+a?\s*(resume|cv|curriculum vitae)\b/i.test(norm) ||
     /\b(resume|cv)\s+(for|of)\b/i.test(norm);
 
-  // F. Poster / Flyer
+  // F. Poster / Flyer (Only when explicitly requesting a presentation, slides, or document file; otherwise treated as visual image generation)
   const isPosterExplicit =
-    /\b(poster|flyer|event poster|scientific poster|infographic poster|banner)\b/i.test(norm) ||
+    (/\b(poster|flyer|event poster|scientific poster|infographic poster|banner)\b/i.test(norm) ||
     /\b(create|design|make|generate)\s+a?\s*(poster|flyer|banner)\b/i.test(norm) ||
-    /\bposter\s+(for|about|on)\b/i.test(norm);
+    /\bposter\s+(for|about|on)\b/i.test(norm)) &&
+    (isPptExplicit || Boolean(requestedSlideCount && requestedSlideCount > 0) || isPdfExplicit || isDocxExplicit);
 
   // G. Project Documentation
   const isProjectDocExplicit =
@@ -466,7 +467,23 @@ export function detectDocumentIntent(
   let isDocumentRequest = false;
   let confidence = 0.5;
 
-  if (options?.forceDocument) {
+  // Visual Image / Graphic Intent Exclusion:
+  // Requests containing terms such as poster, banner, flyer, logo, illustration, wallpaper, and image
+  // must route to the Image Generation Engine and NEVER generate a PPTX/document unless
+  // the user explicitly requested a presentation, PowerPoint, slides, spreadsheet, or docx.
+  const isImageGraphicIntent =
+    (/\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|painting|avatar|photo|portrait)\b/i.test(norm) ||
+      /\b(generate|create|make|draw|paint|render|design)\s+.*?\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|avatar)\b/i.test(norm)) &&
+    !isPptExplicit &&
+    !requestedSlideCount &&
+    !isExcelExplicit &&
+    !isDocxExplicit &&
+    !isPdfExplicit;
+
+  if (isImageGraphicIntent) {
+    isDocumentRequest = false;
+    confidence = 0.0;
+  } else if (options?.forceDocument) {
     isDocumentRequest = true;
     confidence = 1.0;
   } else if (isRevisionRequest) {
@@ -536,8 +553,8 @@ export function detectDocumentIntent(
     archetype = "resume";
     format = isPdfExplicit ? "pdf" : "docx";
   } else if (isPosterExplicit) {
-    archetype = "poster";
-    format = isPdfExplicit ? "pdf" : "pptx";
+    archetype = isPptExplicit || requestedSlideCount ? "presentation" : "poster";
+    format = isPptExplicit || requestedSlideCount ? "pptx" : isPdfExplicit ? "pdf" : "docx";
   } else if (isProjectDocExplicit) {
     archetype = "project_documentation";
     format = isPdfExplicit ? "pdf" : "docx";
