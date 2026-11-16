@@ -152,6 +152,9 @@ export function mapRowToJob(row: any): ImageJob {
     resultImage: row.result_image_url || undefined,
     error: row.error_message || undefined,
     errorMessage: row.error_message || undefined,
+    statusMessage: row.status_message || (row.status === "failed" && row.error_message ? `Generation failed: ${row.error_message}` : undefined),
+    providerUsed: row.provider_used || row.timestamps?.providerUsed || undefined,
+    modelUsed: row.model_used || row.timestamps?.modelUsed || undefined,
     timestamps: (row.timestamps as ImageJobTimestamps) || {},
     createdAt: row.created_at,
     startedAt,
@@ -192,7 +195,11 @@ export function mapJobToRow(job: ImageJob): Record<string, any> {
     result_storage_path: job.resultStoragePath || null,
     result_image_url: job.resultImageUrl || job.resultImage || null,
     error_message: job.error || job.errorMessage || null,
-    timestamps: job.timestamps || {},
+    timestamps: {
+      ...(job.timestamps || {}),
+      ...(job.providerUsed ? { providerUsed: job.providerUsed } : {}),
+      ...(job.modelUsed ? { modelUsed: job.modelUsed } : {}),
+    },
     created_at: job.createdAt || job.startedAt || startedIso,
     updated_at: job.updatedAt || new Date().toISOString(),
     started_at: startedIso,
@@ -443,7 +450,13 @@ export async function updateJobProgressDb(
         rowUpdates.error_message = updates.error || updates.errorMessage;
       }
       if (updates.completedAt !== undefined) rowUpdates.completed_at = updates.completedAt;
-      if (updates.timestamps !== undefined) rowUpdates.timestamps = updates.timestamps;
+      if (updates.timestamps !== undefined || merged.providerUsed || merged.modelUsed) {
+        rowUpdates.timestamps = {
+          ...(updates.timestamps || merged.timestamps || {}),
+          ...(merged.providerUsed ? { providerUsed: merged.providerUsed } : {}),
+          ...(merged.modelUsed ? { modelUsed: merged.modelUsed } : {}),
+        };
+      }
 
       const { data, error } = await supabase
         .from("image_generation_jobs")

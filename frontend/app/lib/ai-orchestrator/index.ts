@@ -396,6 +396,8 @@ export class MasterAIOrchestrator {
             prompt: job.prompt,
             quality: job.quality,
             aspectRatio: job.aspectRatio,
+            providerUsed: selectedProvider,
+            modelUsed: selectedModel,
             userId: job.userId,
             workspaceId: job.workspaceId,
             startedAt: job.startedAt,

@@ -338,7 +338,7 @@ async function generateWithGemini(req: ProviderRequest): Promise<ProviderResult>
     return result;
   } catch (error) {
     const classified = classifyProviderError("Gemini image", error);
-    if (classified.cooldownMs) setCooldown("gemini", classified.cooldownMs, classified.message);
+    if (classified.cooldownMs) setCooldown("gemini", classified.cooldownMs, classified.message, classified.category, classified.retryable);
     throw classified;
   }
 }

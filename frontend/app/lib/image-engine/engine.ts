@@ -207,6 +207,15 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       }
     }
 
+    if (providersToTry.length === 0) {
+      if (!lastError) {
+        lastError = compatibleOrder.length > 0
+          ? `All candidate image providers (${compatibleOrder.join(", ")}) are currently in cooldown or quota exhausted.`
+          : "No compatible image generation providers available for this request.";
+      }
+      break;
+    }
+
     for (const provider of providersToTry) {
       const request = requestFor(compiled, attemptPrompt, attempt, provider);
       const providerStarted = Date.now();
@@ -293,6 +302,17 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         if (lastError.includes(SAFETY_REJECTION_MESSAGE)) {
           throw error;
         }
+
+        const isNonRetryable =
+          error instanceof ImageProviderError &&
+          (!error.retryable ||
+            error.category === "QUOTA_EXHAUSTION" ||
+            error.category === "INVALID_AUTHENTICATION" ||
+            error.category === "MODEL_CONFIGURATION_ERROR");
+
+        if (isNonRetryable && providersToTry.length <= 1) {
+          break;
+        }
       }
     }
 
@@ -301,13 +321,20 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     if (best && best.verification.score >= targetScore) break;
     // 2. Vision verification unavailable (avoid useless retries when vision is offline/missing key)
     if (best && best.verification.method === "unavailable") break;
-    // 3. Provider failed to generate on final attempt
-    if (!generated && attempt >= maxAttempts - 1) break;
+    // 3. Provider failed to generate on final attempt or non-retryable failure encountered
+    if (!generated) {
+      const isFatalNonRetryable =
+        /quota|limit:\s*0|credits|429|unauthorized|forbidden|invalid.*key|neurons/i.test(lastError);
+      if (isFatalNonRetryable || attempt >= maxAttempts - 1) {
+        break;
+      }
+    }
   }
 
   if (!best) {
+    const attemptedProvider = options.provider || (order.length > 0 ? order.join("/") : "AI Image Engine");
     throw new ImageProviderError(
-      lastError || "Cloudflare Workers AI image generation failed. Please try again."
+      lastError || `Image generation failed on provider (${attemptedProvider}). Please try again.`
     );
   }
 

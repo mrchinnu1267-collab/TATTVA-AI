@@ -20,8 +20,10 @@ import { generateImage } from "../app/lib/image-engine/engine";
 import { verifyImage, unavailableVerification } from "../app/lib/image-engine/verifier";
 import { constructIntelligentRefinedPrompt } from "../app/lib/image-engine/prompt-compiler";
 import { evaluatePromptAdherence } from "../app/lib/image-engine/intelligence/adherence-evaluator";
+import { clearCooldowns } from "../app/lib/image-engine/providers";
 
 export async function runIntelligentRefinementTests(): Promise<void> {
+  clearCooldowns();
   console.log("\n================================================================================");
   console.log("⚡ TATTVA AI - INTELLIGENT AUTOMATIC REFINEMENT & VISION AUDIT TEST SUITE");
   console.log("================================================================================\n");

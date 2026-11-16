@@ -169,6 +169,9 @@ type ChatMessage = {
     prompt?: string;
     statusMessage?: string;
     error?: string;
+    errorMessage?: string;
+    providerUsed?: string;
+    modelUsed?: string;
     attempts?: number;
     maxAttempts?: number;
     accuracy?: number;
@@ -2149,6 +2152,7 @@ export default function ChatPage() {
     setMessages((prev) => {
       const next = prev.map((m) => {
         if (m.id !== msgId) return m;
+        const failureReason = job.error || job.errorMessage || (job.statusMessage && !job.statusMessage.startsWith("Generating image") && !job.statusMessage.startsWith("Worker") ? job.statusMessage : "") || "Image generation pipeline encountered an issue.";
         return {
           ...m,
           imageJob: {
@@ -2156,8 +2160,13 @@ export default function ChatPage() {
             status: "failed" as const,
             currentStage: "failed",
             progressPercent: 100,
-            error: job.error || "Image generation pipeline encountered an issue.",
-            statusMessage: job.statusMessage || `Generation failed: ${job.error || "Pipeline failed"}`,
+            error: failureReason,
+            errorMessage: failureReason,
+            statusMessage: `Generation failed: ${failureReason}`,
+            providerUsed: job.providerUsed || m.imageJob?.providerUsed,
+            modelUsed: job.modelUsed || m.imageJob?.modelUsed,
+            attempts: job.attempts || m.imageJob?.attempts,
+            maxAttempts: job.maxAttempts || m.imageJob?.maxAttempts,
           },
         };
       });
@@ -2267,6 +2276,10 @@ export default function ChatPage() {
                 currentStage: job.currentStage,
                 progressPercent: job.progressPercent || 15,
                 statusMessage: job.statusMessage,
+                error: job.error || job.errorMessage || m.imageJob?.error,
+                errorMessage: job.errorMessage || job.error || m.imageJob?.errorMessage,
+                providerUsed: job.providerUsed || m.imageJob?.providerUsed,
+                modelUsed: job.modelUsed || m.imageJob?.modelUsed,
                 timestamps: job.timestamps,
                 attempts: job.attempts || 1,
                 maxAttempts: job.maxAttempts || 4,
@@ -5413,10 +5426,20 @@ export default function ChatPage() {
                                         {msg.imageJob.accuracy >= 95 ? "VERIFIED" : msg.imageJob.accuracy >= 70 ? "PARTIAL" : "UNVERIFIED"} {msg.imageJob.accuracy}%
                                       </span>
                                     )}
-                                    <span className="text-[11px] font-mono text-neutral-400">FLUX.1 Schnell + Gemini Vision</span>
+                                    <span className="text-[11px] font-mono text-neutral-400">
+                                      {msg.imageJob.providerUsed === "gemini"
+                                        ? `${msg.imageJob.modelUsed || "gemini-3.1-flash-image"} + Gemini Vision`
+                                        : msg.imageJob.providerUsed === "cloudflare"
+                                        ? "FLUX.1 Schnell + Gemini Vision"
+                                        : msg.imageJob.modelUsed
+                                        ? `${msg.imageJob.modelUsed} + Gemini Vision`
+                                        : "AI Image Engine + Gemini Vision"}
+                                    </span>
                                   </div>
-                                  <span className="text-[11px] font-mono font-bold text-neutral-500 dark:text-neutral-400">
-                                    {msg.imageJob.status === "failed" ? "0%" : `${msg.imageJob.progressPercent || 15}%`}
+                                  <span className={`text-[11px] font-mono font-bold ${
+                                    msg.imageJob.status === "failed" ? "text-red-500 dark:text-red-400" : "text-neutral-500 dark:text-neutral-400"
+                                  }`}>
+                                    {msg.imageJob.status === "failed" ? "Failed" : `${msg.imageJob.progressPercent || 15}%`}
                                   </span>
                                 </div>
 
@@ -5442,21 +5465,37 @@ export default function ChatPage() {
                                   />
                                 </div>
 
-                                {/* Status Description */}
-                                <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
-                                  {msg.imageJob.statusMessage ||
-                                    (msg.imageJob.status === "queued"
-                                      ? "Job queued for generation..."
-                                      : msg.imageJob.status === "generating"
-                                      ? "Generating image with Cloudflare Workers AI FLUX.1 Schnell..."
-                                      : msg.imageJob.status === "verifying"
-                                      ? "Auditing visual prompt adherence with Gemini Vision..."
-                                      : msg.imageJob.status === "refining"
-                                      ? "Refining prompt adherence against visual feedback..."
-                                      : msg.imageJob.status === "uploading"
-                                      ? "Persisting generated image asset to Supabase Storage..."
-                                      : msg.imageJob.error || "Generation encountered an issue.")}
-                                </p>
+                                {/* Status Description / Error Display */}
+                                {msg.imageJob.status === "failed" ? (
+                                  <div className="space-y-2">
+                                    <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-400 font-medium leading-relaxed">
+                                      {msg.imageJob.error || msg.imageJob.errorMessage || (msg.imageJob.statusMessage && !msg.imageJob.statusMessage.startsWith("Generating image") ? msg.imageJob.statusMessage : "") || "Image generation pipeline encountered an issue. Please try again."}
+                                    </div>
+                                    {((msg.imageJob.error || msg.imageJob.errorMessage || msg.imageJob.statusMessage || "").toLowerCase().includes("quota") ||
+                                      (msg.imageJob.error || msg.imageJob.errorMessage || msg.imageJob.statusMessage || "").toLowerCase().includes("limit: 0") ||
+                                      (msg.imageJob.error || msg.imageJob.errorMessage || msg.imageJob.statusMessage || "").toLowerCase().includes("free tier") ||
+                                      (msg.imageJob.error || msg.imageJob.errorMessage || msg.imageJob.statusMessage || "").toLowerCase().includes("billing")) && (
+                                      <div className="p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 text-[11px] text-neutral-600 dark:text-neutral-400 leading-normal">
+                                        💡 <strong>Provider Notice:</strong> Google Gemini native image generation (<code className="text-[10px] font-mono">gemini-3.1-flash-image</code>) requires a linked Pay-as-you-go billing account in Google AI Studio (Free Tier rate limit is 0 for image generation models). Cloudflare Workers AI free tier provides 10,000 neurons/day.
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                                    {msg.imageJob.statusMessage ||
+                                      (msg.imageJob.status === "queued"
+                                        ? "Job queued for generation..."
+                                        : msg.imageJob.status === "generating"
+                                        ? `Generating image with ${msg.imageJob.providerUsed === "gemini" ? "Google Gemini" : "Cloudflare Workers AI FLUX.1 Schnell"}...`
+                                        : msg.imageJob.status === "verifying"
+                                        ? "Auditing visual prompt adherence with Gemini Vision..."
+                                        : msg.imageJob.status === "refining"
+                                        ? "Refining prompt adherence against visual feedback..."
+                                        : msg.imageJob.status === "uploading"
+                                        ? "Persisting generated image asset to Supabase Storage..."
+                                        : "Processing image asset...")}
+                                  </p>
+                                )}
 
                                 {/* Retry Button if Failed */}
                                 {msg.imageJob.status === "failed" && (

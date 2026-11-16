@@ -93,8 +93,12 @@ function classifyGeminiError(error: unknown): GeminiImageError {
   const lower = rawMessage.toLowerCase();
 
   if (/quota|exhausted|limit|resource_exhausted|429|credits/.test(lower)) {
+    const isFreeTierZero = /limit:\s*0|free tier/i.test(lower);
+    const friendlyPrefix = isFreeTierZero
+      ? "Google Gemini Native Image Generation requires a linked Pay-as-you-go billing account in Google AI Studio (Free Tier rate limit is 0 for image models)."
+      : "Gemini Image API quota exceeded or rate limit reached.";
     return new GeminiImageError(
-      `Gemini Image API quota exceeded or rate limit reached. ${truncate(rawMessage, 200)}`,
+      `${friendlyPrefix} ${truncate(rawMessage, 200)}`,
       {
         retryable: false,
         category: "QUOTA_EXHAUSTION",

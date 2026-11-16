@@ -511,7 +511,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
 
     const providerLabel =
       job.providerUsed === "gemini"
-        ? "Google Gemini"
+        ? "Google Gemini (gemini-3.1-flash-image)"
         : job.providerUsed === "cloudflare"
         ? "Cloudflare FLUX.1 Schnell"
         : "AI Image Engine";
@@ -722,6 +722,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
       progressPercent: 100,
       error: errMsg,
       errorMessage: errMsg,
+      statusMessage: job.statusMessage,
       completedAt: failedAt,
       timestamps: job.timestamps,
     }).catch(() => {});
