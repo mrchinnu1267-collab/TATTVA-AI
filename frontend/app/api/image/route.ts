@@ -35,6 +35,7 @@ export const maxDuration = 300;
 const VALID_QUALITIES: ImageQuality[] = ["fast", "balanced", "max"];
 const VALID_PROVIDERS: (ImageProviderChoice)[] = [
   "auto",
+  "gemini",
   "cloudflare",
 ];
 

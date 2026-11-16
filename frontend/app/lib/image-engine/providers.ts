@@ -15,6 +15,11 @@ import {
   isCloudflareConfigured,
   CLOUDFLARE_FLUX_MODEL,
 } from "./cloudflare/cloudflare-adapter";
+import {
+  generateWithGemini as generateWithGeminiNative,
+  isGeminiImageConfigured,
+  PREFERRED_GEMINI_IMAGE_MODEL,
+} from "./gemini/gemini-image-adapter";
 import type {
   ImageProviderChoice,
   ImageProviderId,
@@ -326,20 +331,11 @@ async function generateWithGemini(req: ProviderRequest): Promise<ProviderResult>
     const effectivePrompt = req.referenceImage
       ? `[REFERENCE CONDITIONING INSTRUCTION: Visually condition on the attached reference image. Maintain the core subject identity, recognizable facial features, and visual consistency while applying the following user instructions:]\n${req.prompt}`
       : req.prompt;
-    const result = await geminiImage(effectivePrompt, {
-      referenceImage: req.referenceImage,
-      aspectRatio: req.aspectRatio,
+    const result = await generateWithGeminiNative({
+      ...req,
+      prompt: effectivePrompt,
     });
-    return {
-      image: result.image,
-      provider: "gemini",
-      model: result.model,
-      seed: req.seed,
-      width: req.width,
-      height: req.height,
-      latencyMs: Date.now() - started,
-      revisedPrompt: result.revisedPrompt,
-    };
+    return result;
   } catch (error) {
     const classified = classifyProviderError("Gemini image", error);
     if (classified.cooldownMs) setCooldown("gemini", classified.cooldownMs, classified.message);
@@ -978,55 +974,107 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
 }
 
 export function resolveProviderOrder(
-  _requested?: ImageProviderChoice,
+  requested?: ImageProviderChoice,
   _quality: "fast" | "balanced" | "max" = "balanced",
-  _hasReferenceImage = false
+  hasReferenceImage = false
 ): ImageProviderId[] {
-  // Cloudflare Workers AI is the exclusive image generation provider.
-  // Gemini, Hugging Face, Pollinations, Local SD, DALL-E/OpenAI, and AI Horde are deactivated.
-  // Provider fallback chains and automatic switching are disabled.
-  return ["cloudflare"];
+  // If specific provider requested, honor explicit preference
+  if (requested === "gemini") {
+    return ["gemini"];
+  }
+  if (requested === "cloudflare") {
+    return ["cloudflare"];
+  }
+
+  // If request contains a reference image (image editing / conditioning):
+  // Cloudflare FLUX.1 Schnell only supports text-to-image.
+  // Google Gemini natively supports text-and-image-to-image editing.
+  if (hasReferenceImage) {
+    if (isGeminiImageConfigured()) {
+      return ["gemini"];
+    }
+  }
+
+  // Order active providers based on configuration and availability
+  const geminiAvailable = isGeminiImageConfigured() && getCooldownRemaining("gemini") === 0;
+  const cfAvailable = isCloudflareConfigured() && getCooldownRemaining("cloudflare") === 0;
+
+  if (geminiAvailable && cfAvailable) {
+    return ["gemini", "cloudflare"];
+  }
+  if (geminiAvailable) {
+    return ["gemini"];
+  }
+  if (cfAvailable) {
+    return ["cloudflare"];
+  }
+
+  // Fallback to configured provider
+  return isGeminiImageConfigured() ? ["gemini"] : ["cloudflare"];
 }
 
 export async function generateWithProvider(
   provider: ImageProviderId,
   req: ProviderRequest
 ): Promise<ProviderResult> {
-  // Enforce Cloudflare Workers AI as the exclusive provider
-  if (provider !== "cloudflare" && (provider as string) !== "auto") {
-    throw new ImageProviderError(
-      `Image provider '${provider}' has been deactivated. Cloudflare Workers AI (@cf/black-forest-labs/flux-1-schnell) is the exclusive image-generation provider in TATTVA AI.`,
-      { retryable: false, category: "MODEL_CONFIGURATION_ERROR" }
-    );
+  // 1. Google Gemini Native Image Generation
+  if (provider === "gemini") {
+    return generateWithGemini(req);
   }
 
-  // Cloudflare Workers AI execution
-  return generateWithCloudflare(req);
+  // 2. Cloudflare Workers AI FLUX.1 Schnell
+  if (provider === "cloudflare") {
+    return generateWithCloudflare(req);
+  }
+
+  // 3. Auto-routed execution
+  if ((provider as string) === "auto") {
+    if (req.referenceImage && isGeminiImageConfigured()) {
+      return generateWithGemini(req);
+    }
+    const order = resolveProviderOrder("auto", req.quality, Boolean(req.referenceImage));
+    const targetProvider = order[0] || "cloudflare";
+    if (targetProvider === "gemini") {
+      return generateWithGemini(req);
+    }
+    return generateWithCloudflare(req);
+  }
+
+  // Other providers remain deactivated
+  throw new ImageProviderError(
+    `Image provider '${provider}' is deactivated. TATTVA AI supports Google Gemini (${PREFERRED_GEMINI_IMAGE_MODEL}) and Cloudflare Workers AI (${CLOUDFLARE_FLUX_MODEL}).`,
+    { retryable: false, category: "MODEL_CONFIGURATION_ERROR" }
+  );
 }
 
 export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
   const cfConfigured = isCloudflareConfigured();
+  const geminiConfigured = isGeminiImageConfigured();
+  const geminiCooldown = getCooldownRemaining("gemini");
+  const cfCooldown = getCooldownRemaining("cloudflare");
 
   return [
+    {
+      id: "gemini",
+      label: "Google Gemini Native Image",
+      model: PREFERRED_GEMINI_IMAGE_MODEL,
+      configured: geminiConfigured,
+      available: geminiConfigured && geminiCooldown === 0,
+      status: geminiConfigured ? (geminiCooldown > 0 ? "RATE_LIMITED" : "AVAILABLE") : "CONFIGURATION_ERROR",
+      reason: geminiConfigured
+        ? undefined
+        : "Missing GEMINI_API_KEY in server environment variables.",
+    },
     {
       id: "cloudflare",
       label: "Cloudflare Workers AI",
       model: CLOUDFLARE_FLUX_MODEL,
       configured: cfConfigured,
-      available: cfConfigured,
-      status: cfConfigured ? "AVAILABLE" : "CONFIGURATION_ERROR",
+      available: cfConfigured && cfCooldown === 0,
+      status: cfConfigured ? (cfCooldown > 0 ? "RATE_LIMITED" : "AVAILABLE") : "CONFIGURATION_ERROR",
       reason: cfConfigured
         ? undefined
         : "Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN in server environment variables.",
-    },
-    {
-      id: "gemini",
-      label: "Google Gemini",
-      model: "deactivated",
-      configured: false,
-      available: false,
-      status: "TEMPORARILY_UNAVAILABLE",
-      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
     },
     {
       id: "huggingface",
@@ -1035,7 +1083,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       configured: false,
       available: false,
       status: "TEMPORARILY_UNAVAILABLE",
-      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+      reason: "Deactivated: TATTVA AI uses Google Gemini and Cloudflare Workers AI.",
     },
     {
       id: "pollinations",
@@ -1044,7 +1092,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       configured: false,
       available: false,
       status: "TEMPORARILY_UNAVAILABLE",
-      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+      reason: "Deactivated: TATTVA AI uses Google Gemini and Cloudflare Workers AI.",
     },
     {
       id: "openai",
@@ -1053,7 +1101,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       configured: false,
       available: false,
       status: "TEMPORARILY_UNAVAILABLE",
-      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+      reason: "Deactivated: TATTVA AI uses Google Gemini and Cloudflare Workers AI.",
     },
     {
       id: "local",
@@ -1062,7 +1110,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       configured: false,
       available: false,
       status: "TEMPORARILY_UNAVAILABLE",
-      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+      reason: "Deactivated: TATTVA AI uses Google Gemini and Cloudflare Workers AI.",
     },
   ];
 }

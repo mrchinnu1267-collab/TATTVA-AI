@@ -213,15 +213,8 @@ const ASPECT_OPTIONS: Array<{ id: AspectRatio; label: string }> = [
 
 const PROVIDER_OPTIONS: Array<{ id: string; label: string }> = [
   { id: "auto", label: "Auto (Intelligent Model Router)" },
+  { id: "gemini", label: "Google Gemini (gemini-3.1-flash-image)" },
   { id: "cloudflare", label: "Cloudflare Workers AI (FLUX.1 Schnell)" },
-  { id: "nano-banana", label: "Google Nano Banana 2.1 / Pro" },
-  { id: "gemini", label: "Google Gemini Image" },
-  { id: "pollinations", label: "Pollinations FLUX / Realism (Free)" },
-  { id: "ai-horde", label: "AI Horde (Free Distributed Cluster)" },
-  { id: "huggingface", label: "Hugging Face FLUX.1 / Animagine" },
-  { id: "openai", label: "OpenAI DALL-E 3" },
-  { id: "azure-openai", label: "Azure OpenAI DALL-E 3" },
-  { id: "local", label: "Local CUDA / ComfyUI engine" },
 ];
 
 const QUALITY_OPTIONS: Array<{ id: ImageQuality; label: string; hint: string }> = [
@@ -1671,10 +1664,22 @@ export default function ImageStudioPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => {
+                          setLockSeed(false);
+                          void generate();
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-[10px] font-semibold text-neutral-600 transition hover:text-[var(--foreground)]"
+                        title="Regenerate with fresh seed"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Regenerate
+                      </button>
+                      <button
+                        type="button"
                         onClick={refineCurrent}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-[10px] font-semibold text-neutral-600 transition hover:text-[var(--foreground)]"
                       >
-                        <RefreshCw className="h-3.5 w-3.5" />
+                        <Wand2 className="h-3.5 w-3.5" />
                         Refine prompt
                       </button>
                       <button

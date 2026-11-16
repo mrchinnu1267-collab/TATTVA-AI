@@ -1,5 +1,5 @@
 -- =============================================================================
--- TATTVA AI - Durable Image Job Persistence Migration (Supabase PostgreSQL)
+-- TATTVA AI - Durable Image Job Persistence & Security Hardening Migration
 -- Target Table: public.image_generation_jobs
 -- Target Storage Bucket: 'tattva-images' (Private)
 -- =============================================================================
@@ -42,17 +42,52 @@ CREATE INDEX IF NOT EXISTS idx_img_jobs_heartbeat ON public.image_generation_job
 CREATE INDEX IF NOT EXISTS idx_img_jobs_created_at ON public.image_generation_jobs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_img_jobs_prompt_hash ON public.image_generation_jobs(prompt_hash);
 
+-- Helper function: Check if current user is member of a workspace (if not already existing)
+CREATE OR REPLACE FUNCTION public.is_workspace_member(ws_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.workspace_members
+        WHERE workspace_id = ws_id AND user_id = auth.uid()
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- -----------------------------------------------------------------------------
--- 3. Atomic Job Claiming Stored Procedure
+-- 3. Atomic Job Claiming Stored Procedure (Security Hardened)
 -- Matches exact serverless concurrency & recovery requirements:
 -- Only claims if status is 'queued' OR if worker heartbeat > 45s stale.
+-- Validates caller authorization to prevent rogue claiming.
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION claim_image_job(p_job_id TEXT)
+CREATE OR REPLACE FUNCTION public.claim_image_job(p_job_id TEXT)
 RETURNS SETOF public.image_generation_jobs
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
+DECLARE
+    v_role TEXT := auth.role();
+    v_uid TEXT := auth.uid()::text;
 BEGIN
+    -- Verify authorization: allow service_role or authenticated owner / workspace member
+    IF v_role IS NOT NULL AND v_role != 'service_role' THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.image_generation_jobs
+            WHERE id = p_job_id
+              AND (
+                  user_id = v_uid
+                  OR (
+                      workspace_id IS NOT NULL 
+                      AND workspace_id != 'default' 
+                      AND workspace_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                      AND public.is_workspace_member(workspace_id::uuid)
+                  )
+              )
+        ) THEN
+            RAISE EXCEPTION 'Unauthorized: Caller cannot claim job %', p_job_id;
+        END IF;
+    END IF;
+
     RETURN QUERY
     UPDATE public.image_generation_jobs
     SET status = 'processing',
@@ -69,44 +104,99 @@ BEGIN
 END;
 $$;
 
+-- Restrict RPC Execution: Revoke from public/anon, grant to service_role & authenticated
+REVOKE EXECUTE ON FUNCTION public.claim_image_job(TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.claim_image_job(TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION public.claim_image_job(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.claim_image_job(TEXT) TO authenticated;
+
 -- -----------------------------------------------------------------------------
--- 4. Enable Row Level Security (RLS)
+-- 4. Enable Row Level Security (RLS) with Zero Trust Ownership Checks
+-- Anonymous users cannot retrieve other users' prompts, jobs, or images.
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.image_generation_jobs ENABLE ROW LEVEL SECURITY;
 
+-- Clean up any obsolete/permissive policies
 DROP POLICY IF EXISTS "Public and Authenticated Select on image_generation_jobs" ON public.image_generation_jobs;
 DROP POLICY IF EXISTS "Public and Authenticated Insert on image_generation_jobs" ON public.image_generation_jobs;
 DROP POLICY IF EXISTS "Public and Authenticated Update on image_generation_jobs" ON public.image_generation_jobs;
 DROP POLICY IF EXISTS "Public and Authenticated Delete on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner and Workspace Member Select on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner and Workspace Member Insert on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner and Workspace Member Update on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner Delete on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Service Role Full Access on image_generation_jobs" ON public.image_generation_jobs;
 
-CREATE POLICY "Public and Authenticated Select on image_generation_jobs"
+-- Service Role Full Administrative Access
+CREATE POLICY "Service Role Full Access on image_generation_jobs"
 ON public.image_generation_jobs
-FOR SELECT
-USING (true);
-
-CREATE POLICY "Public and Authenticated Insert on image_generation_jobs"
-ON public.image_generation_jobs
-FOR INSERT
-WITH CHECK (true);
-
-CREATE POLICY "Public and Authenticated Update on image_generation_jobs"
-ON public.image_generation_jobs
-FOR UPDATE
+FOR ALL
+TO service_role
 USING (true)
 WITH CHECK (true);
 
-CREATE POLICY "Public and Authenticated Delete on image_generation_jobs"
+-- Authenticated Owner & Workspace Member Policies
+CREATE POLICY "Owner and Workspace Member Select on image_generation_jobs"
+ON public.image_generation_jobs
+FOR SELECT
+TO authenticated
+USING (
+    user_id = auth.uid()::text
+    OR (
+        workspace_id IS NOT NULL 
+        AND workspace_id != 'default' 
+        AND workspace_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        AND public.is_workspace_member(workspace_id::uuid)
+    )
+);
+
+CREATE POLICY "Owner and Workspace Member Insert on image_generation_jobs"
+ON public.image_generation_jobs
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    user_id = auth.uid()::text
+    OR (
+        workspace_id IS NOT NULL 
+        AND workspace_id != 'default' 
+        AND workspace_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        AND public.is_workspace_member(workspace_id::uuid)
+    )
+);
+
+CREATE POLICY "Owner and Workspace Member Update on image_generation_jobs"
+ON public.image_generation_jobs
+FOR UPDATE
+TO authenticated
+USING (
+    user_id = auth.uid()::text
+    OR (
+        workspace_id IS NOT NULL 
+        AND workspace_id != 'default' 
+        AND workspace_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        AND public.is_workspace_member(workspace_id::uuid)
+    )
+)
+WITH CHECK (
+    user_id = auth.uid()::text
+    OR (
+        workspace_id IS NOT NULL 
+        AND workspace_id != 'default' 
+        AND workspace_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        AND public.is_workspace_member(workspace_id::uuid)
+    )
+);
+
+CREATE POLICY "Owner Delete on image_generation_jobs"
 ON public.image_generation_jobs
 FOR DELETE
+TO authenticated
 USING (
-    auth.uid()::text = user_id 
-    OR user_id IS NULL 
-    OR user_id = 'anonymous'
-    OR user_id LIKE 'guest_%'
+    user_id = auth.uid()::text
 );
 
 -- -----------------------------------------------------------------------------
--- 5. Supabase Storage: 'tattva-images' Private Bucket Configuration
+-- 5. Supabase Storage: 'tattva-images' Private Bucket Configuration & Ownership RLS
 -- -----------------------------------------------------------------------------
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -121,20 +211,63 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = 26214400,
     allowed_mime_types = ARRAY['image/png', 'image/jpeg', 'image/webp'];
 
--- Storage Policies for 'tattva-images'
+-- Storage Policies for 'tattva-images' (Strict Owner Isolation: {userId}/{workspaceId}/...)
 DROP POLICY IF EXISTS "TATTVA Images Storage: Read Access" ON storage.objects;
 DROP POLICY IF EXISTS "TATTVA Images Storage: Insert Access" ON storage.objects;
 DROP POLICY IF EXISTS "TATTVA Images Storage: Update Access" ON storage.objects;
+DROP POLICY IF EXISTS "TATTVA Images Storage: Delete Access" ON storage.objects;
+DROP POLICY IF EXISTS "TATTVA Images Storage: Owner Read" ON storage.objects;
+DROP POLICY IF EXISTS "TATTVA Images Storage: Owner Insert" ON storage.objects;
+DROP POLICY IF EXISTS "TATTVA Images Storage: Owner Update" ON storage.objects;
+DROP POLICY IF EXISTS "TATTVA Images Storage: Owner Delete" ON storage.objects;
 
-CREATE POLICY "TATTVA Images Storage: Read Access"
+CREATE POLICY "TATTVA Images Storage: Owner Read"
 ON storage.objects FOR SELECT
-USING (bucket_id = 'tattva-images');
+TO authenticated
+USING (
+    bucket_id = 'tattva-images' AND
+    (
+        (storage.foldername(name))[1] = auth.uid()::text
+        OR auth.role() = 'service_role'
+    )
+);
 
-CREATE POLICY "TATTVA Images Storage: Insert Access"
+CREATE POLICY "TATTVA Images Storage: Owner Insert"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'tattva-images');
+TO authenticated
+WITH CHECK (
+    bucket_id = 'tattva-images' AND
+    (
+        (storage.foldername(name))[1] = auth.uid()::text
+        OR auth.role() = 'service_role'
+    )
+);
 
-CREATE POLICY "TATTVA Images Storage: Update Access"
+CREATE POLICY "TATTVA Images Storage: Owner Update"
 ON storage.objects FOR UPDATE
-USING (bucket_id = 'tattva-images')
-WITH CHECK (bucket_id = 'tattva-images');
+TO authenticated
+USING (
+    bucket_id = 'tattva-images' AND
+    (
+        (storage.foldername(name))[1] = auth.uid()::text
+        OR auth.role() = 'service_role'
+    )
+)
+WITH CHECK (
+    bucket_id = 'tattva-images' AND
+    (
+        (storage.foldername(name))[1] = auth.uid()::text
+        OR auth.role() = 'service_role'
+    )
+);
+
+CREATE POLICY "TATTVA Images Storage: Owner Delete"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+    bucket_id = 'tattva-images' AND
+    (
+        (storage.foldername(name))[1] = auth.uid()::text
+        OR auth.role() = 'service_role'
+    )
+);

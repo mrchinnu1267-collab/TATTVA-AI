@@ -8,7 +8,7 @@
 import fs from "fs";
 import path from "path";
 import { ImageJob, JobStatus, JobStage, ImageJobTimestamps } from "./types";
-import { ImageQuality, AspectRatio } from "../types";
+import { ImageQuality, AspectRatio, ImageProviderId } from "../types";
 import { hashPrompt } from "./prompt-cache";
 import { generateImage } from "../engine";
 import { StorageService } from "../services/storage.service";
@@ -216,7 +216,9 @@ export function createImageJob(params: {
   aspectRatio?: AspectRatio;
   userId?: string;
   workspaceId?: string;
+  provider?: ImageProviderId;
   forceNew?: boolean;
+  userAccessToken?: string;
 }): ImageJob {
   const promptHash = hashPrompt(params.prompt, params.referenceImage);
 
@@ -242,6 +244,7 @@ export function createImageJob(params: {
     referenceImage: params.referenceImage,
     quality: params.quality || "balanced",
     aspectRatio: params.aspectRatio || "1:1",
+    providerUsed: params.provider,
     status: "queued",
     progressPercent: 5,
     currentStage: "queued",
@@ -263,7 +266,16 @@ export function createImageJob(params: {
 
   jobStore.set(id, job);
   persistJobToFile(job);
-  insertJobDb(job).catch(() => {});
+  insertJobDb(job, params.userAccessToken)
+    .then((persisted) => {
+      if (persisted) {
+        job.dbPersisted = persisted.dbPersisted;
+        job.isDurable = persisted.isDurable;
+      }
+    })
+    .catch((err: any) => {
+      console.warn(`[JobQueue] DB persistence error on dispatch: ${err?.message}`);
+    });
 
   return job;
 }
@@ -286,17 +298,37 @@ export function getJob(jobId: string): ImageJob | null {
 }
 
 /**
- * Asynchronously retrieves a job from database or local memory cache across serverless instances.
+ * Asynchronously retrieves a job from database (authoritative source) or local cache across serverless instances.
+ * PostgreSQL is authoritative: never return an outdated local cache entry when a database read is available.
  */
 export async function getJobAsync(jobId: string, token?: string): Promise<ImageJob | null> {
-  const local = getJob(jobId);
-  if (local) return local;
-
-  const dbJob = await getJobFromDb(jobId, token);
-  if (dbJob) {
-    jobStore.set(dbJob.id, dbJob);
-    return dbJob;
+  // 1. Authoritative: Fetch latest committed state from PostgreSQL
+  try {
+    const dbJob = await getJobFromDb(jobId, token);
+    if (dbJob) {
+      // Invalidate / update local memory cache with latest committed DB state
+      jobStore.set(jobId, dbJob);
+      persistJobToFile(dbJob);
+      return dbJob;
+    }
+  } catch (err: any) {
+    console.warn(`[JobQueue] DB getJobAsync error for ${jobId}: ${err?.message}`);
   }
+
+  // 2. Fallback to local memory cache or disk if DB read returned null (e.g. unconfigured or offline)
+  let local: ImageJob | null = null;
+  if (jobStore.has(jobId)) {
+    local = jobStore.get(jobId)!;
+  } else {
+    local = loadJobFromFile(jobId);
+  }
+
+  if (local) {
+    const recovered = checkAndRecoverStaleJob(local);
+    recovered.fromCache = true;
+    return recovered;
+  }
+
   return null;
 }
 
@@ -431,11 +463,14 @@ export async function executeJob(jobId: string, jobParams?: any): Promise<ImageJ
     return inFlightPromises.get(jobId)!;
   }
 
-  // Atomically claim the job to prevent dual execution
-  const claimed = await claimJobAtomic(jobId);
-  if (claimed) {
-    job = claimed;
+  // Atomically claim the job to prevent dual execution across serverless instances
+  const claimed = await claimJobAtomic(jobId, jobParams?.userAccessToken);
+  if (!claimed) {
+    // If claim was not granted (already held by another active worker or completed), do not execute!
+    const latest = await getJobAsync(jobId, jobParams?.userAccessToken);
+    return latest || job;
   }
+  job = claimed;
 
   job.status = "processing";
   const now = new Date().toISOString();
@@ -474,12 +509,19 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
   try {
     if (isJobCancelled(job)) return job;
 
+    const providerLabel =
+      job.providerUsed === "gemini"
+        ? "Google Gemini"
+        : job.providerUsed === "cloudflare"
+        ? "Cloudflare FLUX.1 Schnell"
+        : "AI Image Engine";
+
     // Stage 1: Worker initialized
     updateJobStage(
       job,
       "generating",
       15,
-      "Worker initialized. Preparing generation pipeline with FLUX.1 Schnell...",
+      `Worker initialized. Preparing generation pipeline with ${providerLabel}...`,
       { workerStartedAt: job.timestamps.workerStartedAt }
     );
 
@@ -489,6 +531,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
       referenceImage: job.referenceImage,
       quality: job.quality,
       aspectRatio: job.aspectRatio,
+      provider: job.providerUsed,
       userId: job.userId,
       maxAttempts: 4,
       targetScore: 95,
@@ -504,8 +547,8 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
             "generating",
             progress,
             meta?.fluxRespondedAt
-              ? "FLUX.1 inference complete. Preparing visual adherence audit..."
-              : `Generating image with Cloudflare Workers AI FLUX.1 Schnell (Attempt ${attempt}/${maxAttempts})...`,
+              ? "Inference complete. Preparing visual adherence audit..."
+              : `Generating image with ${providerLabel} (Attempt ${attempt}/${maxAttempts})...`,
             meta
           );
         } else if (stage === "verifying") {
@@ -550,8 +593,8 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
       const storageRecord = await StorageService.persistImage({
         dataUriOrBuffer: result.image,
         prompt: job.prompt,
-        provider: result.provider || "cloudflare",
-        model: result.model || "@cf/black-forest-labs/flux-1-schnell",
+        provider: result.provider || "gemini",
+        model: result.model || "gemini-3.1-flash-image",
         userId: job.userId || "anonymous",
         workspaceId: job.workspaceId || "default",
         parameters: {
@@ -564,14 +607,37 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
         accuracyScorecard: result.verification?.categoryScores as any,
       });
 
-      if (storageRecord.url) {
-        accessUrl = storageRecord.url;
+      if (!storageRecord.url || !storageRecord.storagePath) {
+        throw new Error("Storage service returned empty URL or path.");
       }
-      if (storageRecord.storagePath) {
-        storagePath = storageRecord.storagePath;
-      }
+
+      accessUrl = storageRecord.url;
+      storagePath = storageRecord.storagePath;
     } catch (storageErr: any) {
-      console.warn("[JobQueue] Supabase storage upload warning:", storageErr?.message);
+      console.error("[JobQueue] Supabase storage upload failed:", storageErr?.message);
+      const failedAt = new Date().toISOString();
+      job.status = "failed";
+      job.currentStage = "completed";
+      job.progressPercent = 100;
+      job.error = `Durable storage upload failed: ${storageErr?.message || "Could not upload image to Supabase Storage"}`;
+      job.errorMessage = job.error;
+      job.statusMessage = "Image generation failed during cloud storage persistence. Please retry.";
+      job.completedAt = failedAt;
+      job.updatedAt = failedAt;
+      if (job.timestamps) {
+        job.timestamps.completedAt = failedAt;
+      }
+      persistJobToFile(job);
+      await updateJobProgressDb(job.id, {
+        status: "failed",
+        currentStage: "completed",
+        progressPercent: 100,
+        error: job.error,
+        errorMessage: job.error,
+        completedAt: failedAt,
+        timestamps: job.timestamps,
+      });
+      return job;
     }
 
     // Honest verification status calculation
@@ -598,7 +664,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
     job.modelUsed = result.model;
     job.providerUsed = result.provider;
     job.imageMetadata = result.metadata;
-    job.statusMessage = `Image generated and verified against your request. Adherence: ${result.accuracy}%.`;
+    job.statusMessage = `Image generated with ${result.provider === "gemini" ? "Google Gemini" : "Cloudflare"} and verified against your request. Adherence: ${result.accuracy}%.`;
     job.latencyMs = Date.now() - started;
     job.completedAt = completedAt;
     job.updatedAt = completedAt;
@@ -607,7 +673,7 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
     }
 
     persistJobToFile(job);
-    updateJobProgressDb(job.id, {
+    const updatedDbJob = await updateJobProgressDb(job.id, {
       status: "completed",
       currentStage: "completed",
       progressPercent: 100,
@@ -619,7 +685,16 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
       verificationResult: result.verification,
       completedAt,
       timestamps: job.timestamps,
-    }).catch(() => {});
+    });
+
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && !updatedDbJob) {
+      console.error(`[JobQueue] Failed to confirm job ${job.id} completion in PostgreSQL.`);
+      job.status = "failed";
+      job.error = "Failed to confirm completed job state and storage path in PostgreSQL.";
+      job.errorMessage = job.error;
+      job.statusMessage = "Image generation succeeded, but database persistence confirmation failed.";
+      return job;
+    }
 
     return job;
   } catch (err: any) {

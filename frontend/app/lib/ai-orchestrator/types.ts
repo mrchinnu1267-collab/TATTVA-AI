@@ -126,6 +126,7 @@ export interface ExecutionContext {
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
   uploadedFiles?: Array<{ name: string; type: string; data?: string; path?: string }>;
   asyncImageJob?: boolean;
+  preferredModel?: string;
 }
 
 export interface ReasoningStep {

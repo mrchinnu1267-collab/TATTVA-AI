@@ -210,6 +210,10 @@ try {
   if (durableJobDbStorage?.runDurableJobDbStorageTests) {
     await durableJobDbStorage.runDurableJobDbStorageTests();
   }
+  const geminiNativeImage = await jiti("./gemini-native-image-generation.test.ts");
+  if (geminiNativeImage?.runGeminiNativeImageGenerationTests) {
+    await geminiNativeImage.runGeminiNativeImageGenerationTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

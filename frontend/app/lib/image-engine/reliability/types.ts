@@ -86,6 +86,9 @@ export interface ImageJob {
   imageMetadata?: any;
   deadline?: number; // Absolute epoch timestamp (ms)
   timestamps?: ImageJobTimestamps;
+  dbPersisted?: boolean;
+  isDurable?: boolean;
+  fromCache?: boolean;
 }
 
 export interface CostRecord {

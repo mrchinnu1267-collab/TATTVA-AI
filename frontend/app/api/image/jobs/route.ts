@@ -176,6 +176,7 @@ export async function POST(req: NextRequest) {
       aspectRatio: body.aspectRatio || "1:1",
       userId: body.userId,
       workspaceId,
+      provider: body.provider,
     });
 
     return NextResponse.json({

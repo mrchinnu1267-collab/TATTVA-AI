@@ -200,8 +200,8 @@ export async function runAsyncImageJobReliabilityTests() {
     assert.equal(failedCfJob.status, "failed", "Job must report 'failed' when generation provider times out");
     assert.ok(
       failedCfJob.error?.toLowerCase().includes("timeout") ||
-        failedCfJob.error?.toLowerCase().includes("timed out") ||
-        failedCfJob.error?.toLowerCase().includes("failed"),
+      failedCfJob.error?.toLowerCase().includes("timed out") ||
+      failedCfJob.error?.toLowerCase().includes("failed"),
       `Error must describe failure: ${failedCfJob.error}`
     );
     assert.equal(failedCfJob.resultImage, undefined, "No fake image should be returned on generation failure");

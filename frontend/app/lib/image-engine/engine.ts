@@ -129,8 +129,12 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   const targetScore = Math.max(50, Math.min(100, options.targetScore ?? 95));
 
   const warnings: string[] = [];
-  // Cloudflare Workers AI is the exclusive provider
-  const order: ImageProviderId[] = ["cloudflare"];
+  // Resolve active providers based on configuration, request preference, and capabilities
+  const order: ImageProviderId[] = resolveProviderOrder(
+    options.provider,
+    options.quality,
+    Boolean(options.referenceImage)
+  );
   const attempts: ImageAttempt[] = [];
   let best: {
     result: ProviderResult;

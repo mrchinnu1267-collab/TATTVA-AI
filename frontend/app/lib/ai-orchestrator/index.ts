@@ -38,6 +38,7 @@ import {
   generateImageWithMultimodalRAG,
   formatUserFacingImageError,
 } from "../image-engine";
+import { resolveProviderOrder } from "../image-engine/providers";
 import { createImageJob } from "../image-engine/reliability/job-queue";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
@@ -354,6 +355,21 @@ export class MasterAIOrchestrator {
 
       // Asynchronous Job Mode: Returns immediately (< 500ms) to prevent Vercel HTTP 504 Gateway Timeout
       if (context.asyncImageJob) {
+        const order = resolveProviderOrder(
+          context.preferredModel?.toLowerCase().includes("gemini") ? "gemini" : undefined,
+          "balanced",
+          Boolean(imageToModerate)
+        );
+        const selectedProvider = order[0] || "gemini";
+        const selectedModel =
+          selectedProvider === "gemini"
+            ? "gemini-3.1-flash-image"
+            : "@cf/black-forest-labs/flux-1-schnell";
+        const providerName =
+          selectedProvider === "gemini"
+            ? "Google Gemini (gemini-3.1-flash-image)"
+            : "Cloudflare Workers AI FLUX.1 Schnell";
+
         const job = createImageJob({
           prompt: candidatePrompt,
           referenceImage: imageToModerate,
@@ -361,15 +377,16 @@ export class MasterAIOrchestrator {
           aspectRatio: "1:1",
           userId: context.userId || "user_workspace",
           workspaceId: context.workspaceId || "default",
+          provider: selectedProvider,
         });
 
         return {
           role: "assistant",
-          content: `Crafting your image with Cloudflare Workers AI FLUX.1 Schnell and verifying details with Gemini Vision...`,
+          content: `Crafting your visual asset with ${providerName} and verifying adherence with Gemini Vision...`,
           kind: "image_job",
           intent: effectiveIntent,
-          modelUsed: "@cf/black-forest-labs/flux-1-schnell",
-          provider: "cloudflare",
+          modelUsed: selectedModel,
+          provider: selectedProvider,
           latencyMs: Date.now() - startTime,
           imageJob: {
             id: job.id,

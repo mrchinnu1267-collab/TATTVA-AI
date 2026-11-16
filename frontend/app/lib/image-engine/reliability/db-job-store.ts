@@ -14,6 +14,49 @@ const JOBS_DIR = path.join("/tmp", ".tattva_jobs");
 const STALE_HEARTBEAT_THRESHOLD_MS = 45 * 1000; // 45 seconds
 const JOB_DEADLINE_MS = 180 * 1000; // 180 seconds
 
+export class DatabasePersistenceError extends Error {
+  constructor(message: string, public readonly cause?: any) {
+    super(message);
+    this.name = "DatabasePersistenceError";
+  }
+}
+
+export interface DbJobStoreHealth {
+  databaseConfigured: boolean;
+  lastPersistStatus: "healthy" | "failed" | "unconfigured";
+  lastPersistError?: string;
+  lastPersistTimestamp?: string;
+  totalPersistOperations: number;
+  failedPersistOperations: number;
+}
+
+const dbHealthState: DbJobStoreHealth = {
+  databaseConfigured: false,
+  lastPersistStatus: "unconfigured",
+  totalPersistOperations: 0,
+  failedPersistOperations: 0,
+};
+
+export function getDbJobStoreHealth(): DbJobStoreHealth {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return {
+    ...dbHealthState,
+    databaseConfigured: Boolean(url && key),
+  };
+}
+
+export function resetDbJobStoreHealth(): void {
+  dbHealthState.lastPersistStatus = "unconfigured";
+  dbHealthState.lastPersistError = undefined;
+  dbHealthState.lastPersistTimestamp = undefined;
+  dbHealthState.totalPersistOperations = 0;
+  dbHealthState.failedPersistOperations = 0;
+}
+
 // Safe in-memory cache for ultra-fast local lookups
 declare global {
   var __TATTVA_DB_JOB_CACHE__: Map<string, ImageJob> | undefined;
@@ -120,6 +163,8 @@ export function mapRowToJob(row: any): ImageJob {
     quality: "balanced",
     aspectRatio: "1:1",
     totalCostUsd: 0.0,
+    dbPersisted: true,
+    isDurable: true,
   };
 }
 
@@ -159,14 +204,27 @@ export function mapJobToRow(job: ImageJob): Record<string, any> {
 
 /**
  * Inserts a new job record durably into Supabase PostgreSQL.
+ * Strictly verifies persistence and reports observable health status.
  */
-export async function insertJobDb(job: ImageJob, token?: string): Promise<ImageJob> {
+export async function insertJobDb(
+  job: ImageJob,
+  token?: string,
+  options?: { requireDb?: boolean }
+): Promise<ImageJob> {
   localJobCache.set(job.id, job);
   persistLocalDisk(job);
 
   const supabase = getDbClient(token);
-  if (!supabase) return job;
+  if (!supabase) {
+    job.dbPersisted = false;
+    job.isDurable = false;
+    if (options?.requireDb) {
+      throw new DatabasePersistenceError("Database is unconfigured (missing Supabase URL or Key)");
+    }
+    return job;
+  }
 
+  dbHealthState.totalPersistOperations++;
   try {
     const row = mapJobToRow(job);
     const { data, error } = await supabase
@@ -176,21 +234,48 @@ export async function insertJobDb(job: ImageJob, token?: string): Promise<ImageJ
       .single();
 
     if (error) {
-      console.warn(`[DbJobStore] Notice: Postgres insert skipped (${error.message}). Using durable local fallback.`);
-    } else if (data) {
+      dbHealthState.failedPersistOperations++;
+      dbHealthState.lastPersistStatus = "failed";
+      dbHealthState.lastPersistError = error.message;
+      dbHealthState.lastPersistTimestamp = new Date().toISOString();
+      console.warn(`[DbJobStore] Postgres insert error: ${error.message}`);
+      job.dbPersisted = false;
+      job.isDurable = false;
+      if (options?.requireDb) {
+        throw new DatabasePersistenceError(`PostgreSQL insert failed: ${error.message}`, error);
+      }
+      return job;
+    }
+
+    if (data) {
+      dbHealthState.lastPersistStatus = "healthy";
+      dbHealthState.lastPersistTimestamp = new Date().toISOString();
       const persistedJob = mapRowToJob(data);
+      persistedJob.dbPersisted = true;
+      persistedJob.isDurable = true;
       localJobCache.set(job.id, persistedJob);
+      persistLocalDisk(persistedJob);
       return persistedJob;
     }
   } catch (err: any) {
+    if (err instanceof DatabasePersistenceError) throw err;
+    dbHealthState.failedPersistOperations++;
+    dbHealthState.lastPersistStatus = "failed";
+    dbHealthState.lastPersistError = err?.message;
+    dbHealthState.lastPersistTimestamp = new Date().toISOString();
     console.warn(`[DbJobStore] Postgres insert exception: ${err?.message}`);
+    job.dbPersisted = false;
+    job.isDurable = false;
+    if (options?.requireDb) {
+      throw new DatabasePersistenceError(`PostgreSQL insert exception: ${err?.message}`, err);
+    }
   }
 
   return job;
 }
 
 /**
- * Retrieves a job from Supabase PostgreSQL (with cache and disk fallback).
+ * Retrieves a job from Supabase PostgreSQL (authoritative source).
  */
 export async function getJobFromDb(jobId: string, token?: string): Promise<ImageJob | null> {
   const supabase = getDbClient(token);
@@ -205,6 +290,8 @@ export async function getJobFromDb(jobId: string, token?: string): Promise<Image
 
       if (!error && data) {
         const job = mapRowToJob(data);
+        job.dbPersisted = true;
+        job.isDurable = true;
         localJobCache.set(jobId, job);
         persistLocalDisk(job);
         return checkStaleAndRecover(job, token);
@@ -214,7 +301,7 @@ export async function getJobFromDb(jobId: string, token?: string): Promise<Image
     }
   }
 
-  // Fallback to local memory cache or disk
+  // Fallback to local memory cache or disk only if DB was not queried or not found
   let job = localJobCache.get(jobId) || loadLocalDisk(jobId);
   if (job) {
     return checkStaleAndRecover(job, token);
@@ -225,6 +312,7 @@ export async function getJobFromDb(jobId: string, token?: string): Promise<Image
 /**
  * Atomically claims a queued job or an abandoned job (>45s stale heartbeat).
  * Uses PostgreSQL RPC `claim_image_job` or direct conditional UPDATE.
+ * Strictly prevents active worker collisions across serverless containers.
  */
 export async function claimJobAtomic(jobId: string, token?: string): Promise<ImageJob | null> {
   const supabase = getDbClient(token);
@@ -239,12 +327,14 @@ export async function claimJobAtomic(jobId: string, token?: string): Promise<Ima
 
       if (!rpcErr && rpcData && rpcData.length > 0) {
         const claimed = mapRowToJob(rpcData[0]);
+        claimed.dbPersisted = true;
+        claimed.isDurable = true;
         localJobCache.set(jobId, claimed);
         persistLocalDisk(claimed);
         return claimed;
       }
 
-      // 2. Direct conditional UPDATE if RPC is not present
+      // If RPC is missing or returns error (e.g. not created yet or permission error), try direct UPDATE
       const staleCutoff = new Date(Date.now() - STALE_HEARTBEAT_THRESHOLD_MS).toISOString();
       const { data: updateData, error: updateErr } = await supabase
         .from("image_generation_jobs")
@@ -262,16 +352,29 @@ export async function claimJobAtomic(jobId: string, token?: string): Promise<Ima
 
       if (!updateErr && updateData) {
         const claimed = mapRowToJob(updateData);
+        claimed.dbPersisted = true;
+        claimed.isDurable = true;
         localJobCache.set(jobId, claimed);
         persistLocalDisk(claimed);
         return claimed;
+      }
+
+      // If updateErr is null and updateData is null: the table exists and query succeeded,
+      // but the job was already claimed by another active worker in PostgreSQL!
+      if (!updateErr && !updateData) {
+        return null;
+      }
+
+      // If updateErr indicates a missing table or schema issue, log and fall through to local atomic claim
+      if (updateErr) {
+        console.warn(`[DbJobStore] Postgres atomic claim fallback due to DB error: ${updateErr.message}`);
       }
     } catch (err: any) {
       console.warn(`[DbJobStore] Atomic claim exception: ${err?.message}`);
     }
   }
 
-  // Local fallback atomic check
+  // Local fallback atomic check (when database table is unmigrated or client unconfigured)
   const local = localJobCache.get(jobId) || loadLocalDisk(jobId);
   if (local) {
     const isQueued = local.status === "queued";
@@ -283,6 +386,8 @@ export async function claimJobAtomic(jobId: string, token?: string): Promise<Ima
       local.currentStage = "generating";
       local.workerHeartbeatAt = nowIso;
       local.updatedAt = nowIso;
+      local.dbPersisted = false;
+      local.isDurable = false;
       localJobCache.set(jobId, local);
       persistLocalDisk(local);
       return local;
@@ -295,6 +400,7 @@ export async function claimJobAtomic(jobId: string, token?: string): Promise<Ima
 
 /**
  * Updates an active job in PostgreSQL and local cache.
+ * Returns null if PostgreSQL update failed when database is configured.
  */
 export async function updateJobProgressDb(
   jobId: string,
@@ -317,6 +423,7 @@ export async function updateJobProgressDb(
 
   const supabase = getDbClient(token);
   if (supabase) {
+    dbHealthState.totalPersistOperations++;
     try {
       const rowUpdates: Record<string, any> = {
         updated_at: nowIso,
@@ -345,16 +452,41 @@ export async function updateJobProgressDb(
         .select()
         .maybeSingle();
 
-      if (!error && data) {
+      if (error) {
+        dbHealthState.failedPersistOperations++;
+        dbHealthState.lastPersistStatus = "failed";
+        dbHealthState.lastPersistError = error.message;
+        dbHealthState.lastPersistTimestamp = new Date().toISOString();
+        console.warn(`[DbJobStore] Postgres update error on ${jobId}: ${error.message}`);
+        merged.dbPersisted = false;
+        merged.isDurable = false;
+        return merged;
+      }
+
+      if (data) {
+        dbHealthState.lastPersistStatus = "healthy";
+        dbHealthState.lastPersistTimestamp = new Date().toISOString();
         const persisted = mapRowToJob(data);
+        persisted.dbPersisted = true;
+        persisted.isDurable = true;
         localJobCache.set(jobId, persisted);
+        persistLocalDisk(persisted);
         return persisted;
       }
     } catch (err: any) {
-      console.warn(`[DbJobStore] Postgres update error on ${jobId}: ${err?.message}`);
+      dbHealthState.failedPersistOperations++;
+      dbHealthState.lastPersistStatus = "failed";
+      dbHealthState.lastPersistError = err?.message;
+      dbHealthState.lastPersistTimestamp = new Date().toISOString();
+      console.warn(`[DbJobStore] Postgres update exception on ${jobId}: ${err?.message}`);
+      merged.dbPersisted = false;
+      merged.isDurable = false;
+      return merged;
     }
   }
 
+  merged.dbPersisted = false;
+  merged.isDurable = false;
   return merged;
 }
 
