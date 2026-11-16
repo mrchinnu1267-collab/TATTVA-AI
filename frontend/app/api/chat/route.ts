@@ -210,6 +210,7 @@ export async function POST(request: Request) {
         userEmail,
         sessionId: body.sessionId,
         conversationHistory: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
+        asyncImageJob: true, // Prevents HTTP 504 Gateway Timeout on Vercel by dispatching asynchronous jobs
       },
       mode: body.mode,
       preferredModel: body.preferredModel || body.model,

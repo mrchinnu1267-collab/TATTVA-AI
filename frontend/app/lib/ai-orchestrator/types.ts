@@ -125,6 +125,7 @@ export interface ExecutionContext {
   workspaceId?: string;
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
   uploadedFiles?: Array<{ name: string; type: string; data?: string; path?: string }>;
+  asyncImageJob?: boolean;
 }
 
 export interface ReasoningStep {
@@ -231,7 +232,7 @@ export interface RAGSearchResult {
 export interface OrchestratorResponse {
   role: "assistant";
   content: string;
-  kind: "text" | "image";
+  kind: "text" | "image" | "image_job";
   intent: TaskIntent;
   modelUsed: string;
   provider: ModelProvider;
@@ -243,6 +244,7 @@ export interface OrchestratorResponse {
   recalledMemories?: Array<{ id: string; content: string; category: string }>;
   image?: string;
   imageMetadata?: Record<string, any>;
+  imageJob?: Record<string, any>;
   fallbackOccurred?: boolean;
   warnings?: string[];
   progressStage?: string;

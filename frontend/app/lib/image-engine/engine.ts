@@ -140,6 +140,12 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   let lastError = "";
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (attempt === 0) {
+      options.onStageChange?.("generating", 1, maxAttempts);
+    } else {
+      options.onStageChange?.("refining", attempt + 1, maxAttempts, best?.verification.score);
+    }
+
     // Intelligent prompt refinement using Gemini Vision feedback from previous best attempt
     const attemptPrompt: string =
       attempt === 0 || !best
@@ -196,6 +202,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         generated = true;
 
         // Full Gemini Vision verification enabled for Cloudflare FLUX.1 Schnell
+        options.onStageChange?.("verifying", attempt + 1, maxAttempts);
         const verification = await verifyImage({
           image: result.image,
           compiled,

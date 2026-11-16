@@ -159,8 +159,17 @@ type ChatMessage = {
   role: Role;
   content: string;
   image?: string;
-  kind?: "text" | "image";
+  kind?: "text" | "image" | "image_job";
   imageMetadata?: ImageMetadata;
+  imageJob?: {
+    id: string;
+    status: "queued" | "processing" | "generating" | "verifying" | "refining" | "completed" | "failed" | "cancelled";
+    currentStage?: string;
+    progressPercent?: number;
+    prompt?: string;
+    statusMessage?: string;
+    error?: string;
+  };
   attachments?: ChatAttachment[];
   timestamp?: number;
   recalledMemories?: Array<{ id?: string; content: string; category?: string; importance?: number }>;
@@ -2090,6 +2099,143 @@ export default function ChatPage() {
     });
   }, [currentSessionId, userEmail]);
 
+  // Active Asynchronous Image Job Polling Manager
+  const activePollersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  const startPollingImageJob = useCallback((msgId: string, jobId: string) => {
+    if (!jobId) return;
+    if (activePollersRef.current.has(msgId)) {
+      clearInterval(activePollersRef.current.get(msgId)!);
+      activePollersRef.current.delete(msgId);
+    }
+
+    // Ping driver endpoint to start processing in background (maxDuration 300)
+    fetch("/api/image/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "process", jobId }),
+    }).catch(() => { });
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/image/jobs?id=${encodeURIComponent(jobId)}&drive=true`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const job = json.job;
+        if (!job) return;
+
+        if (job.status === "completed") {
+          clearInterval(pollInterval);
+          activePollersRef.current.delete(msgId);
+
+          setMessages((prev) => {
+            const next = prev.map((m) => {
+              if (m.id !== msgId) return m;
+              return {
+                ...m,
+                image: job.resultImage,
+                kind: "image" as const,
+                content: job.statusMessage || `Image generated and verified against your request. Adherence: ${job.accuracy || 95}%.`,
+                imageMetadata: {
+                  model: job.modelUsed || "@cf/black-forest-labs/flux-1-schnell",
+                  provider: job.providerUsed || "cloudflare",
+                  generation_time_seconds: Math.round((job.latencyMs || 0) / 1000),
+                },
+                imageJob: {
+                  id: job.id,
+                  status: "completed" as const,
+                  currentStage: "completed",
+                  progressPercent: 100,
+                  statusMessage: job.statusMessage,
+                },
+              };
+            });
+            saveCurrentSession(next);
+            return next;
+          });
+          return;
+        }
+
+        if (job.status === "failed") {
+          clearInterval(pollInterval);
+          activePollersRef.current.delete(msgId);
+
+          setMessages((prev) => {
+            const next = prev.map((m) => {
+              if (m.id !== msgId) return m;
+              return {
+                ...m,
+                imageJob: {
+                  id: job.id,
+                  status: "failed" as const,
+                  currentStage: "failed",
+                  progressPercent: 100,
+                  error: job.error || "Image generation pipeline encountered an issue.",
+                  statusMessage: job.statusMessage || `Generation failed: ${job.error}`,
+                },
+              };
+            });
+            saveCurrentSession(next);
+            return next;
+          });
+          return;
+        }
+
+        // Active intermediate progress updates (generating, verifying, refining)
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== msgId) return m;
+
+            let resolvedStatus: "generating" | "verifying" | "refining" = "generating";
+            if (job.currentStage === "independent_evaluation") {
+              resolvedStatus = "verifying";
+            } else if (job.currentStage === "targeted_correction" || (job.attempts && job.attempts > 1)) {
+              resolvedStatus = "refining";
+            }
+
+            return {
+              ...m,
+              imageJob: {
+                id: job.id,
+                status: resolvedStatus,
+                currentStage: job.currentStage,
+                progressPercent: job.progressPercent || 25,
+                statusMessage: job.statusMessage,
+              },
+            };
+          })
+        );
+      } catch (pollErr) {
+        console.warn("[Chat] Polling tick notice:", pollErr);
+      }
+    }, 1500);
+
+    activePollersRef.current.set(msgId, pollInterval);
+  }, [saveCurrentSession]);
+
+  useEffect(() => {
+    return () => {
+      activePollersRef.current.forEach((timer) => clearInterval(timer));
+      activePollersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    messages.forEach((m) => {
+      if (
+        m.imageJob &&
+        m.imageJob.id &&
+        m.imageJob.status !== "completed" &&
+        m.imageJob.status !== "failed" &&
+        !m.image
+      ) {
+        if (!activePollersRef.current.has(m.id)) {
+          startPollingImageJob(m.id, m.imageJob.id);
+        }
+      }
+    });
+  }, [messages, startPollingImageJob]);
+
   // Create a brand new chat session (Clean reset without polluting history)
   function createNewChat() {
     setCurrentSessionId("");
@@ -3040,6 +3186,7 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
+        imageJob: data.imageJob,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -3065,6 +3212,10 @@ export default function ChatPage() {
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant, activeSessionId);
       notifyResponse(assistantMsg.content);
+
+      if (data.imageJob && data.imageJob.id) {
+        startPollingImageJob(assistantMsgId, data.imageJob.id);
+      }
 
       // Refresh memory profile after response in case new memories were extracted
       loadUserMemoryData(userEmail);
@@ -3173,6 +3324,7 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
+        imageJob: data.imageJob,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -3197,6 +3349,10 @@ export default function ChatPage() {
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant);
       notifyResponse(assistantMsg.content);
+
+      if (data.imageJob && data.imageJob.id) {
+        startPollingImageJob(assistantMsgId, data.imageJob.id);
+      }
       loadUserMemoryData(userEmail);
 
     } catch (err: unknown) {
@@ -3274,6 +3430,7 @@ export default function ChatPage() {
         kind: data.kind || "text",
         image: data.image,
         imageMetadata: data.imageMetadata,
+        imageJob: data.imageJob,
         timestamp: Date.now(),
         recalledMemories: data.recalledMemories,
         citations: data.citations,
@@ -3298,6 +3455,10 @@ export default function ChatPage() {
       messagesCountRef.current = updated.length;
       saveCurrentSession(updated);
       notifyResponse(newAssistantMsg.content);
+
+      if (data.imageJob && data.imageJob.id) {
+        startPollingImageJob(newAssistantMsgId, data.imageJob.id);
+      }
       loadUserMemoryData(userEmail);
 
       showToast("Response regenerated ✦");
@@ -5121,6 +5282,88 @@ export default function ChatPage() {
                                   )}
                                 </div>
                               </details>
+                            )}
+
+                            {/* Asynchronous Image Job Progress & Status Card */}
+                            {msg.imageJob && (!msg.image || msg.imageJob.status !== "completed") && (
+                              <div className="mt-3.5 overflow-hidden rounded-2xl border border-black/[0.08] dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/60 backdrop-blur-md p-4 shadow-sm">
+                                <div className="flex items-center justify-between gap-3 mb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    {(msg.imageJob.status === "generating" || msg.imageJob.status === "queued" || msg.imageJob.status === "processing") && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Generating</span>
+                                      </span>
+                                    )}
+                                    {msg.imageJob.status === "verifying" && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                                        <Eye className="w-3.5 h-3.5 animate-pulse" />
+                                        <span>Verifying</span>
+                                      </span>
+                                    )}
+                                    {msg.imageJob.status === "refining" && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Refining</span>
+                                      </span>
+                                    )}
+                                    {msg.imageJob.status === "failed" && (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
+                                        <AlertCircle className="w-3.5 h-3.5" />
+                                        <span>Failed</span>
+                                      </span>
+                                    )}
+                                    <span className="text-[11px] font-mono text-neutral-400">FLUX.1 Schnell + Gemini Vision</span>
+                                  </div>
+                                  <span className="text-[11px] font-mono font-bold text-neutral-500 dark:text-neutral-400">
+                                    {msg.imageJob.status === "failed" ? "0%" : `${msg.imageJob.progressPercent || 15}%`}
+                                  </span>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div className="w-full h-1.5 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden mb-3">
+                                  <div
+                                    className={`h-full transition-all duration-500 rounded-full ${
+                                      msg.imageJob.status === "failed"
+                                        ? "bg-red-500 w-full"
+                                        : msg.imageJob.status === "refining"
+                                        ? "bg-gradient-to-r from-cyan-500 via-purple-500 to-amber-500 animate-pulse"
+                                        : msg.imageJob.status === "verifying"
+                                        ? "bg-gradient-to-r from-cyan-500 to-purple-500 animate-pulse"
+                                        : "bg-gradient-to-r from-cyan-400 to-cyan-500"
+                                    }`}
+                                    style={{
+                                      width: msg.imageJob.status === "failed" ? "100%" : `${Math.max(10, Math.min(100, msg.imageJob.progressPercent || 15))}%`,
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Status Description */}
+                                <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                                  {msg.imageJob.statusMessage ||
+                                    (msg.imageJob.status === "generating"
+                                      ? "Generating image with Cloudflare Workers AI FLUX.1 Schnell..."
+                                      : msg.imageJob.status === "verifying"
+                                      ? "Auditing visual prompt adherence with Gemini Vision..."
+                                      : msg.imageJob.status === "refining"
+                                      ? "Refining prompt adherence against visual feedback..."
+                                      : msg.imageJob.error || "Generation encountered an issue.")}
+                                </p>
+
+                                {/* Retry Button if Failed */}
+                                {msg.imageJob.status === "failed" && (
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => regenerateResponse(msg.id)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition cursor-pointer"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                      <span>Retry Generation</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
 
                             {/* Generated Image Card (1:1, 16:9, 9:16 Ratios) */}

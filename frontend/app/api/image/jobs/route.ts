@@ -9,6 +9,7 @@ import {
   getJob,
   cancelJob,
   listRecentJobs,
+  executeJob,
 } from "@/app/lib/image-engine/reliability/job-queue";
 import {
   validatePromptInput,
@@ -22,7 +23,9 @@ import {
 } from "@/app/lib/image-engine/reliability/cost-tracker";
 import { getReliabilityDashboardMetrics } from "@/app/lib/image-engine/reliability/performance-monitor";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,13 +40,21 @@ export async function GET(req: NextRequest) {
     }
 
     if (jobId) {
-      const job = getJob(jobId);
+      let job = getJob(jobId);
       if (!job) {
         return NextResponse.json(
           { success: false, error: `Job with ID "${jobId}" not found.` },
           { status: 404 }
         );
       }
+
+      // If requested with drive=true and job is queued or pending, trigger execution asynchronously
+      if ((job.status === "queued" || (job.status === "processing" && job.attempts === 0)) && searchParams.get("drive") === "true") {
+        executeJob(job.id).catch((err) => {
+          console.error(`[JobQueue] Driver execution error on job ${job?.id}:`, err);
+        });
+      }
+
       return NextResponse.json({ success: true, job });
     }
 
@@ -76,6 +87,26 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // Action: Process existing job asynchronously with dedicated function execution budget
+    if (body.action === "process" && body.jobId) {
+      const job = getJob(body.jobId);
+      if (!job) {
+        return NextResponse.json(
+          { success: false, error: `Job "${body.jobId}" not found.` },
+          { status: 404 }
+        );
+      }
+
+      // If already finished, return immediately
+      if (job.status === "completed" || job.status === "failed") {
+        return NextResponse.json({ success: true, job });
+      }
+
+      // Execute job to completion
+      const completedJob = await executeJob(body.jobId);
+      return NextResponse.json({ success: true, job: completedJob });
+    }
 
     // 2. Input validation
     const promptValidation = validatePromptInput(body.prompt);

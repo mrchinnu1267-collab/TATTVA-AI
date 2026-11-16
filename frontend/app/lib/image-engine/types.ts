@@ -65,6 +65,12 @@ export interface ImageGenerationOptions {
   userId?: string;
   activeAdapterId?: string;
   adapterScale?: number;
+  onStageChange?: (
+    stage: "generating" | "verifying" | "refining",
+    attempt: number,
+    maxAttempts: number,
+    score?: number
+  ) => void;
 }
 
 export interface CompiledImagePrompt {

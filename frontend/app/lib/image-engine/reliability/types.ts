@@ -59,6 +59,11 @@ export interface ImageJob {
   updatedAt: string;
   completedAt?: string;
   latencyMs?: number;
+  accuracy?: number;
+  verification?: any;
+  statusMessage?: string;
+  maxAttempts?: number;
+  imageMetadata?: any;
 }
 
 export interface CostRecord {

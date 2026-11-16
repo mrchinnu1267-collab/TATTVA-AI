@@ -38,6 +38,7 @@ import {
   generateImageWithMultimodalRAG,
   formatUserFacingImageError,
 } from "../image-engine";
+import { createImageJob } from "../image-engine/reliability/job-queue";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
 import { promptAnalyzer, promptEnhancer, responseValidator, AnalyzedPrompt } from "./intelligence";
@@ -349,6 +350,36 @@ export class MasterAIOrchestrator {
             warnings: ["Reference image safety violation: request rejected"],
           };
         }
+      }
+
+      // Asynchronous Job Mode: Returns immediately (< 500ms) to prevent Vercel HTTP 504 Gateway Timeout
+      if (context.asyncImageJob) {
+        const job = createImageJob({
+          prompt: candidatePrompt,
+          referenceImage: imageToModerate,
+          quality: "balanced",
+          aspectRatio: "1:1",
+          userId: context.userId || "user_workspace",
+          workspaceId: context.workspaceId || "default",
+        });
+
+        return {
+          role: "assistant",
+          content: `Crafting your image with Cloudflare Workers AI FLUX.1 Schnell and verifying details with Gemini Vision...`,
+          kind: "image_job",
+          intent: effectiveIntent,
+          modelUsed: "@cf/black-forest-labs/flux-1-schnell",
+          provider: "cloudflare",
+          latencyMs: Date.now() - startTime,
+          imageJob: {
+            id: job.id,
+            status: job.status,
+            currentStage: job.currentStage,
+            progressPercent: job.progressPercent,
+            prompt: job.prompt,
+            statusMessage: job.statusMessage,
+          },
+        };
       }
 
       try {

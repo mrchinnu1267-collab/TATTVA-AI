@@ -202,6 +202,10 @@ try {
   if (outputRouting?.runOutputRoutingTests) {
     await outputRouting.runOutputRoutingTests();
   }
+  const asyncImageJob = await jiti("./async-image-job-504-reliability.test.ts");
+  if (asyncImageJob?.runAsyncImageJobReliabilityTests) {
+    await asyncImageJob.runAsyncImageJobReliabilityTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {
