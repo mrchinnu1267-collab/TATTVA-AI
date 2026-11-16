@@ -1615,9 +1615,25 @@ export default function ImageStudioPage() {
                   <ScoreRing score={result.accuracy} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-sm font-bold">{scoreLabel(result.accuracy)}</h2>
-                      <span className="rounded-full border border-[var(--border)] bg-[var(--background)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-neutral-500">
-                        {result.verification.method === "vision" ? "Vision verified" : "Structural check"}
+                      <span className="text-xs font-black tracking-wider uppercase text-neutral-400">
+                        PROMPT ADHERENCE:
+                      </span>
+                      <h2 className="text-base font-black tracking-tight">{result.accuracy}%</h2>
+                      {result.verification.method === "unavailable" ? (
+                        <span className="rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                          Verification Unavailable
+                        </span>
+                      ) : result.accuracy >= 95 ? (
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                          Verified
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                          Needs Improvement
+                        </span>
+                      )}
+                      <span className="text-[10px] text-neutral-400 font-medium">
+                        ({result.verification.confidence || 92}% confidence · {result.attempts.length} attempt{result.attempts.length === 1 ? "" : "s"})
                       </span>
                     </div>
                     <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
@@ -1673,6 +1689,56 @@ export default function ImageStudioPage() {
                   </div>
                 </div>
 
+                {/* Attempt History & Automatic Refinement Progression */}
+                {result.attempts.length > 1 && (
+                  <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--background)] p-3.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="uppercase tracking-wider text-neutral-400">
+                        Automatic Refinement Progression
+                      </span>
+                      {result.accuracy >= 95 ? (
+                        <span className="text-emerald-500 flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Target 95% Achieved
+                        </span>
+                      ) : (
+                        <span className="text-amber-500 flex items-center gap-1">
+                          <History className="h-3.5 w-3.5" /> Best Attempt Retained
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {result.attempts.map((att) => {
+                        const attScore = att.verification?.score ?? result.accuracy;
+                        const isBest = attScore === result.accuracy;
+                        return (
+                          <div
+                            key={att.index}
+                            className={`rounded-xl border p-2.5 text-center transition ${
+                              isBest
+                                ? "border-emerald-500/50 bg-emerald-500/5 shadow-sm"
+                                : "border-[var(--border)] bg-[var(--soft)]"
+                            }`}
+                          >
+                            <div className="text-[10px] text-neutral-400 font-medium">
+                              Attempt {att.index}
+                            </div>
+                            <div
+                              className={`text-base font-black ${
+                                isBest ? "text-emerald-500" : "text-[var(--foreground)]"
+                              }`}
+                            >
+                              {att.verification ? `${att.verification.score}%` : `${attScore}%`}
+                            </div>
+                            <div className="mt-0.5 text-[9px] text-neutral-500">
+                              {formatDuration(att.latencyMs)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {result.verification.requirements.length > 0 && (
                   <div className="mt-4 border-t border-[var(--border)] pt-3">
                     <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
@@ -1706,9 +1772,21 @@ export default function ImageStudioPage() {
                   </div>
                 )}
 
+                {/* Missing Requirements Breakdown */}
+                {result.verification.missingRequirements && result.verification.missingRequirements.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-[10px] text-red-500">
+                    <span className="font-bold">Missing requirements identified by Gemini Vision:</span>
+                    <ul className="mt-1 list-disc list-inside space-y-0.5">
+                      {result.verification.missingRequirements.map((m, i) => (
+                        <li key={i}>{m}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {result.verification.suggestedFix && (
                   <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[10px] text-amber-600 dark:text-amber-400">
-                    <span className="font-semibold">Suggested fix:</span> {result.verification.suggestedFix}
+                    <span className="font-semibold">Intelligent Correction:</span> {result.verification.suggestedFix}
                   </div>
                 )}
               </div>

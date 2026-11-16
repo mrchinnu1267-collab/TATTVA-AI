@@ -345,27 +345,37 @@ export function evaluatePromptAdherence(params: {
   // =========================================================================
   // 10. OVERALL INSTRUCTION ADHERENCE SCORE
   // =========================================================================
-  // Weighting: main subject (30%), objects (20%), count (15%), color (15%), spatial (10%), text (10%)
+  // Exact 8-dimension weighting:
+  // - Main subject accuracy: 25%
+  // - Object presence: 20%
+  // - Object count: 15%
+  // - Color accuracy: 10%
+  // - Spatial accuracy: 10%
+  // - Background accuracy: 10%
+  // - Style accuracy: 5%
+  // - Text accuracy: 5%
   let compositeScore =
-    categories["main_subject"].score * 0.30 +
-    categories["object_presence"].score * 0.20 +
-    categories["object_count"].score * 0.15 +
-    categories["color_accuracy"].score * 0.15 +
-    categories["spatial_accuracy"].score * 0.10 +
-    categories["text_accuracy"].score * 0.10;
+    (categories["main_subject"]?.score ?? 0) * 0.25 +
+    (categories["object_presence"]?.score ?? 0) * 0.20 +
+    (categories["object_count"]?.score ?? 0) * 0.15 +
+    (categories["color_accuracy"]?.score ?? 0) * 0.10 +
+    (categories["spatial_accuracy"]?.score ?? 0) * 0.10 +
+    (categories["background_accuracy"]?.score ?? 0) * 0.10 +
+    (categories["style_accuracy"]?.score ?? 0) * 0.05 +
+    (categories["text_accuracy"]?.score ?? 0) * 0.05;
 
   // CRITICAL FAILURE OVERRIDE:
   // If main subject is a critical failure (e.g. generic character substitution or missing subject),
-  // overall score MUST NOT exceed 35, regardless of how attractive the image looks!
+  // overall score MUST NOT exceed 25, regardless of how attractive the image looks!
   if (isCriticalFailure) {
-    compositeScore = Math.min(compositeScore, 35);
+    compositeScore = Math.min(compositeScore, 25);
   }
 
-  const overallScore = Math.round(compositeScore);
+  const overallScore = Math.max(0, Math.min(100, Math.round(compositeScore)));
   const overallVerdict: "PASS" | "NEEDS_IMPROVEMENT" | "FAIL" =
     isCriticalFailure || overallScore < 50
       ? "FAIL"
-      : overallScore < 80
+      : overallScore < 95
       ? "NEEDS_IMPROVEMENT"
       : "PASS";
 

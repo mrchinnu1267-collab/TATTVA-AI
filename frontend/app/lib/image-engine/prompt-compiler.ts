@@ -414,5 +414,60 @@ export function refinePrompt(
   return `${compiled.positive}${corrections}${fix}\n\nRe-check every mandatory detail above before finishing the image.`;
 }
 
+/**
+ * Intelligent prompt correction based on visual evaluation feedback.
+ * Preserves confirmed present elements and injects surgical directives for missing requirements.
+ */
+export function constructIntelligentRefinedPrompt(params: {
+  originalPrompt: string;
+  compiledPrompt: string;
+  verification?: {
+    missingRequirements?: string[];
+    suggestedFix?: string;
+    requirements?: RequirementCheck[];
+    issues?: string[];
+  };
+  attempt: number;
+}): string {
+  const { originalPrompt, compiledPrompt, verification, attempt } = params;
+  if (!verification) return compiledPrompt;
+
+  const missingList: string[] = [];
+  if (Array.isArray(verification.missingRequirements)) {
+    for (const m of verification.missingRequirements) {
+      if (m && !missingList.includes(m)) missingList.push(m);
+    }
+  }
+
+  if (Array.isArray(verification.requirements)) {
+    for (const r of verification.requirements) {
+      if (r.met === false && !missingList.includes(r.text)) {
+        missingList.push(r.text);
+      }
+    }
+  }
+
+  const fix = verification.suggestedFix?.trim();
+
+  // If Gemini provided a direct targeted instruction (e.g. "Preserve ... Make ...")
+  if (fix && fix.toLowerCase().includes("preserve") && fix.length > 20) {
+    return `${fix} High resolution, cinematic, photorealistic quality.`;
+  }
+
+  // Construct structured intelligent refinement prompt
+  const directives: string[] = [];
+  directives.push(`Preserve all existing correct elements and intended composition from: "${originalPrompt}".`);
+
+  if (missingList.length > 0) {
+    directives.push(`Make ${missingList.join(" and ")} clearly visible and prominent in the environment.`);
+  }
+
+  if (fix && !missingList.some((m) => fix.toLowerCase().includes(m.toLowerCase()))) {
+    directives.push(fix);
+  }
+
+  directives.push(`Refinement attempt #${attempt + 1}: strictly satisfy every requirement without omitting any details.`);
+  return directives.join(" ");
+}
 
 export const compilePrompt = compileImagePrompt;

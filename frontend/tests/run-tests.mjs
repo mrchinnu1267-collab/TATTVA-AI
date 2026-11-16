@@ -194,6 +194,10 @@ try {
   if (supabaseStorageActivation?.runSupabaseStorageActivationTests) {
     await supabaseStorageActivation.runSupabaseStorageActivationTests();
   }
+  const intelligentRefinement = await jiti("./intelligent-automatic-refinement.test.ts");
+  if (intelligentRefinement?.runIntelligentRefinementTests) {
+    await intelligentRefinement.runIntelligentRefinementTests();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {

@@ -3,7 +3,7 @@
  *   compile -> generate -> verify -> refine/retry -> return the best attempt.
  */
 
-import { compileImagePrompt, refinePrompt } from "./prompt-compiler";
+import { compileImagePrompt, refinePrompt, constructIntelligentRefinedPrompt } from "./prompt-compiler";
 import {
   generateWithProvider,
   getCooldownRemaining,
@@ -123,16 +123,13 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
   const started = Date.now();
   const compiled = compileImagePrompt({ ...options, prompt });
-  // Cloudflare Workers AI is the exclusive provider: execute single targeted attempt
-  const maxAttempts = 1;
+  // Automatic Refinement Loop: max 4 attempts, target 95% adherence
+  const maxAttempts = Math.min(4, Math.max(1, options.maxAttempts ?? 4));
   const verify = options.verify !== false;
-  const targetScore = Math.max(
-    50,
-    Math.min(100, options.targetScore ?? (compiled.quality === "max" ? 92 : 86))
-  );
+  const targetScore = Math.max(50, Math.min(100, options.targetScore ?? 95));
 
   const warnings: string[] = [];
-  // Cloudflare Workers AI is the exclusive provider. Fallback chains and provider switching are removed.
+  // Cloudflare Workers AI is the exclusive provider
   const order: ImageProviderId[] = ["cloudflare"];
   const attempts: ImageAttempt[] = [];
   let best: {
@@ -143,15 +140,16 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   let lastError = "";
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    // Intelligent prompt refinement using Gemini Vision feedback from previous best attempt
     const attemptPrompt: string =
       attempt === 0 || !best
         ? compiled.positive
-        : refinePrompt(
-            compiled,
-            best.verification.requirements.filter((item) => item.met !== true),
-            best.verification.suggestedFix,
-            attempt
-          );
+        : constructIntelligentRefinedPrompt({
+            originalPrompt: compiled.prompt,
+            compiledPrompt: compiled.positive,
+            verification: best.verification,
+            attempt,
+          });
 
     let generated = false;
 
@@ -163,9 +161,6 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     // Check which compatible providers in order are healthy and not in cooldown
     let providersToTry = compatibleOrder.filter((p) => getCooldownRemaining(p) === 0);
 
-    // If ALL compatible providers in the chain are in cooldown, do not fail silently,
-    // but STRICTLY DO NOT retry hard exhaustion/auth failures (e.g. invalid credentials or quota exhaustion).
-    // Bounded retries: only attempt transient errors with consecutive failures <= 2.
     if (providersToTry.length === 0 && compatibleOrder.length > 0) {
       const retryableTransientCandidates = compatibleOrder
         .map((p) => ({
@@ -175,7 +170,6 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         }))
         .filter((c) => {
           if (!c.entry) return false;
-          // Strictly forbid retrying quota exhaustion or invalid auth in recovery loops
           if (!c.entry.isRetryable) return false;
           if (
             c.entry.category === "QUOTA_EXHAUSTION" ||
@@ -184,7 +178,6 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
           ) {
             return false;
           }
-          // Bounded retry policy: maximum 2 transient attempts
           return c.entry.consecutiveFailures <= 2;
         })
         .sort((a, b) => a.remaining - b.remaining);
@@ -202,11 +195,12 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         const result = await generateWithProvider(provider, request);
         generated = true;
 
+        // Full Gemini Vision verification enabled for Cloudflare FLUX.1 Schnell
         const verification = await verifyImage({
           image: result.image,
           compiled,
           requirements: compiled.requirements,
-          useVision: verify && provider !== "cloudflare",
+          useVision: verify,
         });
 
         attempts.push({
@@ -218,6 +212,8 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
           prompt: attemptPrompt,
           verification,
           image: result.image,
+          missingRequirements: verification.missingRequirements,
+          correctedPrompt: verification.suggestedFix,
         });
 
         const hasNsfw = verification.issues.some((issue) =>
@@ -230,11 +226,11 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
           );
         }
 
+        // Best image selection: NEVER replace a higher-scoring image with a lower-scoring image!
         if (!best || verification.score > best.verification.score) {
           best = { result, verification, prompt: attemptPrompt };
         }
 
-        // One successful generation per attempt. Retries refine the prompt.
         break;
       } catch (error) {
         lastError = messageOf(error);
@@ -251,11 +247,15 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         if (lastError.includes(SAFETY_REJECTION_MESSAGE)) {
           throw error;
         }
-        // Try the next provider in the preference order.
       }
     }
 
-    if (best && (!verify || best.verification.score >= targetScore)) break;
+    // Stop conditions:
+    // 1. Target adherence achieved (score >= 95)
+    if (best && best.verification.score >= targetScore) break;
+    // 2. Vision verification unavailable (avoid useless retries when vision is offline/missing key)
+    if (best && best.verification.method === "unavailable") break;
+    // 3. Provider failed to generate on final attempt
     if (!generated && attempt >= maxAttempts - 1) break;
   }
 
@@ -265,8 +265,20 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     );
   }
 
-  // 3. Post-Generation Output Visual Verification
-  if (best.result.provider !== "cloudflare") {
+  // Record attempt history on best verification
+  best.verification.attemptHistory = attempts
+    .filter((a) => a.verification)
+    .map((a) => ({
+      attempt: a.index,
+      score: a.verification!.score,
+      latencyMs: a.latencyMs,
+      missing: a.verification!.missingRequirements,
+      correction: a.verification!.suggestedFix,
+    }));
+  best.verification.targetAchieved = best.verification.score >= targetScore;
+
+  // Post-Generation Output Visual Verification (avoid duplicate vision call if already verified by Gemini Vision)
+  if (best.verification.method !== "vision") {
     const outputCheck = await moderateVisualImage(best.result.image);
     if (!outputCheck.isSafe) {
       throw new ImageProviderError(
@@ -277,28 +289,10 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   }
 
   const latencyMs = Date.now() - started;
-  let accuracy = best.verification.score;
+  const accuracy = best.verification.score;
   const successfulAttempts = attempts.filter((item) => !item.error).length;
   const usage = calculateCloudflareUsage(1024, 1024, resolveCloudflareSteps(compiled.quality));
   const estimatedCostUsd = usage.estimatedCostUsd;
-
-  // 4. Advanced Visual Evaluation & Intelligent Refinement (Phase E)
-  let evaluationResult: any = null;
-  if (verify && best.result.provider !== "cloudflare") {
-    try {
-      evaluationResult = await evaluateVisualQuality({
-        image: best.result.image,
-        prompt,
-        referenceImage: options.referenceImage,
-        useVision: verify,
-      });
-      if (evaluationResult?.scorecard?.overallScore) {
-        accuracy = evaluationResult.scorecard.overallScore;
-      }
-    } catch (evalErr) {
-      console.warn("[Engine] Visual evaluation service non-fatal warning:", evalErr);
-    }
-  }
 
   recordGenerationOutcome({
     modelId: best.result.model,
@@ -342,11 +336,16 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       routing_rationale: "Cloudflare Workers AI (@cf/black-forest-labs/flux-1-schnell) exclusive provider",
       estimated_cost_usd: estimatedCostUsd,
       primary_model: "@cf/black-forest-labs/flux-1-schnell",
-      scorecard: evaluationResult?.scorecard,
-      refinement_action: evaluationResult?.refinementRecommendation?.type,
+      scorecard: best.verification.categoryScores,
+      refinement_action: best.verification.suggestedFix,
       warnings: [...new Set(warnings)],
     },
-    evaluation: evaluationResult,
+    evaluation: {
+      scorecard: best.verification.categoryScores,
+      suggestedFix: best.verification.suggestedFix,
+      missingRequirements: best.verification.missingRequirements,
+      attemptHistory: best.verification.attemptHistory,
+    },
   };
 }
 

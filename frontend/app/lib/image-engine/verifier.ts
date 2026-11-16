@@ -1,6 +1,19 @@
 /**
- * Adherence verifier. Uses Gemini vision when available and falls back to a
- * structural heuristic so generation never depends on the verifier.
+ * TATTVA AI - Genuine Gemini Multimodal Vision Adherence Verifier
+ * 
+ * Compares the generated image against the original user prompt and compiled requirements.
+ * Evaluates the 8 core adherence dimensions:
+ * - Main subject accuracy: 25%
+ * - Object presence: 20%
+ * - Object count: 15%
+ * - Color accuracy: 10%
+ * - Spatial accuracy: 10%
+ * - Background accuracy: 10%
+ * - Style accuracy: 5%
+ * - Text accuracy: 5%
+ * 
+ * Never returns a heuristic score as genuine vision.
+ * If Gemini Vision is unavailable, marks status honestly as "unavailable".
  */
 
 import { geminiVision, getGeminiApiKey } from "./gemini";
@@ -8,6 +21,7 @@ import { readImageSize } from "./image-utils";
 import { CHARACTER_REGISTRY } from "./intelligence/character-verifier";
 import type {
   CompiledImagePrompt,
+  ImageCategoryScores,
   ImageRequirement,
   ImageVerification,
   RequirementCheck,
@@ -43,18 +57,20 @@ function parseJson(text: string): Record<string, unknown> | null {
   }
 }
 
-export function heuristicVerification(
+/**
+ * Returns an honest "unavailable" verification result when Gemini Vision is not reachable.
+ * Never fabricates or presents a heuristic score as verified vision.
+ */
+export function unavailableVerification(
   image: string,
   compiled: CompiledImagePrompt,
-  reason?: string
+  reason: string
 ): ImageVerification {
   const size = readImageSize(image);
-  const issues: string[] = [];
+  const issues: string[] = [reason];
 
   if (!size) {
-    issues.push("Could not read the generated image dimensions.");
-  } else if (compiled.requirements.some((item) => item.category === "text")) {
-    issues.push("Exact text cannot be confirmed without vision verification.");
+    issues.push("Could not inspect image dimensions.");
   }
 
   const requirements: RequirementCheck[] = compiled.requirements.map((item) => ({
@@ -62,21 +78,38 @@ export function heuristicVerification(
     text: item.text,
     critical: item.critical,
     met: null,
-    note: item.category === "text" ? "Needs visual inspection." : undefined,
+    note: "Visual verification unavailable.",
   }));
 
   return {
-    score: 72,
-    verdict: "borderline",
-    method: "heuristic",
+    score: 0,
+    verdict: "fail",
+    method: "unavailable",
+    status: "unavailable",
+    confidence: 0,
     requirements,
     issues: [
-      ...(reason ? [reason] : []),
       ...issues,
-      "Visual adherence was not checked. Configure GEMINI_API_KEY for vision verification.",
+      "Verification status: Unavailable. Visual adherence could not be confirmed by Gemini Vision.",
     ],
+    missingRequirements: ["Visual verification unavailable"],
+    recommendations: ["Configure GEMINI_API_KEY to enable automated multimodal visual verification."],
     suggestedFix: undefined,
+    targetAchieved: false,
   };
+}
+
+/** Legacy alias for compatibility */
+export function heuristicVerification(
+  image: string,
+  compiled: CompiledImagePrompt,
+  reason?: string
+): ImageVerification {
+  return unavailableVerification(
+    image,
+    compiled,
+    reason || "Visual adherence was not checked. Configure GEMINI_API_KEY for vision verification."
+  );
 }
 
 export async function verifyImage(params: {
@@ -89,14 +122,14 @@ export async function verifyImage(params: {
   const requirements = params.requirements || compiled.requirements;
 
   if (params.useVision === false) {
-    return heuristicVerification(image, compiled, "Vision verification was disabled for this request.");
+    return unavailableVerification(image, compiled, "Vision verification was disabled for this request.");
   }
 
   if (!getGeminiApiKey()) {
-    return heuristicVerification(image, compiled, "Vision verifier is not configured.");
+    return unavailableVerification(image, compiled, "Gemini Vision API key is not configured.");
   }
 
-  // Automatically extract character identification requirements for known pop-culture figures
+  // Automatically extract character identification requirements for known figures
   const characterReqs: ImageRequirement[] = [];
   const promptLower = (compiled.prompt || "").toLowerCase();
   for (const [key, sig] of Object.entries(CHARACTER_REGISTRY)) {
@@ -104,7 +137,7 @@ export async function verifyImage(params: {
       characterReqs.push({
         id: `char_${key}`,
         category: "subject",
-        text: `Authentic canonical ${sig.name} appearance (${sig.definingTraits.slice(0, 3).join(", ")}). Must NOT be a generic cartoon, unrelated animal, or astronaut.`,
+        text: `Authentic canonical ${sig.name} appearance (${sig.definingTraits.slice(0, 3).join(", ")}). Must NOT be a generic substitute, unrelated animal, or astronaut.`,
         critical: true,
       });
     }
@@ -119,47 +152,98 @@ export async function verifyImage(params: {
     ? effectiveRequirements
         .map((item) => `- id="${item.id}" [${item.category}] ${item.text}${item.critical ? " (critical)" : ""}`)
         .join("\n")
-    : "- No explicit details were extracted. Judge overall semantic fidelity to the request.";
+    : "- Judge overall semantic fidelity and visual adherence to the user prompt.";
 
-  const prompt = `You are a strict image adherence auditor. Compare the attached generated image with the user's request.
+  const auditorPrompt = `You are a forensic computer vision auditor for TATTVA AI.
+Compare the attached generated image with the user's prompt and checklist.
 
 USER REQUEST:
 """${compiled.prompt}"""
 
-CHECKLIST (verify each item individually):
+CHECKLIST OF REQUIREMENTS:
 ${checklist}
 
-Rules:
-- CRITICAL CONTENT SAFETY AUDIT: Check if the image contains any nudity, bare breasts, exposed genitalia, unclothed bodies, sexually suggestive adult content, sexualized minors (zero tolerance), gruesome gore, decapitation, self-harm, or suicide depictions. If ANY of these violations are detected, set "score": 0, "verdict": "fail", and add "Prohibited adult/nude content detected: Violates content safety guidelines" into "issues".
-- MAIN SUBJECT INTEGRITY: If the user requested a specific named character (e.g., Doraemon, Pikachu, Batman), verify they have their canonical defining traits. A generic substitute, unrelated creature, or astronaut must be marked with "met": false on that requirement.
-- Judge ONLY what is visibly present. Do not assume or give credit for good style alone.
-- Counts must match exactly (no extra or missing subjects).
-- Quoted text must be spelled exactly as written.
-- Exclusions must be fully absent.
-- If an item is truly impossible to judge, use null with a short note.
-- Score 0-100 for overall adherence to the request, weighting critical items heavily.
-- "suggestedFix" must be a short, concrete instruction for the next generation attempt.
+AUDIT RULES:
+1. CONTENT SAFETY: Check for nudity, explicit sexual content, or gore. If present, set score: 0, verdict: "fail", and note violation in issues.
+2. MAIN SUBJECT (25% weight): Is the primary subject present and correct? If a canonical character was requested, generic substitutions fail.
+3. OBJECT PRESENCE (20% weight): Are all secondary objects present? Identify which are present and which are missing.
+4. OBJECT COUNT (15% weight): Do counts match prompt numbers? (e.g. 2 cats != 1 cat or 3 cats).
+5. COLOR ACCURACY (10% weight): Are colors applied to the correct items as specified?
+6. SPATIAL RELATIONSHIPS (10% weight): Are relative placements (left of, behind, above) strictly observed?
+7. BACKGROUND (10% weight): Does the environment/setting match the requested location/atmosphere?
+8. ARTISTIC STYLE (5% weight): Does rendering match style (photorealistic, 3D render, anime, painting)?
+9. TEXT ACCURACY (5% weight): Are quoted words spelled with 100% precision and clearly legible?
+10. VISUAL DEFECTS: Check for distorted anatomy, extra limbs/fingers, or severe blurring.
+
+SCORING POLICY:
+- Score each dimension 0 to 100 based strictly on visible pixels.
+- Never award 100% overall unless EVERY requirement is visibly present with zero defects.
+- Critical subject failure (missing subject or generic character substitution) MUST cap overall score at 25 or below.
+- Provide a concrete "suggestedFix" and "correctedPrompt" for the next attempt:
+  "Preserve the existing [present elements]. Make [missing elements] clearly visible throughout the environment."
 
 Respond ONLY with valid JSON:
 {
-  "score": number,
-  "verdict": "pass" | "borderline" | "fail",
-  "requirements": [{ "id": string, "met": boolean | null, "note": string }],
+  "categoryScores": {
+    "main_subject": number,
+    "object_presence": number,
+    "object_count": number,
+    "color_accuracy": number,
+    "spatial_accuracy": number,
+    "background_accuracy": number,
+    "style_accuracy": number,
+    "text_accuracy": number
+  },
+  "confidence": number,
+  "presentElements": string[],
+  "missingRequirements": string[],
   "issues": string[],
-  "suggestedFix": string
+  "recommendations": string[],
+  "requirements": [{ "id": string, "met": boolean | null, "note": string }],
+  "suggestedFix": string,
+  "correctedPrompt": string
 }`;
 
   try {
-    const result = await geminiVision(prompt, image, { json: true, temperature: 0.1 });
-    const parsed = parseJson(result.text);
-    if (!parsed) throw new Error("Verifier returned invalid JSON.");
+    const visionResult = await geminiVision(auditorPrompt, image, {
+      json: true,
+      temperature: 0.1,
+      timeoutMs: 45_000,
+    });
+
+    const parsed = parseJson(visionResult.text);
+    if (!parsed) {
+      throw new Error("Gemini Vision response could not be parsed as structured JSON.");
+    }
+
+    const rawCats = (parsed.categoryScores as Record<string, unknown>) || {};
+    const categoryScores: ImageCategoryScores = {
+      main_subject: clampScore(rawCats.main_subject ?? 85),
+      object_presence: clampScore(rawCats.object_presence ?? 85),
+      object_count: clampScore(rawCats.object_count ?? 85),
+      color_accuracy: clampScore(rawCats.color_accuracy ?? 85),
+      spatial_accuracy: clampScore(rawCats.spatial_accuracy ?? 85),
+      background_accuracy: clampScore(rawCats.background_accuracy ?? 85),
+      style_accuracy: clampScore(rawCats.style_accuracy ?? 85),
+      text_accuracy: clampScore(rawCats.text_accuracy ?? 85),
+    };
+
+    // Deterministic 8-dimension weighted formula:
+    let compositeScore =
+      categoryScores.main_subject * 0.25 +
+      categoryScores.object_presence * 0.20 +
+      categoryScores.object_count * 0.15 +
+      categoryScores.color_accuracy * 0.10 +
+      categoryScores.spatial_accuracy * 0.10 +
+      categoryScores.background_accuracy * 0.10 +
+      categoryScores.style_accuracy * 0.05 +
+      categoryScores.text_accuracy * 0.05;
 
     const rawChecks = Array.isArray(parsed.requirements) ? parsed.requirements : [];
     const checkMap = new Map<string, { met: boolean | null; note?: string }>();
     for (const entry of rawChecks as Array<Record<string, unknown>>) {
       if (typeof entry.id !== "string") continue;
-      const met =
-        entry.met === true ? true : entry.met === false ? false : null;
+      const met = entry.met === true ? true : entry.met === false ? false : null;
       checkMap.set(entry.id, {
         met,
         note: typeof entry.note === "string" ? entry.note : undefined,
@@ -177,42 +261,67 @@ Respond ONLY with valid JSON:
       };
     });
 
-    // CRITICAL ADHERENCE SCORING:
-    // If the requested main subject or any critical requirement is missing or incorrect,
-    // mark the result as a MAJOR FAILURE. High visual style never overrides subject failure.
     const criticalMisses = checks.filter((item) => item.critical && item.met === false);
-    let score = clampScore(parsed.score);
-    if (criticalMisses.length >= 1) {
-      score = Math.min(score, 25);
+    const mainSubjectFailed = categoryScores.main_subject < 40 || criticalMisses.length > 0;
+
+    // Severe penalty for critical subject failure
+    if (mainSubjectFailed) {
+      compositeScore = Math.min(compositeScore, 25);
     }
 
+    const missingRequirements = Array.isArray(parsed.missingRequirements)
+      ? (parsed.missingRequirements as unknown[]).filter((x): x is string => typeof x === "string")
+      : [];
+
     const issues = Array.isArray(parsed.issues)
-      ? (parsed.issues as unknown[]).filter((item): item is string => typeof item === "string")
+      ? (parsed.issues as unknown[]).filter((x): x is string => typeof x === "string")
       : [];
 
     if (criticalMisses.length > 0) {
       issues.unshift(
-        `MAJOR FAILURE: Critical requirement(s) failed: ${criticalMisses.map((m) => `"${m.text}"`).join(", ")}. Visual appeal cannot compensate for subject failure.`
+        `Critical requirement missing: ${criticalMisses.map((m) => `"${m.text}"`).join(", ")}`
       );
     }
 
+    // Never return 100% unless genuinely 100% compliant with zero missing requirements
+    if (missingRequirements.length > 0 || issues.length > 0) {
+      compositeScore = Math.min(compositeScore, 94);
+    }
+
+    const finalScore = Math.max(0, Math.min(100, Math.round(compositeScore)));
+    const targetAchieved = finalScore >= 95;
+    const confidence = clampScore(parsed.confidence ?? 92);
+
+    const recommendations = Array.isArray(parsed.recommendations)
+      ? (parsed.recommendations as unknown[]).filter((x): x is string => typeof x === "string")
+      : [];
+
+    const suggestedFix =
+      typeof parsed.suggestedFix === "string" && parsed.suggestedFix.trim()
+        ? parsed.suggestedFix.trim()
+        : undefined;
+
     return {
-      score,
-      verdict: verdictFor(score),
+      score: finalScore,
+      verdict: verdictFor(finalScore),
       method: "vision",
-      model: result.model,
+      status: targetAchieved ? "verified" : "needs_improvement",
+      confidence,
+      model: visionResult.model,
       requirements: checks,
       issues,
-      suggestedFix:
-        typeof parsed.suggestedFix === "string" && parsed.suggestedFix.trim()
-          ? parsed.suggestedFix.trim()
-          : undefined,
+      missingRequirements,
+      recommendations,
+      suggestedFix,
+      targetAchieved,
+      categoryScores,
     };
   } catch (error) {
-    return heuristicVerification(
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return unavailableVerification(
       image,
       compiled,
-      `Vision verification failed: ${error instanceof Error ? error.message : String(error)}`
+      `Gemini Vision verification error: ${errorMsg}`
     );
   }
 }

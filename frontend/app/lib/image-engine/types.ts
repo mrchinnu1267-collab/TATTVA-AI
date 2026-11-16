@@ -145,16 +145,41 @@ export interface RequirementCheck {
   note?: string;
 }
 
-export type VerificationMethod = "vision" | "heuristic";
+export type VerificationMethod = "vision" | "heuristic" | "unavailable";
+export type VerificationStatus = "verified" | "needs_improvement" | "unavailable";
+
+export interface ImageCategoryScores {
+  main_subject: number;
+  object_presence: number;
+  object_count: number;
+  color_accuracy: number;
+  spatial_accuracy: number;
+  background_accuracy: number;
+  style_accuracy: number;
+  text_accuracy: number;
+}
 
 export interface ImageVerification {
   score: number;
   verdict: "pass" | "borderline" | "fail";
   method: VerificationMethod;
+  status?: VerificationStatus;
+  confidence?: number;
   model?: string;
   requirements: RequirementCheck[];
   issues: string[];
   suggestedFix?: string;
+  missingRequirements?: string[];
+  recommendations?: string[];
+  targetAchieved?: boolean;
+  categoryScores?: ImageCategoryScores;
+  attemptHistory?: Array<{
+    attempt: number;
+    score: number;
+    latencyMs: number;
+    missing?: string[];
+    correction?: string;
+  }>;
 }
 
 export interface ImageAttempt {
@@ -166,6 +191,8 @@ export interface ImageAttempt {
   prompt: string;
   verification?: ImageVerification;
   error?: string;
+  missingRequirements?: string[];
+  correctedPrompt?: string;
   /** Kept in-process for best-result selection; omitted from API responses. */
   image?: string;
 }

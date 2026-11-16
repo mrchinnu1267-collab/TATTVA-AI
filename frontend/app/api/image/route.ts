@@ -277,8 +277,7 @@ export async function POST(request: Request) {
 
     // Stage 3: Post-Generation Image Output Verification
     if (result.image) {
-      const outputModeration =
-        provider === "cloudflare" ? { isSafe: true } : await moderateVisualImage(result.image);
+      const outputModeration = await moderateVisualImage(result.image);
       const issuesHasNsfw = result.verification?.issues?.some((issue: string) =>
         /prohibited adult|nudity|nude content|explicit sexual|harmful/i.test(issue)
       );
@@ -308,7 +307,7 @@ export async function POST(request: Request) {
         const understanding = await analyzeGeneratedImage({
           image: result.image,
           originalPrompt: prompt,
-          forceVision: provider !== "cloudflare",
+          forceVision: true,
         });
         intelligenceReport = evaluatePromptAdherence({
           imageId: `gen_${Date.now()}`,
@@ -350,16 +349,25 @@ export async function POST(request: Request) {
       }
     }
 
+    // The actual verified adherence score from genuine visual evaluation
+    const verifiedAccuracy =
+      result.verification && result.verification.method === "vision"
+        ? result.verification.score
+        : intelligenceReport && !intelligenceReport.understanding.isHeuristicFallback
+        ? intelligenceReport.overallScore
+        : result.accuracy;
+
     return NextResponse.json({
       image: result.image,
       metadata: {
         ...result.metadata,
         provider: "cloudflare",
         model: CLOUDFLARE_FLUX_MODEL,
+        accuracy: verifiedAccuracy,
       },
       storage: storageRecord,
       verification: result.verification,
-      accuracy: intelligenceReport?.overallScore ?? result.accuracy,
+      accuracy: verifiedAccuracy,
       intelligenceReport,
       rag: result.rag || null,
       evaluation: result.evaluation || null,
