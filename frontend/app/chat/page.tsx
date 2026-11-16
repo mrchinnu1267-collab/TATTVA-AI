@@ -2102,82 +2102,135 @@ export default function ChatPage() {
   // Active Asynchronous Image Job Polling Manager
   const activePollersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  const startPollingImageJob = useCallback((msgId: string, jobId: string) => {
+  const applyJobCompleted = useCallback((msgId: string, job: any) => {
+    if (activePollersRef.current.has(msgId)) {
+      clearInterval(activePollersRef.current.get(msgId)!);
+      activePollersRef.current.delete(msgId);
+    }
+
+    setMessages((prev) => {
+      const next = prev.map((m) => {
+        if (m.id !== msgId) return m;
+        return {
+          ...m,
+          image: job.resultImage,
+          kind: "image" as const,
+          content: job.statusMessage || `Image generated and verified against your request. Adherence: ${job.accuracy || 95}%.`,
+          imageMetadata: {
+            model: job.modelUsed || "@cf/black-forest-labs/flux-1-schnell",
+            provider: job.providerUsed || "cloudflare",
+            generation_time_seconds: Math.round((job.latencyMs || 0) / 1000),
+          },
+          imageJob: {
+            id: job.id,
+            status: "completed" as const,
+            currentStage: "completed",
+            progressPercent: 100,
+            statusMessage: job.statusMessage,
+          },
+        };
+      });
+      saveCurrentSession(next);
+      return next;
+    });
+  }, [saveCurrentSession]);
+
+  const applyJobFailed = useCallback((msgId: string, job: any) => {
+    if (activePollersRef.current.has(msgId)) {
+      clearInterval(activePollersRef.current.get(msgId)!);
+      activePollersRef.current.delete(msgId);
+    }
+
+    setMessages((prev) => {
+      const next = prev.map((m) => {
+        if (m.id !== msgId) return m;
+        return {
+          ...m,
+          imageJob: {
+            id: job.id || m.imageJob?.id,
+            status: "failed" as const,
+            currentStage: "failed",
+            progressPercent: 100,
+            error: job.error || "Image generation pipeline encountered an issue.",
+            statusMessage: job.statusMessage || `Generation failed: ${job.error || "Pipeline failed"}`,
+          },
+        };
+      });
+      saveCurrentSession(next);
+      return next;
+    });
+  }, [saveCurrentSession]);
+
+  const startPollingImageJob = useCallback((msgId: string, jobId: string, jobParams?: any) => {
     if (!jobId) return;
     if (activePollersRef.current.has(msgId)) {
       clearInterval(activePollersRef.current.get(msgId)!);
       activePollersRef.current.delete(msgId);
     }
 
-    // Ping driver endpoint to start processing in background (maxDuration 300)
+    // Channel 1: Dedicated long-running worker connection (maxDuration 300)
     fetch("/api/image/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "process", jobId }),
-    }).catch(() => { });
+      body: JSON.stringify({ action: "process", jobId, jobParams }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = await res.json().catch(() => null);
+        if (json?.job?.status === "completed") {
+          applyJobCompleted(msgId, json.job);
+        } else if (json?.job?.status === "failed") {
+          applyJobFailed(msgId, json.job);
+        }
+      })
+      .catch(() => { });
+
+    // Channel 2: Intermediate progress polling & heartbeat
+    let consecutiveFailures = 0;
+    const pollStartedAt = Date.now();
+    const encodedParams = jobParams ? encodeURIComponent(JSON.stringify(jobParams)) : "";
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/image/jobs?id=${encodeURIComponent(jobId)}&drive=true`);
-        if (!res.ok) return;
+        // Enforce maximum client-side execution deadline (3 minutes)
+        if (Date.now() - pollStartedAt > 180_000) {
+          applyJobFailed(msgId, {
+            id: jobId,
+            error: "Image generation exceeded overall execution deadline of 3 minutes. Please retry.",
+            statusMessage: "Generation timed out after 3 minutes. Please retry.",
+          });
+          return;
+        }
+
+        const url = `/api/image/jobs?id=${encodeURIComponent(jobId)}&drive=true${encodedParams ? `&params=${encodedParams}` : ""}`;
+        const res = await fetch(url);
+
+        if (!res.ok) {
+          if (res.status === 404) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= 8) {
+              applyJobFailed(msgId, {
+                id: jobId,
+                error: "Generation job ticket was lost or expired on server. Please retry.",
+                statusMessage: "Job ticket not found on server. Please retry.",
+              });
+            }
+          }
+          return;
+        }
+
+        consecutiveFailures = 0;
         const json = await res.json();
         const job = json.job;
         if (!job) return;
 
         if (job.status === "completed") {
-          clearInterval(pollInterval);
-          activePollersRef.current.delete(msgId);
-
-          setMessages((prev) => {
-            const next = prev.map((m) => {
-              if (m.id !== msgId) return m;
-              return {
-                ...m,
-                image: job.resultImage,
-                kind: "image" as const,
-                content: job.statusMessage || `Image generated and verified against your request. Adherence: ${job.accuracy || 95}%.`,
-                imageMetadata: {
-                  model: job.modelUsed || "@cf/black-forest-labs/flux-1-schnell",
-                  provider: job.providerUsed || "cloudflare",
-                  generation_time_seconds: Math.round((job.latencyMs || 0) / 1000),
-                },
-                imageJob: {
-                  id: job.id,
-                  status: "completed" as const,
-                  currentStage: "completed",
-                  progressPercent: 100,
-                  statusMessage: job.statusMessage,
-                },
-              };
-            });
-            saveCurrentSession(next);
-            return next;
-          });
+          applyJobCompleted(msgId, job);
           return;
         }
 
         if (job.status === "failed") {
-          clearInterval(pollInterval);
-          activePollersRef.current.delete(msgId);
-
-          setMessages((prev) => {
-            const next = prev.map((m) => {
-              if (m.id !== msgId) return m;
-              return {
-                ...m,
-                imageJob: {
-                  id: job.id,
-                  status: "failed" as const,
-                  currentStage: "failed",
-                  progressPercent: 100,
-                  error: job.error || "Image generation pipeline encountered an issue.",
-                  statusMessage: job.statusMessage || `Generation failed: ${job.error}`,
-                },
-              };
-            });
-            saveCurrentSession(next);
-            return next;
-          });
+          applyJobFailed(msgId, job);
           return;
         }
 
@@ -2199,8 +2252,9 @@ export default function ChatPage() {
                 id: job.id,
                 status: resolvedStatus,
                 currentStage: job.currentStage,
-                progressPercent: job.progressPercent || 25,
+                progressPercent: job.progressPercent || 15,
                 statusMessage: job.statusMessage,
+                timestamps: job.timestamps,
               },
             };
           })
@@ -2211,7 +2265,7 @@ export default function ChatPage() {
     }, 1500);
 
     activePollersRef.current.set(msgId, pollInterval);
-  }, [saveCurrentSession]);
+  }, [applyJobCompleted, applyJobFailed]);
 
   useEffect(() => {
     return () => {
@@ -2230,7 +2284,7 @@ export default function ChatPage() {
         !m.image
       ) {
         if (!activePollersRef.current.has(m.id)) {
-          startPollingImageJob(m.id, m.imageJob.id);
+          startPollingImageJob(m.id, m.imageJob.id, m.imageJob);
         }
       }
     });
@@ -3214,7 +3268,7 @@ export default function ChatPage() {
       notifyResponse(assistantMsg.content);
 
       if (data.imageJob && data.imageJob.id) {
-        startPollingImageJob(assistantMsgId, data.imageJob.id);
+        startPollingImageJob(assistantMsgId, data.imageJob.id, data.imageJob);
       }
 
       // Refresh memory profile after response in case new memories were extracted
@@ -3351,7 +3405,7 @@ export default function ChatPage() {
       notifyResponse(assistantMsg.content);
 
       if (data.imageJob && data.imageJob.id) {
-        startPollingImageJob(assistantMsgId, data.imageJob.id);
+        startPollingImageJob(assistantMsgId, data.imageJob.id, data.imageJob);
       }
       loadUserMemoryData(userEmail);
 
@@ -3457,7 +3511,7 @@ export default function ChatPage() {
       notifyResponse(newAssistantMsg.content);
 
       if (data.imageJob && data.imageJob.id) {
-        startPollingImageJob(newAssistantMsgId, data.imageJob.id);
+        startPollingImageJob(newAssistantMsgId, data.imageJob.id, data.imageJob);
       }
       loadUserMemoryData(userEmail);
 

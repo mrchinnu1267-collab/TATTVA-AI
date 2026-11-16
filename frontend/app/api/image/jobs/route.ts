@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createImageJob,
   getJob,
+  getOrCreateJob,
+  checkAndRecoverStaleJob,
   cancelJob,
   listRecentJobs,
   executeJob,
@@ -42,14 +44,28 @@ export async function GET(req: NextRequest) {
     if (jobId) {
       let job = getJob(jobId);
       if (!job) {
+        const rawParams = searchParams.get("params");
+        if (rawParams) {
+          try {
+            const parsed = JSON.parse(decodeURIComponent(rawParams));
+            job = getOrCreateJob(jobId, parsed);
+          } catch {
+            // ignore parse error
+          }
+        }
+      }
+
+      if (!job) {
         return NextResponse.json(
           { success: false, error: `Job with ID "${jobId}" not found.` },
           { status: 404 }
         );
       }
 
-      // If requested with drive=true and job is queued or pending, trigger execution asynchronously
-      if ((job.status === "queued" || (job.status === "processing" && job.attempts === 0)) && searchParams.get("drive") === "true") {
+      job = checkAndRecoverStaleJob(job);
+
+      // If requested with drive=true and job is queued or pending, trigger execution
+      if (job.status === "queued" && searchParams.get("drive") === "true") {
         executeJob(job.id).catch((err) => {
           console.error(`[JobQueue] Driver execution error on job ${job?.id}:`, err);
         });
@@ -90,7 +106,7 @@ export async function POST(req: NextRequest) {
 
     // Action: Process existing job asynchronously with dedicated function execution budget
     if (body.action === "process" && body.jobId) {
-      const job = getJob(body.jobId);
+      let job = getOrCreateJob(body.jobId, body.jobParams);
       if (!job) {
         return NextResponse.json(
           { success: false, error: `Job "${body.jobId}" not found.` },
@@ -98,13 +114,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      job = checkAndRecoverStaleJob(job);
+
       // If already finished, return immediately
       if (job.status === "completed" || job.status === "failed") {
         return NextResponse.json({ success: true, job });
       }
 
-      // Execute job to completion
-      const completedJob = await executeJob(body.jobId);
+      // Execute job to completion on this long-running worker container
+      const completedJob = await executeJob(body.jobId, body.jobParams);
       return NextResponse.json({ success: true, job: completedJob });
     }
 

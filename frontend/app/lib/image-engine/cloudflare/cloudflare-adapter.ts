@@ -239,24 +239,39 @@ export async function generateWithCloudflare(req: ProviderRequest): Promise<Prov
       steps,
     };
 
-    let response: Response;
-    try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${credentials.apiToken}`,
-          "Content-Type": "application/json",
-          "User-Agent": "TATTVA-AI-Image-Engine/1.0",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(45_000), // 45s timeout
-      });
-    } catch (networkErr: any) {
-      if (networkErr.name === "TimeoutError" || networkErr.message?.includes("timed out")) {
-        throw new Error("Cloudflare Workers AI generation timed out after 45 seconds. Please try again.");
+    const executeFetch = async (retryCount = 0): Promise<Response> => {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${credentials.apiToken}`,
+            "Content-Type": "application/json",
+            "User-Agent": "TATTVA-AI-Image-Engine/1.0",
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(30_000), // Explicit 30s timeout
+        });
+
+        // Bounded single retry on transient upstream gateway errors (502, 503)
+        if ((res.status === 502 || res.status === 503) && retryCount === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          return executeFetch(1);
+        }
+
+        return res;
+      } catch (networkErr: any) {
+        if (retryCount === 0 && (networkErr.name === "FetchError" || networkErr.code === "ECONNRESET")) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return executeFetch(1);
+        }
+        if (networkErr.name === "TimeoutError" || networkErr.message?.includes("timed out")) {
+          throw new Error("Cloudflare Workers AI generation timed out after 30 seconds. Please try again.");
+        }
+        throw new Error(`Cloudflare Workers AI network error: ${networkErr.message || "Connection failed"}`);
       }
-      throw new Error(`Cloudflare Workers AI network error: ${networkErr.message || "Connection failed"}`);
-    }
+    };
+
+    const response = await executeFetch();
 
     const durationMs = Date.now() - started;
 

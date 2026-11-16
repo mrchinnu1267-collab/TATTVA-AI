@@ -208,7 +208,7 @@ Respond ONLY with valid JSON:
     const visionResult = await geminiVision(auditorPrompt, image, {
       json: true,
       temperature: 0.1,
-      timeoutMs: 45_000,
+      timeoutMs: 25_000,
     });
 
     const parsed = parseJson(visionResult.text);

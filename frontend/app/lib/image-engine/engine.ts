@@ -143,7 +143,10 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     if (attempt === 0) {
       options.onStageChange?.("generating", 1, maxAttempts);
     } else {
-      options.onStageChange?.("refining", attempt + 1, maxAttempts, best?.verification.score);
+      const refinementStartedAt = new Date().toISOString();
+      options.onStageChange?.("refining", attempt + 1, maxAttempts, best?.verification.score, {
+        refinementStartedAt,
+      });
     }
 
     // Intelligent prompt refinement using Gemini Vision feedback from previous best attempt
@@ -156,6 +159,13 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
             verification: best.verification,
             attempt,
           });
+
+    if (attempt > 0) {
+      const refinementCompletedAt = new Date().toISOString();
+      options.onStageChange?.("refining", attempt + 1, maxAttempts, best?.verification.score, {
+        refinementCompletedAt,
+      });
+    }
 
     let generated = false;
 
@@ -198,16 +208,41 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       const providerStarted = Date.now();
 
       try {
+        const fluxRequestedAt = new Date().toISOString();
+        options.onStageChange?.("generating", attempt + 1, maxAttempts, undefined, {
+          fluxRequestedAt,
+        });
+
         const result = await generateWithProvider(provider, request);
         generated = true;
 
+        const fluxRespondedAt = new Date().toISOString();
+        options.onStageChange?.("generating", attempt + 1, maxAttempts, undefined, {
+          fluxRequestedAt,
+          fluxRespondedAt,
+        });
+
         // Full Gemini Vision verification enabled for Cloudflare FLUX.1 Schnell
-        options.onStageChange?.("verifying", attempt + 1, maxAttempts);
+        const geminiVerificationStartedAt = new Date().toISOString();
+        options.onStageChange?.("verifying", attempt + 1, maxAttempts, undefined, {
+          fluxRequestedAt,
+          fluxRespondedAt,
+          geminiVerificationStartedAt,
+        });
+
         const verification = await verifyImage({
           image: result.image,
           compiled,
           requirements: compiled.requirements,
           useVision: verify,
+        });
+
+        const geminiVerificationCompletedAt = new Date().toISOString();
+        options.onStageChange?.("verifying", attempt + 1, maxAttempts, verification.score, {
+          fluxRequestedAt,
+          fluxRespondedAt,
+          geminiVerificationStartedAt,
+          geminiVerificationCompletedAt,
         });
 
         attempts.push({

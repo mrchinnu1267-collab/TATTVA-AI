@@ -377,6 +377,13 @@ export class MasterAIOrchestrator {
             currentStage: job.currentStage,
             progressPercent: job.progressPercent,
             prompt: job.prompt,
+            quality: job.quality,
+            aspectRatio: job.aspectRatio,
+            userId: job.userId,
+            workspaceId: job.workspaceId,
+            startedAt: job.startedAt,
+            deadline: job.deadline,
+            timestamps: job.timestamps,
             statusMessage: job.statusMessage,
           },
         };

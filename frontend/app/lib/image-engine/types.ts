@@ -69,7 +69,15 @@ export interface ImageGenerationOptions {
     stage: "generating" | "verifying" | "refining",
     attempt: number,
     maxAttempts: number,
-    score?: number
+    score?: number,
+    meta?: {
+      fluxRequestedAt?: string;
+      fluxRespondedAt?: string;
+      geminiVerificationStartedAt?: string;
+      geminiVerificationCompletedAt?: string;
+      refinementStartedAt?: string;
+      refinementCompletedAt?: string;
+    }
   ) => void;
 }
 

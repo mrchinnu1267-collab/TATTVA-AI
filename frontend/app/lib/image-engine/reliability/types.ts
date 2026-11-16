@@ -36,6 +36,18 @@ export type JobStage =
   | "storage_upload"
   | "completed";
 
+export interface ImageJobTimestamps {
+  dispatchedAt: string;
+  workerStartedAt?: string;
+  fluxRequestedAt?: string;
+  fluxRespondedAt?: string;
+  geminiVerificationStartedAt?: string;
+  geminiVerificationCompletedAt?: string;
+  refinementStartedAt?: string;
+  refinementCompletedAt?: string;
+  completedAt?: string;
+}
+
 export interface ImageJob {
   id: string;
   userId?: string;
@@ -64,6 +76,8 @@ export interface ImageJob {
   statusMessage?: string;
   maxAttempts?: number;
   imageMetadata?: any;
+  deadline?: number; // Absolute epoch timestamp (ms)
+  timestamps?: ImageJobTimestamps;
 }
 
 export interface CostRecord {
