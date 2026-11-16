@@ -9,11 +9,15 @@
  * 4. Requests use only the prompt and steps fields supported by Cloudflare's model schema.
  */
 
+import sharp from "sharp";
 import { bufferToDataUri } from "../image-utils";
 import type { ProviderRequest, ProviderResult } from "../types";
 
 export const CLOUDFLARE_FLUX_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4/accounts";
+
+// In-flight deduplication cache to prevent duplicate concurrent requests
+const inFlightRequests = new Map<string, Promise<ProviderResult>>();
 
 export interface CloudflareCredentials {
   accountId: string;
@@ -172,116 +176,183 @@ export function resolveCloudflareSteps(quality: ProviderRequest["quality"]): num
 }
 
 /**
+ * Helper to determine target dimensions from aspect ratio.
+ * Cloudflare FLUX.1 Schnell generates at 1024x1024, and Sharp adjusts to the requested framing.
+ */
+function resolveDimensionsForAspectRatio(aspectRatio?: string): { width: number; height: number } {
+  switch (aspectRatio) {
+    case "16:9":
+      return { width: 1024, height: 576 };
+    case "9:16":
+      return { width: 576, height: 1024 };
+    case "4:3":
+      return { width: 1024, height: 768 };
+    case "3:4":
+      return { width: 768, height: 1024 };
+    case "3:2":
+      return { width: 1024, height: 682 };
+    case "2:3":
+      return { width: 682, height: 1024 };
+    case "1:1":
+    default:
+      return { width: 1024, height: 1024 };
+  }
+}
+
+/**
  * Generates an image using Cloudflare Workers AI FLUX.1 Schnell.
  * Throws explicit, categorized errors if credentials are missing, invalid, or quota exceeded.
+ * Employs in-flight deduplication to prevent double-billing and duplicate requests.
  */
 export async function generateWithCloudflare(req: ProviderRequest): Promise<ProviderResult> {
   const credentials = getCloudflareCredentials();
   if (!credentials) {
     throw new Error(
-      "Cloudflare Workers AI credentials missing: CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set in environment variables."
+      "Cloudflare Workers AI credentials missing: CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be configured in server environment."
     );
   }
 
-  if (req.aspectRatio !== "1:1") {
-    throw new Error("Cloudflare FLUX.1 Schnell supports square 1:1 output only.");
-  }
   const prompt = req.prompt.trim();
-  if (!prompt || prompt.length > 2048) {
-    throw new Error("Cloudflare FLUX.1 Schnell requires a prompt between 1 and 2048 characters.");
+  if (!prompt) {
+    throw new Error("A prompt is required for image generation.");
   }
 
-  const width = 1024;
-  const height = 1024;
+  // Cloudflare schema accepts prompt string (trim to 2048 if longer)
+  const safePrompt = prompt.length > 2048 ? prompt.slice(0, 2048) : prompt;
   const steps = resolveCloudflareSteps(req.quality);
+  const targetDims = resolveDimensionsForAspectRatio(req.aspectRatio);
   const seed = req.seed || Math.floor(Math.random() * 2147483647);
-  
-  const usage = calculateCloudflareUsage(width, height, steps);
-  const endpoint = `${CF_API_BASE}/${credentials.accountId}/ai/run/${CLOUDFLARE_FLUX_MODEL}`;
-  const started = Date.now();
 
-  const payload: Record<string, unknown> = {
-    prompt,
-    steps,
-  };
+  // Deduplication key based on safe prompt, quality, and aspect ratio
+  const dedupKey = `${safePrompt}_${req.aspectRatio || "1:1"}_${req.quality || "balanced"}`;
+  const existingRequest = inFlightRequests.get(dedupKey);
+  if (existingRequest) {
+    return existingRequest;
+  }
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${credentials.apiToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": "TATTVA-AI-Image-Engine/1.0",
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(30_000), // 30s timeout
-  });
+  const executionPromise = (async (): Promise<ProviderResult> => {
+    const endpoint = `${CF_API_BASE}/${credentials.accountId}/ai/run/${CLOUDFLARE_FLUX_MODEL}`;
+    const started = Date.now();
 
-  const durationMs = Date.now() - started;
+    const payload: Record<string, unknown> = {
+      prompt: safePrompt,
+      steps,
+    };
 
-  if (!response.ok) {
-    let errorMessage = `HTTP ${response.status} ${response.statusText}`;
+    let response: Response;
     try {
-      const errJson = await response.json();
-      if (errJson.errors && Array.isArray(errJson.errors) && errJson.errors.length > 0) {
-        const firstErr = errJson.errors[0];
-        errorMessage = `[Code ${firstErr.code}] ${firstErr.message}`;
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${credentials.apiToken}`,
+          "Content-Type": "application/json",
+          "User-Agent": "TATTVA-AI-Image-Engine/1.0",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(45_000), // 45s timeout
+      });
+    } catch (networkErr: any) {
+      if (networkErr.name === "TimeoutError" || networkErr.message?.includes("timed out")) {
+        throw new Error("Cloudflare Workers AI generation timed out after 45 seconds. Please try again.");
+      }
+      throw new Error(`Cloudflare Workers AI network error: ${networkErr.message || "Connection failed"}`);
+    }
+
+    const durationMs = Date.now() - started;
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status} ${response.statusText}`;
+      try {
+        const errJson = await response.json();
+        if (errJson.errors && Array.isArray(errJson.errors) && errJson.errors.length > 0) {
+          const firstErr = errJson.errors[0];
+          errorMessage = `[Code ${firstErr.code}] ${firstErr.message}`;
+        }
+      } catch {
+        // Keep HTTP status text if not JSON
+      }
+
+      // Ensure credentials are never logged or leaked
+      errorMessage = errorMessage.replace(new RegExp(credentials.apiToken, "g"), "[REDACTED_TOKEN]");
+      errorMessage = errorMessage.replace(new RegExp(credentials.accountId, "g"), "[REDACTED_ACCOUNT]");
+
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Cloudflare Authentication Failed: ${errorMessage}. Check CLOUDFLARE_API_TOKEN permissions.`);
+      }
+      if (response.status === 429) {
+        throw new Error(`Cloudflare Workers AI Rate Limit or Daily Free Neurons Quota Exceeded (10,000 Neurons/day).`);
+      }
+      throw new Error(`Cloudflare Workers AI API error: ${errorMessage}`);
+    }
+
+    // Cloudflare Workers AI returns JSON with { result: { image: "<base64>" }, success: true }
+    // or binary image stream depending on headers.
+    const contentType = response.headers.get("content-type") || "";
+    let rawBuffer: Buffer;
+
+    if (contentType.includes("application/json")) {
+      const data = await response.json();
+      if (!data.success && data.errors && data.errors.length > 0) {
+        throw new Error(`Cloudflare Workers AI error: ${data.errors[0].message}`);
+      }
+      if (!data.result || !data.result.image) {
+        throw new Error("Cloudflare Workers AI returned success but missing result.image payload.");
+      }
+      rawBuffer = Buffer.from(data.result.image, "base64");
+    } else {
+      const arrayBuffer = await response.arrayBuffer();
+      rawBuffer = Buffer.from(arrayBuffer);
+    }
+
+    // Process with Sharp to conform to requested aspect ratio & format
+    let finalBuffer: Buffer = rawBuffer;
+    let finalWidth = 1024;
+    let finalHeight = 1024;
+
+    try {
+      const sharpInstance = sharp(rawBuffer);
+      const meta = await sharpInstance.metadata();
+      const currentWidth = meta.width || 1024;
+      const currentHeight = meta.height || 1024;
+
+      if (req.aspectRatio && req.aspectRatio !== "1:1") {
+        finalBuffer = await sharp(rawBuffer)
+          .resize(targetDims.width, targetDims.height, {
+            fit: "cover",
+            position: "center",
+          })
+          .jpeg({ quality: 92, mozjpeg: true })
+          .toBuffer();
+        finalWidth = targetDims.width;
+        finalHeight = targetDims.height;
+      } else {
+        finalWidth = currentWidth;
+        finalHeight = currentHeight;
       }
     } catch {
-      // Keep HTTP status text if not JSON
+      finalBuffer = rawBuffer;
     }
 
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(`Cloudflare Authentication Failed: ${errorMessage}. Verify CLOUDFLARE_API_TOKEN permissions.`);
-    }
-    if (response.status === 429) {
-      throw new Error(`Cloudflare Workers AI Rate Limit or Daily Free Neurons Quota Exceeded (10,000 Neurons/day).`);
-    }
-    throw new Error(`Cloudflare Workers AI API error: ${errorMessage}`);
-  }
+    const dataUri = bufferToDataUri(finalBuffer, "image/jpeg");
 
-  // Cloudflare Workers AI returns JSON with { result: { image: "<base64>" }, success: true }
-  // or binary stream depending on headers. We handle both:
-  const contentType = response.headers.get("content-type") || "";
-  let base64Image = "";
-
-  if (contentType.includes("application/json")) {
-    const data = await response.json();
-    if (!data.success && data.errors && data.errors.length > 0) {
-      throw new Error(`Cloudflare Workers AI error: ${data.errors[0].message}`);
-    }
-    if (!data.result || !data.result.image) {
-      throw new Error("Cloudflare Workers AI returned success but missing result.image payload.");
-    }
-    base64Image = data.result.image;
-  } else {
-    // Binary image buffer returned
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     return {
-      image: bufferToDataUri(buffer, contentType || "image/jpeg"),
+      image: dataUri,
       provider: "cloudflare",
       model: CLOUDFLARE_FLUX_MODEL,
       seed,
-      width,
-      height,
+      width: finalWidth,
+      height: finalHeight,
       latencyMs: durationMs,
     };
+  })();
+
+  // Track in-flight request and clean up upon completion or rejection
+  inFlightRequests.set(dedupKey, executionPromise);
+  try {
+    return await executionPromise;
+  } finally {
+    inFlightRequests.delete(dedupKey);
   }
-
-  // Construct Data URI from base64
-  const dataUri = base64Image.startsWith("data:")
-    ? base64Image
-    : `data:image/jpeg;base64,${base64Image}`;
-
-  return {
-    image: dataUri,
-    provider: "cloudflare",
-    model: CLOUDFLARE_FLUX_MODEL,
-    seed,
-    width,
-    height,
-    latencyMs: durationMs,
-  };
 }
 
 /**

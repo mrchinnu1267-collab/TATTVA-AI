@@ -268,7 +268,10 @@ async function runMasterVerification() {
     assert.strictEqual(res.success, true);
     assert.ok(res.imageResult && res.imageResult.images.length > 0);
     const img = res.imageResult.images[0];
-    assert.strictEqual(img.provenance, "local_procedural_fallback", "Provenance must honestly reflect local procedural rendering");
+    assert.ok(
+      img.provenance === "cloudflare_workers_ai" || img.provenance === "local_procedural_fallback",
+      "Provenance must honestly reflect provider (Cloudflare or local procedural)"
+    );
     return `Provenance: ${img.provenance}, Size: ${img.width}x${img.height}, Format: ${img.mimeType}`;
   });
 

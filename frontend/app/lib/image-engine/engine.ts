@@ -123,28 +123,17 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
 
   const started = Date.now();
   const compiled = compileImagePrompt({ ...options, prompt });
-  const maxAttempts = options.provider === "cloudflare" ? 1 : resolveMaxAttempts(options);
+  // Cloudflare Workers AI is the exclusive provider: execute single targeted attempt
+  const maxAttempts = 1;
   const verify = options.verify !== false;
   const targetScore = Math.max(
     50,
     Math.min(100, options.targetScore ?? (compiled.quality === "max" ? 92 : 86))
   );
 
-  const routingDecision = routeImageRequest({
-    prompt,
-    referenceImage: options.referenceImage,
-    quality: compiled.quality,
-    aspectRatio: compiled.aspectRatio,
-    preferredProvider: options.provider && options.provider !== "auto" ? options.provider : undefined,
-  });
-
-  const warnings: string[] = [...(routingDecision.warnings || [])];
-  const order =
-    options.provider === "cloudflare"
-      ? ["cloudflare" as const]
-      : routingDecision.fallbackChain.length > 0
-      ? routingDecision.fallbackChain
-      : resolveProviderOrder(options.provider, compiled.quality, Boolean(options.referenceImage));
+  const warnings: string[] = [];
+  // Cloudflare Workers AI is the exclusive provider. Fallback chains and provider switching are removed.
+  const order: ImageProviderId[] = ["cloudflare"];
   const attempts: ImageAttempt[] = [];
   let best: {
     result: ProviderResult;
@@ -271,14 +260,8 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   }
 
   if (!best) {
-    const errorDetails = attempts
-      .filter((a) => a.error)
-      .map((a) => `${a.provider}: ${a.error}`)
-      .join("; ");
     throw new ImageProviderError(
-      errorDetails
-        ? `All configured image providers are currently unavailable (${errorDetails})`
-        : lastError || "All configured image providers are currently unavailable."
+      lastError || "Cloudflare Workers AI image generation failed. Please try again."
     );
   }
 
@@ -296,10 +279,8 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   const latencyMs = Date.now() - started;
   let accuracy = best.verification.score;
   const successfulAttempts = attempts.filter((item) => !item.error).length;
-  const estimatedCostUsd =
-    best.result.provider === "cloudflare"
-      ? calculateCloudflareUsage(1024, 1024, resolveCloudflareSteps(compiled.quality)).estimatedCostUsd
-      : routingDecision.estimatedCostUsd;
+  const usage = calculateCloudflareUsage(1024, 1024, resolveCloudflareSteps(compiled.quality));
+  const estimatedCostUsd = usage.estimatedCostUsd;
 
   // 4. Advanced Visual Evaluation & Intelligent Refinement (Phase E)
   let evaluationResult: any = null;
@@ -322,7 +303,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   recordGenerationOutcome({
     modelId: best.result.model,
     providerId: best.result.provider,
-    category: routingDecision.workflow,
+    category: "text_to_image",
     success: true,
     latencyMs,
     accuracyScore: accuracy,
@@ -357,10 +338,10 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
       prompt,
       negative_prompt: compiled.negative,
       requirements: compiled.requirements,
-      workflow: routingDecision.workflow,
-      routing_rationale: routingDecision.selectionRationale,
+      workflow: "text_to_image",
+      routing_rationale: "Cloudflare Workers AI (@cf/black-forest-labs/flux-1-schnell) exclusive provider",
       estimated_cost_usd: estimatedCostUsd,
-      primary_model: routingDecision.primaryModel.name,
+      primary_model: "@cf/black-forest-labs/flux-1-schnell",
       scorecard: evaluationResult?.scorecard,
       refinement_action: evaluationResult?.refinementRecommendation?.type,
       warnings: [...new Set(warnings)],

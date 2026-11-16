@@ -10,7 +10,11 @@ import { bufferToDataUri, fitWithinArea, truncate } from "./image-utils";
 import { filterCompatibleReferenceProviders } from "./reference-conditioning";
 import { optimizePromptForModel } from "./prompt-optimizer";
 import { generateWithAiHorde } from "./free-suite/ai-horde";
-import { generateWithCloudflare, isCloudflareConfigured } from "./cloudflare/cloudflare-adapter";
+import {
+  generateWithCloudflare,
+  isCloudflareConfigured,
+  CLOUDFLARE_FLUX_MODEL,
+} from "./cloudflare/cloudflare-adapter";
 import type {
   ImageProviderChoice,
   ImageProviderId,
@@ -195,7 +199,19 @@ function classifyProviderError(label: string, error: unknown): ImageProviderErro
  * while preserving informative error descriptions for user visibility.
  */
 export function sanitizeDiagnosticMessage(text: string): string {
-  return text
+  let sanitized = text;
+
+  const cfToken = (process.env.CLOUDFLARE_API_TOKEN || process.env.CF_API_TOKEN || "").trim();
+  const cfAccount = (process.env.CLOUDFLARE_ACCOUNT_ID || process.env.CF_ACCOUNT_ID || "").trim();
+
+  if (cfToken && cfToken.length > 5) {
+    sanitized = sanitized.replace(new RegExp(cfToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "[REDACTED_CF_TOKEN]");
+  }
+  if (cfAccount && cfAccount.length > 5) {
+    sanitized = sanitized.replace(new RegExp(cfAccount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "[REDACTED_CF_ACCOUNT]");
+  }
+
+  return sanitized
     .replace(/hf_[a-zA-Z0-9]{20,}/g, "[REDACTED_HF_TOKEN]")
     .replace(/AIzaSy[a-zA-Z0-9_-]{25,}/g, "[REDACTED_GEMINI_KEY]")
     .replace(/sk-[a-zA-Z0-9_-]{20,}/g, "[REDACTED_OPENAI_KEY]")
@@ -220,7 +236,8 @@ export function sanitizeDiagnosticMessage(text: string): string {
  * while providing clear, transparent diagnostic visibility into provider states.
  */
 export function formatUserFacingImageError(rawError: unknown): string {
-  const message = rawError instanceof Error ? rawError.message : String(rawError);
+  const rawMessage = rawError instanceof Error ? rawError.message : String(rawError);
+  const message = sanitizeDiagnosticMessage(rawMessage);
   const lower = message.toLowerCase();
 
   if (
@@ -238,11 +255,33 @@ export function formatUserFacingImageError(rawError: unknown): string {
     return `Reference image error: ${cleanErr || "The uploaded image could not be processed"}. Please upload a valid PNG, JPEG, or WebP image.`;
   }
 
+  // Cloudflare Authentication Error
+  if (lower.includes("cloudflare authentication failed") || (lower.includes("cloudflare") && (lower.includes("401") || lower.includes("403")))) {
+    return "Cloudflare Workers AI authentication failed. Please verify your CLOUDFLARE_API_TOKEN and account permissions in server settings.";
+  }
+
+  // Cloudflare Quota / Rate Limit
+  if (lower.includes("cloudflare") && (lower.includes("quota") || lower.includes("rate limit") || lower.includes("neurons"))) {
+    return "Cloudflare Workers AI daily quota (10,000 Neurons/day) or rate limit exceeded. Please verify your Cloudflare Workers AI plan or try again shortly.";
+  }
+
+  // Missing Configuration / Invalid Credentials
+  if (
+    /not configured|no image provider.*configured|missing.*key|missing.*token|credentials missing/i.test(lower)
+  ) {
+    return "Cloudflare Workers AI is not configured. Please ensure CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are configured in server environment variables.";
+  }
+
+  // Deactivated provider notice
+  if (lower.includes("has been deactivated")) {
+    return message;
+  }
+
   // Multi-provider fallback failure: return transparent diagnostic breakdown
   if (message.includes("All configured image providers failed:")) {
     const breakdown = message.replace(/^.*All configured image providers failed:\s*/i, "").trim();
     const sanitized = sanitizeDiagnosticMessage(breakdown);
-    return `Image generation failed across configured providers (${sanitized}). Please try again shortly.`;
+    return `Image generation failed (${sanitized}). Please try again shortly.`;
   }
 
   // Quota / Billing Exhaustion
@@ -250,13 +289,6 @@ export function formatUserFacingImageError(rawError: unknown): string {
     /quota|limit:\s*0|credits|billing|payment|exceeded your current quota|runs limit|zerogpu quota/i.test(lower)
   ) {
     return "Image generation is temporarily unavailable because the cloud provider quota has been reached. Please check your provider billing or try again later.";
-  }
-
-  // Missing Configuration / Invalid Credentials
-  if (
-    /not configured|no image provider.*configured|missing.*key|credentials rejected/i.test(lower)
-  ) {
-    return "Image generation is not configured yet. Please configure a valid cloud image provider (Gemini, Hugging Face, OpenAI, or Azure OpenAI) in application settings.";
   }
 
   // Network / Connection Timeout
@@ -946,211 +978,92 @@ async function generateWithPollinations(req: ProviderRequest): Promise<ProviderR
 }
 
 export function resolveProviderOrder(
-  requested: ImageProviderChoice | undefined,
-  quality: "fast" | "balanced" | "max",
-  hasReferenceImage = false
+  _requested?: ImageProviderChoice,
+  _quality: "fast" | "balanced" | "max" = "balanced",
+  _hasReferenceImage = false
 ): ImageProviderId[] {
-  let baseOrder: ImageProviderId[];
-  if (requested && requested !== "auto") {
-    baseOrder = [requested];
-  } else if (hasReferenceImage) {
-    // When reference image is present, prioritize multimodal native and img2img-capable engines
-    baseOrder = ["nano-banana", "gemini", "huggingface", "local"];
-  } else if (isRunningOnVercel() || quality === "fast") {
-    // In Vercel serverless environment, prioritize fast cloud engines to stay within strict execution limits
-    baseOrder = ["nano-banana", "gemini", "pollinations", "huggingface", "ai-horde", "openai", "local"];
-  } else {
-    baseOrder = ["nano-banana", "huggingface", "gemini", "pollinations", "ai-horde", "openai", "local"];
-  }
-
-  if (hasReferenceImage) {
-    const { compatibleProviders } = filterCompatibleReferenceProviders(baseOrder, true);
-    return compatibleProviders.length > 0 ? compatibleProviders : baseOrder;
-  }
-
-  return baseOrder;
+  // Cloudflare Workers AI is the exclusive image generation provider.
+  // Gemini, Hugging Face, Pollinations, Local SD, DALL-E/OpenAI, and AI Horde are deactivated.
+  // Provider fallback chains and automatic switching are disabled.
+  return ["cloudflare"];
 }
 
 export async function generateWithProvider(
   provider: ImageProviderId,
   req: ProviderRequest
 ): Promise<ProviderResult> {
-  switch (provider) {
-    case "nano-banana":
-    case "gemini":
-      return generateWithGemini(req);
-    case "huggingface":
-      return generateWithHuggingFace(req);
-    case "pollinations":
-      return generateWithPollinations(req);
-    case "openai":
-      return generateWithOpenAI(req);
-    case "azure-openai":
-      return generateWithAzureOpenAI(req);
-    case "local":
-      return generateWithLocal(req);
-    case "ai-horde":
-      return generateWithAiHorde(req);
-    case "cloudflare":
-      return generateWithCloudflare(req);
-    default:
-      throw new ImageProviderError(`Unknown provider: ${provider as string}`);
+  // Enforce Cloudflare Workers AI as the exclusive provider
+  if (provider !== "cloudflare" && (provider as string) !== "auto") {
+    throw new ImageProviderError(
+      `Image provider '${provider}' has been deactivated. Cloudflare Workers AI (@cf/black-forest-labs/flux-1-schnell) is the exclusive image-generation provider in TATTVA AI.`,
+      { retryable: false, category: "MODEL_CONFIGURATION_ERROR" }
+    );
   }
+
+  // Cloudflare Workers AI execution
+  return generateWithCloudflare(req);
 }
 
 export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
-  const geminiKey = Boolean((process.env.GEMINI_API_KEY || "").trim());
-  const hfKey = Boolean((process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || "").trim());
-  const openAiKey = Boolean((process.env.OPENAI_API_KEY || "").trim());
-  const localOnline = await isLocalEngineHealthy();
-
-  const onVercel = isRunningOnVercel();
-  const configuredEngineUrl = (process.env.LOCAL_IMAGE_ENGINE_URL || "").trim();
-  const isHostedEngine = Boolean(configuredEngineUrl && !isLocalhostUrl(configuredEngineUrl));
-
-  const localConfigured = onVercel ? isHostedEngine : true;
-  const localReason = onVercel && !isHostedEngine
-    ? "Localhost engine is disabled on cloud deployment. Configure a hosted GPU endpoint in LOCAL_IMAGE_ENGINE_URL."
-    : isHostedEngine
-    ? "Hosted GPU image engine is currently unreachable."
-    : "Start the Python engine (image-engine/main.py).";
-
-  const status = (
-    id: ImageProviderId,
-    label: string,
-    configured: boolean,
-    model: string,
-    online: boolean,
-    baseReason?: string
-  ): ProviderRuntimeStatus => {
-    const remaining = getCooldownRemaining(id);
-    const cooldownEntry = cooldowns.get(id);
-
-    let healthStatus: ProviderHealthStatus = "AVAILABLE";
-    let reason = baseReason;
-
-    if (!configured) {
-      healthStatus = "CONFIGURATION_ERROR";
-      reason = reason || `${label} is not configured. Missing API credentials.`;
-    } else if (remaining > 0 && cooldownEntry) {
-      if (cooldownEntry.category === "QUOTA_EXHAUSTION") {
-        healthStatus = "QUOTA_EXCEEDED";
-      } else if (cooldownEntry.category === "INVALID_AUTHENTICATION") {
-        healthStatus = "AUTHENTICATION_FAILED";
-      } else if (cooldownEntry.category === "RATE_LIMITING") {
-        healthStatus = "RATE_LIMITED";
-      } else if (cooldownEntry.category === "MODEL_CONFIGURATION_ERROR") {
-        healthStatus = "CONFIGURATION_ERROR";
-      } else if (
-        cooldownEntry.category === "NETWORK_TIMEOUT" ||
-        cooldownEntry.category === "TEMPORARY_SERVER_ERROR"
-      ) {
-        healthStatus = "DEGRADED";
-      } else {
-        const lower = cooldownEntry.reason.toLowerCase();
-        if (/quota|credit|billing|limit:\s*0|runs limit|zerogpu/i.test(lower)) {
-          healthStatus = "QUOTA_EXCEEDED";
-        } else if (/auth|unauthorized|credential|token|key|forbidden|401|403/i.test(lower)) {
-          healthStatus = "AUTHENTICATION_FAILED";
-        } else if (/rate limit|too many|429/i.test(lower)) {
-          healthStatus = "RATE_LIMITED";
-        } else if (/timeout|aborted|timed out|503|busy/i.test(lower)) {
-          healthStatus = "DEGRADED";
-        } else {
-          healthStatus = "TEMPORARILY_UNAVAILABLE";
-        }
-      }
-      reason = `${cooldownEntry.reason} (cooldown: ${Math.ceil(remaining / 1000)}s)`;
-    } else if (!online) {
-      healthStatus = id === "local" ? "DEGRADED" : "TEMPORARILY_UNAVAILABLE";
-    }
-
-    const available = configured && online && remaining === 0;
-
-    return {
-      id,
-      label,
-      configured,
-      available,
-      status: healthStatus,
-      model,
-      reason: available ? undefined : reason,
-    };
-  };
+  const cfConfigured = isCloudflareConfigured();
 
   return [
-    status(
-      "nano-banana",
-      "Google Nano Banana 2.1 / Pro",
-      geminiKey,
-      "gemini-2.5-flash-image",
-      true,
-      "Nano Banana powered by Google Gemini architecture with multi-image conditioning."
-    ),
-    status(
-      "huggingface",
-      "Hugging Face SDXL / Animagine",
-      hfKey,
-      "cagliostrolab/animagine-xl-3.1",
-      true
-    ),
-    status(
-      "gemini",
-      "Google Gemini Image",
-      geminiKey,
-      GEMINI_IMAGE_MODELS[0],
-      true,
-      "Gemini API key configured. Active quota required."
-    ),
-    status(
-      "openai",
-      "OpenAI DALL-E 3",
-      openAiKey,
-      "dall-e-3",
-      true,
-      "OpenAI API key needed for DALL-E 3."
-    ),
-    status(
-      "azure-openai",
-      "Azure OpenAI DALL-E 3",
-      isAzureOpenAIConfigured(),
-      (process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT || "dall-e-3").trim(),
-      isAzureOpenAIConfigured(),
-      getAzureOpenAIConfigError() || "Azure OpenAI DALL-E 3 is configured."
-    ),
-    status(
-      "pollinations",
-      "Pollinations FLUX Cloud",
-      true,
-      "flux",
-      true
-    ),
-    status(
-      "ai-horde",
-      "AI Horde (Free Distributed Cluster)",
-      true,
-      "stable_diffusion_xl",
-      true,
-      "Free crowdsourced GPU cluster with zero subscription or quota limits."
-    ),
-    status(
-      "cloudflare",
-      "Cloudflare Workers AI (FLUX.1 Schnell)",
-      isCloudflareConfigured(),
-      "@cf/black-forest-labs/flux-1-schnell",
-      isCloudflareConfigured(),
-      isCloudflareConfigured()
-        ? "Serverless edge inference (10,000 free Neurons/day ~57 images)."
-        : "Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment."
-    ),
-    status(
-      "local",
-      onVercel ? (isHostedEngine ? "Hosted GPU Engine" : "Local Engine (Cloud Disabled)") : "Local CUDA Engine",
-      localConfigured,
-      "SDXL / SD1.5",
-      localOnline,
-      localReason
-    ),
+    {
+      id: "cloudflare",
+      label: "Cloudflare Workers AI",
+      model: CLOUDFLARE_FLUX_MODEL,
+      configured: cfConfigured,
+      available: cfConfigured,
+      status: cfConfigured ? "AVAILABLE" : "CONFIGURATION_ERROR",
+      reason: cfConfigured
+        ? undefined
+        : "Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN in server environment variables.",
+    },
+    {
+      id: "gemini",
+      label: "Google Gemini",
+      model: "deactivated",
+      configured: false,
+      available: false,
+      status: "TEMPORARILY_UNAVAILABLE",
+      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+    },
+    {
+      id: "huggingface",
+      label: "Hugging Face",
+      model: "deactivated",
+      configured: false,
+      available: false,
+      status: "TEMPORARILY_UNAVAILABLE",
+      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+    },
+    {
+      id: "pollinations",
+      label: "Pollinations AI",
+      model: "deactivated",
+      configured: false,
+      available: false,
+      status: "TEMPORARILY_UNAVAILABLE",
+      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+    },
+    {
+      id: "openai",
+      label: "DALL-E / OpenAI",
+      model: "deactivated",
+      configured: false,
+      available: false,
+      status: "TEMPORARILY_UNAVAILABLE",
+      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+    },
+    {
+      id: "local",
+      label: "Local Stable Diffusion",
+      model: "deactivated",
+      configured: false,
+      available: false,
+      status: "TEMPORARILY_UNAVAILABLE",
+      reason: "Deactivated: Cloudflare Workers AI is the exclusive image provider.",
+    },
   ];
 }
 

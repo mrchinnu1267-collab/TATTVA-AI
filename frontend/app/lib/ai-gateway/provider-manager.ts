@@ -7,6 +7,7 @@ import { AIProvider, ConnectionStatus, GatewayRequest, TaskType } from "./types"
 import { GeminiApiGatewayAdapter } from "./adapters/gemini-api.adapter";
 import { GeminiConsumerGatewayAdapter } from "./adapters/gemini-consumer.adapter";
 import { LocalProceduralGatewayAdapter } from "./adapters/local-procedural.adapter";
+import { CloudflareImageGatewayAdapter } from "./adapters/cloudflare-image.adapter";
 
 export class ProviderManager {
   private providers: Map<string, AIProvider> = new Map();
@@ -20,6 +21,7 @@ export class ProviderManager {
     this.register("gemini_api", new GeminiApiGatewayAdapter());
     this.register("gemini_consumer", new GeminiConsumerGatewayAdapter());
     this.register("local_procedural", new LocalProceduralGatewayAdapter());
+    this.register("cloudflare", new CloudflareImageGatewayAdapter());
   }
 
   public register(id: string, provider: AIProvider) {
@@ -100,13 +102,13 @@ export class ProviderManager {
       }
     }
 
-    // 2. Task-specific dispatching
+    // 2. Task-specific dispatching: Cloudflare Workers AI is the exclusive image provider
     if (taskType === "image") {
-      const imgProvider = this.providers.get("local_procedural");
-      if (imgProvider) {
+      const cfProvider = this.providers.get("cloudflare");
+      if (cfProvider) {
         return {
-          providerId: "local_procedural",
-          provider: imgProvider,
+          providerId: "cloudflare",
+          provider: cfProvider,
           fallback: false,
         };
       }

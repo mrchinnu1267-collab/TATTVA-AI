@@ -64,7 +64,7 @@ export interface ImageResult {
     height: number;
     mimeType: string;
     sha256?: string;
-    provenance: "local_procedural_fallback" | "user_uploaded_image" | "external_subscribed_agent_a" | "external_subscribed_agent_b";
+    provenance: "cloudflare_workers_ai" | "local_procedural_fallback" | "user_uploaded_image" | "external_subscribed_agent_a" | "external_subscribed_agent_b";
   }>;
 }
 

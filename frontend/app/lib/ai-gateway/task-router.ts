@@ -116,7 +116,7 @@ export class TaskRouter {
   private getSuggestedProvider(taskType: TaskType): string {
     switch (taskType) {
       case "image":
-        return "local_procedural";
+        return "cloudflare";
       case "coding":
       case "reasoning":
       case "text":

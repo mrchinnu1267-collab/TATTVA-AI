@@ -10,6 +10,8 @@ import {
   enrichPromptWithSpatialLayout,
   formatUserFacingImageError,
 } from "../../lib/image-engine";
+import { StorageService } from "../../lib/image-engine/services/storage.service";
+import { CLOUDFLARE_FLUX_MODEL } from "../../lib/image-engine/cloudflare/cloudflare-adapter";
 import {
   checkRateLimit,
   logSecurityEvent,
@@ -33,14 +35,6 @@ export const maxDuration = 300;
 const VALID_QUALITIES: ImageQuality[] = ["fast", "balanced", "max"];
 const VALID_PROVIDERS: (ImageProviderChoice)[] = [
   "auto",
-  "nano-banana",
-  "gemini",
-  "huggingface",
-  "openai",
-  "azure-openai",
-  "local",
-  "pollinations",
-  "ai-horde",
   "cloudflare",
 ];
 
@@ -55,11 +49,7 @@ export async function GET() {
   return NextResponse.json({
     status: "ok",
     providers,
-    defaultProvider:
-      providers.find((provider) => provider.available && provider.id === "nano-banana")?.id ??
-      providers.find((provider) => provider.available && provider.id === "gemini")?.id ??
-      providers.find((provider) => provider.available)?.id ??
-      "auto",
+    defaultProvider: "cloudflare",
   });
 }
 
@@ -330,9 +320,44 @@ export async function POST(request: Request) {
       }
     }
 
+    // Stage 5: Supabase Storage & Database Record Creation
+    let storageRecord = null;
+    if (result.image && session.userId) {
+      try {
+        const authHeader = request.headers.get("authorization");
+        const userAccessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+        storageRecord = await StorageService.persistImage({
+          dataUriOrBuffer: result.image,
+          prompt,
+          originalPrompt: prompt,
+          provider: "cloudflare",
+          model: CLOUDFLARE_FLUX_MODEL,
+          parameters: {
+            width: result.metadata?.width || 1024,
+            height: result.metadata?.height || 1024,
+            aspectRatio: result.metadata?.aspect_ratio || "1:1",
+            seed: result.metadata?.seed,
+            quality,
+            style: typeof body.style === "string" ? body.style : undefined,
+          },
+          accuracyScorecard: result.evaluation?.scorecard,
+          userId: session.userId,
+          workspaceId: typeof body.workspaceId === "string" ? body.workspaceId : "default",
+          userAccessToken,
+        });
+      } catch (storageErr: any) {
+        console.warn("[API:Image] Storage persistence warning:", storageErr.message);
+      }
+    }
+
     return NextResponse.json({
       image: result.image,
-      metadata: result.metadata,
+      metadata: {
+        ...result.metadata,
+        provider: "cloudflare",
+        model: CLOUDFLARE_FLUX_MODEL,
+      },
+      storage: storageRecord,
       verification: result.verification,
       accuracy: intelligenceReport?.overallScore ?? result.accuracy,
       intelligenceReport,
