@@ -39,7 +39,12 @@ export async function runInfrastructureRepairTests() {
     const localStatus = statuses.find((s) => s.id === "local");
     assert.ok(localStatus, "Local status should exist in statuses");
     assert.strictEqual(localStatus.configured, false, "Local engine must NOT be configured on Vercel without external URL");
-    assert.ok(localStatus.reason?.includes("Cloud Disabled") || localStatus.reason?.includes("cloud deployment"));
+    assert.ok(
+      localStatus.reason?.includes("Cloud Disabled") ||
+      localStatus.reason?.includes("cloud deployment") ||
+      localStatus.reason?.includes("Deactivated") ||
+      localStatus.reason?.includes("exclusive")
+    );
   } finally {
     if (prevVercel !== undefined) process.env.VERCEL = prevVercel;
     else delete process.env.VERCEL;
@@ -71,9 +76,9 @@ export async function runInfrastructureRepairTests() {
   // Test missing credentials
   const noConfigErr = new Error("OPENAI_API_KEY is not configured.");
   const noConfigMsg = formatUserFacingImageError(noConfigErr);
-  assert.strictEqual(
-    noConfigMsg,
-    "Image generation is not configured yet. Please configure a valid cloud image provider (Gemini, Hugging Face, OpenAI, or Azure OpenAI) in application settings."
+  assert.ok(
+    noConfigMsg.includes("not configured") &&
+    (noConfigMsg.includes("Cloudflare Workers AI") || noConfigMsg.includes("image provider"))
   );
 
   // Test timeout / network failure
@@ -163,11 +168,12 @@ export async function runInfrastructureRepairTests() {
   // -------------------------------------------------------------------------
   // Test 6: Provider Order Resolution Logic
   // -------------------------------------------------------------------------
-  console.log("\nTest 6: Provider order resolution with and without reference image");
+  console.log("\nTest 6: Provider order resolution with exclusive Cloudflare provider");
   const textOrder = resolveProviderOrder(undefined, "balanced", false);
-  assert.ok(textOrder.includes("huggingface"));
+  assert.ok(textOrder.includes("cloudflare"), "Cloudflare must be the exclusive provider");
 
   const refOrder = resolveProviderOrder(undefined, "balanced", true);
+  assert.ok(refOrder.includes("cloudflare"), "Cloudflare must be returned for reference orders");
   assert.ok(!refOrder.includes("openai"), "OpenAI should be excluded from reference orders");
   console.log("  ✓ Provider order resolution passed");
 

@@ -200,11 +200,12 @@ export async function runPhasePProductionReleaseTests() {
   );
   console.log("  ✔ Scenario 12: Image download payload and MIME integrity verified.");
 
-  // Scenario 13: Automatic Provider Fallback & Error Recovery
-  console.log("▶ Scenario 13: Recover from provider failures via fallback chain...");
+  // Scenario 13: Exclusive Provider Verification & Removal of Fallback Chains
+  console.log("▶ Scenario 13: Exclusive Cloudflare provider verification (fallback chains removed)...");
   const providerOrder = ModelRoutingService.resolveProviderOrder("auto", false);
-  assert.ok(providerOrder.length >= 2, "Must configure at least 2 fallback providers in chain");
-  console.log(`  ✔ Scenario 13: Provider fallback verified: Primary: ${providerOrder[0]}, Fallback chain: ${providerOrder.join(" -> ")}.`);
+  assert.ok(providerOrder.includes("cloudflare"), "Cloudflare must be configured as provider");
+  assert.strictEqual(providerOrder.length, 1, "Fallback chains removed: Cloudflare is exclusive provider");
+  console.log(`  ✔ Scenario 13: Exclusive provider verified: ${providerOrder[0]} (fallback chains removed).`);
 
   // Scenario 14: Final CI/CD Deployment Gate & Baseline Audit
   console.log("▶ Scenario 14: Final CI/CD deployment gate & baseline audit...");
