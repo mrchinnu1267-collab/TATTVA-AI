@@ -75,7 +75,9 @@ export class ContextManager {
       /\b(now\s+(connect|integrate|add|make|update|rewrite|implement|code|build)\s+(it|this))\b/i.test(lower) ||
       /\b(what about it|why is this happening|how does that work|elaborate on that|what (is|are) the next steps?|what next)\b/i.test(lower) ||
       /\b(this|that|it|previous one|last one|same thing|same as before|continue from there|add this feature)\b/i.test(lower) ||
-      /\b(previous answer|previous code|convert to pdf|convert it to pdf|fix errors in this code)\b/i.test(lower);
+      /\b(previous answer|previous code|that code|the code|this code|what does that code do|explain that code|debug that code|optimize that code)\b/i.test(lower) ||
+      /\b(convert to pdf|convert it to pdf|fix errors in this code)\b/i.test(lower) ||
+      /^(continue|please continue|go on|proceed|keep going|carry on)\b/i.test(lower);
 
     if ((isEnglishFollowUp || isTeluguFollowUp) && (lastUserTurn || lastAssistantTurn)) {
       referenceInfo.hasAnaphora = true;
@@ -131,14 +133,42 @@ export class ContextManager {
         resolvedPrompt = `Debug and fix all syntax, logic, and runtime errors in the previously provided code for ${previousTopic}, providing corrected complete code`;
         referenceInfo.resolvedMeaning = `Fix errors in code for ${previousTopic}`;
       }
-      // Case A6: "Continue from there" / "ikkada nunchi continue"
+      // Case A6: "Continue" / "Continue from there" / "ikkada nunchi continue"
       else if (
+        /^(continue|please continue|go on|proceed|keep going|carry on)\b/i.test(lower) ||
         /continue from (there|here)/i.test(lower) ||
         /ikkada nunchi continue/i.test(lower) ||
         /carry on from where we left/i.test(lower)
       ) {
-        resolvedPrompt = `Continue the implementation of ${previousTopic} from the last established milestone without repeating prior steps`;
-        referenceInfo.resolvedMeaning = `Continue progress on ${previousTopic}`;
+        resolvedPrompt = `Continue the explanation and implementation of ${previousTopic} from the last established point, seamlessly continuing the next steps without repeating prior content`;
+        referenceInfo.resolvedMeaning = `Continue progression on ${previousTopic}`;
+      }
+      // Case A7: "That code" / "the code" / "what does that code do"
+      else if (
+        /\b(that code|the code|previous code|this code)\b/i.test(lower) ||
+        /\b(explain that code|what does that code do|debug that code|optimize that code)\b/i.test(lower)
+      ) {
+        if (/explain|what does/i.test(lower)) {
+          resolvedPrompt = `Explain how the code for ${previousTopic} works step-by-step, including line-by-line breakdown and logic flow`;
+        } else if (/optimize|refactor|faster|efficient/i.test(lower)) {
+          resolvedPrompt = `Optimize and refactor the code for ${previousTopic} for higher performance and cleaner design`;
+        } else if (/debug|fix|error/i.test(lower)) {
+          resolvedPrompt = `Debug and fix any errors or edge cases in the code for ${previousTopic}`;
+        } else {
+          resolvedPrompt = `Provide a detailed technical review of the code previously provided for ${previousTopic}`;
+        }
+        referenceInfo.resolvedMeaning = `Analyze and address code for ${previousTopic}`;
+      }
+      // Case A8: "The previous answer" / "in the previous answer"
+      else if (/\b(previous answer|last answer)\b/i.test(lower)) {
+        if (/explain|clarify|elaborate|detail/i.test(lower)) {
+          resolvedPrompt = `Elaborate and provide deeper technical detail on the previous answer regarding ${previousTopic}`;
+        } else if (/why/i.test(lower)) {
+          resolvedPrompt = `Explain the rationale, evidence, and underlying principles behind the previous answer regarding ${previousTopic}`;
+        } else {
+          resolvedPrompt = `Review and clarify the points stated in the previous answer about ${previousTopic}`;
+        }
+        referenceInfo.resolvedMeaning = `Reference and expand on previous answer regarding ${previousTopic}`;
       }
       // Case B: "Now connect it to <technology>" (e.g. Supabase, Firebase, MongoDB)
       else if (/now connect (it|this) to\s+([a-zA-Z0-9_\- ]+)/i.test(lower)) {
@@ -169,10 +199,17 @@ export class ContextManager {
         resolvedPrompt = `Re-explain ${previousTopic} from fundamentals with different illustrative examples`;
         referenceInfo.resolvedMeaning = `Re-explain ${previousTopic}`;
       }
-      // Case G: General pronoun substitution
+      // Case G: Targeted pronoun substitution (strictly when direct subject/object of query)
       else if (previousTopic) {
-        resolvedPrompt = raw.replace(/\b(it|this|that|deeni|dini|daanini|dannini|idi)\b/gi, previousTopic);
-        referenceInfo.resolvedMeaning = `Replaced reference with: ${previousTopic}`;
+        if (
+          /^(what is|how does|why does|tell me about|explain|describe|what about)\s+(it|this|that|deeni|dini|idi)\b/i.test(lower) ||
+          /^(it|this|that)\s+(is|works|means)\b/i.test(lower)
+        ) {
+          resolvedPrompt = raw.replace(/\b(it|this|that|deeni|dini|idi)\b/i, previousTopic);
+          referenceInfo.resolvedMeaning = `Resolved reference to: ${previousTopic}`;
+        } else {
+          referenceInfo.resolvedMeaning = `Contextual antecedent: ${previousTopic}`;
+        }
       }
     }
 
@@ -319,16 +356,25 @@ export class ContextManager {
         if (t && !topics.includes(t)) {
           topics.push(t);
         }
+      } else if (turn.role === "assistant" && topics.length === 0) {
+        // Fallback: extract prominent topic from assistant header/first line
+        const firstLine = turn.content.split("\n")[0].replace(/^#+\s*/, "").trim();
+        if (firstLine && firstLine.length > 3 && firstLine.length < 60) {
+          topics.push(firstLine);
+        }
       }
     }
     return topics;
   }
 
   private extractTopicFromTurn(text: string): string {
-    const clean = text.replace(/^(please\s+|can you\s+|help me\s+|how to\s+|explain\s+|what is\s+|tell me about\s+)/i, "").trim();
-    // Match common core subjects (e.g., "DBMS normalization", "login page", "binary search tree")
-    const match = clean.match(/^([a-zA-Z0-9_\- ]{3,40})/);
-    return match ? match[1].trim() : clean.slice(0, 30).trim();
+    const clean = text
+      .replace(/^(please\s+|can you\s+|help me\s+|how to\s+|explain\s+|what is\s+|tell me about\s+|write code for\s+|write an algorithm for\s+)/i, "")
+      .replace(/[?.,!]+$/g, "")
+      .trim();
+    // Match common core subjects (e.g., "Dijkstra's algorithm", "DBMS normalization", "login page", "binary search tree")
+    const match = clean.match(/^([a-zA-Z0-9_\- '"]{3,50})/);
+    return match ? match[1].replace(/['"]+$/g, "").trim() : clean.slice(0, 40).trim();
   }
 
   private findReferencedAttachment(history: ConversationTurn[]): { name?: string; type: string } | undefined {

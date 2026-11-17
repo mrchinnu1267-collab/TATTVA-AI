@@ -40,15 +40,8 @@ export class ResponseQualityGuard {
       text = deBoilerplated;
     }
 
-    // 3. For short direct questions with concise preference, trim excessive padding if present
-    if (goal === "direct_question" || preference.length === "concise") {
-      const paragraphs = text.split("\n\n").filter(Boolean);
-      // If output is over 3 verbose paragraphs for a simple query like "What is DNS?", condense to key paragraph + list
-      if (paragraphs.length > 4 && !text.includes("```") && !text.includes("|")) {
-        text = paragraphs.slice(0, 3).join("\n\n");
-        adjustmentsMade.push("Trimmed excessive verbosity for concise direct question");
-      }
-    }
+    // 3. For concise preference, preserve full text without arbitrary truncation
+    // (Preserve model's complete reasoning and explanation integrity without mid-paragraph truncation)
 
     // 4. Ensure non-empty response
     if (!text.trim()) {

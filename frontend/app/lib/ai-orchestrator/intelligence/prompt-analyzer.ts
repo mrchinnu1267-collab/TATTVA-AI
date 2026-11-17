@@ -325,9 +325,9 @@ export class PromptAnalyzer {
     if (intent === "mathematics" || (intent === "reasoning" && complexityScore >= 6)) {
       return { appropriateModel: "deepseek/deepseek-chat", preferredProvider: "openrouter" };
     }
-    // 2. High-complexity coding and agent tasks -> Gemini 3.5 Flash (high context, low latency)
-    if (complexityScore >= 7 || intent === "coding" || intent === "agent_task") {
-      return { appropriateModel: "gemini-3.5-flash", preferredProvider: "gemini" };
+    // 2. High-throughput coding and agent tasks -> Gemini 3.5 Flash Lite
+    if (intent === "coding" || intent === "agent_task") {
+      return { appropriateModel: "gemini-3.5-flash-lite", preferredProvider: "gemini" };
     }
     // 3. Fast interactive conversational chat & general QA -> Gemini 3.5 Flash Lite (< 1000ms latency)
     return { appropriateModel: "gemini-3.5-flash-lite", preferredProvider: "gemini" };

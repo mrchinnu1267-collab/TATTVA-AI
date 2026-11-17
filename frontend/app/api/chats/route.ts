@@ -29,12 +29,12 @@ function ensureVaultDir() {
   }
 }
 
-function getChatFilePath(userEmail: string): string {
+function getChatFilePath(userKey: string): string {
   ensureVaultDir();
-  const safeEmail = Buffer.from(userEmail.toLowerCase().trim()).toString("hex");
-  const primary = path.join(getVaultDir(), `chats_${safeEmail}.json`);
+  const safeId = Buffer.from(userKey.toLowerCase().trim()).toString("hex");
+  const primary = path.join(getVaultDir(), `chats_${safeId}.json`);
   if (fs.existsSync(primary)) return primary;
-  const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "cloud_chats", `chats_${safeEmail}.json`);
+  const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "cloud_chats", `chats_${safeId}.json`);
   if (fs.existsSync(tmpFallback)) return tmpFallback;
   return primary;
 }
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     }
 
     // Zero-Trust Authentication Requirement: Reject unauthenticated sessions
-    if (!session.authenticated || !session.email) {
+    if (!session.authenticated || (!session.email && !session.userId)) {
       return NextResponse.json(
         { error: "Authentication required to access cloud chat sessions." },
         { status: 401 }
@@ -61,15 +61,15 @@ export async function GET(request: Request) {
     const requestedEmail = searchParams.get("email")?.toLowerCase().trim();
 
     // Prevent cross-tenant impersonation: requested email must match authenticated session email
-    if (requestedEmail && requestedEmail !== session.email.toLowerCase().trim()) {
+    if (requestedEmail && session.email && requestedEmail !== session.email.toLowerCase().trim()) {
       return NextResponse.json(
         { error: "Forbidden: You cannot access chat sessions belonging to another user." },
         { status: 403 }
       );
     }
 
-    const email = session.email.toLowerCase().trim();
-    const filePath = getChatFilePath(email);
+    const userIdentifier = (session.email || session.userId).toLowerCase().trim();
+    const filePath = getChatFilePath(userIdentifier);
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ sessions: [] });
     }
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     }
 
     // Zero-Trust Authentication Requirement: Reject unauthenticated sessions
-    if (!session.authenticated || !session.email) {
+    if (!session.authenticated || (!session.email && !session.userId)) {
       return NextResponse.json(
         { error: "Authentication required to sync cloud chat sessions." },
         { status: 401 }
@@ -111,15 +111,15 @@ export async function POST(request: Request) {
     }
 
     // Prevent cross-tenant overwrite: client cannot supply a different user's email
-    if (body.email && typeof body.email === "string" && body.email.toLowerCase().trim() !== session.email.toLowerCase().trim()) {
+    if (body.email && typeof body.email === "string" && session.email && body.email.toLowerCase().trim() !== session.email.toLowerCase().trim()) {
       return NextResponse.json(
         { error: "Forbidden: You cannot overwrite chat sessions belonging to another user." },
         { status: 403 }
       );
     }
 
-    const email = session.email.toLowerCase().trim();
-    const filePath = getChatFilePath(email);
+    const userIdentifier = (session.email || session.userId).toLowerCase().trim();
+    const filePath = getChatFilePath(userIdentifier);
 
     try {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -152,7 +152,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
     }
 
-    if (!session.authenticated || !session.email) {
+    if (!session.authenticated || (!session.email && !session.userId)) {
       return NextResponse.json(
         { error: "Authentication required to delete cloud chat sessions." },
         { status: 401 }
@@ -161,8 +161,8 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
-    const email = session.email.toLowerCase().trim();
-    const filePath = getChatFilePath(email);
+    const userIdentifier = (session.email || session.userId).toLowerCase().trim();
+    const filePath = getChatFilePath(userIdentifier);
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ success: true, message: "No sessions to delete" });

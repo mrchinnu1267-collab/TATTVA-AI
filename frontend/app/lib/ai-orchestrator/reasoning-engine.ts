@@ -143,7 +143,7 @@ REASONING DIRECTIVES:
 1. For programming: explain the root cause, provide production-ready code with type annotations, and explain edge cases. Never use emojis inside code snippets.
 2. For mathematics & science: state formulas clearly, show each derivation step, and highlight final answers.
 3. For research: cite verifiable facts and provide source references.
-4. Intermediate Verification Context: ${intermediateVerificationResult || "Self-consistency validation satisfied."}
+4. Intermediate Verification Context: ${intermediateVerificationResult ? intermediateVerificationResult : "No external computational sandbox tool executed; derive formulas step-by-step and maintain strict internal mathematical and logical consistency."}
 
 LANGUAGE & IDENTITY:
 - Respond in fluent English (or user-requested language if specified).
@@ -172,10 +172,19 @@ LANGUAGE & IDENTITY:
       temperature: 0.25, // Lower temperature for high reasoning fidelity
     });
 
+    const hasToolVerification = toolsUsed.length > 0;
+    const verificationHypothesis = intermediateVerificationResult
+      ? intermediateVerificationResult
+      : hasToolVerification
+      ? "Tool verification completed."
+      : "Step-by-step reasoning completed (no external sandbox execution).";
+
     steps.push({
       stepNumber: 3,
-      title: "Synthesized Solution & Verification Pass",
-      thought: `Validated solution across edge cases. Model latency: ${modelResult.latencyMs}ms.`,
+      title: hasToolVerification ? "Synthesized Solution & Tool Verification" : "Synthesized Solution & Derivation",
+      thought: hasToolVerification
+        ? `Executed verification checks. Model latency: ${modelResult.latencyMs}ms.`
+        : `Generated step-by-step reasoning. Model latency: ${modelResult.latencyMs}ms.`,
       status: "completed",
     });
 
@@ -183,16 +192,16 @@ LANGUAGE & IDENTITY:
       problemSummary: userPrompt.slice(0, 150) + (userPrompt.length > 150 ? "..." : ""),
       decomposition: steps.map((s) => s.title),
       steps,
-      verificationHypothesis: intermediateVerificationResult || "Logical consistency check passed.",
+      verificationHypothesis,
       finalAnswer: modelResult.text,
-      confidenceScore: verificationPassed ? 0.98 : 0.85,
+      confidenceScore: hasToolVerification ? (verificationPassed ? 0.98 : 0.80) : 0.90,
     };
 
     return {
       finalAnswer: modelResult.text,
       plan,
       toolsUsed,
-      verificationPassed,
+      verificationPassed: hasToolVerification ? verificationPassed : false,
     };
   }
 }

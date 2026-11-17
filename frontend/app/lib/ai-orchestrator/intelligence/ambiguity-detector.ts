@@ -56,7 +56,8 @@ export class AmbiguityDetector {
 
     // 3. Ambiguous pronouns with zero prior context
     if (
-      /^(fix this|solve this|explain this|debug it|run it|what does it mean)$/i.test(clean) &&
+      (/^(fix|solve|explain|debug|run|check|update|modify|change|what is)\s+(it|this|that|them)$/i.test(clean) ||
+        /^(fix this|solve this|explain this|debug it|run it|what does it mean|fix it|solve it)$/i.test(clean)) &&
       !contextInfo.referencedTopic &&
       !contextInfo.referencedFile &&
       !hasAttachments
