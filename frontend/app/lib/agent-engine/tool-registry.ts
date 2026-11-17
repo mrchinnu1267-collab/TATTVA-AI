@@ -17,6 +17,7 @@ import { classifyDocument } from "../document-engine/document-classifier";
 import { advancedProgrammingAgent, TargetLanguage, GeneratedProjectFile } from "../software-studio/dev-engine/programming-agent";
 import { KnowledgeGraphEngine } from "../knowledge-graph";
 import { LearningPlatformEngine, SubjectDomain, DifficultyLevel } from "../learning";
+import { DataSciencePlatformEngine } from "../data-science";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -896,6 +897,207 @@ export class CentralizedToolRegistry {
             totalSteps: solution.totalSteps,
             steps: solution.steps.map((s) => ({ step: s.stepNumber, title: s.title, explanation: s.explanation })),
             finalAnswer: solution.finalAnswer,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 16. Automated EDA Engine Tool
+    this.registerTool({
+      name: "run_eda",
+      displayName: "Automated Exploratory Data Analysis",
+      description: "Computes descriptive statistics, distributions, Pearson correlations, and Tukey's IQR outliers for a dataset.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 20000,
+      inputSchema: {
+        datasetId: { type: "string", description: "Target dataset ID" },
+        csvContent: { type: "string", description: "Raw CSV content to profile" },
+        workspaceId: { type: "string", description: "Workspace ID", default: "default" },
+      },
+      outputSchema: {
+        rowCount: "number",
+        columnCount: "number",
+        missingValuesTotal: "number",
+        correlationsCount: "number",
+        outliersCount: "number",
+      },
+      execute: async (params, context) => {
+        const userId = context.userId || "anonymous";
+        const workspaceId = params.workspaceId || "default";
+        let dataset = params.datasetId ? DataSciencePlatformEngine.getDataset(userId, workspaceId, params.datasetId) : null;
+        if (!dataset && params.csvContent) {
+          dataset = DataSciencePlatformEngine.ingestCSV(userId, workspaceId, "Ad-Hoc Analysis", params.csvContent);
+        }
+        if (!dataset) {
+          const all = DataSciencePlatformEngine.listDatasets(userId, workspaceId);
+          dataset = all[0];
+        }
+        if (!dataset) {
+          return {
+            toolName: "run_eda",
+            success: false,
+            output: null,
+            error: "No dataset available for EDA.",
+            executionTimeMs: 0,
+          };
+        }
+        const eda = DataSciencePlatformEngine.runEDA(dataset);
+        return {
+          toolName: "run_eda",
+          success: true,
+          output: {
+            datasetName: dataset.name,
+            rowCount: eda.rowCount,
+            columnCount: eda.columnCount,
+            missingValuesTotal: eda.missingValuesTotal,
+            numericColumns: Object.keys(eda.numericStats),
+            correlationsCount: eda.correlations.length,
+            outliersCount: eda.outliers.length,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 17. Natural Language Tabular Query Tool
+    this.registerTool({
+      name: "query_dataset",
+      displayName: "Natural Language Tabular Query",
+      description: "Executes natural language queries, aggregations, and filters over tabular datasets.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        query: { type: "string", description: "Conversational question about dataset", required: true },
+        datasetId: { type: "string", description: "Target dataset ID" },
+        workspaceId: { type: "string", description: "Workspace ID", default: "default" },
+      },
+      outputSchema: {
+        interpretation: "string",
+        totalMatchingRows: "number",
+        aggregationSummary: "string",
+      },
+      execute: async (params, context) => {
+        const userId = context.userId || "anonymous";
+        const workspaceId = params.workspaceId || "default";
+        let dataset = params.datasetId ? DataSciencePlatformEngine.getDataset(userId, workspaceId, params.datasetId) : null;
+        if (!dataset) {
+          const all = DataSciencePlatformEngine.listDatasets(userId, workspaceId);
+          dataset = all[0];
+        }
+        if (!dataset) {
+          return {
+            toolName: "query_dataset",
+            success: false,
+            output: null,
+            error: "No dataset available for query.",
+            executionTimeMs: 0,
+          };
+        }
+        const result = DataSciencePlatformEngine.queryDataset(dataset, params.query);
+        return {
+          toolName: "query_dataset",
+          success: true,
+          output: {
+            query: result.query,
+            interpretation: result.interpretation,
+            totalMatchingRows: result.totalMatchingRows,
+            aggregationSummary: result.aggregationSummary,
+            topResult: result.resultRows[0] || null,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 18. AutoML Model Recommender Tool
+    this.registerTool({
+      name: "recommend_ml_model",
+      displayName: "AutoML Architecture Recommender",
+      description: "Analyzes dataset schema and target distribution to recommend machine learning algorithms and scikit-learn pipelines.",
+      category: "code",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        datasetId: { type: "string", description: "Target dataset ID" },
+        targetColumn: { type: "string", description: "Target variable to predict" },
+        workspaceId: { type: "string", description: "Workspace ID", default: "default" },
+      },
+      outputSchema: {
+        taskType: "string",
+        targetColumn: "string",
+        topAlgorithm: "string",
+      },
+      execute: async (params, context) => {
+        const userId = context.userId || "anonymous";
+        const workspaceId = params.workspaceId || "default";
+        let dataset = params.datasetId ? DataSciencePlatformEngine.getDataset(userId, workspaceId, params.datasetId) : null;
+        if (!dataset) {
+          const all = DataSciencePlatformEngine.listDatasets(userId, workspaceId);
+          dataset = all[0];
+        }
+        if (!dataset) {
+          return {
+            toolName: "recommend_ml_model",
+            success: false,
+            output: null,
+            error: "No dataset available for ML recommendation.",
+            executionTimeMs: 0,
+          };
+        }
+        const rec = DataSciencePlatformEngine.recommendML(dataset, params.targetColumn);
+        return {
+          toolName: "recommend_ml_model",
+          success: true,
+          output: {
+            taskType: rec.taskType,
+            targetColumn: rec.targetColumn,
+            topAlgorithm: rec.suggestedAlgorithms[0]?.name || "N/A",
+            algorithmsCount: rec.suggestedAlgorithms.length,
+            evaluationMetrics: rec.evaluationMetrics,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 19. Statistical Hypothesis Testing Tool
+    this.registerTool({
+      name: "run_statistical_test",
+      displayName: "Statistical Hypothesis Tester",
+      description: "Executes Welch's t-test, ANOVA F-test, or Chi-Square independence test with exact p-value computations.",
+      category: "math",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        testType: { type: "string", description: "two_sample_t_test, anova, or chi_square", default: "two_sample_t_test" },
+        sample1: { type: "array", description: "Numerical array for sample 1" },
+        sample2: { type: "array", description: "Numerical array for sample 2" },
+        alpha: { type: "number", description: "Significance threshold", default: 0.05 },
+      },
+      outputSchema: {
+        testName: "string",
+        testStatistic: "number",
+        pValue: "number",
+        isSignificant: "boolean",
+        conclusion: "string",
+      },
+      execute: async (params, context) => {
+        const s1 = Array.isArray(params.sample1) ? params.sample1.map(Number).filter((v: number) => !isNaN(v)) : [10, 12, 14, 15, 11];
+        const s2 = Array.isArray(params.sample2) ? params.sample2.map(Number).filter((v: number) => !isNaN(v)) : [20, 22, 25, 23, 21];
+        const res = DataSciencePlatformEngine.runTTest(s1, s2, params.alpha || 0.05);
+        return {
+          toolName: "run_statistical_test",
+          success: true,
+          output: {
+            testName: res.testName,
+            testStatistic: res.testStatistic,
+            pValue: res.pValue,
+            isSignificant: res.isSignificant,
+            conclusion: res.conclusion,
+            interpretation: res.interpretation,
           },
           executionTimeMs: 0,
         };
