@@ -83,7 +83,13 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, items });
+    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    return NextResponse.json({
+      success: true,
+      items,
+      storageTier: isVercel ? "ephemeral_serverless_vault" : "local_disk_vault",
+      durable: false,
+    });
   } catch (err: any) {
     console.error("[Workspace API] GET error:", err);
     return NextResponse.json({ error: err.message || "Failed to load items" }, { status: 500 });
@@ -148,7 +154,13 @@ export async function POST(request: Request) {
           );
       }
 
-      return NextResponse.json({ success: true, item });
+      const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+      return NextResponse.json({
+        success: true,
+        item,
+        storageTier: isVercel ? "ephemeral_serverless_vault" : "local_disk_vault",
+        durable: false,
+      });
     } else if (action === "delete") {
       items = items.filter((i) => i.id !== id);
       fs.writeFileSync(dbFile, JSON.stringify(items, null, 2), "utf-8");
