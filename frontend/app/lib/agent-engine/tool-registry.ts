@@ -16,6 +16,7 @@ import { extractTabularData, analyzeSourceCodeFile } from "../document-engine/mu
 import { classifyDocument } from "../document-engine/document-classifier";
 import { advancedProgrammingAgent, TargetLanguage, GeneratedProjectFile } from "../software-studio/dev-engine/programming-agent";
 import { KnowledgeGraphEngine } from "../knowledge-graph";
+import { LearningPlatformEngine, SubjectDomain, DifficultyLevel } from "../learning";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -771,6 +772,130 @@ export class CentralizedToolRegistry {
             hopCount: path ? path.hopCount : 0,
             explanation: path ? path.explanation : `No direct path found between ${params.source} and ${params.target}`,
             nodes: path ? path.nodes.map((n) => n.name) : [],
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 13. Personalized Study Plan Generator Tool
+    this.registerTool({
+      name: "create_study_plan",
+      displayName: "Personalized Curriculum Generator",
+      description: "Generates an adaptive, multi-module learning syllabus tailored to user baselines and target mastery levels.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        topic: { type: "string", description: "Subject or topic to master", required: true },
+        domain: { type: "string", description: "Subject domain (programming, computer_science, mathematics, system_architecture, data_structures_algorithms, general)", default: "computer_science" },
+        baselineLevel: { type: "string", description: "Learner's current level (beginner, intermediate, advanced, expert)", default: "beginner" },
+        targetLevel: { type: "string", description: "Target level to achieve", default: "advanced" },
+        workspaceId: { type: "string", description: "Workspace ID", default: "default" },
+      },
+      outputSchema: {
+        curriculumId: "string",
+        totalEstimatedHours: "number",
+        modules: "array",
+      },
+      execute: async (params, context) => {
+        const userId = context.userId || "anonymous";
+        const workspaceId = params.workspaceId || "default";
+        const curriculum = LearningPlatformEngine.createCurriculum(
+          userId,
+          workspaceId,
+          params.topic,
+          (params.domain as SubjectDomain) || "computer_science",
+          (params.baselineLevel as DifficultyLevel) || "beginner",
+          (params.targetLevel as DifficultyLevel) || "advanced"
+        );
+        return {
+          toolName: "create_study_plan",
+          success: true,
+          output: {
+            curriculumId: curriculum.id,
+            topic: curriculum.topic,
+            totalEstimatedHours: curriculum.totalEstimatedHours,
+            moduleCount: curriculum.modules.length,
+            modules: curriculum.modules.map((m) => ({ order: m.order, title: m.title, minutes: m.estimatedMinutes })),
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 14. Interactive Quiz Generator Tool
+    this.registerTool({
+      name: "generate_quiz",
+      displayName: "Interactive Quiz Generator",
+      description: "Generates interactive multi-choice or coding quiz questions with progressive hints for a concept or topic.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        topic: { type: "string", description: "Topic for assessment", required: true },
+        domain: { type: "string", description: "Domain of study", default: "computer_science" },
+        level: { type: "string", description: "Difficulty level", default: "intermediate" },
+        questionCount: { type: "number", description: "Number of questions (1-10)", default: 3 },
+      },
+      outputSchema: {
+        quizId: "string",
+        questions: "array",
+      },
+      execute: async (params, context) => {
+        const quiz = LearningPlatformEngine.createQuiz(
+          params.topic,
+          (params.domain as SubjectDomain) || "computer_science",
+          (params.level as DifficultyLevel) || "intermediate",
+          params.questionCount || 3
+        );
+        return {
+          toolName: "generate_quiz",
+          success: true,
+          output: {
+            quizId: quiz.id,
+            topic: quiz.topic,
+            questionCount: quiz.questions.length,
+            questions: quiz.questions.map((q) => ({ id: q.id, prompt: q.prompt, options: q.options })),
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 15. Step-by-Step Solution Derivation Tool
+    this.registerTool({
+      name: "derive_step_by_step_solution",
+      displayName: "Step-by-Step Problem Solver",
+      description: "Deconstructs complex mathematical, algorithmic, or architectural problems into an ordered sequence of verified derivation steps.",
+      category: "math",
+      permission: "safe",
+      timeoutMs: 20000,
+      inputSchema: {
+        problem: { type: "string", description: "Problem statement to solve", required: true },
+        domain: { type: "string", description: "Subject domain", default: "computer_science" },
+        difficulty: { type: "string", description: "Problem difficulty", default: "intermediate" },
+      },
+      outputSchema: {
+        solutionId: "string",
+        totalSteps: "number",
+        steps: "array",
+        finalAnswer: "string",
+      },
+      execute: async (params, context) => {
+        const solution = LearningPlatformEngine.deriveSolution(
+          params.problem,
+          (params.domain as SubjectDomain) || "computer_science",
+          (params.difficulty as DifficultyLevel) || "intermediate"
+        );
+        return {
+          toolName: "derive_step_by_step_solution",
+          success: true,
+          output: {
+            solutionId: solution.id,
+            totalSteps: solution.totalSteps,
+            steps: solution.steps.map((s) => ({ step: s.stepNumber, title: s.title, explanation: s.explanation })),
+            finalAnswer: solution.finalAnswer,
           },
           executionTimeMs: 0,
         };
