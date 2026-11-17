@@ -147,6 +147,7 @@ export async function runAsyncImageJobReliabilityTests() {
       prompt: "A cute kitten sitting on a desk",
       userId: "user_short_prompt",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const completedShortJob = await executeJob(shortJob.id);
@@ -194,6 +195,7 @@ export async function runAsyncImageJobReliabilityTests() {
       prompt: "Abstract digital sculpture in glass and obsidian",
       userId: "user_cf_timeout",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const failedCfJob = await executeJob(cfTimeoutJob.id);
@@ -235,6 +237,7 @@ export async function runAsyncImageJobReliabilityTests() {
       prompt: "A futuristic city under a dome",
       userId: "user_timeout",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const completedTimeoutJob = await executeJob(timeoutJob.id);
@@ -354,6 +357,7 @@ export async function runAsyncImageJobReliabilityTests() {
       prompt: "Festival poster with EDM concert banner",
       userId: "user_multi_attempt",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const finishedMultiJob = await executeJob(multiAttemptJob.id);

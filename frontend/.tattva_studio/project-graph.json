@@ -1,6 +1,6 @@
 {
   "rootPath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app",
-  "scannedAt": "2026-11-17T13:27:10.935Z",
+  "scannedAt": "2026-11-17T13:49:49.994Z",
   "totalFiles": 4,
   "totalLines": 49,
   "languages": {
@@ -32,7 +32,7 @@
       "relativePath": "package.json",
       "language": "json",
       "sizeBytes": 231,
-      "lastModifiedMs": 1794922030919.9612,
+      "lastModifiedMs": 1794923389985.9976,
       "hash": "139eb77357dc9dcb",
       "imports": [],
       "exports": [],
@@ -44,7 +44,7 @@
       "relativePath": "src/App.tsx",
       "language": "typescript",
       "sizeBytes": 239,
-      "lastModifiedMs": 1794922030933.5117,
+      "lastModifiedMs": 1794923389993.4104,
       "hash": "aed2f7da6ec69c3b",
       "imports": [
         "react",
@@ -70,7 +70,7 @@
       "relativePath": "src/components/ProductList.tsx",
       "language": "typescript",
       "sizeBytes": 386,
-      "lastModifiedMs": 1794922030929.5095,
+      "lastModifiedMs": 1794923389991.7664,
       "hash": "183ba09390e7ed80",
       "imports": [
         "react",
@@ -96,7 +96,7 @@
       "relativePath": "src/types.ts",
       "language": "typescript",
       "sizeBytes": 100,
-      "lastModifiedMs": 1794922030926.5107,
+      "lastModifiedMs": 1794923389989.5017,
       "hash": "949dcf74d8a33975",
       "imports": [],
       "exports": [

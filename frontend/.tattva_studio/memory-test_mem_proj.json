@@ -50,6 +50,13 @@
       "decision": "PostgreSQL with Supabase RLS",
       "rationale": "Guarantees multi-tenant isolation.",
       "recordedAt": "2026-11-17T13:27:10.496Z"
+    },
+    {
+      "id": "dec_1794923389812",
+      "topic": "Database Selection",
+      "decision": "PostgreSQL with Supabase RLS",
+      "rationale": "Guarantees multi-tenant isolation.",
+      "recordedAt": "2026-11-17T13:49:49.812Z"
     }
   ],
   "resolvedBugHistory": [
@@ -84,6 +91,14 @@
       "resolution": "Added optional chaining operator",
       "id": "bug_1794922030504",
       "verifiedAt": "2026-11-17T13:27:10.505Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined",
+      "faultyFile": "KanbanBoard.tsx",
+      "rootCause": "Unchecked array index",
+      "resolution": "Added optional chaining operator",
+      "id": "bug_1794923389817",
+      "verifiedAt": "2026-11-17T13:49:49.817Z"
     }
   ],
   "verifiedTestBaselines": {},
@@ -92,5 +107,5 @@
     "preferredModel": "qwen2.5-coder-3b-q4",
     "sandboxMode": "strict"
   },
-  "lastUpdated": "2026-11-17T13:27:10.505Z"
+  "lastUpdated": "2026-11-17T13:49:49.817Z"
 }
