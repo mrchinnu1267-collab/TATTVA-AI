@@ -7,10 +7,23 @@
 
 import { KnowledgeNode, KnowledgeEdge, Subgraph, TraversalPath } from "./types";
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 export interface GraphStoreOptions {
   tenantId: string;
   workspaceId: string;
+}
+
+const STORAGE_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join("/tmp", ".tattva_knowledge_graphs")
+    : path.join(process.cwd(), ".tattva_knowledge_graphs");
+
+function getStoragePath(tenantId: string, workspaceId: string): string {
+  const safeTenant = tenantId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const safeWs = workspaceId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return path.join(STORAGE_DIR, `${safeTenant}__${safeWs}.json`);
 }
 
 export class KnowledgeGraphStore {
@@ -29,6 +42,55 @@ export class KnowledgeGraphStore {
   private constructor(tenantId: string, workspaceId: string) {
     this.tenantId = tenantId;
     this.workspaceId = workspaceId;
+    this.loadFromDisk();
+  }
+
+  public saveToDisk(): void {
+    try {
+      if (!fs.existsSync(STORAGE_DIR)) {
+        fs.mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+      const filePath = getStoragePath(this.tenantId, this.workspaceId);
+      const data = {
+        nodes: Array.from(this.nodes.values()),
+        edges: Array.from(this.edges.values()),
+      };
+      fs.writeFileSync(filePath, JSON.stringify(data), "utf-8");
+    } catch {
+      // Non-blocking in ephemeral execution
+    }
+  }
+
+  public loadFromDisk(): void {
+    try {
+      const filePath = getStoragePath(this.tenantId, this.workspaceId);
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.nodes)) {
+          for (const n of data.nodes) {
+            this.nodes.set(n.id, n);
+            this.nameIndex.set(n.name.trim().toLowerCase(), n.id);
+            for (const a of n.aliases || []) {
+              this.nameIndex.set(a.trim().toLowerCase(), n.id);
+            }
+            if (!this.outgoingEdges.has(n.id)) this.outgoingEdges.set(n.id, new Set());
+            if (!this.incomingEdges.has(n.id)) this.incomingEdges.set(n.id, new Set());
+          }
+        }
+        if (Array.isArray(data.edges)) {
+          for (const e of data.edges) {
+            this.edges.set(e.id, e);
+            if (!this.outgoingEdges.has(e.sourceNodeId)) this.outgoingEdges.set(e.sourceNodeId, new Set());
+            if (!this.incomingEdges.has(e.targetNodeId)) this.incomingEdges.set(e.targetNodeId, new Set());
+            this.outgoingEdges.get(e.sourceNodeId)!.add(e.id);
+            this.incomingEdges.get(e.targetNodeId)!.add(e.id);
+          }
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
   }
 
   /**
@@ -101,6 +163,7 @@ export class KnowledgeGraphStore {
 
     this.outgoingEdges.set(id, new Set());
     this.incomingEdges.set(id, new Set());
+    this.saveToDisk();
     return newNode;
   }
 
@@ -191,6 +254,7 @@ export class KnowledgeGraphStore {
 
     this.outgoingEdges.get(sourceNode.id)!.add(id);
     this.incomingEdges.get(targetNode.id)!.add(id);
+    this.saveToDisk();
 
     return newEdge;
   }

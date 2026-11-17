@@ -59,7 +59,8 @@ async function main() {
   const traversePayload = {
     source: "Next.js",
     target: "React",
-    workspaceId: "prod_ws"
+    workspaceId: "prod_ws",
+    content: ingestPayload.content
   };
   fs.writeFileSync("scratch/test-prod-kg-traverse.json", JSON.stringify(traversePayload));
 
@@ -73,7 +74,8 @@ async function main() {
   console.log("\n5. Testing /api/knowledge-graph/qa POST (Semantic QA)...");
   const qaPayload = {
     question: "What does Next.js extend and depend on?",
-    workspaceId: "prod_ws"
+    workspaceId: "prod_ws",
+    content: ingestPayload.content
   };
   fs.writeFileSync("scratch/test-prod-kg-qa.json", JSON.stringify(qaPayload));
 

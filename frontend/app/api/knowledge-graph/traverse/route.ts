@@ -25,6 +25,10 @@ export async function POST(request: Request) {
       );
     }
 
+    if (typeof body.content === "string" && body.content.trim()) {
+      await KnowledgeGraphEngine.ingestContent(session.userId, workspaceId, body.content.trim());
+    }
+
     const path = KnowledgeGraphEngine.traversePath(session.userId, workspaceId, source, target);
 
     return NextResponse.json({
