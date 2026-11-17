@@ -277,14 +277,21 @@ export function detectDocumentIntent(
 
   // L. Source Code Files
   const isCodeFileExplicit =
-    /\b(downloadable (python|java|c|cpp|js|ts|sql|code) file|(python|java|c|cpp|js|ts|sql) file|script file)\b/i.test(norm) ||
-    /\b(save as a file|save it as a file|save to file|as a code file|as a \.py file|as a \.js file|give me a downloadable .* file)\b/i.test(norm) ||
-    /\b(python script|python program|java program|c program|sql script)\s+(for|to|that)\b/i.test(norm);
+    /\b(downloadable (python|java|c|cpp|js|ts|sql|code|html|css) file|(python|java|c|cpp|js|ts|sql|html|css) file|script file)\b/i.test(norm) ||
+    /\b(save as a file|save it as a file|save to file|as a code file|as a \.py file|as a \.js file|as an? \.html file|give me a downloadable .* file)\b/i.test(norm) ||
+    /\b(python script|python program|java program|c program|sql script|html file|html code file)\s+(for|to|that)\b/i.test(norm);
+
+  // Single-file code or UI requests (e.g., "single file html", "interactive html ui", "single page app")
+  // These should NEVER trigger generic document file creation (.docx) or academic research papers
+  const isSingleFileCodeOrUi =
+    /\b(single\s*file|interactive|single\s*page|spa)\s*(html|css|js|ts|python|code|script|app|dashboard|ui|web\s*app)\b/i.test(norm) ||
+    /\b(html|web\s*app|dashboard|frontend|ui)\s*(code|script|component|interface|app)\b/i.test(norm);
 
   // Generic File Directives
   const hasGenericFileDirective =
-    /\b(make|create|generate|produce|build|export|save|download|give me|send me|draft|write)\s+(a\s+|an\s+|the\s+)?(\w+\s+)?(file|document)\b/i.test(norm) ||
-    /\b(as a file|save as a file|save it as a file|give me the file|downloadable file|in a file|download the file)\b/i.test(norm);
+    !isSingleFileCodeOrUi &&
+    (/\b(make|create|generate|produce|build|export|save|download|give me|send me|draft|write)\s+(a\s+|an\s+|the\s+)?(\w+\s+)?(file|document)\b/i.test(norm) ||
+    /\b(as a file|save as a file|save it as a file|give me the file|downloadable file|in a file|download the file)\b/i.test(norm));
 
   const isExplicitFileRequest =
     isPptExplicit ||
@@ -582,7 +589,16 @@ export function detectDocumentIntent(
   } else if (isDataFileExplicit) {
     archetype = "data_file";
     format = norm.includes("xml") ? "xml" : "json";
-  } else if (isCodeFileExplicit || norm.includes("program") || norm.includes("script") || norm.includes("code")) {
+  } else if (
+    isCodeFileExplicit ||
+    norm.includes("program") ||
+    norm.includes("script") ||
+    norm.includes("code") ||
+    norm.includes("html") ||
+    norm.includes("web app") ||
+    norm.includes("dashboard") ||
+    norm.includes("single file")
+  ) {
     archetype = "source_code";
     if (norm.includes(".py") || norm.includes("python")) format = "py";
     else if (norm.includes(".ts") || norm.includes("typescript")) format = "ts";
@@ -590,7 +606,7 @@ export function detectDocumentIntent(
     else if (norm.includes(".cpp") || norm.includes("c++") || norm.includes("cpp")) format = "cpp";
     else if (norm.includes(".c\b") || norm.includes(" c ") || norm.includes("c program")) format = "c";
     else if (norm.includes(".sql") || norm.includes("sql")) format = "sql";
-    else if (norm.includes(".html") || norm.includes("html")) format = "html";
+    else if (norm.includes(".html") || norm.includes("html") || norm.includes("web app") || norm.includes("dashboard") || norm.includes("ui")) format = "html";
     else if (norm.includes(".css") || norm.includes("css")) format = "css";
     else format = "js";
   } else {

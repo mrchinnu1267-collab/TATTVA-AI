@@ -202,8 +202,12 @@ export async function POST(request: Request) {
       });
     }
 
-    // Dispatch through the Master AI Orchestrator
-    const orchestratorResult = await aiOrchestrator.processRequest({
+    // Dispatch through the Master AI Orchestrator with internal deadline guard
+    // Enforces 50s internal deadline (Vercel maxDuration is 60s) to guarantee graceful resolution before gateway timeout
+    const INTERNAL_GATEWAY_TIMEOUT_MS = 50000;
+    const requestStartTime = Date.now();
+
+    const orchestratorPromise = aiOrchestrator.processRequest({
       messages: body.messages,
       context: {
         userId: session.userId,
@@ -215,6 +219,38 @@ export async function POST(request: Request) {
       mode: body.mode,
       preferredModel: body.preferredModel || body.model,
     });
+
+    let timeoutTimer: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<{
+      role: "assistant";
+      content: string;
+      kind: "text";
+      intent: string;
+      modelUsed: string;
+      provider: string;
+      latencyMs: number;
+      isTimeoutRecovery?: boolean;
+    }>((resolve) => {
+      timeoutTimer = setTimeout(() => {
+        resolve({
+          role: "assistant",
+          content: "Your request required extensive reasoning and processing time that reached the serverless execution window. Your session and context are safely preserved.\n\n💡 **Tip:** Click **Retry** below to regenerate, or specify a focused section (e.g., frontend layout or backend logic).",
+          kind: "text",
+          intent: "timeout_recovery",
+          modelUsed: "TATTVA-Resilience-Engine",
+          provider: "local",
+          latencyMs: Date.now() - requestStartTime,
+          isTimeoutRecovery: true,
+        });
+      }, INTERNAL_GATEWAY_TIMEOUT_MS);
+    });
+
+    let orchestratorResult: any;
+    try {
+      orchestratorResult = await Promise.race([orchestratorPromise, timeoutPromise]);
+    } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+    }
 
     return NextResponse.json({
       ...orchestratorResult,

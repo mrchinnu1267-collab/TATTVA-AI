@@ -3256,12 +3256,22 @@ export default function ChatPage() {
         signal: controller.signal,
       });
 
+      let data: any;
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Chat failed with HTTP ${res.status}`);
+        if (errData && errData.content) {
+          // Graceful structured response returned by server resilience guard
+          data = errData;
+        } else {
+          const statusText = res.status === 504
+            ? "Gateway Timeout (504): Generation exceeded serverless limits."
+            : `Chat failed with HTTP ${res.status}`;
+          throw new Error(errData.error || statusText);
+        }
+      } else {
+        data = await res.json();
       }
 
-      const data = await res.json();
       const assistantMsgId = crypto.randomUUID();
       const assistantMsg: ChatMessage = {
         id: assistantMsgId,
@@ -3314,7 +3324,25 @@ export default function ChatPage() {
       if (err instanceof Error && err.name === "AbortError") {
         return;
       }
-      setError(err instanceof Error ? err.message : "Failed to complete request.");
+      const rawMsg = err instanceof Error ? err.message : "Failed to complete request.";
+      setError(rawMsg);
+
+      // Inject an assistant recovery message so the user never loses conversation state or context
+      const isGatewayTimeout = /504|timeout|timed out|gateway/i.test(rawMsg);
+      const assistantErrorId = crypto.randomUUID();
+      const recoveryMsg: ChatMessage = {
+        id: assistantErrorId,
+        role: "assistant",
+        content: isGatewayTimeout
+          ? "I encountered a gateway timeout while generating the requested response. Your prompt has been preserved in session memory.\n\nClick **Retry** below to regenerate, or try breaking your request into modular components."
+          : `I encountered an unexpected issue while processing your request: ${rawMsg}. Your conversation state has been preserved. Click **Retry** below to try again.`,
+        kind: "text",
+        timestamp: Date.now(),
+      };
+      const updatedWithRecovery = [...updatedWithUser, recoveryMsg];
+      setMessages(updatedWithRecovery);
+      messagesCountRef.current = updatedWithRecovery.length;
+      saveCurrentSession(updatedWithRecovery, activeSessionId);
     } finally {
       clearTimeout(progressTimer1);
       clearTimeout(progressTimer2);
@@ -3332,6 +3360,17 @@ export default function ChatPage() {
     setLoading(false);
     setStatusMessage("");
     showToast("Generation stopped ⏹️");
+  }
+
+  async function retryLastMessage() {
+    const lastUserMsgIdx = [...messages].map((m) => m.role).lastIndexOf("user");
+    if (lastUserMsgIdx === -1) return;
+    const lastUserMsg = messages[lastUserMsgIdx];
+    // Truncate to the messages before the last user message so sendMessage cleanly re-adds and sends it
+    const baseMessages = messages.slice(0, lastUserMsgIdx);
+    setMessages(baseMessages);
+    setError("");
+    void sendMessage(lastUserMsg.content);
   }
 
   // Inline Message Editing handlers (ChatGPT-style)
@@ -5741,8 +5780,19 @@ export default function ChatPage() {
               )}
 
               {error && (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
-                  ⚠️ {error}
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="flex-shrink-0">⚠️</span>
+                    <span className="truncate">{error}</span>
+                  </div>
+                  <button
+                    onClick={retryLastMessage}
+                    className="flex-shrink-0 px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold transition-colors flex items-center gap-1.5 cursor-pointer text-xs"
+                    title="Retry last prompt"
+                  >
+                    <span>🔄</span>
+                    <span>Retry</span>
+                  </button>
                 </div>
               )}
 
