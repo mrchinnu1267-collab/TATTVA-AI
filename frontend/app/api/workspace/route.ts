@@ -3,10 +3,15 @@ import { verifyUserSession } from "../../lib/security";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import fs from "fs";
+import os from "os";
 
 export const runtime = "nodejs";
 
-const LOCAL_VAULT_DIR = path.resolve(process.cwd(), ".tattva-vault");
+// Use /tmp on Vercel (read-only process.cwd() in serverless); fall back to process.cwd() locally
+const LOCAL_VAULT_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join(os.tmpdir(), ".tattva-vault")
+    : path.resolve(process.cwd(), ".tattva-vault");
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
