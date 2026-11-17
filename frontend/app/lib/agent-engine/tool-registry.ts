@@ -15,6 +15,7 @@ import { conductAuthoritativeResearch, searchAuthoritativeWeb } from "../researc
 import { extractTabularData, analyzeSourceCodeFile } from "../document-engine/multi-doc-analyzer";
 import { classifyDocument } from "../document-engine/document-classifier";
 import { advancedProgrammingAgent, TargetLanguage, GeneratedProjectFile } from "../software-studio/dev-engine/programming-agent";
+import { KnowledgeGraphEngine } from "../knowledge-graph";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -692,6 +693,84 @@ export class CentralizedToolRegistry {
             range: max - min,
             variance,
             stddev,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 11. Knowledge Graph Semantic QA Tool
+    this.registerTool({
+      name: "query_knowledge_graph",
+      displayName: "Knowledge Graph Semantic QA",
+      description: "Queries the user's multi-tenant knowledge graph to answer architectural, conceptual, and relationship questions with multi-hop citations and contradiction awareness.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        question: { type: "string", description: "Natural language query about entities or relationships", required: true },
+        workspaceId: { type: "string", description: "Target workspace ID", default: "default" },
+      },
+      outputSchema: {
+        answer: "string",
+        targetEntities: "array",
+        relationships: "array",
+        confidence: "number",
+      },
+      execute: async (params, context) => {
+        const userId = context.userId || "anonymous";
+        const workspaceId = params.workspaceId || "default";
+        const qaResult = await KnowledgeGraphEngine.queryGraphQA(userId, workspaceId, params.question);
+        return {
+          toolName: "query_knowledge_graph",
+          success: true,
+          output: {
+            answer: qaResult.answer,
+            targetEntities: qaResult.targetEntities.map((e) => ({ id: e.id, name: e.name, type: e.type })),
+            relationshipsCount: qaResult.relationships.length,
+            contradictionsCount: qaResult.contradictionsFound.length,
+            confidence: qaResult.confidence,
+          },
+          citations: qaResult.citations.map((c) => ({
+            title: `Entity Reference (${c.documentId || "Knowledge Graph"})`,
+            url: c.documentId ? `/api/documents?id=${c.documentId}` : "/api/knowledge-graph",
+            snippet: c.snippet,
+          })),
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 12. Knowledge Graph Relationship Traversal Tool
+    this.registerTool({
+      name: "traverse_knowledge_graph",
+      displayName: "Knowledge Graph Path Traversal",
+      description: "Finds the shortest semantic path and architectural connections between two concepts or entities in the knowledge graph.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        source: { type: "string", description: "Source entity name or ID", required: true },
+        target: { type: "string", description: "Target entity name or ID", required: true },
+        workspaceId: { type: "string", description: "Target workspace ID", default: "default" },
+      },
+      outputSchema: {
+        found: "boolean",
+        hopCount: "number",
+        explanation: "string",
+      },
+      execute: async (params, context) => {
+        const userId = context.userId || "anonymous";
+        const workspaceId = params.workspaceId || "default";
+        const path = KnowledgeGraphEngine.traversePath(userId, workspaceId, params.source, params.target);
+        return {
+          toolName: "traverse_knowledge_graph",
+          success: true,
+          output: {
+            found: !!path,
+            hopCount: path ? path.hopCount : 0,
+            explanation: path ? path.explanation : `No direct path found between ${params.source} and ${params.target}`,
+            nodes: path ? path.nodes.map((n) => n.name) : [],
           },
           executionTimeMs: 0,
         };
