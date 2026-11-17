@@ -422,18 +422,18 @@ export class MasterAIOrchestrator {
       try {
         const imageResult = imageToModerate
           ? await generateImageWithMultimodalRAG({
-              prompt: candidatePrompt,
-              referenceImage: imageToModerate,
-              quality: "balanced",
-              userId: context.userId,
-            })
+            prompt: candidatePrompt,
+            referenceImage: imageToModerate,
+            quality: "balanced",
+            userId: context.userId,
+          })
           : await generateImage({
-              prompt: candidatePrompt,
-              quality: "balanced",
-              userId: context.userId,
-              maxAttempts: 4,
-              targetScore: 95,
-            });
+            prompt: candidatePrompt,
+            quality: "balanced",
+            userId: context.userId,
+            maxAttempts: 4,
+            targetScore: 95,
+          });
 
         const failed = imageResult.verification.requirements.filter(
           (item) => item.met === false
@@ -718,8 +718,8 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
     const humanGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
     const promptIntelligenceGuidance = promptEnhancer.buildExecutionGuidance(promptAnalysis);
 
-    // Dynamic Rolling Context Management: compact older turns (> 10 turns) into a persistent digest, preventing amnesia
-    const { recentTurns, contextDigest } = contextManager.buildRollingContextDigest(messages, 10);
+    // Dynamic Rolling Context Management: preserve foundational rules and compact turns beyond 24, preventing amnesia
+    const { recentTurns, contextDigest } = contextManager.buildRollingContextDigest(messages, 24);
 
     const fullSystemInstruction = [
       identityPrompt,

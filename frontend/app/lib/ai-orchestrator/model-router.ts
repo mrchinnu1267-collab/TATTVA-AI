@@ -514,6 +514,10 @@ export class ModelRouter {
         const errMsg = err instanceof Error ? err.message : String(err);
         warnings.push(`Model ${model.name} (${model.provider}) failed: ${errMsg}`);
         console.warn(`[ModelRouter] Failover trigger: ${model.name} failed (${errMsg.slice(0, 120)}) -> Trying next candidate...`);
+        // Fast circuit-breaker: if rate-limited (429), overloaded (503), or timed out, cool down for 60s
+        if (errMsg.includes("429") || errMsg.includes("503") || errMsg.includes("timeout") || errMsg.includes("aborted")) {
+          this.recordModelExhaustion(model.id, errMsg.slice(0, 80), 60000);
+        }
       }
     }
 

@@ -285,13 +285,13 @@ export class ContextManager {
   }
 
   /**
-   * Builds a rolling conversational context digest for long multi-turn sessions (> 10-12 turns),
+   * Builds a rolling conversational context digest for long multi-turn sessions (> 12-20 turns),
    * ensuring early system architectural constraints, user requirements, schemas, and milestones
    * are preserved without falling victim to sliding-window context amnesia.
    */
   public buildRollingContextDigest<T extends ConversationTurn = ConversationTurn>(
     history: T[],
-    keepRecentCount: number = 10
+    keepRecentCount: number = 24
   ): {
     recentTurns: T[];
     contextDigest?: string;
@@ -300,13 +300,15 @@ export class ContextManager {
       return { recentTurns: history };
     }
 
-    const olderTurns = history.slice(0, history.length - keepRecentCount);
+    // Foundational opening turns (where project identity, rules, and core parameters are established)
+    const foundationalTurns = history.slice(0, 4);
     const recentTurns = history.slice(history.length - keepRecentCount);
+    const allOlderTurns = history.slice(0, history.length - keepRecentCount);
 
     const userAsks: string[] = [];
     const keyDecisions: string[] = [];
 
-    for (const turn of olderTurns) {
+    for (const turn of allOlderTurns) {
       if (turn.role === "user") {
         const text = turn.content.trim().replace(/\s+/g, " ");
         if (text.length > 0) {
@@ -320,29 +322,36 @@ export class ContextManager {
       }
     }
 
-    const persistedConstraints = this.extractPersistedConstraints(olderTurns);
+    const persistedConstraints = this.extractPersistedConstraints(history);
 
     const digestParts: string[] = [
-      `[PERSISTED MULTI-TURN CONVERSATION MILESTONES (${olderTurns.length} earlier turns compacted)]:`,
+      `[PERSISTED MULTI-TURN CONVERSATION MILESTONES & SYSTEM CONSTRAINTS (${allOlderTurns.length} earlier turns compacted)]:`,
     ];
 
     if (persistedConstraints.length > 0) {
-      digestParts.push(`- Active Constraints: ${persistedConstraints.join(", ")}`);
+      digestParts.push(`- Established System Constraints & Context:`);
+      persistedConstraints.forEach((c) => digestParts.push(`  * ${c}`));
     }
 
     if (userAsks.length > 0) {
-      digestParts.push(`- Earlier Topics Discussed:`);
-      userAsks.slice(-5).forEach((ask) => {
+      digestParts.push(`- Foundational Directives & Decisions:`);
+      const keyAsks = Array.from(new Set([...userAsks.slice(0, 4), ...userAsks.slice(-4)]));
+      keyAsks.forEach((ask) => {
         digestParts.push(`  * ${ask}`);
       });
     }
 
     if (keyDecisions.length > 0) {
-      digestParts.push(`- Established Milestone Outcomes: ${keyDecisions.slice(-3).join(" | ")}`);
+      digestParts.push(`- Established Milestone Outcomes: ${keyDecisions.slice(-4).join(" | ")}`);
     }
 
+    // Include foundational turns at the beginning of the message window if not already present
+    const foundationalToInclude = foundationalTurns.filter(
+      (ft) => !recentTurns.some((rt) => rt.content === ft.content && rt.role === ft.role)
+    );
+
     return {
-      recentTurns,
+      recentTurns: [...foundationalToInclude, ...recentTurns],
       contextDigest: digestParts.join("\n"),
     };
   }
@@ -387,21 +396,52 @@ export class ContextManager {
 
   private extractPersistedConstraints(history: ConversationTurn[]): string[] {
     const constraints: string[] = [];
-    const fullText = history.map((h) => h.content).join("\n").toLowerCase();
+    const fullText = history.map((h) => h.content).join("\n");
+    const lower = fullText.toLowerCase();
 
-    if (fullText.includes("in typescript") || fullText.includes("use typescript")) {
+    // Check project names / codenames
+    const codenameMatch = fullText.match(/(?:project|codenamed?|app called)\s+['"]?([a-zA-Z0-9_\-\s]+?)['"]?(?:\.|\,|$|\s)/i);
+    if (codenameMatch && codenameMatch[1].trim()) {
+      constraints.push(`Project Codename: ${codenameMatch[1].trim()}`);
+    }
+
+    // Check explicit user rules (Rule Alpha, Rule Beta, Rule 1, etc.)
+    const ruleMatches = fullText.matchAll(/rule\s+([a-zA-Z0-9_-]+)[:\s]+([^\n\.\,]+)/gi);
+    for (const rm of ruleMatches) {
+      constraints.push(`Rule ${rm[1]}: ${rm[2].trim()}`);
+    }
+
+    // Check named roles (architect, lead, developer, etc.)
+    const nameMatch = fullText.match(/(?:principal architect|architect|lead engineer|team lead|developer|author|creator|founder)\s+(?:is\s+(?:named\s+)?)?([A-Z][a-zA-Z]+)/i);
+    if (nameMatch && nameMatch[1].trim()) {
+      constraints.push(`Architect / Lead: ${nameMatch[1].trim()}`);
+    }
+
+    // Check database or storage technology specifications
+    const dbMatch = fullText.match(/(?:primary database|database|storage engine)\s+(?:must be|is|shall be)\s+([A-Za-z0-9_\-]+)/i);
+    if (dbMatch && dbMatch[1].trim()) {
+      constraints.push(`Primary Database: ${dbMatch[1].trim()}`);
+    }
+
+    // Check auth specifications
+    const authMatch = fullText.match(/(?:authentication mechanism|auth mechanism|authentication)\s+(?:must be|is)\s+([^\n\.\,]+)/i);
+    if (authMatch && authMatch[1].trim()) {
+      constraints.push(`Authentication: ${authMatch[1].trim()}`);
+    }
+
+    if (lower.includes("in typescript") || lower.includes("use typescript")) {
       constraints.push("Use TypeScript");
     }
-    if (fullText.includes("in python") || fullText.includes("use python")) {
+    if (lower.includes("in python") || lower.includes("use python")) {
       constraints.push("Use Python");
     }
-    if (fullText.includes("dark mode") || fullText.includes("dark theme")) {
+    if (lower.includes("dark mode") || lower.includes("dark theme")) {
       constraints.push("Dark mode UI theme");
     }
-    if (fullText.includes("no placeholders") || fullText.includes("zero placeholders")) {
+    if (lower.includes("no placeholders") || lower.includes("zero placeholders")) {
       constraints.push("Zero placeholders or truncated code");
     }
-    return constraints;
+    return Array.from(new Set(constraints));
   }
 }
 
