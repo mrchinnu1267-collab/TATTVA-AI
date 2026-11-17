@@ -43,6 +43,8 @@ import { createImageJob } from "../image-engine/reliability/job-queue";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
 import { promptAnalyzer, promptEnhancer, responseValidator, AnalyzedPrompt, contextManager } from "./intelligence";
+import { selfCorrectionEngine } from "./intelligence/self-correction-engine";
+import { platformObservability } from "../platform/observability";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -756,10 +758,56 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
       }
     );
 
-    // Validate response against extracted requirements, constraints, and formats
-    const validation = responseValidator.validate(modelResult.text, promptAnalysis);
+    // Self-Correction Engine: Bounded pre-flight evaluation against 8 mandatory QA gates
+    let finalModelResult = modelResult;
+    const qualityReport = selfCorrectionEngine.evaluateQuality(cleanUserPrompt, modelResult.text, effectiveIntent, {
+      constraints: promptAnalysis.constraints,
+    });
 
-    const guardedReply = guardAIOutput(modelResult.text);
+    if (qualityReport.needsCorrection && Date.now() - startTime < 16000) {
+      console.log(`[SelfCorrectionEngine] Quality issues detected (${qualityReport.issues.join(", ")}). Executing bounded 1-turn self-correction.`);
+      try {
+        const correctionInstruction = fullSystemInstruction + selfCorrectionEngine.buildCorrectionDirective(qualityReport.issues);
+        const corrected = await modelRouter.executeWithFallback(
+          effectiveIntent,
+          promptAnalysis.complexityScore || classification.complexityScore,
+          {
+            messages: modelMessages,
+            systemInstruction: correctionInstruction,
+            preferredModel: preferredModel || promptAnalysis.appropriateModel,
+            temperature: 0.2,
+            timeoutMs: 12000,
+          }
+        );
+        const correctedQuality = selfCorrectionEngine.evaluateQuality(cleanUserPrompt, corrected.text, effectiveIntent, {
+          constraints: promptAnalysis.constraints,
+        });
+        if (correctedQuality.overallScore >= qualityReport.overallScore) {
+          finalModelResult = corrected;
+        }
+      } catch (err) {
+        console.warn("[SelfCorrectionEngine] Self-correction attempt bypassed:", err);
+      }
+    }
+
+    // Platform Observability: Record metrics and resource telemetry
+    platformObservability.recordMetric({
+      timestamp: Date.now(),
+      userId: context.userId || "anonymous",
+      endpoint: "/api/chat",
+      model: finalModelResult.modelUsed,
+      provider: finalModelResult.provider,
+      latencyMs: Date.now() - startTime,
+      promptTokens: finalModelResult.usage?.promptTokens || Math.ceil(cleanUserPrompt.length / 4),
+      completionTokens: finalModelResult.usage?.completionTokens || Math.ceil(finalModelResult.text.length / 4),
+      costUsd: finalModelResult.usage?.estimatedCostUsd || 0,
+      status: finalModelResult.fallbackOccurred ? "fallback" : "success",
+    });
+
+    // Validate response against extracted requirements, constraints, and formats
+    const validation = responseValidator.validate(finalModelResult.text, promptAnalysis);
+
+    const guardedReply = guardAIOutput(finalModelResult.text);
     const finalized = humanIntelligence.finalizeResponse(
       guardedReply,
       cleanUserPrompt,
@@ -771,18 +819,18 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
       content: finalized.finalContent,
       kind: "text",
       intent: effectiveIntent,
-      modelUsed: modelResult.modelUsed,
-      provider: modelResult.provider,
+      modelUsed: finalModelResult.modelUsed,
+      provider: finalModelResult.provider,
       latencyMs: Date.now() - startTime,
       citations: webCitations,
-      fallbackOccurred: modelResult.fallbackOccurred,
+      fallbackOccurred: finalModelResult.fallbackOccurred,
       recalledMemories: relevantMemories.map((m) => ({
         id: m.id,
         content: m.content,
         category: m.category,
       })),
       warnings: [
-        ...(modelResult.warnings || []),
+        ...(finalModelResult.warnings || []),
         ...(!validation.isValid && validation.missingRequirements.length > 0 ? validation.missingRequirements : []),
       ],
       progressStage: "completed",

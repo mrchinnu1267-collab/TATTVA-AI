@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { buildApplicationFromRequirement } from "@/app/lib/software-studio/dev-engine/dev-engine";
+import { advancedProgrammingAgent } from "@/app/lib/software-studio/dev-engine/programming-agent";
 import { indexProject, retrieveRelevantContext } from "@/app/lib/software-studio/project-understanding/code-scanner";
 import { executeSandboxCommand } from "@/app/lib/software-studio/sandbox/command-validator";
 import { diagnoseAndRepair } from "@/app/lib/software-studio/dev-engine/debugging-engine";
@@ -95,6 +96,31 @@ export async function POST(req: NextRequest) {
       const { topic, decision, rationale } = body;
       const recorded = recordDecision("default", topic || "Architecture", decision || "", rationale || "");
       return NextResponse.json({ success: true, decision: recorded });
+    }
+
+    // 5. Advanced Autonomous Project Architecture & Multi-File Synthesis
+    if (action === "synthesize_architecture" || action === "plan_project") {
+      if (!projectName || !requirement) {
+        return NextResponse.json(
+          { success: false, error: "projectName and requirement are required." },
+          { status: 400 }
+        );
+      }
+      const synthesized = advancedProgrammingAgent.synthesizeProject(
+        projectName,
+        requirement,
+        body.language || "typescript"
+      );
+      return NextResponse.json({ success: true, result: synthesized });
+    }
+
+    // 6. Automated Code Security Review
+    if (action === "review_security") {
+      if (!body.code) {
+        return NextResponse.json({ success: false, error: "code snippet is required." }, { status: 400 });
+      }
+      const review = advancedProgrammingAgent.reviewSecurity(body.code, body.language || "typescript");
+      return NextResponse.json({ success: true, review });
     }
 
     return NextResponse.json({ success: false, error: `Unknown action: "${action}"` }, { status: 400 });

@@ -155,6 +155,136 @@ export function extractSymbols(
         });
       }
     }
+  } else if (language === "go") {
+    // Go imports and declarations
+    const goImportRegex = /import\s+(?:\(\s*([\s\S]*?)\s*\)|"([^"]+)")/g;
+    let match: RegExpExecArray | null;
+    while ((match = goImportRegex.exec(content)) !== null) {
+      if (match[2]) imports.push(match[2]);
+      else if (match[1]) {
+        match[1].split("\n").forEach((l) => {
+          const m = l.match(/"([^"]+)"/);
+          if (m && !imports.includes(m[1])) imports.push(m[1]);
+        });
+      }
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const fnMatch = /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z0-9_]+)\s*\(/i.exec(line);
+      if (fnMatch) {
+        const name = fnMatch[1];
+        const isExported = /^[A-Z]/.test(name);
+        symbols.push({
+          name,
+          kind: "function",
+          filePath,
+          line: i + 1,
+          isExported,
+          signature: line.trim().slice(0, 80),
+        });
+        if (isExported) exports.push(name);
+      }
+      const typeMatch = /^\s*type\s+([A-Za-z0-9_]+)\s+(?:struct|interface)/i.exec(line);
+      if (typeMatch) {
+        const name = typeMatch[1];
+        const isExported = /^[A-Z]/.test(name);
+        symbols.push({
+          name,
+          kind: line.includes("interface") ? "interface" : "class",
+          filePath,
+          line: i + 1,
+          isExported,
+          signature: line.trim().slice(0, 80),
+        });
+        if (isExported) exports.push(name);
+      }
+    }
+  } else if (language === "rust") {
+    // Rust use statements and fn / struct / enum
+    const rustUseRegex = /use\s+([^;]+);/g;
+    let match: RegExpExecArray | null;
+    while ((match = rustUseRegex.exec(content)) !== null) {
+      const imp = match[1].trim();
+      if (!imports.includes(imp)) imports.push(imp);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const isPub = /^\s*pub\s+/.test(line);
+      const fnMatch = /^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)/i.exec(line);
+      if (fnMatch) {
+        symbols.push({
+          name: fnMatch[1],
+          kind: "function",
+          filePath,
+          line: i + 1,
+          isExported: isPub,
+          signature: line.trim().slice(0, 80),
+        });
+        if (isPub) exports.push(fnMatch[1]);
+      }
+      const structMatch = /^\s*(?:pub\s+)?(?:struct|enum|trait)\s+([A-Za-z0-9_]+)/i.exec(line);
+      if (structMatch) {
+        symbols.push({
+          name: structMatch[1],
+          kind: line.includes("trait") ? "interface" : "class",
+          filePath,
+          line: i + 1,
+          isExported: isPub,
+          signature: line.trim().slice(0, 80),
+        });
+        if (isPub) exports.push(structMatch[1]);
+      }
+    }
+  } else if (language === "java") {
+    // Java package/import and class/method extraction
+    const javaImportRegex = /import\s+([^;]+);/g;
+    let match: RegExpExecArray | null;
+    while ((match = javaImportRegex.exec(content)) !== null) {
+      const imp = match[1].trim();
+      if (!imports.includes(imp)) imports.push(imp);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const isPub = /public\s+/.test(line);
+      const clsMatch = /^\s*(?:public\s+)?(?:abstract\s+)?(?:class|interface|enum)\s+([A-Za-z0-9_]+)/i.exec(line);
+      if (clsMatch) {
+        symbols.push({
+          name: clsMatch[1],
+          kind: line.includes("interface") ? "interface" : "class",
+          filePath,
+          line: i + 1,
+          isExported: isPub,
+          signature: line.trim().slice(0, 80),
+        });
+        if (isPub) exports.push(clsMatch[1]);
+      }
+    }
+  } else if (language === "c" || language === "cpp") {
+    // C/C++ #include and function definitions
+    const cIncludeRegex = /#include\s+[<"]([^>"]+)[>"]/g;
+    let match: RegExpExecArray | null;
+    while ((match = cIncludeRegex.exec(content)) !== null) {
+      const imp = match[1].trim();
+      if (!imports.includes(imp)) imports.push(imp);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const fnMatch = /^\s*(?:[A-Za-z0-9_*<>&]+\s+)+([A-Za-z0-9_]+)\s*\([^)]*\)\s*\{/i.exec(line);
+      if (fnMatch && !/^(if|while|for|switch|catch)/.test(fnMatch[1])) {
+        symbols.push({
+          name: fnMatch[1],
+          kind: "function",
+          filePath,
+          line: i + 1,
+          isExported: true,
+          signature: line.trim().slice(0, 80),
+        });
+      }
+    }
   }
 
   return { symbols, imports, exports };

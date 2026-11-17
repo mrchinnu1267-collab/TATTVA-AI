@@ -59,6 +59,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const requestedEmail = searchParams.get("email")?.toLowerCase().trim();
+    const searchQuery = searchParams.get("search")?.toLowerCase().trim();
+    const exportId = searchParams.get("export");
+    const exportFormat = searchParams.get("format") || "markdown";
 
     // Prevent cross-tenant impersonation: requested email must match authenticated session email
     if (requestedEmail && session.email && requestedEmail !== session.email.toLowerCase().trim()) {
@@ -75,9 +78,62 @@ export async function GET(request: Request) {
     }
 
     const data = fs.readFileSync(filePath, "utf-8");
-    const sessions = JSON.parse(data);
+    let sessions = JSON.parse(data);
 
-    return NextResponse.json({ sessions });
+    if (!Array.isArray(sessions)) {
+      return NextResponse.json({ sessions: [] });
+    }
+
+    // 1. Export Conversation Feature
+    if (exportId) {
+      const targetSession = sessions.find((s: any) => s.id === exportId);
+      if (!targetSession) {
+        return NextResponse.json({ error: "Session not found." }, { status: 404 });
+      }
+
+      if (exportFormat === "json") {
+        return new NextResponse(JSON.stringify(targetSession, null, 2), {
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Disposition": `attachment; filename="${encodeURIComponent(targetSession.title || "conversation")}.json"`,
+          },
+        });
+      }
+
+      // Markdown Export Format
+      const mdLines: string[] = [
+        `# ${targetSession.title || "TATTVA AI Conversation"}`,
+        `*Exported on ${new Date().toISOString()} | Session ID: ${targetSession.id}*`,
+        "",
+        "---",
+        "",
+      ];
+
+      for (const m of targetSession.messages || []) {
+        const sender = m.role === "user" ? "**User**" : "**TATTVA AI**";
+        mdLines.push(`### ${sender}:`);
+        mdLines.push(m.content || "");
+        mdLines.push("");
+      }
+
+      return new NextResponse(mdLines.join("\n"), {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${encodeURIComponent(targetSession.title || "conversation")}.md"`,
+        },
+      });
+    }
+
+    // 2. Server-side Conversation Search
+    if (searchQuery) {
+      sessions = sessions.filter((s: any) => {
+        const titleMatch = s.title?.toLowerCase().includes(searchQuery);
+        const messageMatch = Array.isArray(s.messages) && s.messages.some((m: any) => (m.content || "").toLowerCase().includes(searchQuery));
+        return titleMatch || messageMatch;
+      });
+    }
+
+    return NextResponse.json({ sessions, count: sessions.length });
   } catch (error: unknown) {
     console.error("GET /api/chats error:", error);
     return NextResponse.json(
@@ -184,6 +240,71 @@ export async function DELETE(request: Request) {
     console.error("DELETE /api/chats error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to delete chats" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const session = await verifyUserSession(request);
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
+
+    const rateCheck = checkRateLimit(`chats_patch_${session.userId}_${clientIp}`, 60, 60000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
+    }
+
+    if (!session.authenticated || (!session.email && !session.userId)) {
+      return NextResponse.json(
+        { error: "Authentication required to update cloud chat sessions." },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    if (!body || !body.sessionId) {
+      return NextResponse.json({ error: "sessionId is required." }, { status: 400 });
+    }
+
+    const userIdentifier = (session.email || session.userId).toLowerCase().trim();
+    const filePath = getChatFilePath(userIdentifier);
+
+    if (!fs.existsSync(filePath)) {
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    }
+
+    const data = fs.readFileSync(filePath, "utf-8");
+    const sessions = JSON.parse(data);
+    if (!Array.isArray(sessions)) {
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    }
+
+    const targetIndex = sessions.findIndex((s: any) => s.id === body.sessionId);
+    if (targetIndex === -1) {
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    }
+
+    // Apply safe updates: title (rename), pinned (boolean), tags
+    if (typeof body.title === "string" && body.title.trim()) {
+      sessions[targetIndex].title = body.title.trim().slice(0, 100);
+    }
+    if (typeof body.pinned === "boolean") {
+      sessions[targetIndex].pinned = body.pinned;
+    }
+    if (Array.isArray(body.tags)) {
+      sessions[targetIndex].tags = body.tags.slice(0, 10);
+    }
+
+    sessions[targetIndex].updatedAt = Date.now();
+
+    fs.writeFileSync(filePath, JSON.stringify(sessions, null, 2), "utf-8");
+
+    return NextResponse.json({ success: true, session: sessions[targetIndex] });
+  } catch (error: unknown) {
+    console.error("PATCH /api/chats error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update chat" },
       { status: 500 }
     );
   }
