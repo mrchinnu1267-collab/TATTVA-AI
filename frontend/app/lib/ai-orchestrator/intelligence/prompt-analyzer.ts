@@ -129,13 +129,22 @@ export class PromptAnalyzer {
   private detectLanguageDialect(prompt: string): AnalyzedPrompt["detectedDialect"] {
     const lower = prompt.toLowerCase();
     const hasTeluguScript = /[\u0C00-\u0C7F]/.test(prompt);
-    const hasTeluguKeywords = /\b(cheppu|cheyyi|rayi|deeni|dini|daanini|dannini|idi|ela|emiti|enti|meeru|nenu|unnaya|vachindi|gurinchi|enduku|evaru|edhi|eedi|kavali|kavaali|chesi|pettali|chudu|choodu|matladu|eppudu|ekkada|ippudu)\b/i.test(lower);
+    const hasTeluguKeywords =
+      /\b(cheppu|cheppandi|cheyyi|cheyyandi|rayi|rayandi|deeni|dini|daanini|dannini|idi|edi|ela|elaga|emiti|enti|meeru|nenu|unnaya|vachindi|gurinchi|enduku|evaru|edhi|eedi|kavali|kavaali|chesi|pettali|chudu|choodu|matladu|matladandi|eppudu|ekkada|ippudu|teliyadu|sariga|koddiga|inka|malli|chaduvu|chupinchu|artham|kaledu|bagundi)\b/i.test(
+        lower
+      );
 
     if (hasTeluguScript) {
       return /[a-zA-Z]/.test(prompt) ? "telugu_english_mixed" : "telugu";
     }
     if (hasTeluguKeywords) return "telugu_english_mixed";
-    if (/[\u0900-\u097F]/.test(prompt) || /\b(batao|karo|kaise|kya|hai|karein|chahiye|banao|likho)\b/i.test(lower)) return "hindi";
+    if (
+      /[\u0900-\u097F]/.test(prompt) ||
+      /\b(batao|bataiye|karo|kijiye|kaise|kya|kyun|hai|hain|karein|chahiye|banao|likho|likhiye|samjhao|samajh|madad|sahi|galat|nahi|kripya)\b/i.test(
+        lower
+      )
+    )
+      return "hindi";
     return "english";
   }
 

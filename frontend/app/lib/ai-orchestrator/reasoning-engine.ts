@@ -158,9 +158,17 @@ LANGUAGE & IDENTITY:
       { role: "user" as const, content: userPrompt, attachments },
     ];
 
+    const preferredModel =
+      intent === "coding"
+        ? "gemini-3.5-flash-lite"
+        : intent === "mathematics" || intent === "reasoning"
+        ? "deepseek/deepseek-chat"
+        : "gemini-3.5-flash-lite";
+
     const modelResult = await modelRouter.executeWithFallback(intent, 8, {
       messages: modelMessages,
       systemInstruction: systemReasoningPrompt,
+      preferredModel,
       temperature: 0.25, // Lower temperature for high reasoning fidelity
     });
 

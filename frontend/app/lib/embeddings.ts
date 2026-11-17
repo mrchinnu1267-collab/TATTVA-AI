@@ -23,7 +23,7 @@ export async function generateTextEmbedding(text: string): Promise<number[] | nu
 
   try {
     const embedPromise = ai.models.embedContent({
-      model: "text-embedding-004",
+      model: "gemini-embedding-001",
       contents: clean.slice(0, 2048),
     });
 
@@ -33,8 +33,9 @@ export async function generateTextEmbedding(text: string): Promise<number[] | nu
 
     const resp: any = await Promise.race([embedPromise, timeoutPromise]);
 
-    if (resp?.embeddings?.[0]?.values && resp.embeddings[0].values.length > 0) {
-      return resp.embeddings[0].values;
+    const values = resp?.embedding?.values || resp?.embeddings?.[0]?.values;
+    if (values && values.length > 0) {
+      return values;
     }
   } catch (err) {
     console.warn("[Embedding Service] Gemini embedding call failed, using fallback:", err);

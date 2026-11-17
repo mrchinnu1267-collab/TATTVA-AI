@@ -36,6 +36,7 @@ export interface ModelCallResult {
 export class ModelRouter {
   private static instance: ModelRouter;
   private providerCooldowns: Map<string, { until: number; reason: string }> = new Map();
+  private modelCooldowns: Map<string, { until: number; reason: string }> = new Map();
 
   /**
    * Universal Model Catalog
@@ -81,7 +82,7 @@ export class ModelRouter {
       maxOutputTokens: 8192,
       latencyTier: "low",
       strengths: ["coding", "reasoning", "mathematics", "document_analysis", "agent_task"],
-      isAvailable: Boolean(process.env.GEMINI_API_KEY),
+      isAvailable: false, // 20 req/day free tier quota exhausted. Primary routed to gemini-3.5-flash-lite.
       parameterScale: "Undisclosed",
       supportsStreaming: true,
       supportsVision: true,
@@ -113,7 +114,7 @@ export class ModelRouter {
       maxOutputTokens: 8192,
       latencyTier: "low",
       strengths: ["coding", "general_chat", "agent_task", "translation"],
-      isAvailable: Boolean(process.env.ANTHROPIC_API_KEY),
+      isAvailable: false, // Credit balance depleted (HTTP 400)
       parameterScale: "Undisclosed",
       supportsStreaming: true,
       supportsVision: true,
@@ -127,7 +128,7 @@ export class ModelRouter {
       maxOutputTokens: 8192,
       latencyTier: "medium",
       strengths: ["coding", "reasoning", "mathematics", "document_analysis"],
-      isAvailable: Boolean(process.env.ANTHROPIC_API_KEY),
+      isAvailable: false, // Credit balance depleted (HTTP 400)
       parameterScale: "Undisclosed",
       supportsStreaming: true,
       supportsVision: true,
@@ -223,7 +224,7 @@ export class ModelRouter {
       maxOutputTokens: 4096,
       latencyTier: "low",
       strengths: ["coding", "reasoning", "mathematics"],
-      isAvailable: Boolean(process.env.NVIDIA_API_KEY),
+      isAvailable: false, // EOL 410 from Nvidia NIM API
       parameterScale: "70B",
       supportsStreaming: true,
       supportsVision: false,
@@ -289,6 +290,13 @@ export class ModelRouter {
    * Checks circuit-breaker cooldowns to prevent repetitive timeouts on exhausted providers
    */
   public isModelAvailable(spec: AIModelSpec): boolean {
+    if (spec.isAvailable === false || spec.id === "meta/llama-3.1-70b-instruct") {
+      return false;
+    }
+    const modelCool = this.modelCooldowns.get(spec.id);
+    if (modelCool && Date.now() < modelCool.until) {
+      return false;
+    }
     const cooldown = this.providerCooldowns.get(spec.provider);
     if (cooldown && Date.now() < cooldown.until) {
       return false;
@@ -301,6 +309,17 @@ export class ModelRouter {
     if (spec.provider === "nvidia") return cleanKey(process.env.NVIDIA_API_KEY);
     if (spec.provider === "tattva" || spec.provider === "local") return Boolean(process.env.TATTVA_LOCAL_ENDPOINT);
     return false;
+  }
+
+  /**
+   * Temporarily suppresses a specific exhausted or rate-limited model (circuit-breaker)
+   */
+  public recordModelExhaustion(modelId: string, reason: string, cooldownMs: number = 1800000): void {
+    this.modelCooldowns.set(modelId, {
+      until: Date.now() + cooldownMs,
+      reason,
+    });
+    console.warn(`[ModelRouter CircuitBreaker] Model '${modelId}' cooling down for ${cooldownMs / 1000}s. Reason: ${reason}`);
   }
 
   /**
@@ -368,12 +387,27 @@ export class ModelRouter {
       const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
       if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
 
-      const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.5-flash" && m.isAvailable);
-      if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
+      const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
+      if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
+
+      const llama70b = activeModels.find((m) => m.id === "meta-llama/llama-3.3-70b-instruct" && m.isAvailable);
+      if (llama70b && !candidates.includes(llama70b)) candidates.push(llama70b);
     }
 
-    // B. Interactive Coding, Chat & Low-Latency -> Prioritize Gemini 3.5 Flash Lite (< 1000ms latency, 100% coding)
-    if (intent === "coding" || intent === "general_chat" || intent === "general_qa" || intent === "translation") {
+    // B. Interactive Coding, Application Generation & Low-Latency -> Prioritize Gemini 3.5 Flash Lite
+    if (intent === "coding" || intent === "agent_task" || intent === "troubleshooting") {
+      const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
+      if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
+
+      const llama70b = activeModels.find((m) => m.id === "meta-llama/llama-3.3-70b-instruct" && m.isAvailable);
+      if (llama70b && !candidates.includes(llama70b)) candidates.push(llama70b);
+
+      const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
+      if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
+    }
+
+    // C. Document Analysis & Multimodal Understanding
+    if (intent === "document_analysis" || intent === "data_analysis") {
       const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
       if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
 
@@ -381,13 +415,21 @@ export class ModelRouter {
       if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
     }
 
-    // C. High complexity tasks: ensure high-capacity reasoning models
-    if (complexity >= 7 || intent === "agent_task" || intent === "document_analysis") {
-      const geminiHeavy = activeModels.find((m) => m.id === "gemini-3.5-flash" && m.isAvailable);
-      if (geminiHeavy && !candidates.includes(geminiHeavy)) candidates.push(geminiHeavy);
+    // D. General Chat, QA, Multilingual, Creative & Translation
+    if (
+      intent === "general_chat" ||
+      intent === "general_qa" ||
+      intent === "conversational" ||
+      intent === "translation" ||
+      intent === "multilingual" ||
+      intent === "creative_writing" ||
+      intent === "summarization"
+    ) {
+      const geminiFast = activeModels.find((m) => m.id === "gemini-3.5-flash-lite" && m.isAvailable);
+      if (geminiFast && !candidates.includes(geminiFast)) candidates.push(geminiFast);
 
-      const deepseekChat = activeModels.find((m) => m.id === "deepseek/deepseek-chat" && m.isAvailable);
-      if (deepseekChat && !candidates.includes(deepseekChat)) candidates.push(deepseekChat);
+      const llama70b = activeModels.find((m) => m.id === "meta-llama/llama-3.3-70b-instruct" && m.isAvailable);
+      if (llama70b && !candidates.includes(llama70b)) candidates.push(llama70b);
     }
 
     // D. Remaining available models
@@ -471,18 +513,18 @@ export class ModelRouter {
         fallbackOccurred = true;
         const errMsg = err instanceof Error ? err.message : String(err);
         warnings.push(`Model ${model.name} (${model.provider}) failed: ${errMsg}`);
-        console.warn(`[ModelRouter] Failover trigger: ${model.name} failed -> Trying next candidate...`);
+        console.warn(`[ModelRouter] Failover trigger: ${model.name} failed (${errMsg.slice(0, 120)}) -> Trying next candidate...`);
       }
     }
 
     // Fast Intelligent Fallback Engine for instant response if external providers are unavailable
-    console.log("[ModelRouter] Activating TATTVA Fast Intelligence Engine for instant response");
+    console.log("[ModelRouter] Activating TATTVA Provider Status Fallback");
     const latestUserMsg = [...options.messages].reverse().find((m) => m.role === "user")?.content || "";
-    const synthesizedAnswer = this.synthesizeFastResponse(latestUserMsg, intent);
+    const synthesizedAnswer = this.synthesizeFastResponse(latestUserMsg, intent, warnings);
 
     return {
       text: synthesizedAnswer,
-      modelUsed: "TATTVA-Turbo-Speed-Engine",
+      modelUsed: "TATTVA-System-Fallback",
       provider: "gemini",
       latencyMs: 120,
       fallbackOccurred: true,
@@ -575,24 +617,25 @@ export class ModelRouter {
       return res.text || "";
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      // Auto-fallback to gemini-3.5-flash if requested model is deprecated / not found
+      // Auto-fallback to gemini-3.5-flash-lite if requested model is deprecated / not found or quota exhausted
       if (
-        (errMsg.includes("no longer available") || errMsg.includes("404") || errMsg.includes("NOT_FOUND")) &&
-        modelId !== "gemini-3.5-flash"
+        (errMsg.includes("no longer available") ||
+          errMsg.includes("404") ||
+          errMsg.includes("NOT_FOUND") ||
+          errMsg.includes("429") ||
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("quota exceeded")) &&
+        modelId !== "gemini-3.5-flash-lite"
       ) {
+        if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota exceeded")) {
+          this.recordModelExhaustion(modelId, "Daily quota limit reached (HTTP 429)", 1800000);
+        }
         try {
-          const fallbackRes = await runWithTimeout("gemini-3.5-flash");
+          const fallbackRes = await runWithTimeout("gemini-3.5-flash-lite");
           return fallbackRes.text || "";
         } catch {
           // If fallback also fails, continue to standard error handling
         }
-      }
-
-      // Auto-retry once on 429 rate limit or temporary resource exhaustion with 4.5s backoff
-      if (err?.status === 429 || errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("limit: 0")) {
-        await new Promise((r) => setTimeout(r, 4500));
-        const retryRes = await runWithTimeout(modelId);
-        return retryRes.text || "";
       }
       throw err;
     }
@@ -738,7 +781,7 @@ export class ModelRouter {
         messages: openRouterMessages,
         temperature: options.temperature ?? 0.7,
       }),
-      signal: AbortSignal.timeout(options.timeoutMs || 10000),
+      signal: AbortSignal.timeout(options.timeoutMs || 20000),
     });
 
     if (!res.ok) {
@@ -778,7 +821,7 @@ export class ModelRouter {
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens || 4096,
       }),
-      signal: AbortSignal.timeout(options.timeoutMs || 10000),
+      signal: AbortSignal.timeout(options.timeoutMs || 20000),
     });
 
     if (!res.ok) {
@@ -854,162 +897,31 @@ export class ModelRouter {
   }
 
   // ==========================================================================
-  // FAST SYNTHESIS FALLBACK
+  // FAST SYNTHESIS FALLBACK (Honest provider status reporting)
   // ==========================================================================
 
-  private synthesizeFastResponse(prompt: string, intent: TaskIntent): string {
-    const isHtmlOrWeb = /\b(html|web app|dashboard|ui|css|javascript|single page|spa|frontend)\b/i.test(prompt);
+  private synthesizeFastResponse(prompt: string, intent: TaskIntent, warnings: string[] = []): string {
+    const cleanPrompt = prompt.slice(0, 150).trim();
+    const promptSnippet = cleanPrompt ? `> "${cleanPrompt}${prompt.length > 150 ? "..." : ""}"\n` : "";
 
-    if (isHtmlOrWeb) {
-      const title = prompt.slice(0, 80).replace(/[<>&"]/g, "").trim() || "Interactive Dashboard";
-      return `### 🚀 Interactive Application Preview & Implementation
+    const diagnosticBullets =
+      warnings.length > 0
+        ? warnings.map((w) => `- ${w}`).join("\n")
+        : "- All configured upstream providers timed out or were temporarily unreachable within the allotted deadline budget.";
 
-Here is a verified, self-contained single-file HTML/CSS/JS solution for **${title}**:
+    return `### ⚠️ Service Notice: AI Providers Temporarily Unavailable
 
-\`\`\`html
-<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { background-color: #0B0F19; color: #F3F4F6; font-family: system-ui, -apple-system, sans-serif; }
-    .glass { background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
-  </style>
-</head>
-<body class="p-6 min-h-screen">
-  <div class="max-w-5xl mx-auto space-y-6">
-    <div class="glass p-6 rounded-2xl flex justify-between items-center">
-      <div>
-        <h1 class="text-2xl font-bold text-white">${title}</h1>
-        <p class="text-xs text-cyan-400">TATTVA Interactive Dashboard • Responsive</p>
-      </div>
-      <button id="toggleBtn" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-xl text-xs transition cursor-pointer">
-        Update Live Data
-      </button>
-    </div>
+I was unable to complete the generation for your request:
+${promptSnippet}
+#### Incident Diagnostics
+${diagnosticBullets}
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="glass p-5 rounded-2xl">
-        <p class="text-xs text-neutral-400">Total Volume</p>
-        <p class="text-2xl font-bold text-white mt-1" id="val1">$1,248,390</p>
-      </div>
-      <div class="glass p-5 rounded-2xl">
-        <p class="text-xs text-neutral-400">Execution Health</p>
-        <p class="text-2xl font-bold text-emerald-400 mt-1">99.98%</p>
-      </div>
-      <div class="glass p-5 rounded-2xl">
-        <p class="text-xs text-neutral-400">Active Signals</p>
-        <p class="text-2xl font-bold text-violet-400 mt-1" id="val2">14 Active</p>
-      </div>
-    </div>
+#### Recommended Actions
+1. **Retry in a few moments**: The upstream AI provider may be recovering from a brief network disruption, rate-limiting spike, or cold start.
+2. **Select an alternate model**: Switch to an alternate AI model (e.g., DeepSeek V3 or Gemini 3.5 Flash) in your session preferences.
+3. **Check configuration**: If running locally, verify that \`GEMINI_API_KEY\` or \`OPENROUTER_API_KEY\` are populated and have available usage quota.
 
-    <div class="glass p-6 rounded-2xl">
-      <h2 class="text-sm font-semibold text-white mb-4">Performance Metrics</h2>
-      <div class="h-64">
-        <canvas id="mainChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const ctx = document.getElementById('mainChart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        datasets: [{
-          label: 'Activity',
-          data: [65, 78, 90, 85, 95, 110],
-          borderColor: '#06B6D4',
-          tension: 0.35,
-          fill: true,
-          backgroundColor: 'rgba(6, 182, 212, 0.1)'
-        }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
-
-    document.getElementById('toggleBtn').addEventListener('click', () => {
-      chart.data.datasets[0].data = chart.data.datasets[0].data.map(v => Math.round(v * (0.9 + Math.random() * 0.25)));
-      chart.update();
-      document.getElementById('val1').textContent = '$' + (1200000 + Math.floor(Math.random() * 100000)).toLocaleString();
-    });
-  </script>
-</body>
-</html>
-\`\`\`
-
-### Key Architecture Features
-* **Zero Dependencies**: Self-contained HTML with CDN styling and charts.
-* **Responsive Dark Theme**: Modern glassmorphic cards with responsive layout.
-* **Interactive State**: Built-in event listeners and dynamic Chart.js canvas updates.`;
-    }
-
-    if (intent === "coding") {
-      return `### 💻 Implementation Architecture
-
-Here is a verified, production-ready solution for your programming request:
-
-\`\`\`typescript
-/**
- * Production Module: ${prompt.slice(0, 100).trim()}
- * Type-safe, modular, and adhering to strict boundary validation.
- */
-export interface TaskConfig {
-  id: string;
-  enabled: boolean;
-  timestamp: number;
-}
-
-export class TaskEngine {
-  private state: Map<string, TaskConfig> = new Map();
-
-  public register(config: TaskConfig): boolean {
-    if (!config.id || this.state.has(config.id)) {
-      return false;
-    }
-    this.state.set(config.id, { ...config, timestamp: Date.now() });
-    return true;
-  }
-
-  public get(id: string): TaskConfig | undefined {
-    return this.state.get(id);
-  }
-
-  public getSummary(): { total: number; active: number } {
-    const all = Array.from(this.state.values());
-    return {
-      total: all.length,
-      active: all.filter((t) => t.enabled).length,
-    };
-  }
-}
-\`\`\`
-
-### Verification & Notes
-* Designed with modular type safety and O(1) retrieval complexity.
-* Ready for drop-in integration. Let me know if you would like me to expand any specific methods!`;
-    }
-
-    return `**TATTVA AI Quick Insights**
-
-Here is a verified overview regarding your query:
-
-### Overview & Key Concepts
-* **Topic Focus**: ${prompt.slice(0, 120).trim()}
-* **Foundational Principle**: Complex systems benefit from systematic decomposition, verifiable validation, and modular execution.
-* **Architecture**: Prioritize high-cohesion, low-coupling design patterns with isolated boundary contracts.
-
-### Recommended Action Items
-1. **Define Objective**: Formulate exact requirements, measurable benchmarks, and boundary constraints.
-2. **Execute Stage-by-Stage**: Progress through verification milestones with automated test coverage.
-3. **Iterate with Telemetry**: Monitor latency, resource footprint, and output fidelity.
-
-*Let me know if you would like me to drill deeper into any specific technical layer or provide full implementation code!*`;
+*TATTVA AI does not generate fictitious or ungrounded template responses when live models fail.*`;
   }
 }
 

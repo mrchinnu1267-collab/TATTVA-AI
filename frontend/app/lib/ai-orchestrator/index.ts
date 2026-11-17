@@ -42,7 +42,7 @@ import { resolveProviderOrder } from "../image-engine/providers";
 import { createImageJob } from "../image-engine/reliability/job-queue";
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
-import { promptAnalyzer, promptEnhancer, responseValidator, AnalyzedPrompt } from "./intelligence";
+import { promptAnalyzer, promptEnhancer, responseValidator, AnalyzedPrompt, contextManager } from "./intelligence";
 
 export interface OrchestrationRequest {
   messages: Array<{
@@ -188,7 +188,18 @@ export class MasterAIOrchestrator {
         /\b(generate|create|make|draw|paint|render|design)\s+.*?\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|avatar)\b/i.test(queryForClassification || cleanUserPrompt) ||
         /\b(photo of|portrait of|picture of|illustration of|render of|wallpaper of|poster of|banner of|logo of)\b/i.test(queryForClassification || cleanUserPrompt));
 
-    if (!isImageIntent) {
+    const isInteractiveWebAppOrCode =
+      /\b(interactive|single[- ]file|web app|dashboard|pomodoro|timer|calculator|game|todo app|counter|component)\b/i.test(
+        queryForClassification || cleanUserPrompt
+      ) &&
+      /\b(html|css|javascript|tailwind|react|vue|frontend|canvas|dom)\b/i.test(
+        queryForClassification || cleanUserPrompt
+      ) &&
+      !/\b(downloadable|export as docx|export as pdf|save to docx|save to pdf|generate docx|generate pptx)\b/i.test(
+        queryForClassification || cleanUserPrompt
+      );
+
+    if (!isImageIntent && !isInteractiveWebAppOrCode) {
       const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
         history: messages.map((m) => ({
           role: m.role,
@@ -498,7 +509,10 @@ export class MasterAIOrchestrator {
     const [personalizationSettings, relevantMemories, similarExperiences, ragResults] = await Promise.all([
       getUserPersonalizationSettings(userEmail),
       retrieveRelevantMemories(userEmail, cleanUserPrompt, 5, context.workspaceId),
-      experienceEngine.retrieveRelevantExperiences(cleanUserPrompt, effectiveIntent, 2),
+      experienceEngine.retrieveRelevantExperiences(cleanUserPrompt, effectiveIntent, 2, {
+        userId: context.userId,
+        workspaceId: context.workspaceId,
+      }),
       ragEngine.hybridSearch(cleanUserPrompt, 3, undefined, context.userId, context.workspaceId),
     ]);
 
@@ -548,8 +562,10 @@ export class MasterAIOrchestrator {
         latestMessage.attachments
       );
 
-      // Record experience
+      // Record experience with strict tenant isolation
       void experienceEngine.recordExperience({
+        userId: context.userId,
+        workspaceId: context.workspaceId,
         taskType: effectiveIntent,
         problemStatement: queryForReasoning,
         attemptedSolution: reasoningRes.finalAnswer,
@@ -696,8 +712,12 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
     const humanGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
     const promptIntelligenceGuidance = promptEnhancer.buildExecutionGuidance(promptAnalysis);
 
+    // Dynamic Rolling Context Management: compact older turns (> 10 turns) into a persistent digest, preventing amnesia
+    const { recentTurns, contextDigest } = contextManager.buildRollingContextDigest(messages, 10);
+
     const fullSystemInstruction = [
       identityPrompt,
+      contextDigest,
       promptIntelligenceGuidance,
       personalizationPrompt,
       humanGuidance,
@@ -705,7 +725,7 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
       .filter(Boolean)
       .join("\n\n");
 
-    const modelMessages = messages.slice(-12).map((m, idx, arr) => {
+    const modelMessages = recentTurns.map((m: (typeof messages)[number], idx: number, arr: typeof messages) => {
       const isLatestTurn = idx === arr.length - 1 && m.role === "user";
       const contentToUse =
         isLatestTurn && promptAnalysis.resolvedPrompt && promptAnalysis.contextReferences.hasAnaphora

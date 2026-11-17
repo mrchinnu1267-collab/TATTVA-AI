@@ -49,16 +49,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const emailParam = searchParams.get("email");
-    const email = session.authenticated && session.email
-      ? session.email
-      : (emailParam && emailParam !== "guest_user" && emailParam.includes("@") ? emailParam : null);
-
-    if (!email) {
-      return NextResponse.json({ sessions: [] });
+    // Zero-Trust Authentication Requirement: Reject unauthenticated sessions
+    if (!session.authenticated || !session.email) {
+      return NextResponse.json(
+        { error: "Authentication required to access cloud chat sessions." },
+        { status: 401 }
+      );
     }
 
+    const { searchParams } = new URL(request.url);
+    const requestedEmail = searchParams.get("email")?.toLowerCase().trim();
+
+    // Prevent cross-tenant impersonation: requested email must match authenticated session email
+    if (requestedEmail && requestedEmail !== session.email.toLowerCase().trim()) {
+      return NextResponse.json(
+        { error: "Forbidden: You cannot access chat sessions belonging to another user." },
+        { status: 403 }
+      );
+    }
+
+    const email = session.email.toLowerCase().trim();
     const filePath = getChatFilePath(email);
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ sessions: [] });
@@ -87,18 +97,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
     }
 
+    // Zero-Trust Authentication Requirement: Reject unauthenticated sessions
+    if (!session.authenticated || !session.email) {
+      return NextResponse.json(
+        { error: "Authentication required to sync cloud chat sessions." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     if (!body || !Array.isArray(body.sessions)) {
       return NextResponse.json({ error: "Sessions array is required." }, { status: 400 });
     }
 
-    const email = session.authenticated && session.email
-      ? session.email
-      : (body.email && body.email !== "guest_user" && body.email.includes("@") ? body.email : null);
-
-    if (!email) {
-      return NextResponse.json({ success: true, count: 0, note: "Guest sessions not stored to server" });
+    // Prevent cross-tenant overwrite: client cannot supply a different user's email
+    if (body.email && typeof body.email === "string" && body.email.toLowerCase().trim() !== session.email.toLowerCase().trim()) {
+      return NextResponse.json(
+        { error: "Forbidden: You cannot overwrite chat sessions belonging to another user." },
+        { status: 403 }
+      );
     }
+
+    const email = session.email.toLowerCase().trim();
     const filePath = getChatFilePath(email);
 
     try {
@@ -117,6 +137,53 @@ export async function POST(request: Request) {
     console.error("POST /api/chats error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to sync chats" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await verifyUserSession(request);
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
+
+    const rateCheck = checkRateLimit(`chats_del_${session.userId}_${clientIp}`, 30, 60000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
+    }
+
+    if (!session.authenticated || !session.email) {
+      return NextResponse.json(
+        { error: "Authentication required to delete cloud chat sessions." },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get("sessionId");
+    const email = session.email.toLowerCase().trim();
+    const filePath = getChatFilePath(email);
+
+    if (!fs.existsSync(filePath)) {
+      return NextResponse.json({ success: true, message: "No sessions to delete" });
+    }
+
+    if (sessionId) {
+      // Delete single session
+      const data = fs.readFileSync(filePath, "utf-8");
+      const sessions = JSON.parse(data);
+      const filtered = Array.isArray(sessions) ? sessions.filter((s: any) => s.id !== sessionId) : [];
+      fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2), "utf-8");
+      return NextResponse.json({ success: true, remaining: filtered.length });
+    } else {
+      // Clear all sessions
+      fs.unlinkSync(filePath);
+      return NextResponse.json({ success: true, message: "All cloud chat sessions deleted" });
+    }
+  } catch (error: unknown) {
+    console.error("DELETE /api/chats error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete chats" },
       { status: 500 }
     );
   }

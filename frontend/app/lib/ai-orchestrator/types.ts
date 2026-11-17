@@ -175,6 +175,9 @@ export type ExperienceStatus = "unverified" | "failed" | "verified" | "human_app
 
 export interface ExperienceRecord {
   id: string;
+  userId?: string;
+  workspaceId?: string;
+  isPublic?: boolean;
   taskType: TaskIntent;
   problemStatement: string;
   attemptedSolution: string;

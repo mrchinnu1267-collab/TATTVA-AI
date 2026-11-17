@@ -62,9 +62,12 @@ export class ExperienceEngine {
   }
 
   /**
-   * Records a problem-solving attempt with verification results
+   * Records a problem-solving attempt with verification results and strict user/workspace isolation
    */
   public async recordExperience(entry: {
+    userId?: string;
+    workspaceId?: string;
+    isPublic?: boolean;
     taskType: TaskIntent;
     problemStatement: string;
     attemptedSolution: string;
@@ -81,6 +84,9 @@ export class ExperienceEngine {
 
     const record: ExperienceRecord = {
       id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: entry.userId,
+      workspaceId: entry.workspaceId,
+      isPublic: Boolean(entry.isPublic),
       taskType: entry.taskType,
       problemStatement: entry.problemStatement,
       attemptedSolution: entry.attemptedSolution,
@@ -100,24 +106,50 @@ export class ExperienceEngine {
   }
 
   /**
-   * Retrieves relevant verified problem-solving cases to guide reasoning
+   * Retrieves relevant verified problem-solving cases to guide reasoning,
+   * strictly enforcing multi-tenant user and workspace boundary isolation.
    */
   public async retrieveRelevantExperiences(
     problemStatement: string,
     taskType?: TaskIntent,
-    limit: number = 3
+    limit: number = 3,
+    filter?: { userId?: string; workspaceId?: string }
   ): Promise<ExperienceRecord[]> {
-    // Filter only verified or human_approved experiences
-    const candidates = this.records.filter(
-      (r) => (r.status === "verified" || r.status === "human_approved") && (!taskType || r.taskType === taskType)
-    );
+    // Filter only verified or human_approved experiences belonging strictly to this user/workspace or system public
+    const candidates = this.records.filter((r) => {
+      if (r.status !== "verified" && r.status !== "human_approved") return false;
+      if (taskType && r.taskType !== taskType) return false;
+
+      // Public / system experiences are universally accessible
+      if (r.isPublic || (!r.userId && !r.workspaceId)) return true;
+
+      // Workspace match
+      if (filter?.workspaceId && r.workspaceId && r.workspaceId === filter.workspaceId) {
+        return true;
+      }
+
+      // User match
+      if (filter?.userId && r.userId && r.userId === filter.userId) {
+        return true;
+      }
+
+      // Deny access if owned by a different user/workspace
+      return false;
+    });
 
     if (candidates.length === 0) return [];
 
     try {
       const queryEmb = await generateTextEmbedding(problemStatement);
       if (!queryEmb) {
-        return candidates.slice(0, limit);
+        const queryTerms = problemStatement.toLowerCase().split(/\s+/).filter((t) => t.length > 3);
+        const scored = candidates.map((rec) => {
+          const recText = (rec.problemStatement + " " + rec.attemptedSolution).toLowerCase();
+          const matchCount = queryTerms.filter((term) => recText.includes(term)).length;
+          return { rec, score: matchCount };
+        });
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, limit).map((s) => s.rec);
       }
 
       const scored: Array<{ record: ExperienceRecord; score: number }> = [];
@@ -133,9 +165,13 @@ export class ExperienceEngine {
     } catch {
       // Fallback: simple text keyword match
       const queryTerms = problemStatement.toLowerCase().split(/\s+/).filter((t) => t.length > 3);
-      return candidates
-        .filter((c) => queryTerms.some((t) => c.problemStatement.toLowerCase().includes(t)))
-        .slice(0, limit);
+      const scored = candidates.map((rec) => {
+        const recText = (rec.problemStatement + " " + rec.attemptedSolution).toLowerCase();
+        const matchCount = queryTerms.filter((term) => recText.includes(term)).length;
+        return { rec, score: matchCount };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, limit).map((s) => s.rec);
     }
   }
 

@@ -64,9 +64,9 @@ export class ContextManager {
     // e.g., "deeni explain cheyyi", "idi simpler ga cheppu", "previous answer short ga cheppu", "daanini pdf ga convert cheyyi", "same design lo website create cheyyi", "ee code lo errors fix cheyyi"
     const isTeluguFollowUp =
       /\b(deeni|dini|daanini|dannini|idi|edi|danini|ee|aa)\b/i.test(lower) ||
-      /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi|convert cheyyi|errors fix cheyyi|create cheyyi|fix cheyyi)\b/i.test(lower) ||
+      /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi|convert cheyyi|errors fix cheyyi|create cheyyi|fix cheyyi|choodu|chudu|chupinchu)\b/i.test(lower) ||
       /\b(next step (enti|emiti)|malli cheppu|inka cheppu|dini ela cheyyali|previous answer short ga)\b/i.test(lower) ||
-      /\b(same design lo|same design tho|ikkada nunchi continue|errors fix)\b/i.test(lower);
+      /\b(same design lo|same design tho|ikkada nunchi continue|errors fix|artham kaledu|inka detail ga)\b/i.test(lower);
 
     // Check English pronoun / follow-up patterns
     const isEnglishFollowUp =
@@ -245,6 +245,69 @@ export class ContextManager {
       .map((item) => item.turn);
 
     return [...topScored, ...recentTail];
+  }
+
+  /**
+   * Builds a rolling conversational context digest for long multi-turn sessions (> 10-12 turns),
+   * ensuring early system architectural constraints, user requirements, schemas, and milestones
+   * are preserved without falling victim to sliding-window context amnesia.
+   */
+  public buildRollingContextDigest<T extends ConversationTurn = ConversationTurn>(
+    history: T[],
+    keepRecentCount: number = 10
+  ): {
+    recentTurns: T[];
+    contextDigest?: string;
+  } {
+    if (history.length <= keepRecentCount) {
+      return { recentTurns: history };
+    }
+
+    const olderTurns = history.slice(0, history.length - keepRecentCount);
+    const recentTurns = history.slice(history.length - keepRecentCount);
+
+    const userAsks: string[] = [];
+    const keyDecisions: string[] = [];
+
+    for (const turn of olderTurns) {
+      if (turn.role === "user") {
+        const text = turn.content.trim().replace(/\s+/g, " ");
+        if (text.length > 0) {
+          userAsks.push(text.length > 120 ? text.slice(0, 117) + "..." : text);
+        }
+      } else if (turn.role === "assistant") {
+        const firstLine = turn.content.split("\n")[0].trim().replace(/^#+\s*/, "");
+        if (firstLine && firstLine.length > 10) {
+          keyDecisions.push(firstLine.slice(0, 90));
+        }
+      }
+    }
+
+    const persistedConstraints = this.extractPersistedConstraints(olderTurns);
+
+    const digestParts: string[] = [
+      `[PERSISTED MULTI-TURN CONVERSATION MILESTONES (${olderTurns.length} earlier turns compacted)]:`,
+    ];
+
+    if (persistedConstraints.length > 0) {
+      digestParts.push(`- Active Constraints: ${persistedConstraints.join(", ")}`);
+    }
+
+    if (userAsks.length > 0) {
+      digestParts.push(`- Earlier Topics Discussed:`);
+      userAsks.slice(-5).forEach((ask) => {
+        digestParts.push(`  * ${ask}`);
+      });
+    }
+
+    if (keyDecisions.length > 0) {
+      digestParts.push(`- Established Milestone Outcomes: ${keyDecisions.slice(-3).join(" | ")}`);
+    }
+
+    return {
+      recentTurns,
+      contextDigest: digestParts.join("\n"),
+    };
   }
 
   private extractRecentTopics(history: ConversationTurn[]): string[] {
