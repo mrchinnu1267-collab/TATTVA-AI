@@ -25,6 +25,7 @@ import {
   estimateGenerationCost,
 } from "@/app/lib/image-engine/reliability/cost-tracker";
 import { getReliabilityDashboardMetrics } from "@/app/lib/image-engine/reliability/performance-monitor";
+import { verifyUserSession } from "@/app/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,14 @@ export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await verifyUserSession(req);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required to access image jobs." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const jobId = searchParams.get("id");
     const view = searchParams.get("view");
@@ -49,7 +58,7 @@ export async function GET(req: NextRequest) {
         if (rawParams) {
           try {
             const parsed = JSON.parse(decodeURIComponent(rawParams));
-            job = getOrCreateJob(jobId, parsed);
+            job = getOrCreateJob(jobId, { ...parsed, userId: session.userId });
           } catch {
             // ignore parse error
           }
@@ -60,6 +69,14 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(
           { success: false, error: `Job with ID "${jobId}" not found.` },
           { status: 404 }
+        );
+      }
+
+      // Strict Ownership Verification: Caller must own this job
+      if (job.userId && job.userId !== session.userId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: You are not authorized to view this job." },
+          { status: 403 }
         );
       }
 
@@ -75,9 +92,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, job });
     }
 
-    // Default: List recent jobs
+    // Default: List recent jobs strictly scoped to the authenticated caller
     const limit = Number(searchParams.get("limit")) || 20;
-    const jobs = listRecentJobs(limit);
+    const jobs = listRecentJobs(limit, session.userId);
 
     return NextResponse.json({ success: true, jobs });
   } catch (err: any) {
@@ -90,9 +107,17 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await verifyUserSession(req);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required to manage image jobs." },
+        { status: 401 }
+      );
+    }
+
     // 1. Anti-abuse rate limit check
     const clientIp = req.headers.get("x-forwarded-for") || "client";
-    const rateCheck = checkRateLimit(clientIp);
+    const rateCheck = checkRateLimit(`img_job_${session.userId}_${clientIp}`);
     if (!rateCheck.allowed) {
       return NextResponse.json(
         {
@@ -109,12 +134,20 @@ export async function POST(req: NextRequest) {
     if (body.action === "process" && body.jobId) {
       let job = await getJobAsync(body.jobId);
       if (!job && body.jobParams) {
-        job = getOrCreateJob(body.jobId, body.jobParams);
+        job = getOrCreateJob(body.jobId, { ...body.jobParams, userId: session.userId });
       }
       if (!job) {
         return NextResponse.json(
           { success: false, error: `Job "${body.jobId}" not found.` },
           { status: 404 }
+        );
+      }
+
+      // Strict Ownership Verification before executing
+      if (job.userId && job.userId !== session.userId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: You are not authorized to execute this job." },
+          { status: 403 }
         );
       }
 
@@ -168,13 +201,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Create background job
+    // 5. Create background job (strictly binding userId to verified session)
     const job = createImageJob({
       prompt: promptValidation.sanitizedPrompt!,
       referenceImage: body.referenceImage,
       quality,
       aspectRatio: body.aspectRatio || "1:1",
-      userId: body.userId,
+      userId: session.userId,
       workspaceId,
       provider: body.provider,
     });
@@ -195,6 +228,14 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const session = await verifyUserSession(req);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required to cancel image jobs." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const jobId = searchParams.get("id");
 
@@ -205,7 +246,23 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const cancelled = cancelJob(jobId);
+    const job = await getJobAsync(jobId);
+    if (!job) {
+      return NextResponse.json(
+        { success: false, error: `Job "${jobId}" not found.` },
+        { status: 404 }
+      );
+    }
+
+    // Strict Ownership Verification: Only owner can cancel
+    if (job.userId && job.userId !== session.userId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: You are not authorized to cancel this job." },
+        { status: 403 }
+      );
+    }
+
+    const cancelled = cancelJob(jobId, session.userId);
     if (!cancelled) {
       return NextResponse.json(
         { success: false, error: "Job cannot be cancelled (already completed or not found)." },

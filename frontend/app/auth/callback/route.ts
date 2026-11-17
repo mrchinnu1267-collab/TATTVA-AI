@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getAuthBaseUrl, sanitizeRedirectPath } from "../../lib/auth-redirect";
+import { createSignedTattvaSession } from "@/app/lib/security";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -101,13 +102,12 @@ export async function GET(request: Request) {
     // IMPORTANT: DO NOT set long-term tattva_session cookie during recovery flow,
     // ensuring the user is not prematurely treated as a fully logged-in user in the dashboard!
     if (user && user.email && !isRecovery) {
-      const sessionPayload = {
+      const sessionToken = createSignedTattvaSession({
         email: user.email.toLowerCase().trim(),
         name: user.user_metadata?.full_name || user.email.split("@")[0] || "User",
         timestamp: Date.now(),
         verified: true,
-      };
-      const sessionToken = Buffer.from(JSON.stringify(sessionPayload)).toString("base64");
+      });
 
       response.cookies.set("tattva_session", sessionToken, {
         httpOnly: false,

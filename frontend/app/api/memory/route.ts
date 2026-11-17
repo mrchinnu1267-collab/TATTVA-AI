@@ -15,19 +15,14 @@ import { verifyUserSession, checkRateLimit, logSecurityEvent } from "../../lib/s
 
 export const runtime = "nodejs";
 
-const PRIMARY_OWNER_EMAIL = "mr.chinnu1267@gmail.com";
-
 /**
  * Enforce Zero Trust User Scoping:
- * If authenticated, always bind to verified session.email.
- * Defaults to primary owner 'mr.chinnu1267@gmail.com'.
+ * Binds strictly to cryptographically verified session email.
+ * Never allows client-supplied input to override or spoof identity.
  */
-function resolveAuthorizedEmail(session: { authenticated: boolean; email: string }, requested?: string | null): string | null {
-  if (session.authenticated && session.email) {
-    return session.email;
-  }
-  if (requested && requested.includes("@") && requested !== "guest_user") {
-    return requested.toLowerCase().trim();
+function resolveAuthorizedEmail(session: { authenticated: boolean; email?: string }): string | null {
+  if (session.authenticated && session.email && session.email.includes("@")) {
+    return session.email.toLowerCase().trim();
   }
   return null;
 }
@@ -42,23 +37,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Too many requests. Rate limit exceeded." }, { status: 429 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const requestedEmail = searchParams.get("email");
-    const query = searchParams.get("query");
-
-    // Zero Trust Check: Block unauthenticated access to other non-owner user profiles
-    if (
-      !session.authenticated &&
-      requestedEmail &&
-      requestedEmail !== "guest_user" &&
-      requestedEmail.toLowerCase().trim() !== PRIMARY_OWNER_EMAIL &&
-      requestedEmail.includes("@")
-    ) {
+    // Zero Trust Check: Strictly require authenticated caller
+    if (!session.authenticated) {
       logSecurityEvent("UNAUTHORIZED_DATA_ACCESS", {
         userId: session.userId,
         ip: clientIp,
         endpoint: "/api/memory [GET]",
-        details: { attemptedEmail: requestedEmail, reason: "Unauthenticated cross-user read attempt" },
+        details: { reason: "Unauthenticated memory read attempt" },
       });
       return NextResponse.json(
         { error: "Authentication required: Cannot access private user memories without a verified session." },
@@ -66,20 +51,16 @@ export async function GET(request: Request) {
       );
     }
 
-    const authorizedEmail = resolveAuthorizedEmail(session, requestedEmail);
-    if (!authorizedEmail || authorizedEmail === "guest_user") {
-      return NextResponse.json({
-        memories: [],
-        settings: {
-          style: "balanced",
-          conciseness: "balanced",
-          creativity: "balanced",
-          autoStore: false,
-          allowPersonalization: false,
-        },
-        feedbackSummary: { thumbsUp: 0, thumbsDown: 0, totalFeedback: 0, positiveRatio: 100 },
-      });
+    const authorizedEmail = resolveAuthorizedEmail(session);
+    if (!authorizedEmail) {
+      return NextResponse.json(
+        { error: "Valid email identity required to access memories." },
+        { status: 403 }
+      );
     }
+
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get("query");
 
     if (query) {
       const relevant = await retrieveRelevantMemories(authorizedEmail, query, 5);
@@ -116,35 +97,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Too many requests. Rate limit exceeded." }, { status: 429 });
     }
 
+    if (!session.authenticated) {
+      logSecurityEvent("UNAUTHORIZED_DATA_ACCESS", {
+        userId: session.userId,
+        ip: clientIp,
+        endpoint: "/api/memory [POST]",
+        details: { reason: "Unauthenticated memory write attempt" },
+      });
+      return NextResponse.json(
+        { error: "Authentication required: Cannot store memories without a verified session." },
+        { status: 401 }
+      );
+    }
+
+    const authorizedEmail = resolveAuthorizedEmail(session);
+    if (!authorizedEmail) {
+      return NextResponse.json(
+        { error: "Valid email identity required to store memories." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    if (
-      !session.authenticated &&
-      body.email &&
-      body.email !== "guest_user" &&
-      body.email.toLowerCase().trim() !== PRIMARY_OWNER_EMAIL &&
-      body.email.includes("@")
-    ) {
-      logSecurityEvent("UNAUTHORIZED_DATA_ACCESS", {
-        userId: session.userId,
-        ip: clientIp,
-        endpoint: "/api/memory [POST]",
-        details: { attemptedEmail: body.email, reason: "Unauthenticated cross-user write attempt" },
-      });
-      return NextResponse.json(
-        { error: "Authentication required: Cannot store memories for a registered account without a verified session." },
-        { status: 401 }
-      );
-    }
-
     const { action } = body;
-    const authorizedEmail = resolveAuthorizedEmail(session, body.email);
-    if (!authorizedEmail || authorizedEmail === "guest_user") {
-      return NextResponse.json({ success: true, message: "Guest memory not persisted" });
-    }
 
     if (action === "update_settings") {
       const updated = await updatePersonalizationSettings(authorizedEmail, body.settings || {});
@@ -183,15 +162,26 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { error: "Authentication required to update memories." },
+        { status: 401 }
+      );
+    }
+
+    const authorizedEmail = resolveAuthorizedEmail(session);
+    if (!authorizedEmail) {
+      return NextResponse.json(
+        { error: "Valid email identity required to update memories." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     if (!body || !body.id) {
       return NextResponse.json({ error: "Memory ID is required" }, { status: 400 });
     }
 
-    const authorizedEmail = resolveAuthorizedEmail(session, body.email);
-    if (!authorizedEmail || authorizedEmail === "guest_user") {
-      return NextResponse.json({ success: true, message: "Guest memory not modified" });
-    }
     const { id, updates } = body;
     const updated = await updateMemory(authorizedEmail, id, updates || {});
     if (!updated) {
@@ -211,13 +201,24 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { error: "Authentication required to delete memories." },
+        { status: 401 }
+      );
+    }
+
+    const authorizedEmail = resolveAuthorizedEmail(session);
+    if (!authorizedEmail) {
+      return NextResponse.json(
+        { error: "Valid email identity required to delete memories." },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const clearAll = searchParams.get("all") === "true";
-    const authorizedEmail = resolveAuthorizedEmail(session, searchParams.get("email"));
-    if (!authorizedEmail || authorizedEmail === "guest_user") {
-      return NextResponse.json({ success: true, message: "Guest memory not deleted" });
-    }
 
     if (clearAll) {
       await clearAllMemories(authorizedEmail);

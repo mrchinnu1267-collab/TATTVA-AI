@@ -333,11 +333,15 @@ export async function getJobAsync(jobId: string, token?: string): Promise<ImageJ
 }
 
 /**
- * Cancels a running or queued image job.
+ * Cancels a running or queued image job with optional owner authorization verification.
  */
-export function cancelJob(jobId: string): boolean {
+export function cancelJob(jobId: string, requestingUserId?: string): boolean {
   const job = getJob(jobId);
   if (!job) return false;
+
+  if (requestingUserId && job.userId && job.userId !== requestingUserId) {
+    return false;
+  }
 
   if (job.status === "completed" || job.status === "cancelled") {
     return false;
@@ -359,11 +363,12 @@ export function cancelJob(jobId: string): boolean {
 }
 
 /**
- * Returns a list of recent jobs, sorted newest first.
+ * Returns a list of recent jobs, sorted newest first, filtered by user if specified.
  */
-export function listRecentJobs(limit: number = 20): ImageJob[] {
+export function listRecentJobs(limit: number = 20, userId?: string): ImageJob[] {
   cleanExpiredJobs();
   return Array.from(jobStore.values())
+    .filter((j) => !userId || j.userId === userId)
     .map((j) => checkAndRecoverStaleJob(j))
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
     .slice(0, limit);

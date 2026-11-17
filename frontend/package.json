@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@mohammednagy/graphify-ts": "^0.23.1",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

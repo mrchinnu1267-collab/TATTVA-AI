@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getAuthCallbackUrl } from "../../../lib/auth-redirect";
+import { createSignedTattvaSession } from "@/app/lib/security";
 
 const ACCOUNTS_FILE = path.join(process.cwd(), ".tattva_secure_accounts.json");
 
@@ -99,12 +100,11 @@ export async function POST(request: Request) {
       console.warn("Supabase client init warning:", e);
     }
 
-    const sessionPayload = {
+    const sessionToken = createSignedTattvaSession({
       email: normalizedEmail,
       name: resolvedName,
       timestamp: Date.now(),
-    };
-    const sessionToken = Buffer.from(JSON.stringify(sessionPayload)).toString("base64");
+    });
 
     const response = NextResponse.json({
       success: true,

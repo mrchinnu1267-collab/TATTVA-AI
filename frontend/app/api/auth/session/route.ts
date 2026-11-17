@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { verifySignedTattvaSession } from "@/app/lib/security";
 
 export async function GET() {
   try {
@@ -10,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ authenticated: false, user: null });
     }
 
-    const payload = JSON.parse(Buffer.from(sessionCookie, "base64").toString("utf8"));
+    const payload = verifySignedTattvaSession(sessionCookie);
     if (!payload?.email) {
       return NextResponse.json({ authenticated: false, user: null });
     }

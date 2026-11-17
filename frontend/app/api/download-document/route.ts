@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import path from "path";
 import os from "os";
+import { verifyUserSession } from "../../lib/security";
 
 export const runtime = "nodejs";
 
@@ -9,8 +10,15 @@ function getFs() {
   return require("fs");
 }
 
-function findVaultFile(safeId: string): { fullPath: string; matched: string } | null {
+function findUserVaultFile(safeUserId: string, fileId: string): { fullPath: string; matched: string } | null {
   const fsInstance = getFs();
+  // Reject directory traversal, slashes, or empty identifiers
+  const baseFileId = path.basename(fileId).trim();
+  if (!baseFileId || baseFileId.includes("..") || baseFileId.includes("/") || baseFileId.includes("\\")) {
+    return null;
+  }
+  const safeId = baseFileId.replace(/[^a-zA-Z0-9_-]/g, "_");
+
   const vaultDirs = [
     path.join(/*turbopackIgnore: true*/ os.tmpdir(), ".tattva-vault"),
     path.join(/*turbopackIgnore: true*/ "/tmp", ".tattva-vault"),
@@ -20,63 +28,87 @@ function findVaultFile(safeId: string): { fullPath: string; matched: string } | 
   for (const vaultDir of vaultDirs) {
     try {
       if (!fsInstance.existsSync(/*turbopackIgnore: true*/ vaultDir)) continue;
-      const userDirs = fsInstance.readdirSync(/*turbopackIgnore: true*/ vaultDir);
-      for (const dir of userDirs) {
-        const dirPath = path.join(/*turbopackIgnore: true*/ vaultDir, dir);
-        try {
-          if (!fsInstance.statSync(/*turbopackIgnore: true*/ dirPath).isDirectory()) continue;
-          const files = fsInstance.readdirSync(/*turbopackIgnore: true*/ dirPath);
-          const matched = files.find((f: string) => f.startsWith(safeId));
-          if (matched) {
-            return { fullPath: path.join(/*turbopackIgnore: true*/ dirPath, matched), matched };
-          }
-        } catch {
-          // ignore directory traversal errors
+      const userDir = path.join(/*turbopackIgnore: true*/ vaultDir, safeUserId);
+      if (!fsInstance.existsSync(/*turbopackIgnore: true*/ userDir)) continue;
+
+      const userDirReal = fsInstance.realpathSync(/*turbopackIgnore: true*/ userDir);
+      const vaultDirReal = fsInstance.realpathSync(/*turbopackIgnore: true*/ vaultDir);
+      // Ensure userDir is strictly inside the vaultDir
+      if (!userDirReal.startsWith(vaultDirReal)) {
+        continue;
+      }
+
+      if (!fsInstance.statSync(/*turbopackIgnore: true*/ userDirReal).isDirectory()) continue;
+
+      const files = fsInstance.readdirSync(/*turbopackIgnore: true*/ userDirReal);
+      const matched = files.find((f: string) => f.startsWith(safeId));
+      if (matched) {
+        const fullPath = path.join(/*turbopackIgnore: true*/ userDirReal, matched);
+        const resolvedPath = path.resolve(/*turbopackIgnore: true*/ fullPath);
+        // Ensure resolved path is strictly within the user's directory
+        if (!resolvedPath.startsWith(userDirReal)) {
+          return null;
         }
+        // Ensure symlinks cannot escape the user's permitted directory
+        const realFullPath = fsInstance.realpathSync(/*turbopackIgnore: true*/ resolvedPath);
+        if (!realFullPath.startsWith(userDirReal)) {
+          return null;
+        }
+        return { fullPath: realFullPath, matched };
       }
     } catch {
-      // ignore missing vault directory
+      // directory traversal or permission handling
     }
   }
   return null;
 }
 
 /**
- * Universal Document Download Streamer
+ * Universal Document Download Streamer (Zero Trust Secured)
  * Delivers byte-exact binary streams with RFC 6266 headers
  * ensuring native Microsoft Office, Google Docs/Sheets/Slides, and Android viewers open smoothly.
  */
 export async function GET(request: Request) {
   try {
+    const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { error: "Authentication required to download documents." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const fileId = searchParams.get("fileId");
     const filename = searchParams.get("name") || "document.bin";
     const isInline = searchParams.get("inline") === "true";
 
-    if (fileId) {
-      const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const found = findVaultFile(safeId);
-
-      if (found) {
-        const fsInstance = getFs();
-        const buffer = fsInstance.readFileSync(found.fullPath);
-        const ext = path.extname(found.matched).toLowerCase().replace(/^\./, "");
-        const mimeType = getMimeType(ext);
-        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-        return new Response(buffer, {
-          status: 200,
-          headers: {
-            "Content-Type": mimeType,
-            "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
-            "Content-Length": buffer.length.toString(),
-            "Cache-Control": "private, max-age=3600",
-          },
-        });
-      }
+    if (!fileId) {
+      return NextResponse.json({ error: "fileId query parameter is required." }, { status: 400 });
     }
 
-    return NextResponse.json({ error: "File not found." }, { status: 404 });
+    const safeUserId = session.userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const found = findUserVaultFile(safeUserId, fileId);
+
+    if (found) {
+      const fsInstance = getFs();
+      const buffer = fsInstance.readFileSync(found.fullPath);
+      const ext = path.extname(found.matched).toLowerCase().replace(/^\./, "");
+      const mimeType = getMimeType(ext);
+      const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          "Content-Type": mimeType,
+          "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
+          "Content-Length": buffer.length.toString(),
+          "Cache-Control": "private, max-age=3600",
+        },
+      });
+    }
+
+    return NextResponse.json({ error: "File not found or access denied." }, { status: 404 });
   } catch (err: unknown) {
     console.error("Document download streaming error:", err);
     return NextResponse.json({ error: "Failed to download document." }, { status: 500 });
@@ -85,6 +117,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json(
+        { error: "Authentication required to stream document data." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     if (!body || !body.dataUri) {
       return NextResponse.json({ error: "Missing file data." }, { status: 400 });

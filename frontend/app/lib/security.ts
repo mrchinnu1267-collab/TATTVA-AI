@@ -418,57 +418,127 @@ export type AuthenticatedSession = {
   workspaceId?: string;
 };
 
+export type TattvaSessionPayload = {
+  email: string;
+  name?: string;
+  timestamp: number;
+  exp?: number;
+  verified?: boolean;
+};
+
 /**
- * Validates session token from incoming cookies (tattva_session or Supabase JWT) or Authorization header.
+ * Creates a cryptographically signed session token using HMAC-SHA256
+ */
+export function createSignedTattvaSession(payload: {
+  email: string;
+  name?: string;
+  timestamp?: number;
+  verified?: boolean;
+}): string {
+  const secretKey = getEncryptionKey();
+  const sessionData: TattvaSessionPayload = {
+    email: payload.email.toLowerCase().trim(),
+    name: payload.name || payload.email.split("@")[0],
+    timestamp: payload.timestamp || Date.now(),
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+    verified: payload.verified ?? true,
+  };
+  const data = Buffer.from(JSON.stringify(sessionData)).toString("base64url");
+  const signature = crypto.createHmac("sha256", secretKey).update(data).digest("base64url");
+  return `${data}.${signature}`;
+}
+
+/**
+ * Cryptographically verifies an HMAC-SHA256 signed session token.
+ * Rejects unsigned, malformed, expired, or tampered tokens using timing-safe comparison.
+ */
+export function verifySignedTattvaSession(token: string): TattvaSessionPayload | null {
+  if (!token || typeof token !== "string" || !token.includes(".")) {
+    return null;
+  }
+  const parts = token.split(".");
+  if (parts.length !== 2) {
+    return null;
+  }
+  const [dataPart, sigPart] = parts;
+  if (!dataPart || !sigPart) {
+    return null;
+  }
+
+  const secretKey = getEncryptionKey();
+  const expectedSig = crypto.createHmac("sha256", secretKey).update(dataPart).digest("base64url");
+
+  const sigBuffer = Buffer.from(sigPart, "utf8");
+  const expectedBuffer = Buffer.from(expectedSig, "utf8");
+
+  if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+    return null; // Signature mismatch or tampered token
+  }
+
+  try {
+    const raw = Buffer.from(dataPart, "base64url").toString("utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed.email || typeof parsed.email !== "string" || !parsed.email.includes("@")) {
+      return null;
+    }
+
+    const now = Date.now();
+    const maxAgeMs = 30 * 24 * 60 * 60 * 1000; // 30 days maximum
+    if (parsed.exp && typeof parsed.exp === "number" && now > parsed.exp) {
+      return null; // Expired
+    }
+    if (parsed.timestamp && typeof parsed.timestamp === "number" && now - parsed.timestamp > maxAgeMs) {
+      return null; // Expired
+    }
+
+    return parsed as TattvaSessionPayload;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validates session token from incoming cookies (signed tattva_session or Supabase JWT) or Authorization header.
  * Cryptographically verifies session and extracts user identity.
  */
 export async function verifyUserSession(request: Request): Promise<AuthenticatedSession> {
   const authHeader = request.headers.get("authorization");
   const cookieHeader = request.headers.get("cookie");
 
-  // 1. Check TATTVA secure session cookie first (PBKDF2 authenticated session)
+  // 1. Check TATTVA cryptographically signed session cookie first (HMAC-SHA256)
   if (cookieHeader) {
     const tattvaMatch = cookieHeader.match(/tattva_session=([^;]+)/);
     if (tattvaMatch) {
-      try {
-        const raw = Buffer.from(decodeURIComponent(tattvaMatch[1]), "base64").toString("utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed.email && typeof parsed.email === "string" && parsed.email.includes("@")) {
-          const normEmail = parsed.email.toLowerCase().trim();
-          return {
-            authenticated: true,
-            userId: normEmail,
-            email: normEmail,
-            name: parsed.name || normEmail.split("@")[0],
-            role: "authenticated",
-            isGuest: false,
-          };
-        }
-      } catch {
-        // ignore malformed cookie
-      }
-    }
-  }
-
-  // 2. Check x-tattva-session custom header
-  const customHeader = request.headers.get("x-tattva-session");
-  if (customHeader) {
-    try {
-      const raw = Buffer.from(customHeader, "base64").toString("utf8");
-      const parsed = JSON.parse(raw);
-      if (parsed.email && typeof parsed.email === "string" && parsed.email.includes("@")) {
-        const normEmail = parsed.email.toLowerCase().trim();
+      const decodedCookie = decodeURIComponent(tattvaMatch[1].trim());
+      const verified = verifySignedTattvaSession(decodedCookie);
+      if (verified) {
+        const normEmail = verified.email.toLowerCase().trim();
         return {
           authenticated: true,
           userId: normEmail,
           email: normEmail,
-          name: parsed.name || normEmail.split("@")[0],
+          name: verified.name || normEmail.split("@")[0],
           role: "authenticated",
           isGuest: false,
         };
       }
-    } catch {
-      // ignore
+    }
+  }
+
+  // 2. Check x-tattva-session custom header (strictly requires valid HMAC signature)
+  const customHeader = request.headers.get("x-tattva-session");
+  if (customHeader) {
+    const verified = verifySignedTattvaSession(customHeader.trim());
+    if (verified) {
+      const normEmail = verified.email.toLowerCase().trim();
+      return {
+        authenticated: true,
+        userId: normEmail,
+        email: normEmail,
+        name: verified.name || normEmail.split("@")[0],
+        role: "authenticated",
+        isGuest: false,
+      };
     }
   }
 
