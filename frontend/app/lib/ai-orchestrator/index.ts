@@ -718,8 +718,8 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
     const humanGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
     const promptIntelligenceGuidance = promptEnhancer.buildExecutionGuidance(promptAnalysis);
 
-    // Dynamic Rolling Context Management: preserve foundational rules and compact turns beyond 24, preventing amnesia
-    const { recentTurns, contextDigest } = contextManager.buildRollingContextDigest(messages, 24);
+    // Dynamic Rolling Context Management: preserve foundational rules and compact turns beyond 40, preventing amnesia
+    const { recentTurns, contextDigest } = contextManager.buildRollingContextDigest(messages, 40);
 
     const fullSystemInstruction = [
       identityPrompt,

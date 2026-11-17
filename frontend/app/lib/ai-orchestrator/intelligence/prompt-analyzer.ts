@@ -231,7 +231,7 @@ export class PromptAnalyzer {
 
     // 9. Coding & Application Development Check
     if (
-      /\b(code|function|component|script|api|bug|error|refactor|database|schema|react|typescript|python|html|css|next\.js|frontend|backend|java)\b/i.test(lower) ||
+      /\b(code|function|component|script|api|bug|error|refactor|database|schema|react|typescript|javascript|python|java|c\+\+|cpp|\bc\b|golang|\bgo\b|rust|flutter|dart|php|sql|html|css|next\.js|frontend|backend|algorithm|data structure|query|endpoint|server|sdk|library|package)\b/i.test(lower) ||
       rawLower.includes("code rayi") ||
       rawLower.includes("project kavali") ||
       rawLower.includes("code kavali") ||

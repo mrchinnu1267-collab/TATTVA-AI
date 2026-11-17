@@ -89,12 +89,16 @@ export class PromptEnhancer {
     }
 
     // 9. Software Engineering & Computer Science Protocol
-    if (analysis.primaryIntent === "coding" || analysis.secondaryIntents.includes("coding")) {
+    if (analysis.primaryIntent === "coding" || analysis.secondaryIntents.includes("coding") || analysis.primaryIntent === "troubleshooting") {
       parts.push(
-        `SOFTWARE ENGINEERING & CODE PROTOCOL:\n` +
-        `- Provide production-grade, typed, complete code without placeholder stubs.\n` +
-        `- Include explicit error handling, boundary checks, and resource cleanup.\n` +
-        `- State the asymptotic time and space complexity (Big-O) when providing algorithmic solutions.\n` +
+        `SOFTWARE ENGINEERING & CODE PROTOCOL (16 LANGUAGES & 18 CAPABILITIES):\n` +
+        `- Supported Languages: Python, Java, JavaScript, TypeScript, C, C++, HTML, CSS, SQL, React, Next.js, Flutter, Dart, PHP, Go, Rust.\n` +
+        `- Core Capabilities: Code generation, explanation, error diagnosis, debugging, optimization, refactoring, algorithms, data structures, SQL/queries, APIs, frontend, backend, full-stack, test cases, security analysis, architecture, dependencies, and framework guidance.\n` +
+        `- Deliver complete, production-grade, typed code matching the target language without placeholder stubs (e.g., '// TODO') or omitted implementations.\n` +
+        `- Include all necessary imports, modules, error handling, boundary checks, and resource cleanup.\n` +
+        `- Debugging Protocol: 1. Identify root cause; 2. Inspect code paths; 3. Explain cause clearly; 4. Provide corrected implementation; 5. List side effects & verification steps.\n` +
+        `- State asymptotic time and space complexity (Big-O) for algorithmic routines.\n` +
+        `- Honest Disclosure: If code was not executed in an isolated runtime sandbox, state that it was statically derived. Never fabricate sandbox test results.\n` +
         `- Strictly NO emojis inside code blocks, variable names, or terminal commands.`
       );
     }

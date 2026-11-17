@@ -291,7 +291,7 @@ export class ContextManager {
    */
   public buildRollingContextDigest<T extends ConversationTurn = ConversationTurn>(
     history: T[],
-    keepRecentCount: number = 24
+    keepRecentCount: number = 40
   ): {
     recentTurns: T[];
     contextDigest?: string;
@@ -301,7 +301,7 @@ export class ContextManager {
     }
 
     // Foundational opening turns (where project identity, rules, and core parameters are established)
-    const foundationalTurns = history.slice(0, 4);
+    const foundationalTurns = history.slice(0, 8);
     const recentTurns = history.slice(history.length - keepRecentCount);
     const allOlderTurns = history.slice(0, history.length - keepRecentCount);
 
@@ -400,7 +400,7 @@ export class ContextManager {
     const lower = fullText.toLowerCase();
 
     // Check project names / codenames
-    const codenameMatch = fullText.match(/(?:project|codenamed?|app called)\s+['"]?([a-zA-Z0-9_\-\s]+?)['"]?(?:\.|\,|$|\s)/i);
+    const codenameMatch = fullText.match(/(?:project\s+(?:codenamed?|name(?:\s+is)?)|codenamed?|app\s+called)\s+['"]?([a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+)?)['"]?/i);
     if (codenameMatch && codenameMatch[1].trim()) {
       constraints.push(`Project Codename: ${codenameMatch[1].trim()}`);
     }

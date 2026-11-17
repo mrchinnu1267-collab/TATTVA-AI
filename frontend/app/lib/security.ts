@@ -433,6 +433,7 @@ export type AuthenticatedSession = {
 };
 
 export type TattvaSessionPayload = {
+  userId?: string;
   email: string;
   name?: string;
   timestamp: number;
@@ -444,6 +445,7 @@ export type TattvaSessionPayload = {
  * Creates a cryptographically signed session token using HMAC-SHA256
  */
 export function createSignedTattvaSession(payload: {
+  userId?: string;
   email: string;
   name?: string;
   timestamp?: number;
@@ -451,6 +453,7 @@ export function createSignedTattvaSession(payload: {
 }): string {
   const secretKey = getEncryptionKey();
   const sessionData: TattvaSessionPayload = {
+    userId: payload.userId || payload.email.toLowerCase().trim(),
     email: payload.email.toLowerCase().trim(),
     name: payload.name || payload.email.split("@")[0],
     timestamp: payload.timestamp || Date.now(),
@@ -529,7 +532,7 @@ export async function verifyUserSession(request: Request): Promise<Authenticated
         const normEmail = verified.email.toLowerCase().trim();
         return {
           authenticated: true,
-          userId: normEmail,
+          userId: verified.userId || normEmail,
           email: normEmail,
           name: verified.name || normEmail.split("@")[0],
           role: "authenticated",
@@ -547,7 +550,7 @@ export async function verifyUserSession(request: Request): Promise<Authenticated
       const normEmail = verified.email.toLowerCase().trim();
       return {
         authenticated: true,
-        userId: normEmail,
+        userId: verified.userId || normEmail,
         email: normEmail,
         name: verified.name || normEmail.split("@")[0],
         role: "authenticated",

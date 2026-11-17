@@ -6,8 +6,8 @@
 
 const KNOWN_TECH_ENTITIES = [
   "next.js", "react", "vue", "angular", "svelte", "typescript", "javascript", "python",
-  "java", "c++", "c#", "rust", "go", "php", "ruby", "swift", "kotlin",
-  "supabase", "firebase", "postgresql", "mysql", "mongodb", "redis", "sqlite",
+  "java", "c++", "c#", "rust", "go", "golang", "php", "ruby", "swift", "kotlin", "flutter", "dart",
+  "c", "sql", "supabase", "firebase", "postgresql", "mysql", "mongodb", "redis", "sqlite",
   "docker", "kubernetes", "aws", "gcp", "azure", "vercel", "cloudflare",
   "tailwind", "css", "html", "graphql", "rest api", "prisma", "drizzle",
   "fastapi", "flask", "django", "spring boot", "node.js", "express",

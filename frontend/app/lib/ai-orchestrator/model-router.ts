@@ -439,6 +439,18 @@ export class ModelRouter {
       }
     }
 
+    // Safety guarantee: If all candidates were temporarily cooled down, revive primary models
+    if (candidates.length === 0) {
+      const primaryGemini = this.availableModels.find((m) => m.id === "gemini-3.5-flash-lite");
+      if (primaryGemini && process.env.GEMINI_API_KEY) {
+        candidates.push(primaryGemini);
+      }
+      const llamaFallback = this.availableModels.find((m) => m.id === "meta-llama/llama-3.3-70b-instruct");
+      if (llamaFallback && process.env.OPENROUTER_API_KEY) {
+        candidates.push(llamaFallback);
+      }
+    }
+
     return candidates;
   }
 
@@ -514,9 +526,13 @@ export class ModelRouter {
         const errMsg = err instanceof Error ? err.message : String(err);
         warnings.push(`Model ${model.name} (${model.provider}) failed: ${errMsg}`);
         console.warn(`[ModelRouter] Failover trigger: ${model.name} failed (${errMsg.slice(0, 120)}) -> Trying next candidate...`);
-        // Fast circuit-breaker: if rate-limited (429), overloaded (503), or timed out, cool down for 60s
-        if (errMsg.includes("429") || errMsg.includes("503") || errMsg.includes("timeout") || errMsg.includes("aborted")) {
-          this.recordModelExhaustion(model.id, errMsg.slice(0, 80), 60000);
+        // Fast circuit-breaker: if rate-limited (429), overloaded (503), or timed out, cool down with adaptive intervals
+        if (errMsg.includes("429")) {
+          this.recordModelExhaustion(model.id, errMsg.slice(0, 80), 8000);
+        } else if (errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("overloaded")) {
+          this.recordModelExhaustion(model.id, errMsg.slice(0, 80), 2500);
+        } else if (errMsg.includes("timeout") || errMsg.includes("aborted")) {
+          this.recordModelExhaustion(model.id, errMsg.slice(0, 80), 4000);
         }
       }
     }
@@ -621,6 +637,16 @@ export class ModelRouter {
       return res.text || "";
     } catch (err: any) {
       const errMsg = err?.message || String(err);
+      // Fast retry on transient 503 / high-demand spike
+      if (errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("spikes in demand")) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          const retryRes = await runWithTimeout(modelId);
+          return retryRes.text || "";
+        } catch {
+          // If retry fails, continue to fallback below
+        }
+      }
       // Auto-fallback to gemini-3.5-flash-lite if requested model is deprecated / not found or quota exhausted
       if (
         (errMsg.includes("no longer available") ||
