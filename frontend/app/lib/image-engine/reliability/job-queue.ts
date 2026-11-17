@@ -514,6 +514,8 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
         ? "Google Gemini (gemini-3.1-flash-image)"
         : job.providerUsed === "cloudflare"
         ? "Cloudflare FLUX.1 Schnell"
+        : job.providerUsed === "local"
+        ? "TATTVA Local Neural Synthesizer (Offline)"
         : "AI Image Engine";
 
     // Stage 1: Worker initialized
@@ -664,7 +666,13 @@ async function runJobExecution(job: ImageJob): Promise<ImageJob> {
     job.modelUsed = result.model;
     job.providerUsed = result.provider;
     job.imageMetadata = result.metadata;
-    job.statusMessage = `Image generated with ${result.provider === "gemini" ? "Google Gemini" : "Cloudflare"} and verified against your request. Adherence: ${result.accuracy}%.`;
+    const successProviderName =
+      result.provider === "gemini"
+        ? "Google Gemini"
+        : result.provider === "local"
+        ? "Local Neural Synthesizer"
+        : "Cloudflare";
+    job.statusMessage = `Image generated with ${successProviderName} and verified against your request. Adherence: ${result.accuracy}%.`;
     job.latencyMs = Date.now() - started;
     job.completedAt = completedAt;
     job.updatedAt = completedAt;

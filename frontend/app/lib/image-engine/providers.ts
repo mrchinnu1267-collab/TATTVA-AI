@@ -20,6 +20,11 @@ import {
   isGeminiImageConfigured,
   PREFERRED_GEMINI_IMAGE_MODEL,
 } from "./gemini/gemini-image-adapter";
+import {
+  generateWithLocalImageEngine,
+  isLocalImageEngineAvailable,
+  LOCAL_IMAGE_MODEL_ID,
+} from "./local/local-image-adapter";
 import type {
   ImageProviderChoice,
   ImageProviderId,
@@ -260,6 +265,16 @@ export function formatUserFacingImageError(rawError: unknown): string {
     return `Reference image error: ${cleanErr || "The uploaded image could not be processed"}. Please upload a valid PNG, JPEG, or WebP image.`;
   }
 
+  // Gemini Specific Quota / Free Tier Limit Notice
+  if (lower.includes("pay-as-you-go") || lower.includes("free tier rate limit is 0")) {
+    return "Google Gemini Native Image Generation requires a linked Pay-as-you-go billing account in Google AI Studio (Free Tier rate limit is 0 for image models).";
+  }
+
+  // Gemini Authentication Error
+  if (lower.includes("gemini api authentication failed") || (lower.includes("gemini") && (lower.includes("401") || lower.includes("403") || lower.includes("invalid api key")))) {
+    return "Google Gemini authentication failed. Please verify that your GEMINI_API_KEY is active and authorized in server environment variables.";
+  }
+
   // Cloudflare Authentication Error
   if (lower.includes("cloudflare authentication failed") || (lower.includes("cloudflare") && (lower.includes("401") || lower.includes("403")))) {
     return "Cloudflare Workers AI authentication failed. Please verify your CLOUDFLARE_API_TOKEN and account permissions in server settings.";
@@ -270,11 +285,16 @@ export function formatUserFacingImageError(rawError: unknown): string {
     return "Cloudflare Workers AI daily quota (10,000 Neurons/day) or rate limit exceeded. Please verify your Cloudflare Workers AI plan or try again shortly.";
   }
 
+  // Invalid Image Payload / Output Byte Validation Failure
+  if (/no image parts|no accessible image payload|empty image|invalid raster buffer|corrupt buffer|invalid image format/i.test(lower)) {
+    return "The image generation engine completed execution but failed output verification: no valid image bytes were returned.";
+  }
+
   // Missing Configuration / Invalid Credentials
   if (
     /not configured|no image provider.*configured|missing.*key|missing.*token|credentials missing/i.test(lower)
   ) {
-    return "Cloudflare Workers AI is not configured. Please ensure CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are configured in server environment variables.";
+    return "No cloud image providers are configured. Please ensure GEMINI_API_KEY or CLOUDFLARE credentials are configured in server environment variables.";
   }
 
   // Deactivated provider notice
@@ -979,6 +999,9 @@ export function resolveProviderOrder(
   hasReferenceImage = false
 ): ImageProviderId[] {
   // If specific provider requested, honor explicit preference
+  if (requested === "local") {
+    return ["local"];
+  }
   if (requested === "gemini") {
     return ["gemini"];
   }
@@ -1009,6 +1032,11 @@ export function resolveProviderOrder(
     return ["cloudflare"];
   }
 
+  // Offline / local fallback when cloud providers are unconfigured or in cooldown
+  if (!isRunningOnVercel() && isLocalImageEngineAvailable()) {
+    return ["local"];
+  }
+
   // Fallback to configured provider
   return isGeminiImageConfigured() ? ["gemini"] : ["cloudflare"];
 }
@@ -1027,22 +1055,30 @@ export async function generateWithProvider(
     return generateWithCloudflare(req);
   }
 
-  // 3. Auto-routed execution
+  // 3. TATTVA Local In-Process Neural Synthesizer
+  if (provider === "local") {
+    return generateWithLocalImageEngine(req);
+  }
+
+  // 4. Auto-routed execution
   if ((provider as string) === "auto") {
     if (req.referenceImage && isGeminiImageConfigured()) {
       return generateWithGemini(req);
     }
     const order = resolveProviderOrder("auto", req.quality, Boolean(req.referenceImage));
-    const targetProvider = order[0] || "cloudflare";
+    const targetProvider = order[0] || (!isRunningOnVercel() ? "local" : "cloudflare");
     if (targetProvider === "gemini") {
       return generateWithGemini(req);
+    }
+    if (targetProvider === "local") {
+      return generateWithLocalImageEngine(req);
     }
     return generateWithCloudflare(req);
   }
 
   // Other providers remain deactivated
   throw new ImageProviderError(
-    `Image provider '${provider}' is deactivated. TATTVA AI supports Google Gemini (${PREFERRED_GEMINI_IMAGE_MODEL}) and Cloudflare Workers AI (${CLOUDFLARE_FLUX_MODEL}).`,
+    `Image provider '${provider}' is deactivated. TATTVA AI supports Google Gemini (${PREFERRED_GEMINI_IMAGE_MODEL}), Cloudflare Workers AI (${CLOUDFLARE_FLUX_MODEL}), and Local Neural Synthesizer (${LOCAL_IMAGE_MODEL_ID}).`,
     { retryable: false, category: "MODEL_CONFIGURATION_ERROR" }
   );
 }
@@ -1052,6 +1088,7 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
   const geminiConfigured = isGeminiImageConfigured();
   const geminiCooldown = getCooldownRemaining("gemini");
   const cfCooldown = getCooldownRemaining("cloudflare");
+  const localAvailable = isLocalImageEngineAvailable();
 
   return [
     {
@@ -1075,6 +1112,15 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       reason: cfConfigured
         ? undefined
         : "Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN in server environment variables.",
+    },
+    {
+      id: "local",
+      label: "TATTVA Local Neural Synthesizer",
+      model: LOCAL_IMAGE_MODEL_ID,
+      configured: localAvailable,
+      available: localAvailable,
+      status: "AVAILABLE",
+      reason: undefined,
     },
     {
       id: "huggingface",

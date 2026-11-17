@@ -5431,6 +5431,8 @@ export default function ChatPage() {
                                         ? `${msg.imageJob.modelUsed || "gemini-3.1-flash-image"} + Gemini Vision`
                                         : msg.imageJob.providerUsed === "cloudflare"
                                         ? "FLUX.1 Schnell + Gemini Vision"
+                                        : msg.imageJob.providerUsed === "local"
+                                        ? "Local Neural Synthesizer (Offline)"
                                         : msg.imageJob.modelUsed
                                         ? `${msg.imageJob.modelUsed} + Gemini Vision`
                                         : "AI Image Engine + Gemini Vision"}

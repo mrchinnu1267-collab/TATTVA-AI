@@ -214,6 +214,22 @@ try {
   if (geminiNativeImage?.runGeminiNativeImageGenerationTests) {
     await geminiNativeImage.runGeminiNativeImageGenerationTests();
   }
+  const localImageGen = await jiti("./local-image-generation.test.ts");
+  if (localImageGen?.runLocalImageTests) {
+    await localImageGen.runLocalImageTests();
+  }
+  const providerReliability = await jiti("./image-provider-reliability.test.ts");
+  if (providerReliability?.runProviderReliabilityTests) {
+    await providerReliability.runProviderReliabilityTests();
+  }
+  const autonomousPlatform = await jiti("./software-studio/autonomous-platform.test.ts");
+  if (autonomousPlatform?.runAutonomousPlatformTests) {
+    await autonomousPlatform.runAutonomousPlatformTests();
+  }
+  const e2eAcceptance = await jiti("./software-studio/e2e-acceptance-validation.test.ts");
+  if (e2eAcceptance?.runEndToEndAcceptanceValidation) {
+    await e2eAcceptance.runEndToEndAcceptanceValidation();
+  }
   console.log("\n✅ All Test Suites passed successfully!\n");
   process.exit(0);
 } catch (err) {
