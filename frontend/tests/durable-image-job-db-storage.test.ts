@@ -352,6 +352,7 @@ export async function runDurableJobDbStorageTests() {
       prompt: "A beautiful garden poster with vivid flowers",
       quality: "balanced",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const finishedJob = await executeJob(verifiedJob.id);
@@ -416,6 +417,7 @@ export async function runDurableJobDbStorageTests() {
       prompt: "Refined banner prompt needing two iterations",
       quality: "balanced",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const multiFinished = await executeJob(multiAttemptJob.id);
@@ -482,6 +484,7 @@ export async function runDurableJobDbStorageTests() {
       prompt: "Complex prompt with high nuance",
       quality: "balanced",
       forceNew: true,
+      provider: "cloudflare",
     });
 
     const bestFinished = await executeJob(bestSelectionJob.id);

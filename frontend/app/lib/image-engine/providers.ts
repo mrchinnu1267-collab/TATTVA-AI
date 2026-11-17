@@ -294,7 +294,7 @@ export function formatUserFacingImageError(rawError: unknown): string {
   if (
     /not configured|no image provider.*configured|missing.*key|missing.*token|credentials missing/i.test(lower)
   ) {
-    return "No cloud image providers are configured. Please ensure GEMINI_API_KEY or CLOUDFLARE credentials are configured in server environment variables.";
+    return "Cloudflare Workers AI is not configured. Please ensure CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN or GEMINI_API_KEY are configured in server environment variables.";
   }
 
   // Deactivated provider notice
@@ -1117,10 +1117,12 @@ export async function getProviderStatuses(): Promise<ProviderRuntimeStatus[]> {
       id: "local",
       label: "TATTVA Local Neural Synthesizer",
       model: LOCAL_IMAGE_MODEL_ID,
-      configured: localAvailable,
-      available: localAvailable,
-      status: "AVAILABLE",
-      reason: undefined,
+      configured: !isRunningOnVercel() && localAvailable,
+      available: !isRunningOnVercel() && localAvailable,
+      status: isRunningOnVercel() ? "TEMPORARILY_UNAVAILABLE" : "AVAILABLE",
+      reason: isRunningOnVercel()
+        ? "Cloud Disabled: Local neural synthesizer is exclusive to local workstation runtime."
+        : undefined,
     },
     {
       id: "huggingface",

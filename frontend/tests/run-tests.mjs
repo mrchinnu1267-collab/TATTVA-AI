@@ -6,6 +6,14 @@ import path from "node:path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
+
+try {
+  const { loadEnvConfig } = require("@next/env");
+  loadEnvConfig(path.resolve(__dirname, ".."), true);
+} catch {
+  // Non-fatal if @next/env cannot find .env
+}
+
 const jiti = require("../node_modules/jiti/lib/jiti.cjs")(__filename);
 
 console.log("\n🚀 Running TATTVA AI Test Suite...\n");
