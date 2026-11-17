@@ -1,0 +1,92 @@
+{
+  "projectId": "test-react-app",
+  "projectName": "TATTVA AI Monorepo",
+  "techStack": [
+    "Next.js 16",
+    "React 19",
+    "TypeScript",
+    "Tailwind CSS v4",
+    "Supabase PostgreSQL"
+  ],
+  "codingStandards": [
+    "Strict TypeScript without any bypass",
+    "Tailwind CSS v4 utility classes",
+    "Turbopack compatibility",
+    "Zero secret leakage",
+    "Sandbox path boundary verification"
+  ],
+  "architecturalDecisions": [
+    {
+      "id": "dec_1",
+      "topic": "Local-First Inference",
+      "decision": "Operate offline open-weight GGUF models on RTX 3050 4GB GPU + CPU fallback.",
+      "rationale": "Eliminates third-party API rate limit bottlenecks and external cloud dependencies.",
+      "recordedAt": "2026-11-17T11:50:36.366Z"
+    }
+  ],
+  "resolvedBugHistory": [
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916236366",
+      "verifiedAt": "2026-11-17T11:50:36.366Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916279081",
+      "verifiedAt": "2026-11-17T11:51:19.081Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916355584",
+      "verifiedAt": "2026-11-17T11:52:35.584Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916420387",
+      "verifiedAt": "2026-11-17T11:53:40.387Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916513561",
+      "verifiedAt": "2026-11-17T11:55:13.561Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916567596",
+      "verifiedAt": "2026-11-17T11:56:07.596Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1794916884457",
+      "verifiedAt": "2026-11-17T12:01:24.457Z"
+    }
+  ],
+  "verifiedTestBaselines": {},
+  "userPreferences": {
+    "theme": "dark",
+    "preferredModel": "qwen2.5-coder-3b-q4",
+    "sandboxMode": "strict"
+  },
+  "lastUpdated": "2026-11-17T12:01:24.457Z"
+}

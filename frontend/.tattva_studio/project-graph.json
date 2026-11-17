@@ -1,0 +1,118 @@
+{
+  "rootPath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app",
+  "scannedAt": "2026-11-17T12:01:24.367Z",
+  "totalFiles": 4,
+  "totalLines": 49,
+  "languages": {
+    "typescript": 3,
+    "javascript": 0,
+    "python": 0,
+    "dart": 0,
+    "kotlin": 0,
+    "sql": 0,
+    "html": 0,
+    "css": 0,
+    "json": 1,
+    "markdown": 0,
+    "unknown": 0
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "framework": "react",
+  "apiRoutes": [],
+  "databaseSchemas": [],
+  "files": {
+    "package.json": {
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\package.json",
+      "relativePath": "package.json",
+      "language": "json",
+      "sizeBytes": 231,
+      "lastModifiedMs": 1794916884352.275,
+      "hash": "139eb77357dc9dcb",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "lineCount": 14
+    },
+    "src/App.tsx": {
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\App.tsx",
+      "relativePath": "src/App.tsx",
+      "language": "typescript",
+      "sizeBytes": 239,
+      "lastModifiedMs": 1794916884365.9739,
+      "hash": "aed2f7da6ec69c3b",
+      "imports": [
+        "react",
+        "./components/ProductList"
+      ],
+      "exports": [
+        "App"
+      ],
+      "symbols": [
+        {
+          "name": "App",
+          "kind": "component",
+          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\App.tsx",
+          "line": 4,
+          "isExported": true,
+          "signature": "export const App: React.FC = () => {"
+        }
+      ],
+      "lineCount": 12
+    },
+    "src/components/ProductList.tsx": {
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\components\\ProductList.tsx",
+      "relativePath": "src/components/ProductList.tsx",
+      "language": "typescript",
+      "sizeBytes": 386,
+      "lastModifiedMs": 1794916884362.5757,
+      "hash": "183ba09390e7ed80",
+      "imports": [
+        "react",
+        "../types"
+      ],
+      "exports": [
+        "ProductList"
+      ],
+      "symbols": [
+        {
+          "name": "ProductList",
+          "kind": "component",
+          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\components\\ProductList.tsx",
+          "line": 4,
+          "isExported": true,
+          "signature": "export const ProductList: React.FC<{ items: ProductItem[] }> = ({ items }) => {"
+        }
+      ],
+      "lineCount": 16
+    },
+    "src/types.ts": {
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\types.ts",
+      "relativePath": "src/types.ts",
+      "language": "typescript",
+      "sizeBytes": 100,
+      "lastModifiedMs": 1794916884356.8179,
+      "hash": "949dcf74d8a33975",
+      "imports": [],
+      "exports": [
+        "ProductItem"
+      ],
+      "symbols": [
+        {
+          "name": "ProductItem",
+          "kind": "interface",
+          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\types.ts",
+          "line": 1,
+          "isExported": true,
+          "signature": "export interface ProductItem {"
+        }
+      ],
+      "lineCount": 7
+    }
+  }
+}
