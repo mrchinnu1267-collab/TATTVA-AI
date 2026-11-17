@@ -1,7 +1,7 @@
 -- =============================================================================
--- TATTVA AI - PRODUCTION DATABASE MIGRATION 002 (SECURITY HARDENED)
+-- TATTVA AI - PRODUCTION DATABASE MIGRATION 002 (FINAL REVIEWED)
 -- Target Table: public.workspace_items
--- Security Level: Zero Trust (No Direct Anonymous Access)
+-- Security Model: Zero Trust (No Direct Anonymous Access)
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -43,31 +43,26 @@ CREATE INDEX IF NOT EXISTS idx_workspace_items_starred ON public.workspace_items
 CREATE INDEX IF NOT EXISTS idx_workspace_items_updated ON public.workspace_items(updated_at DESC);
 
 -- -----------------------------------------------------------------------------
--- 3. Row Level Security (RLS) Configuration
--- Zero Trust Model:
--- - Direct anon role table access is completely revoked
--- - Authenticated users are strictly constrained to their own records (auth.uid() = user_id)
--- - Cross-tenant or cross-user access is impossible
+-- 3. SQL Table Privileges (Defense-in-Depth)
+-- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.workspace_items FROM PUBLIC, anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.workspace_items TO authenticated;
+GRANT ALL ON TABLE public.workspace_items TO service_role;
+
+-- -----------------------------------------------------------------------------
+-- 4. Row Level Security (RLS) Configuration
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.workspace_items ENABLE ROW LEVEL SECURITY;
 
--- Clean ALL existing policies dynamically to prevent stale/permissive policy leaks
-DO $$
-DECLARE
-    pol RECORD;
-BEGIN
-    FOR pol IN (SELECT policyname FROM pg_policies WHERE tablename = 'workspace_items' AND schemaname = 'public') LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.workspace_items', pol.policyname);
-    END LOOP;
-END $$;
-
--- Revoke all table permissions from anon and public
-REVOKE ALL ON public.workspace_items FROM PUBLIC;
-REVOKE ALL ON public.workspace_items FROM anon;
-
--- Grant permissions explicitly
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.workspace_items TO authenticated;
-GRANT ALL ON public.workspace_items TO service_role;
+-- Explicitly drop migration-owned policy names (preserves any unrelated policies)
+DROP POLICY IF EXISTS "workspace_items_service_role_all" ON public.workspace_items;
+DROP POLICY IF EXISTS "workspace_items_authenticated_select" ON public.workspace_items;
+DROP POLICY IF EXISTS "workspace_items_authenticated_insert" ON public.workspace_items;
+DROP POLICY IF EXISTS "workspace_items_authenticated_update" ON public.workspace_items;
+DROP POLICY IF EXISTS "workspace_items_authenticated_delete" ON public.workspace_items;
+DROP POLICY IF EXISTS "Service Role Full Access on workspace_items" ON public.workspace_items;
+DROP POLICY IF EXISTS "Users can manage own workspace items" ON public.workspace_items;
+DROP POLICY IF EXISTS "Anonymous Workspace Sandbox" ON public.workspace_items;
 
 -- Policy A: Service Role Full Access (Trusted server-side execution only)
 CREATE POLICY "workspace_items_service_role_all"

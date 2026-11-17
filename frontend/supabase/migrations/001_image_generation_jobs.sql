@@ -1,7 +1,7 @@
 -- =============================================================================
--- TATTVA AI - PRODUCTION DATABASE MIGRATION 001 (SECURITY HARDENED)
+-- TATTVA AI - PRODUCTION DATABASE MIGRATION 001 (FINAL REVIEWED)
 -- Target Table: public.image_generation_jobs
--- Security Level: Zero Trust (No Direct Anonymous Access)
+-- Security Model: Zero Trust (No Direct Anonymous Access)
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -44,12 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_img_jobs_created_at ON public.image_generation_jo
 CREATE INDEX IF NOT EXISTS idx_img_jobs_prompt_hash ON public.image_generation_jobs(prompt_hash);
 
 -- -----------------------------------------------------------------------------
--- 3. Atomic Job Claiming Function (Strict Ownership & Concurrency Safe)
--- Security Hardened:
--- - Rejects missing caller identity
--- - Enforces authorization directly in the UPDATE statement
--- - Prevents User A from claiming User B's jobs under any circumstances
--- - Unassigned/guest jobs can only be claimed by trusted service_role
+-- 3. Atomic Job Claiming Function (Strict Caller Validation & Ownership)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.claim_image_job(p_job_id TEXT)
 RETURNS SETOF public.image_generation_jobs
@@ -95,37 +90,34 @@ END;
 $$;
 
 -- Restrict execution: Revoke from PUBLIC and anon; grant only to service_role and authenticated
-REVOKE EXECUTE ON FUNCTION public.claim_image_job(TEXT) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_image_job(TEXT) FROM anon;
-GRANT EXECUTE ON FUNCTION public.claim_image_job(TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION public.claim_image_job(TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.claim_image_job(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.claim_image_job(TEXT) TO service_role, authenticated;
 
 -- -----------------------------------------------------------------------------
--- 4. Row Level Security (RLS) Configuration
--- Zero Trust Model:
--- - Direct anon role table access is completely revoked
--- - Authenticated users are strictly constrained to their own records (auth.uid() = user_id)
--- - Cross-tenant or cross-workspace inspection is impossible
+-- 4. SQL Table Privileges (Defense-in-Depth)
+-- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.image_generation_jobs FROM PUBLIC, anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.image_generation_jobs TO authenticated;
+GRANT ALL ON TABLE public.image_generation_jobs TO service_role;
+
+-- -----------------------------------------------------------------------------
+-- 5. Row Level Security (RLS) Configuration
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.image_generation_jobs ENABLE ROW LEVEL SECURITY;
 
--- Clean ALL existing policies dynamically to prevent stale/permissive policy leaks
-DO $$
-DECLARE
-    pol RECORD;
-BEGIN
-    FOR pol IN (SELECT policyname FROM pg_policies WHERE tablename = 'image_generation_jobs' AND schemaname = 'public') LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.image_generation_jobs', pol.policyname);
-    END LOOP;
-END $$;
-
--- Revoke all table permissions from anon and public
-REVOKE ALL ON public.image_generation_jobs FROM PUBLIC;
-REVOKE ALL ON public.image_generation_jobs FROM anon;
-
--- Grant permissions explicitly
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.image_generation_jobs TO authenticated;
-GRANT ALL ON public.image_generation_jobs TO service_role;
+-- Explicitly drop migration-owned policy names (preserves any unrelated policies)
+DROP POLICY IF EXISTS "img_jobs_service_role_all" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "img_jobs_authenticated_select" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "img_jobs_authenticated_insert" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "img_jobs_authenticated_update" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "img_jobs_authenticated_delete" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Service Role Full Access on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Authenticated Owner Access on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Anonymous Job Access on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner and Workspace Member Select on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner and Workspace Member Insert on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner and Workspace Member Update on image_generation_jobs" ON public.image_generation_jobs;
+DROP POLICY IF EXISTS "Owner Delete on image_generation_jobs" ON public.image_generation_jobs;
 
 -- Policy A: Service Role Full Access (Trusted server-side workers only)
 CREATE POLICY "img_jobs_service_role_all"
