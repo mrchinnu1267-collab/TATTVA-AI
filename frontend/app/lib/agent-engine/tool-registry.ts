@@ -11,7 +11,7 @@ import {
   ToolPermissionLevel,
 } from "./types";
 import { executeCodeInSandbox, SandboxLanguage } from "../ai-orchestrator/tools/code-runner";
-import { conductDeepResearch, performWebSearch, ExtractedPageContent, SearchResultItem } from "../ai-orchestrator/tools/web-search";
+import { conductAuthoritativeResearch, searchAuthoritativeWeb } from "../research-engine";
 import { extractTabularData, analyzeSourceCodeFile } from "../document-engine/multi-doc-analyzer";
 import { advancedProgrammingAgent, TargetLanguage, GeneratedProjectFile } from "../software-studio/dev-engine/programming-agent";
 import * as path from "node:path";
@@ -200,7 +200,7 @@ export class CentralizedToolRegistry {
     this.registerTool({
       name: "web_research",
       displayName: "Deep Web Research",
-      description: "Performs live web research and multi-source synthesis with authority tiering.",
+      description: "Performs live web research and multi-source synthesis with authority tiering, conflicting evidence analysis, and zero-hallucination citations.",
       category: "research",
       permission: "safe",
       timeoutMs: 30000,
@@ -214,34 +214,37 @@ export class CentralizedToolRegistry {
       },
       execute: async (params) => {
         if (params.depth === "deep") {
-          const res = await conductDeepResearch(params.query);
+          const dossier = await conductAuthoritativeResearch(params.query, { maxSources: 4 });
           return {
             toolName: "web_research",
             success: true,
             output: {
-              summary: res.synthesisContext,
-              sourcesCount: res.sources.length,
+              summary: dossier.markdownReport,
+              executiveSummary: dossier.executiveSummary,
+              keyFindings: dossier.keyFindings,
+              conflictsCount: dossier.conflictingEvidence.length,
+              sourcesCount: dossier.sources.length,
             },
-            citations: res.sources.map((c: ExtractedPageContent) => ({
-              title: c.domain,
+            citations: dossier.citations.map((c) => ({
+              title: c.title,
               url: c.url,
-              snippet: c.textSnippet.slice(0, 200),
+              snippet: `${c.domain} [${c.authorityTier}]${c.publishedDate ? ` (Published: ${c.publishedDate})` : ""}`,
             })),
-            executionTimeMs: 0,
+            executionTimeMs: dossier.executionDurationMs,
           };
         }
-        const searchResults = await performWebSearch(params.query);
+        const searchResults = await searchAuthoritativeWeb(params.query, 5);
         return {
           toolName: "web_research",
           success: true,
           output: {
             resultsCount: searchResults.length,
-            results: searchResults.slice(0, 5),
+            results: searchResults,
           },
-          citations: searchResults.slice(0, 5).map((r: SearchResultItem) => ({
+          citations: searchResults.map((r) => ({
             title: r.title,
             url: r.url,
-            snippet: r.snippet,
+            snippet: `${r.snippet} [${r.domain}]`,
           })),
           executionTimeMs: 0,
         };
