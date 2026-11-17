@@ -13,6 +13,7 @@ import {
 import { executeCodeInSandbox, SandboxLanguage } from "../ai-orchestrator/tools/code-runner";
 import { conductAuthoritativeResearch, searchAuthoritativeWeb } from "../research-engine";
 import { extractTabularData, analyzeSourceCodeFile } from "../document-engine/multi-doc-analyzer";
+import { classifyDocument } from "../document-engine/document-classifier";
 import { advancedProgrammingAgent, TargetLanguage, GeneratedProjectFile } from "../software-studio/dev-engine/programming-agent";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
@@ -337,12 +338,17 @@ export class CentralizedToolRegistry {
             executionTimeMs: 0,
           };
         }
+        const classification = classifyDocument(params.content, "input_document.txt", params.format);
         return {
           toolName: "document_analyzer",
           success: true,
           output: {
-            format: "text",
-            wordCount: params.content.split(/\s+/).length,
+            format: classification.detectedFormat,
+            category: classification.category,
+            wordCount: classification.wordCount,
+            sectionCount: classification.sectionCount,
+            sections: classification.sections,
+            summary: classification.summary,
             charCount: params.content.length,
             preview: params.content.slice(0, 500),
           },

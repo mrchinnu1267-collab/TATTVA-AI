@@ -126,9 +126,10 @@ export function analyzeSourceCodeFile(content: string, filename: string): Source
       imports.push(trimmed.slice(0, 80));
     }
 
-    // Function definitions
+    // Function & Method definitions
     const fnMatch =
       trimmed.match(/(?:function\s+|def\s+|func\s+|fn\s+)([A-Za-z0-9_]+)/i) ||
+      trimmed.match(/(?:public|private|protected|async|static)\s+(?:async\s+)?([A-Za-z0-9_]+)\s*\(/i) ||
       trimmed.match(/([A-Za-z0-9_]+)\s*=\s*(?:async\s*)?\(/i);
     if (fnMatch && fnMatch[1]) {
       functions.push(fnMatch[1]);
