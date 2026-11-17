@@ -1,0 +1,1 @@
+{"action":"create","name":"Preview Math & Data Pipeline","steps":[{"id":"step_calc","name":"Calculate Total Volume","toolName":"math_calculator","parameters":{"expression":"120 * 5"}}]}

@@ -1,0 +1,1 @@
+{"name":"Preview Verification Key","scopes":["chat:write","research:read","documents:write","tasks:write"],"rateLimitPerMinute":60,"monthlyQuota":10000,"workspaceId":"ws_preview_p24"}
