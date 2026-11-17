@@ -170,12 +170,12 @@ async function runPhase2TestSuite() {
 
     // Deactivate memory item
     await updateMemory(user, mem1.id, { active: false });
-    const activeMems = await retrieveRelevantMemories(user, "Go programming preferences");
+    const activeMems = await retrieveRelevantMemories(user, "Go code boilerplate");
     assert(!activeMems.some(m => m.id === mem1.id), "Deactivated Memory Omitted from Search");
 
     // Reactivate and verify retrieval
     await updateMemory(user, mem1.id, { active: true });
-    const reactivatedMems = await retrieveRelevantMemories(user, "Go programming preferences");
+    const reactivatedMems = await retrieveRelevantMemories(user, "Go code boilerplate");
     assert(reactivatedMems.some(m => m.id === mem1.id), "Active Memory Successfully Retrieved");
   }
 
