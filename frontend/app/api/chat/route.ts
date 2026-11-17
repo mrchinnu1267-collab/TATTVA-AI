@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const userEmail = session.authenticated ? session.email : "guest_user";
+    const userEmail = session.authenticated ? session.email : session.userId;
     const latestUserMsg = [...body.messages].reverse().find((m: any) => m.role === "user");
 
     // 1. INBUILT CLOCK & REAL-TIME GROUNDING
@@ -212,6 +212,8 @@ export async function POST(request: Request) {
       context: {
         userId: session.userId,
         userEmail,
+        isAuthenticated: session.authenticated,
+        workspaceId: body.workspaceId,
         sessionId: body.sessionId,
         conversationHistory: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
         asyncImageJob: true, // Prevents HTTP 504 Gateway Timeout on Vercel by dispatching asynchronous jobs

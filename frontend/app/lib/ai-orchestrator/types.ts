@@ -123,6 +123,7 @@ export interface ExecutionContext {
   userEmail: string;
   sessionId?: string;
   workspaceId?: string;
+  isAuthenticated?: boolean;
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
   uploadedFiles?: Array<{ name: string; type: string; data?: string; path?: string }>;
   asyncImageJob?: boolean;

@@ -158,7 +158,7 @@ export class RequirementExtractor {
       isFinishedArtifact = true;
     } else if (/\b(step by step|steps|guide|tutorial|roadmap)\b/i.test(lower)) {
       format = "step_by_step";
-    } else if (/\b(code|script|function|component|program|query|api|html|snippet|repository|implementation|full-stack|app\.py)\b/i.test(lower) || /\b(code|rayi)\b/i.test(rawLower)) {
+    } else if (/\b(code|script|function|component|program|query|api|html|snippet|repository|implement|implementation|full-stack|app\.py)\b/i.test(lower) || /\b(code|rayi)\b/i.test(rawLower)) {
       format = "code";
     }
 

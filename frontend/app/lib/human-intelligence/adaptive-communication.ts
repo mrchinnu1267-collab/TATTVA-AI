@@ -162,6 +162,22 @@ export class AdaptiveCommunicationEngine {
       guidelines.push(`\nCONTEXTUAL RESOLUTION: The user's query refers back to: "${analysis.referenceResolution.referencedSubject}". Address this subject directly without asking them to repeat it.`);
     }
 
+    // 5. Adaptive Persona & Cognitive Depth
+    if (analysis.communicationPreference.technicalDepth === "accessible") {
+      guidelines.push("\nAUDIENCE LEVEL: ACCESSIBLE / LEARNER FOCUS");
+      guidelines.push("- Use intuitive real-world metaphors and clear, friendly explanations.");
+      guidelines.push("- Clarify foundational assumptions before introducing complex terms.");
+    } else if (analysis.communicationPreference.technicalDepth === "expert") {
+      guidelines.push("\nAUDIENCE LEVEL: EXPERT / ENGINEERING FOCUS");
+      guidelines.push("- Deliver production-grade technical precision, memory/concurrency trade-offs, and root cause analysis.");
+      guidelines.push("- Avoid redundant introductory explanations; provide typed interfaces and concrete implementations.");
+    }
+
+    // 6. Honest Uncertainty Protocol
+    guidelines.push("\nHONEST UNCERTAINTY PROTOCOL:");
+    guidelines.push("- If facts are ambiguous, missing, or unverifiable, explicitly distinguish between confirmed facts and plausible hypotheses.");
+    guidelines.push("- Never invent parameters, URLs, or data values.");
+
     return guidelines.join("\n");
   }
 

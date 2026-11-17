@@ -479,7 +479,8 @@ Output ONLY a JSON array of objects or an empty array [] if no durable facts wer
 
 export async function extractAndStoreMemories(
   userEmail: string | undefined | null,
-  userMessage: string
+  userMessage: string,
+  workspaceId?: string
 ): Promise<MemoryItem[]> {
   const user = normalizeUser(userEmail);
   const clean = userMessage.trim();
@@ -516,7 +517,8 @@ export async function extractAndStoreMemories(
           item.content,
           item.category as MemoryCategory,
           typeof item.importance === "number" ? item.importance : 7,
-          "extracted"
+          "extracted",
+          workspaceId
         );
         saved.push(memory);
       }

@@ -175,14 +175,28 @@ export function guardAIOutput(responseText: string): string {
     process.env.OPENROUTER_API_KEY,
     process.env.NVIDIA_API_KEY,
     process.env.HF_TOKEN,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_JWT_SECRET,
+    process.env.TATTVA_SESSION_SECRET,
+    process.env.DATABASE_URL,
+    process.env.POSTGRES_PASSWORD,
+    process.env.NEXTAUTH_SECRET,
+    process.env.CLOUDFLARE_API_TOKEN,
+    process.env.FAL_KEY,
   ].filter(Boolean) as string[];
 
   let guarded = responseText;
   for (const secret of secretKeywords) {
-    if (secret && secret.length > 8 && guarded.includes(secret)) {
+    if (secret && secret.length > 6 && guarded.includes(secret)) {
       guarded = guarded.replaceAll(secret, "[CONFIDENTIAL_DATA_PROTECTED]");
     }
   }
+
+  // Redact exposed JWT strings, Postgres connection strings, and RSA private keys in output
+  guarded = guarded
+    .replace(/\beyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]+\b/g, "[CONFIDENTIAL_CREDENTIAL_PROTECTED]")
+    .replace(/\bpostgres(?:ql)?:\/\/[^\s"'`<>]+/gi, "[CONFIDENTIAL_DATABASE_PROTECTED]")
+    .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA )?PRIVATE KEY-----/gi, "[CONFIDENTIAL_KEY_PROTECTED]");
 
   // Never leak raw or dead file: links, duplicate download directives, or internal storage references
   guarded = guarded
