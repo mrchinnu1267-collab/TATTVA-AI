@@ -13,7 +13,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
     const category = (searchParams.get("category") || undefined) as any;
-    const voteId = searchParams.get("vote");
+    const voteId =
+      searchParams.get("vote") ||
+      (searchParams.get("action") === "vote"
+        ? searchParams.get("slug") || searchParams.get("id")
+        : null);
 
     const engine = CustomerSupportEngine.getInstance();
 
