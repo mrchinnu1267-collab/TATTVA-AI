@@ -11,7 +11,7 @@ export class PurgeManager {
   private static instance: PurgeManager;
   private purgeRequests: Map<string, AccountPurgeRequest> = new Map();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): PurgeManager {
     if (!PurgeManager.instance) {

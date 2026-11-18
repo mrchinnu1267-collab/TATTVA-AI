@@ -227,44 +227,40 @@ export function DataGovernanceDashboard() {
       <div className="flex border-b border-neutral-800 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab("retention")}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === "retention"
-              ? "border-indigo-500 text-indigo-400"
-              : "border-transparent text-neutral-400 hover:text-neutral-200"
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "retention"
+            ? "border-indigo-500 text-indigo-400"
+            : "border-transparent text-neutral-400 hover:text-neutral-200"
+            }`}
         >
           <Calendar className="w-4 h-4" />
           Data Retention Policies
         </button>
         <button
           onClick={() => setActiveTab("export")}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === "export"
-              ? "border-indigo-500 text-indigo-400"
-              : "border-transparent text-neutral-400 hover:text-neutral-200"
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "export"
+            ? "border-indigo-500 text-indigo-400"
+            : "border-transparent text-neutral-400 hover:text-neutral-200"
+            }`}
         >
           <Download className="w-4 h-4" />
           GDPR / CCPA Self-Service Export
         </button>
         <button
           onClick={() => setActiveTab("purge")}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === "purge"
-              ? "border-red-500 text-red-400"
-              : "border-transparent text-neutral-400 hover:text-neutral-200"
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "purge"
+            ? "border-red-500 text-red-400"
+            : "border-transparent text-neutral-400 hover:text-neutral-200"
+            }`}
         >
           <Trash2 className="w-4 h-4" />
           Right to be Forgotten (Purge)
         </button>
         <button
           onClick={() => setActiveTab("audit")}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === "audit"
-              ? "border-indigo-500 text-indigo-400"
-              : "border-transparent text-neutral-400 hover:text-neutral-200"
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === "audit"
+            ? "border-indigo-500 text-indigo-400"
+            : "border-transparent text-neutral-400 hover:text-neutral-200"
+            }`}
         >
           <Activity className="w-4 h-4" />
           Governance Audit Trail
@@ -273,11 +269,10 @@ export function DataGovernanceDashboard() {
 
       {notice && (
         <div
-          className={`text-xs p-3 rounded-xl border flex items-center justify-between ${
-            notice.type === "success"
-              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-              : "bg-red-500/15 border-red-500/30 text-red-300"
-          }`}
+          className={`text-xs p-3 rounded-xl border flex items-center justify-between ${notice.type === "success"
+            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+            : "bg-red-500/15 border-red-500/30 text-red-300"
+            }`}
         >
           <span>{notice.text}</span>
           <button onClick={() => setNotice(null)} className="opacity-70 hover:opacity-100">

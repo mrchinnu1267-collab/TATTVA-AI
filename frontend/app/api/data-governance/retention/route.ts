@@ -23,14 +23,14 @@ function resolveUser(request: Request, sessionUser: any) {
       if (parsed.userId || parsed.email) {
         return { userId: parsed.userId || parsed.email, email: parsed.email || "user@tattva.ai" };
       }
-    } catch {}
+    } catch { }
     try {
       const raw = Buffer.from(customHeader, "base64").toString("utf-8");
       const parsed = JSON.parse(raw);
       if (parsed.userId || parsed.email) {
         return { userId: parsed.userId || parsed.email, email: parsed.email || "user@tattva.ai" };
       }
-    } catch {}
+    } catch { }
   }
   const explicitUserId = request.headers.get("x-user-id");
   if (explicitUserId) {
