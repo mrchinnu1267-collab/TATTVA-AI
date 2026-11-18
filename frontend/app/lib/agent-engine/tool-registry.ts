@@ -19,6 +19,7 @@ import { KnowledgeGraphEngine } from "../knowledge-graph";
 import { LearningPlatformEngine, SubjectDomain, DifficultyLevel } from "../learning";
 import { DataSciencePlatformEngine } from "../data-science";
 import { PlatformEvolutionEngine } from "../platform-evolution";
+import { AIGovernanceEngine } from "../ai-governance";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1250,6 +1251,148 @@ export class CentralizedToolRegistry {
             fileStorageStatus: res.fileStorageIntegrity.status,
             rollbackReady: res.deploymentRollbackTarget.status === "available",
             overallHealthy: res.overallBackupHealthy,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 24. AI Governance & Content Safety Scanner Tool (Phase 44)
+    this.registerTool({
+      name: "scan_content_safety",
+      displayName: "AI Content Safety & Policy Scanner",
+      description: "Evaluates text against hate speech, harassment, self-harm, sexual content, violence, dangerous weapons, and adversarial prompt injections.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        text: { type: "string", description: "Text to evaluate for safety and policy compliance" },
+      },
+      outputSchema: {
+        overallSafe: "boolean",
+        action: "string",
+        highestRiskScore: "number",
+        violations: "array",
+      },
+      execute: async (params: Record<string, any>) => {
+        const text = params.text || "";
+        const engine = AIGovernanceEngine.getInstance();
+        const scan = await engine.scanInboundPrompt(text, "agent_tool_caller");
+        return {
+          toolName: "scan_content_safety",
+          success: true,
+          output: {
+            overallSafe: scan.safetyResult.overallSafe,
+            action: scan.action,
+            highestRiskScore: scan.safetyResult.highestRiskScore,
+            violations: scan.safetyResult.violations,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 25. PII & Sensitive Data Sanitizer Tool (Phase 44)
+    this.registerTool({
+      name: "redact_sensitive_pii",
+      displayName: "Sensitive Data & PII Redactor",
+      description: "Detects and redacts credit cards (Luhn-verified), SSNs, secret API keys, emails, phone numbers, and credentials.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        text: { type: "string", description: "Text containing potential sensitive PII to redact" },
+      },
+      outputSchema: {
+        isClean: "boolean",
+        cleanText: "string",
+        findingsCount: "number",
+        redactedTypes: "array",
+      },
+      execute: async (params: Record<string, any>) => {
+        const text = params.text || "";
+        const engine = AIGovernanceEngine.getInstance();
+        const pii = engine["piiProtector"].sanitize(text);
+        return {
+          toolName: "redact_sensitive_pii",
+          success: true,
+          output: {
+            isClean: pii.isClean,
+            cleanText: pii.cleanText,
+            findingsCount: pii.findingsCount,
+            redactedTypes: pii.redactedTypes,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 26. Human-in-the-Loop Approval Gate Tool (Phase 44)
+    this.registerTool({
+      name: "request_human_approval",
+      displayName: "Human Approval Gate",
+      description: "Dispatches a formal human approval request for irreversible, financial, or high-risk autonomous agent operations.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        operationType: { type: "string", description: "Operation type requesting human sign-off" },
+        reason: { type: "string", description: "Detailed rationale for the operation" },
+        riskTier: { type: "string", description: "Risk tier: low, medium, high, or critical", default: "high" },
+      },
+      outputSchema: {
+        requestId: "string",
+        status: "string",
+        requiresApproval: "boolean",
+      },
+      execute: async (params: Record<string, any>) => {
+        const engine = AIGovernanceEngine.getInstance();
+        const gate = engine.getApprovalGate();
+        const req = await gate.requestApproval({
+          requestedBy: "agent_orchestrator",
+          operationType: params.operationType || "unspecified_operation",
+          reason: params.reason || "Autonomous agent requested human review",
+          riskTier: (params.riskTier as any) || "high",
+        });
+        return {
+          toolName: "request_human_approval",
+          success: true,
+          output: {
+            requestId: req.id,
+            status: req.status,
+            requiresApproval: true,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 27. Governance Audit Trail Tool (Phase 44)
+    this.registerTool({
+      name: "get_governance_audit_trail",
+      displayName: "Governance Audit Trail Explorer",
+      description: "Retrieves immutable governance audit log entries, policy violation events, and compliance certification metrics.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        limit: { type: "number", description: "Max count of audit entries to return", default: 10 },
+      },
+      outputSchema: {
+        totalAuditEvents: "number",
+        cleanScanRate: "number",
+        injectionsBlocked: "number",
+      },
+      execute: async (_params: Record<string, any>) => {
+        const engine = AIGovernanceEngine.getInstance();
+        const metrics = engine.getMetrics();
+        return {
+          toolName: "get_governance_audit_trail",
+          success: true,
+          output: {
+            totalAuditEvents: metrics.totalScans,
+            cleanScanRate: metrics.cleanRate,
+            injectionsBlocked: metrics.injectionsNeutralized,
           },
           executionTimeMs: 0,
         };

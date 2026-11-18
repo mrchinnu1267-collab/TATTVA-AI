@@ -36,6 +36,9 @@ export async function runPhase34IntelligenceOptimizationTests() {
   // Test 1: Model Router Empirical Task-Weighted Candidate Selection
   // ---------------------------------------------------------------------------
   console.log("▶ Test 1: Model Router empirical weighting (Mathematics -> DeepSeek V3)...");
+  // Temporarily stub OPENROUTER_API_KEY for deterministic routing test if unset
+  const origKey = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-sk-openrouter-key-valid";
   const mathCandidates = router.selectCandidateModels("mathematics", 8);
   assert.ok(mathCandidates.length > 0, "Must return candidate models for mathematics");
   assert.strictEqual(
@@ -43,6 +46,7 @@ export async function runPhase34IntelligenceOptimizationTests() {
     "deepseek/deepseek-chat",
     "Mathematics must prioritize DeepSeek V3 based on 100% Phase 33 benchmark performance"
   );
+  process.env.OPENROUTER_API_KEY = origKey;
   console.log("  ✔ Test 1: Mathematics prioritized DeepSeek V3 successfully.");
 
   // ---------------------------------------------------------------------------

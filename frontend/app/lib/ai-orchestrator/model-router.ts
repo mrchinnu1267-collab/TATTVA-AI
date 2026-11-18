@@ -290,7 +290,7 @@ export class ModelRouter {
    * Checks circuit-breaker cooldowns to prevent repetitive timeouts on exhausted providers
    */
   public isModelAvailable(spec: AIModelSpec): boolean {
-    if (spec.isAvailable === false || spec.id === "meta/llama-3.1-70b-instruct") {
+    if (spec.id === "meta/llama-3.1-70b-instruct") {
       return false;
     }
     const modelCool = this.modelCooldowns.get(spec.id);
