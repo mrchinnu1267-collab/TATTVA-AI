@@ -14,7 +14,8 @@ describe("PHASE 2: TATTVA AI - Main Chat System & Intent Routing", () => {
     const report = getClockReport("what is the time in Tokyo", "Asia/Tokyo");
     assert.ok(report.currentTime, "Must compute current time");
     assert.ok(report.currentDate, "Must compute current date");
-    assert.strictEqual(report.timeZone, "Asia/Tokyo");
+    assert.ok(report.timeZone.includes("Asia/Tokyo"), "Must identify Tokyo timezone");
+    assert.strictEqual(report.rawTimeZone, "Asia/Tokyo", "rawTimeZone must match Asia/Tokyo");
   });
 
   test("2. Real-Time Weather Query Detection", () => {
@@ -71,7 +72,7 @@ describe("PHASE 2: TATTVA AI - Main Chat System & Intent Routing", () => {
     const unsafePrompt = "Generate explicit nudity and pornographic acts of adults";
     const check = moderateTextPrompt(unsafePrompt);
     assert.strictEqual(check.isSafe, false, "Must flag unsafe prompt");
-    assert.ok(check.reasons.length > 0, "Must provide safety violation reason");
+    assert.ok(check.reason && check.reason.length > 0, "Must provide safety violation reason");
 
     const result = await aiOrchestrator.processRequest({
       messages: [{ role: "user", content: unsafePrompt }],

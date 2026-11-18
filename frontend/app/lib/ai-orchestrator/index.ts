@@ -98,6 +98,21 @@ export class MasterAIOrchestrator {
     // PII Redaction
     const { text: cleanUserPrompt } = redactSensitiveInfo(guardResult.sanitizedPrompt);
 
+    // Strict Content Moderation Guardrail (Zero tolerance for adult, nudity, CSAM, gore, self-harm)
+    const promptModeration = moderateTextPrompt(cleanUserPrompt);
+    if (!promptModeration.isSafe) {
+      return {
+        role: "assistant",
+        content: SAFETY_REJECTION_MESSAGE,
+        kind: "text",
+        intent: "general_chat",
+        modelUsed: "tattva-content-guardrail",
+        provider: "local",
+        latencyMs: Date.now() - startTime,
+        warnings: ["Content safety violation: request rejected"],
+      };
+    }
+
     // Check attached images or files
     const userAttachedImage = latestMessage?.attachments?.find((att) => {
       const d = att.data || (att as any).url || "";

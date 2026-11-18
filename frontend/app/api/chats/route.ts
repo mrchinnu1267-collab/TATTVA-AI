@@ -1,43 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyUserSession, checkRateLimit } from "../../lib/security";
-import fs from "fs";
-import path from "path";
+import { durableChatStore, ChatSessionRecord } from "../../lib/chats/durable-chat-store";
 
 export const runtime = "nodejs";
-
-function getVaultDir(): string {
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    return path.join("/tmp", ".tattva_secure_vault", "cloud_chats");
-  }
-  return path.join(process.cwd(), ".tattva_secure_vault", "cloud_chats");
-}
-
-function ensureVaultDir() {
-  const dir = getVaultDir();
-  try {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  } catch {
-    // If process.cwd failed, try /tmp fallback
-    try {
-      const tmpDir = path.join("/tmp", ".tattva_secure_vault", "cloud_chats");
-      if (!fs.existsSync(tmpDir)) {
-        fs.mkdirSync(tmpDir, { recursive: true });
-      }
-    } catch {}
-  }
-}
-
-function getChatFilePath(userKey: string): string {
-  ensureVaultDir();
-  const safeId = Buffer.from(userKey.toLowerCase().trim()).toString("hex");
-  const primary = path.join(getVaultDir(), `chats_${safeId}.json`);
-  if (fs.existsSync(primary)) return primary;
-  const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "cloud_chats", `chats_${safeId}.json`);
-  if (fs.existsSync(tmpFallback)) return tmpFallback;
-  return primary;
-}
 
 export async function GET(request: Request) {
   try {
@@ -72,21 +37,11 @@ export async function GET(request: Request) {
     }
 
     const userIdentifier = (session.email || session.userId).toLowerCase().trim();
-    const filePath = getChatFilePath(userIdentifier);
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ sessions: [] });
-    }
-
-    const data = fs.readFileSync(filePath, "utf-8");
-    let sessions = JSON.parse(data);
-
-    if (!Array.isArray(sessions)) {
-      return NextResponse.json({ sessions: [] });
-    }
+    let sessions: ChatSessionRecord[] = await durableChatStore.loadUserSessions(userIdentifier);
 
     // 1. Export Conversation Feature
     if (exportId) {
-      const targetSession = sessions.find((s: any) => s.id === exportId);
+      const targetSession = sessions.find((s) => s.id === exportId);
       if (!targetSession) {
         return NextResponse.json({ error: "Session not found." }, { status: 404 });
       }
@@ -126,9 +81,9 @@ export async function GET(request: Request) {
 
     // 2. Server-side Conversation Search
     if (searchQuery) {
-      sessions = sessions.filter((s: any) => {
+      sessions = sessions.filter((s) => {
         const titleMatch = s.title?.toLowerCase().includes(searchQuery);
-        const messageMatch = Array.isArray(s.messages) && s.messages.some((m: any) => (m.content || "").toLowerCase().includes(searchQuery));
+        const messageMatch = Array.isArray(s.messages) && s.messages.some((m) => (m.content || "").toLowerCase().includes(searchQuery));
         return titleMatch || messageMatch;
       });
     }
@@ -175,18 +130,7 @@ export async function POST(request: Request) {
     }
 
     const userIdentifier = (session.email || session.userId).toLowerCase().trim();
-    const filePath = getChatFilePath(userIdentifier);
-
-    try {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(body.sessions, null, 2), "utf-8");
-    } catch {
-      try {
-        const tmpFallback = path.join("/tmp", ".tattva_secure_vault", "cloud_chats", path.basename(filePath));
-        fs.mkdirSync(path.dirname(tmpFallback), { recursive: true });
-        fs.writeFileSync(tmpFallback, JSON.stringify(body.sessions, null, 2), "utf-8");
-      } catch {}
-    }
+    await durableChatStore.saveUserSessions(userIdentifier, body.sessions);
 
     return NextResponse.json({ success: true, count: body.sessions.length });
   } catch (error: unknown) {
@@ -218,24 +162,13 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
     const userIdentifier = (session.email || session.userId).toLowerCase().trim();
-    const filePath = getChatFilePath(userIdentifier);
 
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ success: true, message: "No sessions to delete" });
-    }
+    const result = await durableChatStore.deleteUserSessions(userIdentifier, sessionId || undefined);
 
-    if (sessionId) {
-      // Delete single session
-      const data = fs.readFileSync(filePath, "utf-8");
-      const sessions = JSON.parse(data);
-      const filtered = Array.isArray(sessions) ? sessions.filter((s: any) => s.id !== sessionId) : [];
-      fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2), "utf-8");
-      return NextResponse.json({ success: true, remaining: filtered.length });
-    } else {
-      // Clear all sessions
-      fs.unlinkSync(filePath);
-      return NextResponse.json({ success: true, message: "All cloud chat sessions deleted" });
-    }
+    return NextResponse.json({
+      success: true,
+      ...(sessionId ? { remaining: result.remainingCount } : { message: "All cloud chat sessions deleted" })
+    });
   } catch (error: unknown) {
     console.error("DELETE /api/chats error:", error);
     return NextResponse.json(
@@ -268,39 +201,17 @@ export async function PATCH(request: Request) {
     }
 
     const userIdentifier = (session.email || session.userId).toLowerCase().trim();
-    const filePath = getChatFilePath(userIdentifier);
+    const updated = await durableChatStore.patchSession(userIdentifier, body.sessionId, {
+      title: body.title,
+      pinned: body.pinned,
+      tags: body.tags
+    });
 
-    if (!fs.existsSync(filePath)) {
+    if (!updated) {
       return NextResponse.json({ error: "Session not found." }, { status: 404 });
     }
 
-    const data = fs.readFileSync(filePath, "utf-8");
-    const sessions = JSON.parse(data);
-    if (!Array.isArray(sessions)) {
-      return NextResponse.json({ error: "Session not found." }, { status: 404 });
-    }
-
-    const targetIndex = sessions.findIndex((s: any) => s.id === body.sessionId);
-    if (targetIndex === -1) {
-      return NextResponse.json({ error: "Session not found." }, { status: 404 });
-    }
-
-    // Apply safe updates: title (rename), pinned (boolean), tags
-    if (typeof body.title === "string" && body.title.trim()) {
-      sessions[targetIndex].title = body.title.trim().slice(0, 100);
-    }
-    if (typeof body.pinned === "boolean") {
-      sessions[targetIndex].pinned = body.pinned;
-    }
-    if (Array.isArray(body.tags)) {
-      sessions[targetIndex].tags = body.tags.slice(0, 10);
-    }
-
-    sessions[targetIndex].updatedAt = Date.now();
-
-    fs.writeFileSync(filePath, JSON.stringify(sessions, null, 2), "utf-8");
-
-    return NextResponse.json({ success: true, session: sessions[targetIndex] });
+    return NextResponse.json({ success: true, session: updated });
   } catch (error: unknown) {
     console.error("PATCH /api/chats error:", error);
     return NextResponse.json(
