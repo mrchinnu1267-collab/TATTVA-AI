@@ -10,6 +10,7 @@ import { codeRunnerTool } from "./code-runner";
 import { documentProcessorTool } from "./document-processor";
 import { githubInspectorTool } from "./github-inspector";
 import { dataCalculatorTool } from "./data-calculator";
+import { pluginTools } from "./plugin-tools";
 
 export class ToolRegistry {
   private static instance: ToolRegistry;
@@ -21,6 +22,9 @@ export class ToolRegistry {
     this.registerTool(documentProcessorTool);
     this.registerTool(githubInspectorTool);
     this.registerTool(dataCalculatorTool);
+    for (const tool of pluginTools) {
+      this.registerTool(tool);
+    }
   }
 
   public static getInstance(): ToolRegistry {

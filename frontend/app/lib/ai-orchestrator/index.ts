@@ -574,6 +574,25 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
     const humanGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
     const promptIntelligenceGuidance = promptEnhancer.buildExecutionGuidance(promptAnalysis);
 
+    const multimodalVisionDirective = userAttachedImage || hasImageToEdit
+      ? `
+===============================================================================
+MULTIMODAL IMAGE UNDERSTANDING DIRECTIVE (VISUAL INPUT PRESENT)
+===============================================================================
+The user has provided an image attachment (photograph, screenshot, document, diagram, handwriting, or object).
+Analyze the visual input thoroughly and answer the user's specific request with precision:
+
+1. OBJECTS & PHYSICAL DEVICES: Identify the visible object, components, make/model indicators, and explain its purpose or function clearly.
+2. DOCUMENTS & TEXT (OCR): Transcribe printed or handwritten text accurately. Preserve original formatting, bullet points, headers, or structural hierarchy.
+3. MATHEMATICAL & EDUCATIONAL PROBLEMS: Read the handwritten or printed math problem, geometry diagram, or equation. Provide a clear, step-by-step rigorous solution with verified intermediate calculations.
+4. CHARTS, GRAPHS & TABLES: Read axes, data points, labels, and trends. Summarize the key findings or comparative metrics with numeric accuracy.
+5. SCREENSHOTS & CODE: Read the code, error messages, terminal logs, or UI elements shown. Diagnose bugs, explain the interface, or provide corrected code snippets.
+6. NATURE, PLANTS & ANIMALS: Describe the visible botanical or biological traits (leaves, shape, coloration) and provide a careful, grounded identification.
+7. DIAGRAMS & ARCHITECTURE: Trace arrows, boxes, components, and data flows to explain the architecture or process.
+8. HONEST UNCERTAINTY: If parts of the image are blurry, cropped, occluded, or unreadable, state what is unclear honestly rather than guessing or fabricating details.
+===============================================================================`
+      : "";
+
     // Dynamic Rolling Context Management: preserve foundational rules and compact turns beyond 40, preventing amnesia
     const { recentTurns, contextDigest } = contextManager.buildRollingContextDigest(messages, 40);
 
@@ -583,6 +602,7 @@ ${similarExperiences.length > 0 ? `SIMILAR VERIFIED CASES:\n${similarExperiences
       promptIntelligenceGuidance,
       personalizationPrompt,
       humanGuidance,
+      multimodalVisionDirective,
     ]
       .filter(Boolean)
       .join("\n\n");

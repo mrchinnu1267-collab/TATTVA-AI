@@ -98,6 +98,8 @@ import {
   Clock,
 } from "lucide-react";
 import LiveClockWidget from "../components/LiveClockWidget";
+import CameraCaptureModal from "../components/camera/CameraCaptureModal";
+import { requestDeviceLocation, isLocationQuery } from "../lib/location/location-service";
 import { trackLogout, trackChatMessageSent, trackFileUploaded } from "../lib/gtag";
 import ConnectorSettings from "../components/connectors/ConnectorSettings";
 import ConnectorPicker from "../components/connectors/ConnectorPicker";
@@ -808,6 +810,41 @@ export default function ChatPage() {
 
   const userLocationRef = useRef<{ latitude?: number; longitude?: number; city?: string } | null>(null);
   const [userLocationName, setUserLocationName] = useState<string | null>(null);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+
+  function handleCameraCapture(photo: { name: string; type: string; data: string; size: number }) {
+    setAttachments((prev) => [
+      ...prev,
+      {
+        name: photo.name,
+        type: photo.type,
+        data: photo.data,
+        preview: photo.data,
+        size: photo.size,
+      },
+    ]);
+    showToast("Photo captured and attached 📸");
+  }
+
+  async function handleShareLocation() {
+    setIsLocatingUser(true);
+    showToast("Requesting device location... 📍");
+    try {
+      const loc = await requestDeviceLocation();
+      userLocationRef.current = {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        city: loc.city || loc.displayName,
+      };
+      setUserLocationName(loc.displayName || loc.city || "Location acquired");
+      showToast(`📍 Location acquired: ${loc.city || loc.displayName}`);
+    } catch (err: any) {
+      showToast(err.message || "Could not retrieve device location ⚠️");
+    } finally {
+      setIsLocatingUser(false);
+      setIsAttachmentMenuOpen(false);
+    }
+  }
 
   // Advanced AI Chat Composer State
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
@@ -3095,6 +3132,10 @@ export default function ChatPage() {
       messagesCountRef.current = updatedWithAssistant.length;
       saveCurrentSession(updatedWithAssistant, activeSessionId);
       notifyResponse(assistantMsg.content);
+
+      if (data.needsLocationPermission) {
+        handleShareLocation();
+      }
 
       // Refresh memory profile after response in case new memories were extracted
       loadUserMemoryData(userEmail);
@@ -5568,7 +5609,7 @@ export default function ChatPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            cameraInputRef.current?.click();
+                            setIsCameraModalOpen(true);
                             setIsAttachmentMenuOpen(false);
                           }}
                           className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
@@ -5619,6 +5660,34 @@ export default function ChatPage() {
                             <Paperclip className="w-5 h-5 stroke-[2]" />
                           </div>
                           <span className="font-medium text-sm tracking-tight">Files</span>
+                        </button>
+
+                        {/* Location Sharing */}
+                        <button
+                          type="button"
+                          onClick={handleShareLocation}
+                          disabled={isLocatingUser}
+                          className={`flex items-center gap-3.5 w-full rounded-xl px-3 py-2 text-left transition fluid-press cursor-pointer select-none ${
+                            isDark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"
+                          }`}
+                        >
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-2xs ${
+                            userLocationRef.current ? "bg-emerald-500/20 text-emerald-400" : isDark ? "bg-white/10 text-white" : "bg-neutral-200/70 text-neutral-800"
+                          }`}>
+                            {isLocatingUser ? (
+                              <RefreshCw className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <MapPin className="w-5 h-5 stroke-[2]" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0 flex items-center justify-between">
+                            <span className="font-medium text-sm tracking-tight">Location</span>
+                            {userLocationRef.current && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 truncate max-w-[90px]">
+                                {userLocationName ? userLocationName.split(",")[0] : "Active"}
+                              </span>
+                            )}
+                          </div>
                         </button>
 
                         {/* 4. Plugins / Connectors */}
@@ -5716,11 +5785,30 @@ export default function ChatPage() {
                     {/* Device Camera Photo Capture */}
                     <button
                       type="button"
-                      onClick={() => cameraInputRef.current?.click()}
+                      onClick={() => setIsCameraModalOpen(true)}
                       className="flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 text-neutral-300 hover:text-white hover:bg-white/10"
-                      title="Take a photo or upload picture"
+                      title="Open device camera"
                     >
                       <Camera className="w-5 h-5 stroke-[1.8] text-sky-400" />
+                    </button>
+
+                    {/* Device Location Share */}
+                    <button
+                      type="button"
+                      disabled={isLocatingUser}
+                      onClick={handleShareLocation}
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition cursor-pointer select-none active:scale-95 ${
+                        userLocationRef.current
+                          ? "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                          : "text-neutral-300 hover:text-white hover:bg-white/10"
+                      }`}
+                      title={userLocationRef.current ? `Location active: ${userLocationName || "GPS"}` : "Share device location"}
+                    >
+                      {isLocatingUser ? (
+                        <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                      ) : (
+                        <MapPin className="w-5 h-5 stroke-[1.8]" />
+                      )}
                     </button>
                   </div>
 
@@ -7509,6 +7597,14 @@ export default function ChatPage() {
           />
         </div>
       )}
+
+      {/* Real Hardware Camera Capture Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraModalOpen}
+        isDark={isDark}
+        onClose={() => setIsCameraModalOpen(false)}
+        onCapture={handleCameraCapture}
+      />
 
 
       {/* 3. MANAGE ACCOUNT MODAL */}

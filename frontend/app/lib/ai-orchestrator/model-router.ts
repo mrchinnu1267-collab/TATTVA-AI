@@ -584,6 +584,12 @@ export class ModelRouter {
       if (msg.role === "system") continue;
       const parts: any[] = [];
 
+      if (msg.image && msg.image.includes(";base64,")) {
+        const [hdr, b64] = msg.image.split(";base64,");
+        const claimedMime = (hdr.replace("data:", "") || "image/jpeg").toLowerCase();
+        parts.push({ inlineData: { mimeType: claimedMime, data: b64 } });
+      }
+
       if (msg.attachments && msg.attachments.length > 0) {
         for (const att of msg.attachments) {
           if (att.data && att.data.includes(";base64,")) {
@@ -616,7 +622,10 @@ export class ModelRouter {
         }
       }
 
-      parts.push({ text: msg.content });
+      const effectiveText = msg.content.trim() || (parts.length > 0 ? "Please analyze this image, describe what you see, and transcribe any readable text or solve any problem presented." : "");
+      if (effectiveText || parts.length === 0) {
+        parts.push({ text: effectiveText });
+      }
       contents.push({
         role: msg.role === "assistant" ? "model" : "user",
         parts,

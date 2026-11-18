@@ -126,16 +126,11 @@ export async function classifyIntent(
   const secondaryIntents: TaskIntent[] = [];
   const suggestedTools: string[] = [];
 
-  // Check attached contexts
+  // Check attached contexts: Attached images are always classified as multimodal vision / document analysis
   if (hasAttachedImage) {
-    if (/edit|change|remove|add|replace|modify|fix/i.test(cleanPrompt)) {
-      primaryIntent = "image_editing";
-      complexityScore = 6;
-      suggestedTools.push("image_editor");
-    } else {
-      primaryIntent = "document_analysis";
-      complexityScore = 5;
-    }
+    primaryIntent = "document_analysis";
+    complexityScore = 5;
+    suggestedTools.push("image_understanding");
   }
 
   // Explicit Presentation / PPTX Check

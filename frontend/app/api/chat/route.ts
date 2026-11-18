@@ -8,6 +8,7 @@ import {
 } from "../../lib/security";
 import { getWeatherReport, isWeatherQuery } from "../../lib/weather-service";
 import { getClockReport, isClockQuery, ClockReport } from "../../lib/clock-service";
+import { isLocationQuery, buildLocationDirective } from "../../lib/location/location-service";
 import {
   executeCustomProvider,
   scrubCredentials,
@@ -157,6 +158,29 @@ export async function POST(request: Request) {
       }
     }
 
+    // 2B. REAL-TIME USER DEVICE LOCATION GROUNDING
+    if (latestUserMsg && isLocationQuery(latestUserMsg.content)) {
+      if (body.location && typeof body.location.latitude === "number" && typeof body.location.longitude === "number") {
+        const locDirective = buildLocationDirective(body.location);
+        body.messages.splice(body.messages.length - 1, 0, {
+          role: "user",
+          content: locDirective,
+        });
+      } else {
+        // Return clear, actionable location permission guidance
+        return NextResponse.json({
+          role: "assistant",
+          content: `📍 **Location Permission Needed**\n\nI can pinpoint your exact location, coordinates, and nearby places as soon as you share device access!\n\n### How to enable:\n1. Click the **Location** button in the attachment menu (**+**) or click **Allow** if your browser prompts you.\n2. In Chrome / Edge / Safari: Click the tune/lock icon in your address bar and toggle **Location** to **Allow**.\n3. You can also ask directly about any city (e.g. *"What is the weather in Mumbai?"* or *"Top places in Hyderabad"*).`,
+          kind: "text",
+          intent: "location_guidance",
+          modelUsed: "TATTVA-Location-Engine",
+          provider: "local",
+          latencyMs: 50,
+          needsLocationPermission: true,
+        });
+      }
+    }
+
     // Check for BYOK / User Custom AI Provider
     const customProvider = request.headers.get("x-custom-provider") as CustomProviderId | null;
     const customKey = request.headers.get("x-custom-key") || undefined;
@@ -180,26 +204,32 @@ export async function POST(request: Request) {
       });
     }
 
-    // Claude MCP Connectors Integration
+    // Claude MCP Connectors Integration (with graceful fallback to AI Orchestrator)
     if (body.connectorIds && Array.isArray(body.connectorIds) && body.connectorIds.length > 0) {
-      const { claudeConnectors } = await import("../../lib/mcp/claude-connectors");
-      const connectorResult = await claudeConnectors.executeChat(session.userId, {
-        messages: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
-        connectorIds: body.connectorIds,
-        model: body.model || "claude-3-5-sonnet-20241022",
-        temperature: body.temperature ?? 0.7,
-      });
+      if (process.env.ANTHROPIC_API_KEY) {
+        try {
+          const { claudeConnectors } = await import("../../lib/mcp/claude-connectors");
+          const connectorResult = await claudeConnectors.executeChat(session.userId, {
+            messages: body.messages.map((m: any) => ({ role: m.role, content: m.content })),
+            connectorIds: body.connectorIds,
+            model: body.model || "claude-3-5-sonnet-20241022",
+            temperature: body.temperature ?? 0.7,
+          });
 
-      return NextResponse.json({
-        role: "assistant",
-        content: connectorResult.text,
-        kind: "text",
-        toolCalls: connectorResult.toolCalls,
-        toolsExecuted: connectorResult.toolCalls.map((tc) => `${tc.serverName || tc.connectorName} (${tc.toolName})`),
-        usage: connectorResult.usage,
-        stopReason: connectorResult.stopReason,
-        ...(clockData ? { clockData } : {}),
-      });
+          return NextResponse.json({
+            role: "assistant",
+            content: connectorResult.text,
+            kind: "text",
+            toolCalls: connectorResult.toolCalls,
+            toolsExecuted: connectorResult.toolCalls.map((tc) => `${tc.serverName || tc.connectorName} (${tc.toolName})`),
+            usage: connectorResult.usage,
+            stopReason: connectorResult.stopReason,
+            ...(clockData ? { clockData } : {}),
+          });
+        } catch (connErr: any) {
+          console.warn("[TATTVA Chat] Claude connector error, falling back to AI Orchestrator:", connErr.message);
+        }
+      }
     }
 
     // Dispatch through the Master AI Orchestrator with internal deadline guard
