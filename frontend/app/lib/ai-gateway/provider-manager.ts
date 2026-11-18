@@ -100,19 +100,7 @@ export class ProviderManager {
       }
     }
 
-    // 2. Task-specific dispatching: Cloudflare Workers AI is the exclusive image provider
-    if (taskType === "image") {
-      const cfProvider = this.providers.get("cloudflare");
-      if (cfProvider) {
-        return {
-          providerId: "cloudflare",
-          provider: cfProvider,
-          fallback: false,
-        };
-      }
-    }
-
-    // 3. General tasks -> try gemini_api first
+    // 2. General tasks -> try gemini_api first
     const geminiApiStatus = await this.getProviderStatus("gemini_api");
     if (geminiApiStatus?.isConnected) {
       return {

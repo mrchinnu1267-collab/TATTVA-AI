@@ -14,10 +14,9 @@ export async function GET() {
   const services = {
     database: envConfig.databaseUrlConfigured ? "configured" : "offline_vault_fallback",
     geminiCircuit: circuitBreaker.getStatus("gemini").state,
-    cloudflareCircuit: circuitBreaker.getStatus("cloudflare-flux").state,
   };
 
-  const isHealthy = services.geminiCircuit !== "OPEN" || services.cloudflareCircuit !== "OPEN";
+  const isHealthy = services.geminiCircuit !== "OPEN";
 
   return NextResponse.json(
     {

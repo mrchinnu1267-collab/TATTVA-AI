@@ -38,7 +38,7 @@ export interface ReliabilityMetrics {
   circuitBreakerStatus: {
     gemini: "CLOSED" | "HALF_OPEN" | "OPEN";
     deepseek: "CLOSED" | "HALF_OPEN" | "OPEN";
-    cloudflare: "CLOSED" | "HALF_OPEN" | "OPEN";
+    anthropic: "CLOSED" | "HALF_OPEN" | "OPEN";
     database: "CLOSED" | "HALF_OPEN" | "OPEN";
   };
   lastEvaluatedTimestamp: number;

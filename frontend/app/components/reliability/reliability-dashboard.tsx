@@ -283,7 +283,7 @@ export function ReliabilityDashboard() {
               {[
                 { name: "Google Gemini 2.5", state: metrics?.circuitBreakerStatus?.gemini || "CLOSED" },
                 { name: "DeepSeek V3", state: metrics?.circuitBreakerStatus?.deepseek || "CLOSED" },
-                { name: "Cloudflare Workers AI", state: metrics?.circuitBreakerStatus?.cloudflare || "CLOSED" },
+                { name: "Anthropic Claude 3.5", state: metrics?.circuitBreakerStatus?.anthropic || "CLOSED" },
                 { name: "Supabase PostgreSQL", state: metrics?.circuitBreakerStatus?.database || "CLOSED" },
               ].map((cb) => (
                 <div key={cb.name} className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between">

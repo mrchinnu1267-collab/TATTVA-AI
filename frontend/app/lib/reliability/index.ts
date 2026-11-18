@@ -57,7 +57,7 @@ export class ProductionReliabilityEngine {
       circuitBreakerStatus: {
         gemini: "CLOSED",
         deepseek: "CLOSED",
-        cloudflare: "CLOSED",
+        anthropic: "CLOSED",
         database: "CLOSED",
       },
       lastEvaluatedTimestamp: Date.now(),
