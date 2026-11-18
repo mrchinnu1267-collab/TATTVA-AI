@@ -22,6 +22,7 @@ import { PlatformEvolutionEngine } from "../platform-evolution";
 import { AIGovernanceEngine } from "../ai-governance";
 import { BillingEngine } from "../billing";
 import { CustomerSupportEngine } from "../support";
+import { DataGovernanceEngine } from "../data-governance";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1637,6 +1638,152 @@ export class CentralizedToolRegistry {
             rating: feedback.rating,
             sentiment: feedback.sentiment,
             status: "recorded",
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 34. Data Retention Policy Tool (Phase 47)
+    this.registerTool({
+      name: "get_data_retention_policy",
+      displayName: "Data Retention Inspector",
+      description: "Retrieves workspace data retention periods for chats, documents, code artifacts, and audit logs.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        workspaceId: { type: "string", description: "Workspace identifier (defaults to current)" },
+      },
+      outputSchema: {
+        workspaceId: "string",
+        chatRetentionDays: "number",
+        researchRetentionDays: "number",
+        documentRetentionDays: "number",
+        auditLogRetentionDays: "number",
+        autoPurgeEnabled: "boolean",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const gov = DataGovernanceEngine.getInstance();
+        const policy = gov.getRetentionPolicy(params.workspaceId || context.workspaceId || "default");
+        return {
+          toolName: "get_data_retention_policy",
+          success: true,
+          output: {
+            workspaceId: policy.workspaceId,
+            chatRetentionDays: policy.chatRetentionDays,
+            researchRetentionDays: policy.researchRetentionDays,
+            documentRetentionDays: policy.documentRetentionDays,
+            auditLogRetentionDays: policy.auditLogRetentionDays,
+            autoPurgeEnabled: policy.autoPurgeEnabled,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 35. GDPR / CCPA Data Export Tool (Phase 47)
+    this.registerTool({
+      name: "export_user_data",
+      displayName: "GDPR / CCPA Self-Service Data Exporter",
+      description: "Generates a comprehensive machine-readable archive of user profile, chats, documents, feedback, and invoices.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        format: { type: "string", description: "Export format: json or zip (defaults to json)" },
+      },
+      outputSchema: {
+        exportId: "string",
+        status: "string",
+        downloadUrl: "string",
+        totalRecordsCount: "number",
+        checksum: "string",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const gov = DataGovernanceEngine.getInstance();
+        const archive = await gov.requestExport({
+          userId: context.userId,
+          userEmail: context.userEmail,
+          format: params.format === "zip" ? "zip" : "json",
+        });
+        return {
+          toolName: "export_user_data",
+          success: true,
+          output: {
+            exportId: archive.exportId,
+            status: archive.status,
+            downloadUrl: archive.downloadUrl || "",
+            totalRecordsCount: archive.totalRecordsCount,
+            checksum: archive.dataPayload?.exportMetadata?.sha256Checksum || "",
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 36. Account Purge Tool ("Right to be Forgotten", Phase 47)
+    this.registerTool({
+      name: "request_account_purge",
+      displayName: "Right to be Forgotten Purge Manager",
+      description: "Initiates or confirms cryptographic account and data deletion in compliance with GDPR Art 17 and CCPA.",
+      category: "security",
+      permission: "approval_required",
+      timeoutMs: 15000,
+      inputSchema: {
+        action: { type: "string", description: "'request' to initiate code, or 'confirm' to execute purge", required: true },
+        requestId: { type: "string", description: "Purge request ID (required for confirm)" },
+        confirmationCode: { type: "string", description: "6-digit confirmation code (required for confirm)" },
+      },
+      outputSchema: {
+        requestId: "string",
+        status: "string",
+        confirmationCodeRequired: "boolean",
+        auditHash: "string",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const gov = DataGovernanceEngine.getInstance();
+        if (params.action === "confirm") {
+          const res = await gov.confirmPurge({
+            requestId: params.requestId,
+            confirmationCode: params.confirmationCode,
+            requestingUserId: context.userId,
+          });
+          if (!res.success || !res.request) {
+            return {
+              toolName: "request_account_purge",
+              success: false,
+              output: { error: res.error || "Purge confirmation failed" },
+              error: res.error || "Purge confirmation failed",
+              executionTimeMs: 0,
+            };
+          }
+          return {
+            toolName: "request_account_purge",
+            success: true,
+            output: {
+              requestId: res.request.requestId,
+              status: res.request.status,
+              confirmationCodeRequired: false,
+              auditHash: res.request.auditHash,
+            },
+            executionTimeMs: 0,
+          };
+        }
+
+        // Action: request
+        const req = await gov.requestPurge({
+          userId: context.userId,
+          userEmail: context.userEmail || "user@tattva.ai",
+        });
+        return {
+          toolName: "request_account_purge",
+          success: true,
+          output: {
+            requestId: req.requestId,
+            status: req.status,
+            confirmationCodeRequired: true,
+            auditHash: req.auditHash,
           },
           executionTimeMs: 0,
         };
