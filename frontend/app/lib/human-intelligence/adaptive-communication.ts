@@ -95,7 +95,15 @@ export class AdaptiveCommunicationEngine {
 
     // Technical depth
     let technicalDepth: "accessible" | "technical" | "expert" = "technical";
-    if (/\b(simple|eli5|beginner|easy to understand|plain english|layman)\b/i.test(clean)) {
+    if (
+      /\b(simple|simply|eli5|beginner|beginners|for a beginner|easy to understand|plain english|layman|teach me|like i'm|analogy|intuitively|in simple words)\b/i.test(
+        clean
+      ) ||
+      /^(what is (an?|the)|why do (we|computers)|how does (the|wi-fi|wifi|an?)|why is [a-z0-9\s]+ important)\b/i.test(
+        clean
+      ) ||
+      /\bexplain\s+[a-z0-9\s-]+\s+vs\s+[a-z0-9\s-]+/i.test(clean)
+    ) {
       technicalDepth = "accessible";
     } else if (/\b(expert|senior|advanced|kernel|low-level|architecture|internals|optimization)\b/i.test(clean)) {
       technicalDepth = "expert";

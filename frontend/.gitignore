@@ -28,6 +28,7 @@ dist/
 .tattva_governance/
 .tattva_knowledge_graphs/
 .tattva_support/
+.tattva_studio/
 public/vault/
 
 # Logs, Telemetry & Debug

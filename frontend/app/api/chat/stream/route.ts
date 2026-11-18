@@ -2,13 +2,14 @@ import { NextRequest } from "next/server";
 import { modelRouter } from "../../../lib/ai-orchestrator/model-router";
 import { classifyIntent } from "../../../lib/ai-orchestrator/intent-classifier";
 import { verifyUserSession, checkRateLimit } from "../../../lib/security";
+import { humanIntelligence } from "../../../lib/human-intelligence";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
  * TATTVA AI - Stage 2: Unified Multi-Provider Streaming Endpoint
- * Emits Server-Sent Events (SSE) for low Time-To-First-Token (TTFT)
+ * Emits Server-Sent Events (SSE) with Real-Time Affective Signals & Low TTFT
  */
 export async function POST(req: NextRequest) {
   try {
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest) {
     }
 
     const latestUserMsg = [...body.messages].reverse().find((m: any) => m.role === "user")?.content || "";
+    const historyTurns = body.messages.slice(0, -1).map((m: any) => ({ role: m.role, content: m.content }));
+    const humanAnalysis = humanIntelligence.analyzeConversation(latestUserMsg, historyTurns);
     const classification = await classifyIntent(latestUserMsg);
 
     const encoder = new TextEncoder();
@@ -40,16 +43,49 @@ export async function POST(req: NextRequest) {
     // Async worker execution
     (async () => {
       try {
-        // Send initial metadata event
+        // Send initial metadata event with emotional signals & affective indicators
         await writer.write(
           encoder.encode(
             `data: ${JSON.stringify({
               type: "meta",
               intent: classification.primaryIntent,
               complexity: classification.complexityScore,
+              emotionalSignal: humanAnalysis.emotionalContext?.primarySignal || "neutral",
+              confidence: humanAnalysis.emotionalContext?.confidence || 0.7,
+              warmth: humanAnalysis.emotionalContext?.recommendedTone.warmth || "moderate",
+              language: humanAnalysis.multilingual?.detectedLanguage || "en",
             })}\n\n`
           )
         );
+
+        // Immediate emotional safety intercept
+        if (humanAnalysis.safetyEvaluation?.safeResponseContent) {
+          const safeText = humanAnalysis.safetyEvaluation.safeResponseContent;
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: "delta",
+                text: safeText,
+              })}\n\n`
+            )
+          );
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: "done",
+                modelUsed: "TATTVA-Safety-Guard",
+                provider: "local",
+                latencyMs: 15,
+                fallbackOccurred: false,
+              })}\n\n`
+            )
+          );
+          return;
+        }
+
+        // Build human-centric guidance
+        const systemGuidance = humanIntelligence.buildSystemGuidance(humanAnalysis);
+        const combinedSystemPrompt = [body.systemInstruction, systemGuidance].filter(Boolean).join("\n\n");
 
         // Execute generation via Centralized Model Router
         const result = await modelRouter.executeWithFallback(
@@ -59,8 +95,8 @@ export async function POST(req: NextRequest) {
             messages: body.messages,
             preferredProvider: body.preferredProvider,
             preferredModel: body.preferredModel || body.model,
-            systemInstruction: body.systemInstruction,
-            temperature: body.temperature ?? 0.7,
+            systemInstruction: combinedSystemPrompt,
+            temperature: body.temperature ?? (humanAnalysis.emotionalContext?.primarySignal === "frustration" ? 0.3 : 0.7),
             maxTokens: body.maxTokens,
           }
         );

@@ -61,14 +61,18 @@ export class ContextManager {
     let resolvedPrompt = raw;
 
     // Check Telugu-English follow-up patterns
-    // e.g., "deeni explain cheyyi", "idi simpler ga cheppu", "previous answer short ga cheppu", "daanini pdf ga convert cheyyi", "same design lo website create cheyyi", "ee code lo errors fix cheyyi"
     const isTeluguFollowUp =
       /\b(deeni|dini|daanini|dannini|idi|edi|danini|ee|aa)\b/i.test(lower) ||
       /\b(simpler ga|short ga|brief ga|detail ga|code rayi|explain cheyyi|convert cheyyi|errors fix cheyyi|create cheyyi|fix cheyyi|choodu|chudu|chupinchu)\b/i.test(lower) ||
       /\b(next step (enti|emiti)|malli cheppu|inka cheppu|dini ela cheyyali|previous answer short ga)\b/i.test(lower) ||
-      /\b(same design lo|same design tho|ikkada nunchi continue|errors fix|artham kaledu|inka detail ga)\b/i.test(lower);
+      /\b(same design lo|same design tho|ikkada nunchi continue|errors fix|artham kaledu|ardham kaledu|inka detail ga|enduku ala|ela)\b/i.test(lower);
 
-    // Check English pronoun / follow-up patterns
+    // Check Hindi-English (Hinglish) follow-up patterns
+    const isHindiFollowUp =
+      /\b(iska|uska|yeh|woh|isko|usse|isse|batao|samjhao|phir se|aur batao|kaise karein|samajh nahi aaya)\b/i.test(lower) ||
+      /\b(thoda simple|thoda aasan|short me|detail me|code likho|kya matlab|kyun aisa|kaise hoga)\b/i.test(lower);
+
+    // Check English pronoun / conversational follow-up patterns
     const isEnglishFollowUp =
       /\b(make it|explain it|convert it|connect it|debug it|fix it|run it|show it|simplify it|implement it|code it|write it|test it)\b/i.test(lower) ||
       /\b(make it (simpler|shorter|longer|better|faster|cleaner))\b/i.test(lower) ||
@@ -77,13 +81,50 @@ export class ContextManager {
       /\b(this|that|it|previous one|last one|same thing|same as before|continue from there|add this feature)\b/i.test(lower) ||
       /\b(previous answer|previous code|that code|the code|this code|what does that code do|explain that code|debug that code|optimize that code)\b/i.test(lower) ||
       /\b(convert to pdf|convert it to pdf|fix errors in this code)\b/i.test(lower) ||
-      /^(continue|please continue|go on|proceed|keep going|carry on)\b/i.test(lower);
+      /^(continue|please continue|go on|proceed|keep going|carry on)\b/i.test(lower) ||
+      /^(why\??|why is that\??|why so\??|how so\??|how does that work\??|tell me more|elaborate|explain more|go deeper)\b/i.test(lower) ||
+      /^(can you explain it again\??|explain it again|explain differently|simpler please|eli5)\b/i.test(lower) ||
+      /^(what about|how about|and)\s+[a-zA-Z0-9_\-\s]+\??$/i.test(lower) ||
+      /\b(i don't understand (this|it|anything)|don't get it|lost me)\b/i.test(lower);
 
-    if ((isEnglishFollowUp || isTeluguFollowUp) && (lastUserTurn || lastAssistantTurn)) {
+    if ((isEnglishFollowUp || isTeluguFollowUp || isHindiFollowUp) && (lastUserTurn || lastAssistantTurn)) {
       referenceInfo.hasAnaphora = true;
 
       const previousTopic = recentTopics[0] || this.extractTopicFromTurn(lastUserTurn?.content || "");
       referenceInfo.referencedTopic = previousTopic;
+
+      // Case 0: "Why?" / "Why so?" / "Enduku ala?" / "Kyun?"
+      if (/^(why\??|why so\??|why is that\??|enduku ala|kyun aisa)\b/i.test(lower)) {
+        resolvedPrompt = `Explain the underlying reasons, causality, and mechanisms behind ${previousTopic}`;
+        referenceInfo.resolvedMeaning = `Explain causal mechanisms for ${previousTopic}`;
+      }
+      // Case 0B: "Tell me more" / "Inka cheppu" / "Aur batao"
+      else if (/^(tell me more|elaborate|explain more|go deeper|inka cheppu|aur batao)\b/i.test(lower)) {
+        resolvedPrompt = `Provide a deeper, more detailed explanation of ${previousTopic} covering edge cases, real-world examples, and best practices`;
+        referenceInfo.resolvedMeaning = `Deep dive on ${previousTopic}`;
+      }
+      // Case 0C: "How so?" / "Ela?" / "Kaise?"
+      else if (/^(how so\??|how does that work\??|ela\??|kaise\??)\b/i.test(lower)) {
+        resolvedPrompt = `Explain in practical detail how this works regarding ${previousTopic}`;
+        referenceInfo.resolvedMeaning = `Practical mechanism of ${previousTopic}`;
+      }
+      // Case 0D: "Can you explain it again?" / "Explain differently"
+      else if (/explain.*(again|differently)|malli cheppu|phir se samjhao/i.test(lower)) {
+        resolvedPrompt = `Explain ${previousTopic} from a fresh, alternative perspective using different intuitive analogies without repeating the previous wording`;
+        referenceInfo.resolvedMeaning = `Alternative fresh explanation of ${previousTopic}`;
+      }
+      // Case 0E: "What about <X>?" / "And <X>?"
+      else if (/^(what about|how about|and)\s+([a-zA-Z0-9_\-\s]+)\??$/i.test(lower)) {
+        const xMatch = lower.match(/^(?:what about|how about|and)\s+([a-zA-Z0-9_\-\s]+)\??$/i);
+        const subjectX = xMatch ? xMatch[1].trim() : "that aspect";
+        resolvedPrompt = `Explain how ${subjectX} relates to and integrates with ${previousTopic} previously discussed`;
+        referenceInfo.resolvedMeaning = `Integrate ${subjectX} with ${previousTopic}`;
+      }
+      // Case 0F: "I don't understand this at all" / "Naku ee topic ardham kaledu" / "Samajh nahi aaya"
+      else if (/don't understand|ardham kaledu|artham kaledu|samajh nahi aaya/i.test(lower)) {
+        resolvedPrompt = `Explain ${previousTopic} patiently using simpler language, intuitive real-world analogies, and clear everyday examples`;
+        referenceInfo.resolvedMeaning = `Patient simplified explanation of ${previousTopic}`;
+      }
 
       // Case A: "Make it simpler" / "idi simpler ga cheppu"
       if (

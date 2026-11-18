@@ -132,11 +132,15 @@ export function sanitizeAndGuardPrompt(rawPrompt: string): PromptGuardResult {
 const PII_RULES = [
   // Common API Key formats
   { pattern: /\b(sk-[a-zA-Z0-9-_]{20,})\b/g, replacement: "[REDACTED_API_KEY]" },
-  { pattern: /\b(AIza[0-9A-Za-z-_]{30,45})\b/g, replacement: "[REDACTED_GOOGLE_KEY]" },
+  { pattern: /\b(AIza[0-9A-Za-z-_]{20,45})\b/g, replacement: "[REDACTED_GOOGLE_KEY]" },
   { pattern: /\b(nvapi-[a-zA-Z0-9-_]{30,})\b/g, replacement: "[REDACTED_NVIDIA_KEY]" },
   { pattern: /\b(hf_[a-zA-Z0-9]{30,})\b/g, replacement: "[REDACTED_HF_TOKEN]" },
-  { pattern: /\b(ghp_[a-zA-Z0-9]{36})\b/g, replacement: "[REDACTED_GITHUB_TOKEN]" },
+  { pattern: /\b(ghp_[a-zA-Z0-9]{30,})\b/g, replacement: "[REDACTED_GITHUB_TOKEN]" },
   { pattern: /\b(sb_publishable_[a-zA-Z0-9-_]{30,})\b/g, replacement: "[REDACTED_SUPABASE_KEY]" },
+  { pattern: /(AWS_SECRET_ACCESS_KEY\s*=\s*)([^\s]+)/gi, replacement: "$1[REDACTED_AWS_KEY]" },
+  { pattern: /(password\s*(?:is|:|=)\s*)([^\s,;]+)/gi, replacement: "$1[REDACTED_PASSWORD]" },
+  { pattern: /\bpostgres(?:ql)?:\/\/[^\s]+/gi, replacement: "[REDACTED_DATABASE_URL]" },
+  { pattern: /-----BEGIN [A-Z\s]+ PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z\s]+ PRIVATE KEY-----|\.{3})/gi, replacement: "[REDACTED_PRIVATE_KEY]" },
 
   // JWT Tokens
   { pattern: /\beyJ[a-zA-Z0-9-_=]+\.eyJ[a-zA-Z0-9-_=]+\.[a-zA-Z0-9-_.+/=]+\b/g, replacement: "[REDACTED_JWT]" },

@@ -4,6 +4,12 @@
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
+import type { EmotionalContextResult } from "./emotional-context-analyzer";
+import type { MultilingualAnalysis } from "./multilingual-conversational-engine";
+import type { TrackedConversationState } from "./conversational-context-tracker";
+import type { PersonaConfiguration } from "./adaptive-personality-engine";
+import type { SafetyEvaluationResult } from "./conversational-safety-guard";
+
 export type ConversationalGoal =
   | "direct_question"        // Short factual/conceptual question requiring a concise, direct answer
   | "detailed_explanation"   // In-depth explanation, step-by-step breakdown, or tutorial with examples
@@ -21,7 +27,13 @@ export type ConversationalSignal =
   | "urgency"
   | "curiosity"
   | "dissatisfaction"
-  | "satisfaction";
+  | "satisfaction"
+  | "happiness"
+  | "excitement"
+  | "stress"
+  | "sadness"
+  | "uncertainty"
+  | "disappointment";
 
 export type ProgressStage =
   | "understanding"  // "Understanding your request..."
@@ -60,6 +72,11 @@ export interface HumanContextAnalysis {
   activeProjectTopic?: string;
   technologies?: string[];
   suggestedProactiveStep?: string;
+  emotionalContext?: EmotionalContextResult;
+  multilingual?: MultilingualAnalysis;
+  trackedState?: TrackedConversationState;
+  persona?: PersonaConfiguration;
+  safetyEvaluation?: SafetyEvaluationResult;
 }
 
 export interface DeveloperDebugInfo {

@@ -26,7 +26,8 @@ export type TaskIntent =
   | "agentic_execution"
   | "creative_writing"
   | "troubleshooting"
-  | "comparison";
+  | "comparison"
+  | "safety_guidance";
 
 export type ModelProvider =
   | "gemini"

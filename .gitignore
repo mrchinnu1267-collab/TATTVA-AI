@@ -36,6 +36,7 @@
 # Local Secure Vault & Memory Stores
 **/.tattva_secure_vault/
 **/.tattva_memory_data/
+**/.tattva_studio/
 
 # OS / Editor Files
 .DS_Store
