@@ -14,14 +14,18 @@ export async function POST(request: Request) {
     const session = await verifyUserSession(request);
     const body = await request.json().catch(() => ({}));
 
-    const testType: StatisticalTestType = body.testType || "two_sample_t_test";
-    const alpha = typeof body.alpha === "number" ? body.alpha : 0.05;
+    let rawTestType = body.testType || "two_sample_t_test";
+    if (rawTestType === "welch_t_test") rawTestType = "two_sample_t_test";
+    const testType: StatisticalTestType = rawTestType;
+    const alpha = typeof body.alpha === "number" ? body.alpha : (typeof body.significanceLevel === "number" ? body.significanceLevel : 0.05);
 
     let testResult;
 
     if (testType === "two_sample_t_test" || testType === "paired_t_test") {
-      const sample1 = Array.isArray(body.sample1) ? body.sample1.map(Number).filter((v: number) => !isNaN(v)) : [];
-      const sample2 = Array.isArray(body.sample2) ? body.sample2.map(Number).filter((v: number) => !isNaN(v)) : [];
+      const s1 = body.sample1 || body.groupA;
+      const s2 = body.sample2 || body.groupB;
+      const sample1 = Array.isArray(s1) ? s1.map(Number).filter((v: number) => !isNaN(v)) : [];
+      const sample2 = Array.isArray(s2) ? s2.map(Number).filter((v: number) => !isNaN(v)) : [];
 
       if (sample1.length < 2 || sample2.length < 2) {
         return NextResponse.json(
