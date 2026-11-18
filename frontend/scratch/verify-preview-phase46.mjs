@@ -62,7 +62,9 @@ async function main() {
   if (!faqSearchOutput.includes('"success":true') || !faqSearchOutput.includes('"articles":')) {
     throw new Error("FAQ Search failed: " + faqSearchOutput);
   }
-  const voteCmd = `npx vercel curl "${targetUrl}/api/support/faq?action=vote&slug=supported-ai-models-and-intelligent-routing"`;
+  const matchSlug = faqSearchOutput.match(/"slug":"([^"]+)"/);
+  const targetSlug = matchSlug ? matchSlug[1] : "getting-started-with-tattva-ai";
+  const voteCmd = `npx vercel curl "${targetUrl}/api/support/faq?action=vote&slug=${targetSlug}"`;
   const voteOutput = execSync(voteCmd, { encoding: "utf-8" });
   if (!voteOutput.includes('"voted":true')) {
     throw new Error("FAQ Vote failed: " + voteOutput);
@@ -74,7 +76,7 @@ async function main() {
   console.log("4. Testing /api/support/tickets (POST) with PII data...");
   const ticketPayload = {
     subject: "Automated Verification Test Issue",
-    description: "Please check my server. Secret phone is 555-0199 and SSN is 000-12-3456.",
+    description: "Please check my server. Secret phone is 415-555-0199 and SSN is 123-45-6789.",
     category: "technical",
     priority: "high",
   };
@@ -85,7 +87,7 @@ async function main() {
   if (!ticketOutput.includes('"success":true') || !ticketOutput.includes('TCK-')) {
     throw new Error("Ticket creation failed: " + ticketOutput);
   }
-  if (ticketOutput.includes("000-12-3456")) {
+  if (ticketOutput.includes("123-45-6789")) {
     throw new Error("PII leak detected! SSN was not redacted: " + ticketOutput);
   }
   checksPassed++;

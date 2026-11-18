@@ -92,23 +92,54 @@ export async function PUT(request: Request) {
     const user = await verifyUserSession(request);
     const userId = user.userId || "authenticated_user";
     const body = await request.json().catch(() => ({}));
-    const { id, status } = body;
+    const { id, ticketId, status, message, sender, senderName } = body;
+    const targetId = id || ticketId;
 
-    if (!id || !status) {
+    if (!targetId) {
       return NextResponse.json(
-        { success: false, error: "Ticket id and status are required" },
+        { success: false, error: "Ticket id (or ticketId) is required" },
         { status: 400 }
       );
     }
 
     const engine = CustomerSupportEngine.getInstance();
-    const updated = await engine.updateTicketStatus(id, status, userId);
 
-    if (!updated) {
-      return NextResponse.json({ success: false, error: "Ticket not found or unauthorized" }, { status: 403 });
+    if (message) {
+      const reply = await engine.replyToTicket({
+        ticketId: targetId,
+        sender: sender || "user",
+        senderName: senderName || user.email?.split("@")[0] || "User",
+        message,
+        requestingUserId: userId,
+      });
+
+      if (!reply) {
+        return NextResponse.json(
+          { success: false, error: "Failed to reply or unauthorized" },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: reply, reply });
     }
 
-    return NextResponse.json({ success: true, ticket: updated });
+    if (status) {
+      const updated = await engine.updateTicketStatus(targetId, status, userId);
+
+      if (!updated) {
+        return NextResponse.json(
+          { success: false, error: "Ticket not found or unauthorized" },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json({ success: true, ticket: updated });
+    }
+
+    return NextResponse.json(
+      { success: false, error: "Either status or message must be provided" },
+      { status: 400 }
+    );
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
