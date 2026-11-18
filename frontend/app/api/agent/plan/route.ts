@@ -14,6 +14,9 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
 
     const rateCheck = checkRateLimit(`agent_plan_${session.userId}_${clientIp}`, 60, 60000);
@@ -61,6 +64,9 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const planId = searchParams.get("planId");
 

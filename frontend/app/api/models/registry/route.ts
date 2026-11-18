@@ -14,6 +14,9 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const session = await verifyUserSession(request);
+    if (!session.authenticated) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
 
     const rateCheck = checkRateLimit(`model_reg_${session.userId}_${clientIp}`, 120, 60000);
