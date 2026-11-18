@@ -23,6 +23,7 @@ import { AIGovernanceEngine } from "../ai-governance";
 import { BillingEngine } from "../billing";
 import { CustomerSupportEngine } from "../support";
 import { DataGovernanceEngine } from "../data-governance";
+import { ProductionReliabilityEngine } from "../reliability";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1784,6 +1785,127 @@ export class CentralizedToolRegistry {
             status: req.status,
             confirmationCodeRequired: true,
             auditHash: req.auditHash,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 37. Service Reliability Metrics Tool (Phase 48)
+    this.registerTool({
+      name: "get_service_reliability_metrics",
+      displayName: "Reliability & SLA Telemetry",
+      description: "Retrieves platform uptime SLA, MTBF, MTTR, latency percentiles (p50, p95, p99), and circuit breaker health.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {},
+      outputSchema: {
+        uptimePercent: "number",
+        mtbfHours: "number",
+        mttrMinutes: "number",
+        latencyP50Ms: "number",
+        latencyP95Ms: "number",
+        activeIncidentsCount: "number",
+      },
+      execute: async () => {
+        const rel = ProductionReliabilityEngine.getInstance();
+        const m = rel.getMetrics();
+        return {
+          toolName: "get_service_reliability_metrics",
+          success: true,
+          output: {
+            uptimePercent: m.uptimePercent,
+            mtbfHours: m.mtbfHours,
+            mttrMinutes: m.mttrMinutes,
+            latencyP50Ms: m.latencyP50Ms,
+            latencyP95Ms: m.latencyP95Ms,
+            activeIncidentsCount: m.activeIncidentsCount,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 38. Synthetic Health Probe Tool (Phase 48)
+    this.registerTool({
+      name: "run_reliability_health_probe",
+      displayName: "Synthetic Health Probe Runner",
+      description: "Executes on-demand synthetic availability and latency probes across all core TATTVA AI endpoints.",
+      category: "api",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {},
+      outputSchema: {
+        probeCount: "number",
+        probes: "array",
+      },
+      execute: async () => {
+        const rel = ProductionReliabilityEngine.getInstance();
+        const probes = await rel.runHealthProbes();
+        return {
+          toolName: "run_reliability_health_probe",
+          success: true,
+          output: {
+            probeCount: probes.length,
+            probes: probes.map((p) => ({
+              name: p.name,
+              endpoint: p.endpoint,
+              latencyMs: p.latencyMs,
+              status: p.status,
+            })),
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 39. Automated Incident Mitigation Tool (Phase 48)
+    this.registerTool({
+      name: "trigger_incident_mitigation",
+      displayName: "Automated Incident Playbook Mitigator",
+      description: "Executes automated recovery playbooks such as provider failover, circuit breaker reset, or cache flushing.",
+      category: "security",
+      permission: "approval_required",
+      timeoutMs: 15000,
+      inputSchema: {
+        incidentId: { type: "string", description: "Incident ID to mitigate", required: true },
+        mitigationAction: {
+          type: "string",
+          description: "Mitigation action: provider_failover, reset_circuit_breaker, flush_cache, or rate_limit_throttle",
+          required: true,
+        },
+      },
+      outputSchema: {
+        incidentId: "string",
+        status: "string",
+        details: "string",
+      },
+      execute: async (params: Record<string, any>) => {
+        const rel = ProductionReliabilityEngine.getInstance();
+        const res = await rel.mitigateIncident({
+          incidentId: params.incidentId,
+          mitigationAction: params.mitigationAction,
+          actor: "Agent-Mitigator",
+        });
+
+        if (!res.success || !res.incident) {
+          return {
+            toolName: "trigger_incident_mitigation",
+            success: false,
+            output: { error: res.details },
+            error: res.details,
+            executionTimeMs: 0,
+          };
+        }
+
+        return {
+          toolName: "trigger_incident_mitigation",
+          success: true,
+          output: {
+            incidentId: res.incident.id,
+            status: res.incident.status,
+            details: res.details,
           },
           executionTimeMs: 0,
         };
