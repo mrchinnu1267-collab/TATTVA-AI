@@ -1,31 +1,58 @@
 /**
- * TATTVA AI - Payment Webhook Ingestion API Route (Phase 45)
- * POST /api/billing/webhooks -> Ingests webhook events from Stripe, LemonSqueezy, and Razorpay
+ * TATTVA AI - Authoritative Payment Webhook Ingestion API Route
+ * POST /api/billing/webhooks -> Validates HMAC signature and processes provider webhooks
  */
 
 import { NextResponse } from "next/server";
-import { PaymentGateway } from "../../../lib/billing";
+import { UpiPaymentGateway } from "../../../lib/billing/upi-gateway";
+import { logSecurityEvent } from "../../../lib/security";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const eventType = body.type || body.event || body.eventType || "unknown";
-    const provider = body.provider || (body.type?.startsWith("customer.") || body.type?.startsWith("checkout.") ? "stripe" : "lemonsqueezy");
-    const data = body.data?.object || body.data || body;
+    const rawPayload = await request.text();
+    const signature = request.headers.get("x-razorpay-signature") || "";
 
-    const gateway = PaymentGateway.getInstance();
+    if (!rawPayload || !signature) {
+      logSecurityEvent("INVALID_WEBHOOK_PAYLOAD", {
+        endpoint: "/api/billing/webhooks",
+        details: { reason: "Missing raw body or X-Razorpay-Signature header" },
+      });
+      return NextResponse.json(
+        { success: false, error: "Missing required webhook payload or signature." },
+        { status: 400 }
+      );
+    }
+
+    let parsedEvent: Record<string, any>;
+    try {
+      parsedEvent = JSON.parse(rawPayload);
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Malformed JSON payload." },
+        { status: 400 }
+      );
+    }
+
+    const gateway = UpiPaymentGateway.getInstance();
     const result = await gateway.handleWebhook({
-      id: body.id || `evt_${Date.now()}`,
-      provider,
-      eventType,
-      timestamp: Date.now(),
-      data,
+      rawPayload,
+      signature,
+      event: parsedEvent,
     });
 
-    return NextResponse.json({ success: true, handled: result.handled, action: result.action });
+    return NextResponse.json({
+      success: true,
+      handled: result.handled,
+      action: result.action,
+    });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[Billing Webhooks] Verification error:", err.message);
+    logSecurityEvent("WEBHOOK_VERIFICATION_FAILURE", {
+      endpoint: "/api/billing/webhooks",
+      details: { error: err.message },
+    });
+    return NextResponse.json({ success: false, error: err.message }, { status: 400 });
   }
 }

@@ -240,6 +240,7 @@ export class PaymentGateway {
   public getSubscriberMetrics(): { activeSubscribers: number; tierBreakdown: Record<SubscriptionTier, number> } {
     const breakdown: Record<SubscriptionTier, number> = {
       free: 0,
+      go: 0,
       pro: 0,
       enterprise: 0,
     };

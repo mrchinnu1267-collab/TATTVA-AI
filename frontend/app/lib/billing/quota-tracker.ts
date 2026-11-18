@@ -1,6 +1,6 @@
 /**
- * TATTVA AI - Tenant Quota & Usage Enforcement Engine (Phase 45)
- * Enforces rate limits, daily request ceilings, monthly token quotas, and storage bounds.
+ * TATTVA AI - Tenant Quota & Usage Enforcement Engine
+ * Enforces rate limits, daily request ceilings, monthly token quotas, tool usage limits, and storage bounds.
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
@@ -76,6 +76,7 @@ export class QuotaTracker {
         monthKey,
         tokensUsed: 0,
         requestsToday: 0,
+        toolsUsedToday: 0,
         lastRequestDate: todayKey,
         storageBytesUsed: 0,
         lastUpdated: Date.now(),
@@ -90,10 +91,11 @@ export class QuotaTracker {
       usage.tokensUsed = 0;
     }
 
-    // Reset daily requests if new day
+    // Reset daily requests and tool counts if new day
     if (usage.lastRequestDate !== todayKey) {
       usage.lastRequestDate = todayKey;
       usage.requestsToday = 0;
+      usage.toolsUsedToday = 0;
     }
 
     return usage;
@@ -113,13 +115,15 @@ export class QuotaTracker {
 
     const tokenLimit = plan.tokenLimitMonthly;
     const requestLimit = plan.requestLimitDaily;
+    const toolLimit = plan.toolLimitDaily || 25;
     const storageLimitBytes = plan.storageLimitBytes;
 
     const remainingTokens = Math.max(0, tokenLimit - usage.tokensUsed);
     const remainingRequests = Math.max(0, requestLimit - usage.requestsToday);
+    const remainingTools = Math.max(0, toolLimit - (usage.toolsUsedToday || 0));
     const remainingStorageBytes = Math.max(0, storageLimitBytes - usage.storageBytesUsed);
 
-    // Rate / quota checks
+    // Daily message request ceiling check
     if (usage.requestsToday + 1 > requestLimit) {
       return {
         allowed: false,
@@ -130,13 +134,17 @@ export class QuotaTracker {
         requestsToday: usage.requestsToday,
         requestLimit,
         remainingRequests: 0,
+        toolsUsedToday: usage.toolsUsedToday || 0,
+        toolLimit,
+        remainingTools,
         storageBytesUsed: usage.storageBytesUsed,
         storageLimitBytes,
         remainingStorageBytes,
-        reason: `Daily request limit reached (${usage.requestsToday}/${requestLimit}). Upgrade plan to increase quota.`,
+        reason: `Daily message request limit reached (${usage.requestsToday}/${requestLimit}). Subscribe to TATTVA AI Go (₹40/mo) for higher limits.`,
       };
     }
 
+    // Monthly token limit check
     if (usage.tokensUsed + additionalTokens > tokenLimit) {
       return {
         allowed: false,
@@ -147,13 +155,17 @@ export class QuotaTracker {
         requestsToday: usage.requestsToday,
         requestLimit,
         remainingRequests,
+        toolsUsedToday: usage.toolsUsedToday || 0,
+        toolLimit,
+        remainingTools,
         storageBytesUsed: usage.storageBytesUsed,
         storageLimitBytes,
         remainingStorageBytes,
-        reason: `Monthly token allocation exhausted (${usage.tokensUsed.toLocaleString()}/${tokenLimit.toLocaleString()}).`,
+        reason: `Monthly token allocation exhausted (${usage.tokensUsed.toLocaleString()}/${tokenLimit.toLocaleString()}). Upgrade to TATTVA AI Go for 1.5M monthly tokens.`,
       };
     }
 
+    // Storage capacity check
     if (usage.storageBytesUsed + additionalStorageBytes > storageLimitBytes) {
       return {
         allowed: false,
@@ -164,6 +176,9 @@ export class QuotaTracker {
         requestsToday: usage.requestsToday,
         requestLimit,
         remainingRequests,
+        toolsUsedToday: usage.toolsUsedToday || 0,
+        toolLimit,
+        remainingTools,
         storageBytesUsed: usage.storageBytesUsed,
         storageLimitBytes,
         remainingStorageBytes: 0,
@@ -180,10 +195,31 @@ export class QuotaTracker {
       requestsToday: usage.requestsToday,
       requestLimit,
       remainingRequests,
+      toolsUsedToday: usage.toolsUsedToday || 0,
+      toolLimit,
+      remainingTools,
       storageBytesUsed: usage.storageBytesUsed,
       storageLimitBytes,
       remainingStorageBytes,
     };
+  }
+
+  /**
+   * Checks tool usage quota specifically
+   */
+  public checkToolQuota(userId: string, tier: SubscriptionTier = "free"): { allowed: boolean; reason?: string } {
+    const plan = this.planManager.getPlan(tier);
+    const usage = this.getOrCreateUsage(userId);
+    const toolLimit = plan.toolLimitDaily || (tier === "go" ? 150 : 25);
+
+    if ((usage.toolsUsedToday || 0) >= toolLimit) {
+      return {
+        allowed: false,
+        reason: `Daily tool execution limit reached (${usage.toolsUsedToday}/${toolLimit}). ${tier === "free" ? "Upgrade to TATTVA AI Go (₹40/mo) for 150 daily tool calls." : "Tool quota resets at midnight UTC."}`,
+      };
+    }
+
+    return { allowed: true };
   }
 
   /**
@@ -192,11 +228,13 @@ export class QuotaTracker {
   public async recordUsage(
     userId: string,
     tokens: number = 0,
-    storageDeltaBytes: number = 0
+    storageDeltaBytes: number = 0,
+    toolsUsed: number = 0
   ): Promise<QuotaUsage> {
     const usage = this.getOrCreateUsage(userId);
     usage.tokensUsed += Math.max(0, tokens);
     usage.requestsToday += 1;
+    usage.toolsUsedToday = (usage.toolsUsedToday || 0) + Math.max(0, toolsUsed);
     usage.storageBytesUsed = Math.max(0, usage.storageBytesUsed + storageDeltaBytes);
     usage.lastUpdated = Date.now();
 

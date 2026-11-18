@@ -1,6 +1,6 @@
 /**
- * TATTVA AI - Billing & Commercial Platform Engine (Phase 45)
- * Unified Facade for Subscriptions, Quota Enforcement, Invoicing, and Commercial Analytics.
+ * TATTVA AI - Billing & Commercial Platform Engine
+ * Unified Facade for Subscriptions, UPI Payments, Quota Enforcement, Invoicing, and Commercial Analytics.
  * Conceptualized & Engineered by kotapati Gowtham Chowdary
  */
 
@@ -8,6 +8,7 @@ import { PlanManager } from "./plan-manager";
 import { QuotaTracker } from "./quota-tracker";
 import { PaymentGateway } from "./payment-gateway";
 import { InvoiceGenerator } from "./invoice-generator";
+import { UpiPaymentGateway } from "./upi-gateway";
 import {
   SubscriptionTier,
   BillingCycle,
@@ -16,6 +17,9 @@ import {
   Invoice,
   UsageAnalytics,
   PlanDefinition,
+  UpiOrderCreationResult,
+  UpiPaymentRecord,
+  RefundRecord,
 } from "./types";
 
 export class BillingEngine {
@@ -25,12 +29,14 @@ export class BillingEngine {
   private quotaTracker: QuotaTracker;
   private paymentGateway: PaymentGateway;
   private invoiceGenerator: InvoiceGenerator;
+  private upiGateway: UpiPaymentGateway;
 
   private constructor() {
     this.planManager = PlanManager.getInstance();
     this.quotaTracker = QuotaTracker.getInstance();
     this.paymentGateway = PaymentGateway.getInstance();
     this.invoiceGenerator = InvoiceGenerator.getInstance();
+    this.upiGateway = UpiPaymentGateway.getInstance();
   }
 
   public static getInstance(): BillingEngine {
@@ -61,9 +67,44 @@ export class BillingEngine {
 
   /**
    * User Subscriptions
+   * Directly routes through the authoritative UPI Payment Gateway
    */
   public getUserSubscription(userId: string): UserSubscription {
-    return this.paymentGateway.getSubscription(userId);
+    return this.upiGateway.getSubscription(userId);
+  }
+
+  public async createUpiOrder(params: {
+    userId: string;
+    userEmail: string;
+    autoRenew?: boolean;
+  }): Promise<UpiOrderCreationResult> {
+    return this.upiGateway.createUpiOrder(params);
+  }
+
+  public async verifyUpiPayment(params: {
+    userId: string;
+    orderId: string;
+    paymentId: string;
+    signature: string;
+    upiVpa?: string;
+  }): Promise<{ success: boolean; subscription?: UserSubscription; error?: string }> {
+    return this.upiGateway.verifyPayment(params);
+  }
+
+  public async cancelSubscription(userId: string): Promise<{ success: boolean; message: string }> {
+    return this.upiGateway.cancelSubscription(userId);
+  }
+
+  public async requestRefund(params: {
+    userId: string;
+    paymentId: string;
+    reason: string;
+  }): Promise<RefundRecord> {
+    return this.upiGateway.requestRefund(params);
+  }
+
+  public getUserPayments(userId: string): UpiPaymentRecord[] {
+    return this.upiGateway.getUserPayments(userId);
   }
 
   public async setSubscriptionTier(
@@ -98,12 +139,17 @@ export class BillingEngine {
     return this.quotaTracker.checkQuota(userId, tier, tokens, storageBytes);
   }
 
+  public checkToolQuota(userId: string, tier: SubscriptionTier = "free"): { allowed: boolean; reason?: string } {
+    return this.quotaTracker.checkToolQuota(userId, tier);
+  }
+
   public async recordUsage(
     userId: string,
     tokens: number = 0,
-    storageDeltaBytes: number = 0
+    storageDeltaBytes: number = 0,
+    toolsUsed: number = 0
   ) {
-    return this.quotaTracker.recordUsage(userId, tokens, storageDeltaBytes);
+    return this.quotaTracker.recordUsage(userId, tokens, storageDeltaBytes, toolsUsed);
   }
 
   public getUserUsage(userId: string, tier: SubscriptionTier = "free"): QuotaCheckResult {
@@ -140,28 +186,38 @@ export class BillingEngine {
    * Commercial Analytics & Revenue Health
    */
   public getAnalytics(): UsageAnalytics {
-    const { activeSubscribers, tierBreakdown } = this.paymentGateway.getSubscriberMetrics();
+    const adminMetrics = this.upiGateway.getAdminMetrics();
     const { totalTokens, totalStorage } = this.quotaTracker.getAggregateMetrics();
 
-    // Calculate MRR: Pro ($20/mo), Enterprise ($150/mo)
-    const proMrr = (tierBreakdown.pro || 0) * 20;
-    const entMrr = (tierBreakdown.enterprise || 0) * 150;
-    const mrr = proMrr + entMrr;
-    const arr = mrr * 12;
+    // ₹40/mo per active Go subscriber
+    const mrrInr = adminMetrics.activeGoSubscribers * 40;
+    const totalRevInr = adminMetrics.totalRevenueInr;
 
-    // Approximate compute cost: $0.15 per 1M tokens average + $0.02 per GB storage
+    // Converted to USD estimate (1 USD ~ 85 INR)
+    const mrrUsd = Math.round((mrrInr / 85) * 100) / 100;
+    const arrUsd = mrrUsd * 12;
+
     const tokenCost = (totalTokens / 1000000) * 0.15;
     const storageGb = totalStorage / (1024 * 1024 * 1024);
     const storageCost = storageGb * 0.02;
     const totalCost = tokenCost + storageCost;
 
-    const margin = mrr > 0 ? Math.round(((mrr - totalCost) / mrr) * 100) : 85;
+    const margin = mrrUsd > 0 ? Math.round(((mrrUsd - totalCost) / mrrUsd) * 100) : 85;
+
+    const tierBreakdown: Record<SubscriptionTier, number> = {
+      free: adminMetrics.totalSubscriptions - adminMetrics.activeGoSubscribers,
+      go: adminMetrics.activeGoSubscribers,
+      pro: 0,
+      enterprise: 0,
+    };
 
     return {
-      totalRevenueUsd: mrr,
-      mrrUsd: mrr,
-      arrUsd: arr,
-      activeSubscribers,
+      totalRevenueUsd: Math.round((totalRevInr / 85) * 100) / 100,
+      totalRevenueInr: totalRevInr,
+      mrrInr,
+      mrrUsd,
+      arrUsd,
+      activeSubscribers: adminMetrics.activeGoSubscribers,
       subscribersByTier: tierBreakdown,
       totalTokensConsumed: totalTokens,
       totalStorageBytes: totalStorage,
@@ -170,11 +226,16 @@ export class BillingEngine {
       lastCalculated: Date.now(),
     };
   }
+
+  public getAdminMetrics() {
+    return this.upiGateway.getAdminMetrics();
+  }
 }
 
 // Explicit named exports for TypeScript execution and clarity
 export { PlanManager } from "./plan-manager";
 export { QuotaTracker } from "./quota-tracker";
 export { PaymentGateway } from "./payment-gateway";
+export { UpiPaymentGateway } from "./upi-gateway";
 export { InvoiceGenerator } from "./invoice-generator";
 export * from "./types";

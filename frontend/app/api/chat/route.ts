@@ -65,6 +65,21 @@ export async function POST(request: Request) {
     const userEmail = session.authenticated ? session.email : session.userId;
     const latestUserMsg = [...body.messages].reverse().find((m: any) => m.role === "user");
 
+    // Subscription & Quota Entitlement Verification (Phase 7)
+    const { BillingEngine } = await import("../../lib/billing");
+    const userSub = BillingEngine.getInstance().getUserSubscription(session.userId);
+    const quotaCheck = BillingEngine.getInstance().checkQuota(session.userId, userSub.tier, 100);
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: quotaCheck.reason || "Usage limit reached. Please upgrade to TATTVA AI Go (₹40/month) for higher limits.",
+          quotaExceeded: true,
+          currentTier: userSub.tier,
+        },
+        { status: 429 }
+      );
+    }
+
     // 1. INBUILT CLOCK & REAL-TIME GROUNDING
     let clockData: ClockReport | undefined;
     if (latestUserMsg && isClockQuery(latestUserMsg.content)) {
@@ -280,6 +295,10 @@ export async function POST(request: Request) {
     let orchestratorResult: any;
     try {
       orchestratorResult = await Promise.race([orchestratorPromise, timeoutPromise]);
+      // Record incremental token usage
+      BillingEngine.getInstance()
+        .recordUsage(session.userId, orchestratorResult.usage?.totalTokens || 120, 0, 0)
+        .catch(() => {});
     } finally {
       if (timeoutTimer) clearTimeout(timeoutTimer);
     }

@@ -96,8 +96,33 @@ export class ToolRegistry {
       }
     }
 
+    // Entitlement & Tool Quota Check (Phase 7)
+    if (context.userId && context.userId !== "guest_user") {
+      try {
+        const { BillingEngine } = await import("../../billing");
+        const sub = BillingEngine.getInstance().getUserSubscription(context.userId);
+        const toolCheck = BillingEngine.getInstance().checkToolQuota(context.userId, sub.tier);
+        if (!toolCheck.allowed) {
+          return {
+            toolName: name,
+            success: false,
+            output: null,
+            error: toolCheck.reason || "Daily tool execution limit reached. Upgrade to TATTVA AI Go (₹40/mo) for higher limits.",
+            executionTimeMs: 0,
+          };
+        }
+      } catch {}
+    }
+
     try {
-      return await tool.execute(params, context);
+      const result = await tool.execute(params, context);
+      if (result.success && context.userId && context.userId !== "guest_user") {
+        try {
+          const { BillingEngine } = await import("../../billing");
+          await BillingEngine.getInstance().recordUsage(context.userId, 0, 0, 1);
+        } catch {}
+      }
+      return result;
     } catch (err) {
       return {
         toolName: name,
