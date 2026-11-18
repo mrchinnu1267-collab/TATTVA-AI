@@ -4,6 +4,7 @@
  */
 
 import { TaskStep, AgentSubrole } from "./types";
+import { dynamicExecutionPlanner, ExecutionDAG } from "./execution-planner";
 
 export interface DecomposedPlan {
   objective: string;
@@ -13,6 +14,13 @@ export interface DecomposedPlan {
 }
 
 export class TaskPlanningEngine {
+  /**
+   * Plans the objective using the DynamicExecutionPlanner with Kahn's Algorithm execution tiers
+   */
+  public static planTaskWithDAG(objective: string, constraints: string[] = []): ExecutionDAG {
+    return dynamicExecutionPlanner.planGoal(objective, constraints);
+  }
+
   /**
    * Analyzes user objective and decomposes it into an ordered dependency-aware task plan.
    */

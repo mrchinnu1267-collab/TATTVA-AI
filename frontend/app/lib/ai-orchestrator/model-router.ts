@@ -7,6 +7,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { AIModelSpec, ModelProvider, TaskIntent, TokenUsageMetrics, StreamChunkEvent } from "./types";
 import { inspectAndReadDocument } from "../document-engine";
+import { modelRegistry, ModelRegistry } from "./model-registry";
 
 export interface ModelCallOptions {
   messages: Array<{
@@ -283,6 +284,13 @@ export class ModelRouter {
       ModelRouter.instance = new ModelRouter();
     }
     return ModelRouter.instance;
+  }
+
+  /**
+   * Access the Unified Multi-Modal Model Registry & Scorer
+   */
+  public getRegistry(): ModelRegistry {
+    return modelRegistry;
   }
 
   /**
