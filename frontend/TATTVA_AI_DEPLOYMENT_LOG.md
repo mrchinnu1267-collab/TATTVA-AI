@@ -3,7 +3,7 @@
 > **Production Domain:** https://tattva-ai-phi.vercel.app  
 > **Platform Provider:** Vercel (Edge Network + Serverless Lambdas)  
 > **Git Remote:** `https://github.com/mrchinnu1267-collab/TATTVA-AI.git`  
-> **Active Production Commit:** `18f5ea3`  
+> **Active Production Commit:** `ccae132`  
 > **Deployment Status:** `ACTIVE & HEALTHY`  
 > **Last Updated:** 2026-11-18  
 
@@ -28,7 +28,21 @@ flowchart LR
 
 ## 2. Recent Deployment History
 
-### Deployment `dpl_5abdSeYwAYWBkrEuXtHbzjtCFFh5` (Current Production)
+### Deployment `dpl_9aRFJH1tHZ4XUyjNWafpuAuyRrEP` (Current Production)
+- **Date & Time:** 2026-11-18T04:43:00Z
+- **Target:** `production` (`https://tattva-ai-phi.vercel.app`)
+- **Git Commit:** `ccae132`
+- **Branch:** `main`
+- **Release Highlights:**
+  - Implemented Unified Multi-Modal Model Registry (`model-registry.ts`) with Gemini, Claude, OpenAI, DeepSeek, and Nvidia NIM fleets
+  - Dynamic Capability Scoring algorithm balancing intent alignment, modality compatibility, context token limits, and cost sensitivity
+  - Live Circuit Breaker health tracking (trips after 3 consecutive failures, 60s cooldown, automatic half-open recovery)
+  - Implemented Dynamic Execution Planner (`execution-planner.ts`) with Kahn's algorithm topological execution tiers and dynamic variable binding (`{{step_1.output.summary}}`)
+  - Enforced zero-trust Human-In-The-Loop approval gates on dangerous/destructive operations (`DROP TABLE`, `rm -rf`)
+  - Added RESTful API route handlers `GET /api/models/registry` and `POST|GET /api/agent/plan` with zero-trust HMAC session authorization
+- **Verification Result:** 10/10 automated production verification checks PASSED (100%).
+
+### Deployment `dpl_5abdSeYwAYWBkrEuXtHbzjtCFFh5` (Previous Production)
 - **Date & Time:** 2026-11-18T04:18:22Z
 - **Target:** `production` (`https://tattva-ai-phi.vercel.app`)
 - **Git Commit:** `18f5ea3`

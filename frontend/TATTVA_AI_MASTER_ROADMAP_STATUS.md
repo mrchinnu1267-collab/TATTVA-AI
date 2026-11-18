@@ -365,3 +365,47 @@
   9. DELETE `/api/memory?all=true` passed
 - **Regressions Detected:** Zero regressions detected. All conversational routing, intent classification, and streaming endpoints remain healthy and operational.
 - **Next Recommended Task:** Next.js Security Advisory Upgrade (Next.js 16.4.3 security patch advisory) and Enhanced Real-time Streaming Reconnection handling for flaky mobile networks.
+
+### Release 2026-11-18: Central Intelligence Core — Unified Model Registry & Dynamic Execution Planner
+- **Status:** `PRODUCTION DEPLOYED AND VERIFIED`
+- **Objective:** Eliminate fragmented model declarations, introduce the Unified Model Registry declaring full multi-modal capabilities across providers, establish dynamic capability scoring and circuit breaker health tracking, and build the Dynamic Execution Planner with Kahn's algorithm topological execution tiers and dynamic variable binding.
+- **Features Completed:**
+  - **Unified Multi-Modal Model Registry (`model-registry.ts`):** Complete centralized catalog declaring Gemini, Claude, OpenAI, DeepSeek/OpenRouter, Nvidia NIM, HuggingFace, Pollinations, and Tattva Native models with input modalities (text, image, audio, video, document), output modalities (text, code, image, audio, json), context windows (up to 2M tokens), pricing, and latency tiers.
+  - **Dynamic Capability Scoring & Fallback Chains:** Multi-factor scoring matrix balancing intent alignment, modality compatibility, context token fit, latency priority, and cost sensitivity with automatic multi-provider fallback chain resolution.
+  - **Circuit Breaker & Live Health Monitoring:** Automatically trips after 3 consecutive failures into 60s cooldown, half-opens and recovers upon successful execution.
+  - **Dynamic Execution Planner (`execution-planner.ts`):** Deconstructs complex user objectives into Directed Acyclic Graphs (DAGs) with topological execution tiers (Kahn's algorithm), cycle detection, and dynamic variable binding (`{{step_1.output.summary}}`).
+  - **Human-In-The-Loop Approval Gates:** Scans task DAGs for destructive patterns (`DROP TABLE`, `rm -rf`, `delete from`, external email dispatch) and mandates explicit human confirmation.
+  - **Checkpoint Recovery & Serialization:** Supports DAG state checkpointing, JSON serialization, and resumption.
+  - **API Route Handlers:** Implemented `GET /api/models/registry` (catalog, dynamic scoring `?select=best`, fallback chain `?chain=true`) and `POST|GET /api/agent/plan` (DAG generation, execution tiers, checkpoint retrieval) protected by zero-trust HMAC session authorization.
+- **Files Modified/Created:**
+  - `frontend/app/lib/ai-orchestrator/model-registry.ts`
+  - `frontend/app/lib/agent-engine/execution-planner.ts`
+  - `frontend/app/lib/agent-engine/planning-engine.ts`
+  - `frontend/app/lib/ai-orchestrator/model-router.ts`
+  - `frontend/app/api/models/registry/route.ts`
+  - `frontend/app/api/agent/plan/route.ts`
+  - `frontend/scratch/test-unified-model-registry-planner.mjs`
+  - `frontend/scratch/verify-model-registry-planner-api.mjs`
+- **Tests Passed:**
+  - Unit & Integration test suite (`scratch/test-unified-model-registry-planner.mjs`): 13/13 PASSED (100%)
+  - TypeScript compilation (`npx tsc --noEmit`): 0 errors
+  - Main chat regression suite (`tests/main-chat.test.ts`): 5/5 PASSED (100%)
+  - Production build (`npm run build`): Completed with code 0
+  - Live production verification suite (`scratch/verify-model-registry-planner-api.mjs`): 10/10 PASSED (100%) on `https://tattva-ai-phi.vercel.app`
+- **Git Commits:**
+  - Feature branch: `7665213` (`feature/unified-model-registry-planner`)
+  - Merged into `main`: `ccae132`
+- **Production URL:** https://tattva-ai-phi.vercel.app (10/10 checks passed)
+- **Deployment Verification:** 10/10 live production checks passed:
+  1. `GET /api/health` passed (HTTP 200)
+  2. Unauthenticated `GET /api/models/registry` rejected (HTTP 401)
+  3. Authenticated `GET /api/models/registry` passed (HTTP 200, snapshot returned)
+  4. Dynamic capability scoring `?select=best&intent=reasoning` passed (HTTP 200)
+  5. Multi-provider fallback chain resolution `?chain=true&intent=coding` passed (HTTP 200)
+  6. Unauthenticated `POST /api/agent/plan` rejected (HTTP 401)
+  7. Invalid body `POST /api/agent/plan` rejected (HTTP 400)
+  8. Complex goal `POST /api/agent/plan` decomposed into acyclic DAG with Kahn tiers passed (HTTP 200)
+  9. Checkpoint retrieval `GET /api/agent/plan?planId=...` passed (HTTP 200)
+  10. Destructive command detection and human approval gate passed (HTTP 200, requiresApproval: true)
+- **Regressions Detected:** Zero regressions detected. All conversational routing, memory service, and streaming endpoints remain healthy and operational.
+- **Next Recommended Task:** Advanced Reasoning Engine (Phase 2.2): Deep reasoning trace visualization (DeepSeek-R1 / Gemini Thinking) and sandboxed multi-language code runner.
