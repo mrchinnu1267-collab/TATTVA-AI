@@ -24,6 +24,7 @@ import { BillingEngine } from "../billing";
 import { CustomerSupportEngine } from "../support";
 import { DataGovernanceEngine } from "../data-governance";
 import { ProductionReliabilityEngine } from "../reliability";
+import { ProductUXAuditEngine } from "../ux-audit";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1906,6 +1907,127 @@ export class CentralizedToolRegistry {
             incidentId: res.incident.id,
             status: res.incident.status,
             details: res.details,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 40. Product Accessibility & WCAG Audit Tool (Phase 49)
+    this.registerTool({
+      name: "audit_product_accessibility",
+      displayName: "WCAG 2.1 AA Accessibility & Polish Evaluator",
+      description: "Evaluates application surfaces or modules against WCAG 2.1 AA accessibility and responsiveness standards.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {
+        moduleId: {
+          type: "string",
+          description: "Optional module ID (e.g., mod_chat, mod_software_studio, mod_billing, mod_reliability)",
+          required: false,
+        },
+      },
+      outputSchema: {
+        moduleId: "string",
+        accessibilityScore: "number",
+        wcagTier: "string",
+        status: "string",
+        issues: "array",
+      },
+      execute: async (params: Record<string, any>) => {
+        const engine = ProductUXAuditEngine.getInstance();
+        if (params.moduleId) {
+          const mod = engine.getModuleAudit(params.moduleId);
+          if (!mod) {
+            return {
+              toolName: "audit_product_accessibility",
+              success: false,
+              output: { error: `Module '${params.moduleId}' not found.` },
+              error: `Module '${params.moduleId}' not found.`,
+              executionTimeMs: 0,
+            };
+          }
+          return {
+            toolName: "audit_product_accessibility",
+            success: true,
+            output: {
+              moduleId: mod.id,
+              name: mod.name,
+              route: mod.route,
+              accessibilityScore: mod.accessibilityScore,
+              responsivenessScore: mod.responsivenessScore,
+              overallScore: mod.overallScore,
+              wcagTier: mod.wcagTier,
+              status: mod.status,
+              issuesCount: mod.issues.length,
+              issues: mod.issues,
+            },
+            executionTimeMs: 0,
+          };
+        }
+
+        const summary = engine.getAuditSummary();
+        return {
+          toolName: "audit_product_accessibility",
+          success: true,
+          output: {
+            overallPlatformUXScore: summary.overallPlatformUXScore,
+            averageAccessibilityScore: summary.averageAccessibilityScore,
+            wcagCompliancePercentage: summary.wcagCompliancePercentage,
+            certifiedModulesCount: summary.certifiedModulesCount,
+            totalModules: summary.totalModules,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 41. Module Experience Score Tool (Phase 49)
+    this.registerTool({
+      name: "get_module_experience_score",
+      displayName: "Product UX Experience Score Inspector",
+      description: "Fetches cross-platform UX scores, visual polish ratings, and breakpoint compliance across all modules.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        category: {
+          type: "string",
+          description: "Optional category filter: core_intelligence, developer_tools, enterprise_governance, operations",
+          required: false,
+        },
+      },
+      outputSchema: {
+        totalModules: "number",
+        averageScore: "number",
+        modules: "array",
+      },
+      execute: async (params: Record<string, any>) => {
+        const engine = ProductUXAuditEngine.getInstance();
+        let modules = engine.getModuleAudits();
+        if (params.category) {
+          modules = modules.filter((m) => m.category === params.category);
+        }
+
+        const avg = modules.length > 0
+          ? Math.round(modules.reduce((acc, m) => acc + m.overallScore, 0) / modules.length)
+          : 0;
+
+        return {
+          toolName: "get_module_experience_score",
+          success: true,
+          output: {
+            totalModules: modules.length,
+            averageScore: avg,
+            modules: modules.map((m) => ({
+              id: m.id,
+              name: m.name,
+              route: m.route,
+              overallScore: m.overallScore,
+              wcagTier: m.wcagTier,
+              status: m.status,
+            })),
           },
           executionTimeMs: 0,
         };
