@@ -19,6 +19,7 @@ dist/
 *.cert
 
 # Local Secure Vault & Memory Stores
+.data/
 .tattva-vault/
 .tattva_secure_vault/
 .tattva_memory_data/

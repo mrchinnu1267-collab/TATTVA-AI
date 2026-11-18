@@ -4,13 +4,16 @@ import {
   saveMemory,
   updateMemory,
   deleteMemory,
+  clearCategoryMemories,
   clearAllMemories,
+  exportUserMemories,
   getUserPersonalizationSettings,
   updatePersonalizationSettings,
   retrieveRelevantMemories,
   extractAndStoreMemories,
   getUserFeedbackSummary,
 } from "../../lib/memory-service";
+import { MemoryCategory } from "../../lib/memory-types";
 import { verifyUserSession, checkRateLimit, logSecurityEvent } from "../../lib/security";
 
 export const runtime = "nodejs";
@@ -61,22 +64,57 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("query");
+    const exportFormat = searchParams.get("export");
+    const categoryFilter = searchParams.get("category");
 
+    // Memory Export (GDPR / Data Portability)
+    if (exportFormat === "json" || exportFormat === "markdown") {
+      const exported = await exportUserMemories(authorizedEmail, exportFormat);
+      if (exportFormat === "markdown") {
+        return new NextResponse(exported, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/markdown; charset=utf-8",
+            "Content-Disposition": `attachment; filename="tattva-memory-${Date.now()}.md"`,
+          },
+        });
+      }
+      return new NextResponse(exported, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="tattva-memory-${Date.now()}.json"`,
+        },
+      });
+    }
+
+    // Semantic relevance retrieval
     if (query) {
       const relevant = await retrieveRelevantMemories(authorizedEmail, query, 5);
       return NextResponse.json({ relevantMemories: relevant });
     }
 
-    const [memories, settings, feedbackSummary] = await Promise.all([
+    const [allMemories, settings, feedbackSummary] = await Promise.all([
       getUserMemories(authorizedEmail),
       getUserPersonalizationSettings(authorizedEmail),
       getUserFeedbackSummary(authorizedEmail),
     ]);
 
+    const memories = categoryFilter
+      ? allMemories.filter((m) => m.category === categoryFilter)
+      : allMemories;
+
+    const categoriesCount: Record<string, number> = {};
+    for (const m of allMemories) {
+      categoriesCount[m.category] = (categoriesCount[m.category] || 0) + 1;
+    }
+
     return NextResponse.json({
       memories,
       settings,
       feedbackSummary,
+      categoriesCount,
+      totalCount: allMemories.length,
     });
   } catch (error) {
     console.error("GET /api/memory error:", error);
@@ -123,6 +161,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
+    // Identity verification: reject if request body attempts to write to another user
+    if (body.userEmail && body.userEmail.toLowerCase().trim() !== authorizedEmail) {
+      return NextResponse.json(
+        { error: "Access denied. Cannot write to another user's cognitive memory." },
+        { status: 403 }
+      );
+    }
+
     const { action } = body;
 
     if (action === "update_settings") {
@@ -131,12 +177,12 @@ export async function POST(request: Request) {
     }
 
     if (action === "extract_memories") {
-      const extracted = await extractAndStoreMemories(authorizedEmail, body.userMessage || "");
+      const extracted = await extractAndStoreMemories(authorizedEmail, body.userMessage || "", body.workspaceId);
       return NextResponse.json({ success: true, extracted });
     }
 
     // Default action: add manual memory
-    const { content, category, importance } = body;
+    const { content, category, importance, expiresAt, workspaceId } = body;
     if (!content || typeof content !== "string" || !content.trim()) {
       return NextResponse.json({ error: "Memory content is required" }, { status: 400 });
     }
@@ -146,7 +192,11 @@ export async function POST(request: Request) {
       content,
       category || "preference",
       importance || 7,
-      "explicit"
+      "explicit",
+      workspaceId,
+      true,
+      1.0,
+      typeof expiresAt === "number" ? expiresAt : undefined
     );
 
     return NextResponse.json({ success: true, memory });
@@ -219,14 +269,20 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const clearAll = searchParams.get("all") === "true";
+    const category = searchParams.get("category") as MemoryCategory | null;
 
     if (clearAll) {
       await clearAllMemories(authorizedEmail);
       return NextResponse.json({ success: true, cleared: true });
     }
 
+    if (category) {
+      await clearCategoryMemories(authorizedEmail, category);
+      return NextResponse.json({ success: true, clearedCategory: category });
+    }
+
     if (!id) {
-      return NextResponse.json({ error: "Memory ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Memory ID or ?all=true or ?category=<cat> is required" }, { status: 400 });
     }
 
     await deleteMemory(authorizedEmail, id);

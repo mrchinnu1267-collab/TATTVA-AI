@@ -6,30 +6,52 @@ import {
   PersonalizationSettings,
   MessageFeedback,
   DEFAULT_PERSONALIZATION_SETTINGS,
+  isMemoryExpired,
+  getDefaultTTLForCategory,
 } from "./memory-types";
 import { generateTextEmbedding, cosineSimilarity, keywordRelevanceScore } from "./embeddings";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
-const DATA_DIR =
+const BASE_DATA_DIR =
   process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
     ? path.join("/tmp", ".tattva_memory_data")
-    : path.join(process.cwd(), ".tattva_memory_data");
+    : path.join(process.cwd(), ".data", "memories");
 
-function ensureDataDir() {
+/**
+ * Standardize user key for consistent hashing and lookup
+ */
+function normalizeUser(email?: string | null): string {
+  if (!email || !email.trim()) return "guest_user";
+  return email.toLowerCase().trim();
+}
+
+/**
+ * Get tenant-isolated storage directory based on SHA-256 hash of user key.
+ * Enforces cryptographic tenant boundary isolation.
+ */
+function getTenantDir(userKey: string): string {
+  const normalized = normalizeUser(userKey);
+  const tenantHash = crypto.createHash("sha256").update(normalized).digest("hex");
+  const tenantDir = path.join(BASE_DATA_DIR, tenantHash);
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(tenantDir)) {
+      fs.mkdirSync(tenantDir, { recursive: true });
     }
   } catch {
     // ignore
   }
+  return tenantDir;
 }
 
-function readDataFile<T>(filename: string, defaultValue: T): T {
+/**
+ * Safely reads a tenant data file with fallback
+ */
+function readTenantFile<T>(userKey: string, filename: string, defaultValue: T): T {
   try {
-    ensureDataDir();
-    const filePath = path.join(DATA_DIR, filename);
+    const tenantDir = getTenantDir(userKey);
+    const filePath = path.join(tenantDir, filename);
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf-8");
       return JSON.parse(raw);
@@ -40,42 +62,28 @@ function readDataFile<T>(filename: string, defaultValue: T): T {
   return defaultValue;
 }
 
-function writeDataFile(filename: string, data: any) {
+/**
+ * Atomically writes data to a tenant-isolated file
+ */
+function writeTenantFile(userKey: string, filename: string, data: any) {
   try {
-    ensureDataDir();
-    const filePath = path.join(DATA_DIR, filename);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    const tenantDir = getTenantDir(userKey);
+    const targetPath = path.join(tenantDir, filename);
+    const tempPath = path.join(
+      tenantDir,
+      `${filename}.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`
+    );
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
+    fs.renameSync(tempPath, targetPath);
   } catch {
     // ignore
   }
 }
 
-// In-Memory store backed by persistent disk cache & offline fallback
-const memoryStore = new Map<string, MemoryItem[]>();
-const settingsStore = new Map<string, PersonalizationSettings>();
-const feedbackStore = new Map<string, MessageFeedback[]>();
-
-// Initialize from persisted storage
-const initialMemories = readDataFile<Record<string, MemoryItem[]>>("memories.json", {});
-for (const [k, v] of Object.entries(initialMemories)) memoryStore.set(k, v);
-
-const initialSettings = readDataFile<Record<string, PersonalizationSettings>>("settings.json", {});
-for (const [k, v] of Object.entries(initialSettings)) settingsStore.set(k, v);
-
-const initialFeedback = readDataFile<Record<string, MessageFeedback[]>>("feedback.json", {});
-for (const [k, v] of Object.entries(initialFeedback)) feedbackStore.set(k, v);
-
-function persistMemories() {
-  writeDataFile("memories.json", Object.fromEntries(memoryStore));
-}
-
-function persistSettings() {
-  writeDataFile("settings.json", Object.fromEntries(settingsStore));
-}
-
-function persistFeedback() {
-  writeDataFile("feedback.json", Object.fromEntries(feedbackStore));
-}
+// In-Memory cache keyed by user for sub-millisecond retrieval
+const memoryCache = new Map<string, MemoryItem[]>();
+const settingsCache = new Map<string, PersonalizationSettings>();
+const feedbackCache = new Map<string, MessageFeedback[]>();
 
 /**
  * Get Supabase Client if env vars exist
@@ -88,11 +96,21 @@ function getSupabase() {
 }
 
 /**
- * Standardize user key
+ * Prune expired memories from a list and return the active, non-expired ones.
  */
-function normalizeUser(email?: string | null): string {
-  if (!email || !email.trim()) return "guest_user";
-  return email.toLowerCase().trim();
+function filterAndPruneExpired(memories: MemoryItem[]): { active: MemoryItem[]; pruned: boolean } {
+  let pruned = false;
+  const active: MemoryItem[] = [];
+
+  for (const m of memories) {
+    if (isMemoryExpired(m)) {
+      pruned = true;
+    } else {
+      active.push(m);
+    }
+  }
+
+  return { active, pruned };
 }
 
 // =============================================================================
@@ -104,15 +122,37 @@ export async function getUserMemories(
   workspaceId?: string
 ): Promise<MemoryItem[]> {
   const user = normalizeUser(userEmail);
-  const cached = memoryStore.get(user);
-  if (cached && cached.length > 0) {
+
+  // 1. Check memory cache
+  let cached = memoryCache.get(user);
+
+  // 2. If not in memory cache, load from tenant disk vault
+  if (!cached) {
+    const diskMemories = readTenantFile<MemoryItem[]>(user, "memories.json", []);
+    const { active, pruned } = filterAndPruneExpired(diskMemories);
+    if (pruned) {
+      writeTenantFile(user, "memories.json", active);
+    }
+    cached = active;
+    memoryCache.set(user, cached);
+  } else {
+    // Periodically verify expiration in cache
+    const { active, pruned } = filterAndPruneExpired(cached);
+    if (pruned) {
+      cached = active;
+      memoryCache.set(user, cached);
+      writeTenantFile(user, "memories.json", cached);
+    }
+  }
+
+  if (cached.length > 0) {
     if (workspaceId) {
       return cached.filter((m) => !m.workspaceId || m.workspaceId === workspaceId);
     }
     return cached;
   }
 
-  // Attempt to fetch from Supabase if table exists
+  // 3. Attempt to fetch from Supabase if table exists
   const supabase = getSupabase();
   if (supabase) {
     try {
@@ -138,19 +178,23 @@ export async function getUserMemories(
           active: row.active ?? true,
           createdAt: new Date(row.created_at).getTime(),
           updatedAt: new Date(row.updated_at || row.created_at).getTime(),
+          expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : undefined,
           source: row.source || "extracted",
           isConfirmed: row.source === "explicit" || row.is_confirmed === true,
           confidence: row.confidence || 1.0,
         }));
-        memoryStore.set(user, mapped);
-        return mapped;
+
+        const { active, pruned } = filterAndPruneExpired(mapped);
+        memoryCache.set(user, active);
+        writeTenantFile(user, "memories.json", active);
+        return active;
       }
     } catch {
-      // Supabase table not created yet; use local memoryStore
+      // Supabase table not created yet; use local tenant vault
     }
   }
 
-  const all = memoryStore.get(user) || [];
+  const all = memoryCache.get(user) || [];
   if (workspaceId) {
     return all.filter((m) => !m.workspaceId || m.workspaceId === workspaceId);
   }
@@ -165,7 +209,8 @@ export async function saveMemory(
   source: "explicit" | "extracted" = "explicit",
   workspaceId?: string,
   isConfirmed: boolean = true,
-  confidence: number = 1.0
+  confidence: number = 1.0,
+  customExpiresAt?: number
 ): Promise<MemoryItem> {
   const user = normalizeUser(userEmail);
   const cleanContent = content.trim();
@@ -174,6 +219,15 @@ export async function saveMemory(
 
   // Generate vector embedding
   const embedding = await generateTextEmbedding(cleanContent);
+
+  // Determine expiration timestamp (TTL)
+  let expiresAt = customExpiresAt;
+  if (!expiresAt) {
+    const ttl = getDefaultTTLForCategory(category);
+    if (ttl) {
+      expiresAt = Date.now() + ttl;
+    }
+  }
 
   // Duplicate memory detection & merge
   let matchedExisting: MemoryItem | null = null;
@@ -201,10 +255,11 @@ export async function saveMemory(
     matchedExisting.active = true;
     matchedExisting.isConfirmed = isConfirmed || matchedExisting.isConfirmed;
     matchedExisting.confidence = Math.max(matchedExisting.confidence || 1.0, confidence);
+    if (expiresAt) matchedExisting.expiresAt = expiresAt;
     if (workspaceId) matchedExisting.workspaceId = workspaceId;
     if (embedding) matchedExisting.embedding = embedding;
 
-    // Try Supabase update
+    // Supabase update
     const supabase = getSupabase();
     if (supabase) {
       try {
@@ -214,6 +269,7 @@ export async function saveMemory(
             content: cleanContent,
             importance: matchedExisting.importance,
             workspace_id: matchedExisting.workspaceId || null,
+            expires_at: matchedExisting.expiresAt ? new Date(matchedExisting.expiresAt).toISOString() : null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", matchedExisting.id);
@@ -222,8 +278,8 @@ export async function saveMemory(
       }
     }
 
-    memoryStore.set(user, existing);
-    persistMemories();
+    memoryCache.set(user, existing);
+    writeTenantFile(user, "memories.json", existing);
     return matchedExisting;
   }
 
@@ -239,16 +295,17 @@ export async function saveMemory(
     active: true,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    expiresAt,
     source,
     isConfirmed,
     confidence,
   };
 
   existing.unshift(newMemory);
-  memoryStore.set(user, existing);
-  persistMemories();
+  memoryCache.set(user, existing);
+  writeTenantFile(user, "memories.json", existing);
 
-  // Try Supabase insert
+  // Supabase insert
   const supabase = getSupabase();
   if (supabase) {
     try {
@@ -262,6 +319,7 @@ export async function saveMemory(
           importance: newMemory.importance,
           active: newMemory.active,
           source: newMemory.source,
+          expires_at: newMemory.expiresAt ? new Date(newMemory.expiresAt).toISOString() : null,
           created_at: new Date(newMemory.createdAt).toISOString(),
           updated_at: new Date(newMemory.updatedAt).toISOString(),
         },
@@ -292,8 +350,8 @@ export async function correctMemory(
   item.updatedAt = Date.now();
   item.embedding = (await generateTextEmbedding(item.content)) || item.embedding;
 
-  memoryStore.set(user, list);
-  persistMemories();
+  memoryCache.set(user, list);
+  writeTenantFile(user, "memories.json", list);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -317,7 +375,7 @@ export async function correctMemory(
 export async function updateMemory(
   userEmail: string | undefined | null,
   memoryId: string,
-  updates: Partial<Pick<MemoryItem, "content" | "category" | "importance" | "active">>
+  updates: Partial<Pick<MemoryItem, "content" | "category" | "importance" | "active" | "expiresAt">>
 ): Promise<MemoryItem | null> {
   const user = normalizeUser(userEmail);
   const list = await getUserMemories(user);
@@ -331,10 +389,11 @@ export async function updateMemory(
   if (updates.category !== undefined) item.category = updates.category;
   if (updates.importance !== undefined) item.importance = Math.max(1, Math.min(10, updates.importance));
   if (updates.active !== undefined) item.active = updates.active;
+  if (updates.expiresAt !== undefined) item.expiresAt = updates.expiresAt;
   item.updatedAt = Date.now();
 
-  memoryStore.set(user, list);
-  persistMemories();
+  memoryCache.set(user, list);
+  writeTenantFile(user, "memories.json", list);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -346,6 +405,7 @@ export async function updateMemory(
           category: item.category,
           importance: item.importance,
           active: item.active,
+          expires_at: item.expiresAt ? new Date(item.expiresAt).toISOString() : null,
           updated_at: new Date(item.updatedAt).toISOString(),
         })
         .eq("id", memoryId);
@@ -361,8 +421,8 @@ export async function deleteMemory(userEmail: string | undefined | null, memoryI
   const user = normalizeUser(userEmail);
   const list = await getUserMemories(user);
   const filtered = list.filter((m) => m.id !== memoryId);
-  memoryStore.set(user, filtered);
-  persistMemories();
+  memoryCache.set(user, filtered);
+  writeTenantFile(user, "memories.json", filtered);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -376,10 +436,36 @@ export async function deleteMemory(userEmail: string | undefined | null, memoryI
   return true;
 }
 
+export async function clearCategoryMemories(
+  userEmail: string | undefined | null,
+  category: MemoryCategory
+): Promise<boolean> {
+  const user = normalizeUser(userEmail);
+  const list = await getUserMemories(user);
+  const filtered = list.filter((m) => m.category !== category);
+  memoryCache.set(user, filtered);
+  writeTenantFile(user, "memories.json", filtered);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase
+        .from("user_memories")
+        .delete()
+        .eq("user_email", user)
+        .eq("category", category);
+    } catch {
+      // ignore
+    }
+  }
+
+  return true;
+}
+
 export async function clearAllMemories(userEmail: string | undefined | null): Promise<boolean> {
   const user = normalizeUser(userEmail);
-  memoryStore.set(user, []);
-  persistMemories();
+  memoryCache.set(user, []);
+  writeTenantFile(user, "memories.json", []);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -391,6 +477,69 @@ export async function clearAllMemories(userEmail: string | undefined | null): Pr
   }
 
   return true;
+}
+
+/**
+ * Exports user memories in structured JSON or clean Markdown format
+ */
+export async function exportUserMemories(
+  userEmail: string | undefined | null,
+  format: "json" | "markdown" = "json"
+): Promise<string> {
+  const user = normalizeUser(userEmail);
+  const memories = await getUserMemories(user);
+  const settings = await getUserPersonalizationSettings(user);
+
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        userEmail: user,
+        exportedAt: new Date().toISOString(),
+        totalMemories: memories.length,
+        personalizationSettings: settings,
+        memories,
+      },
+      null,
+      2
+    );
+  }
+
+  // Markdown format
+  const lines: string[] = [
+    `# TATTVA AI — Cognitive Memory Profile Export`,
+    `> **User:** \`${user}\`  `,
+    `> **Exported:** ${new Date().toISOString()}  `,
+    `> **Active Memories:** ${memories.length}  `,
+    ``,
+    `## Personalization Settings`,
+    `- **Technical Depth:** ${settings.technicalDepth}`,
+    `- **Response Length:** ${settings.responseLength}`,
+    `- **Tone:** ${settings.tone}`,
+    `- **Preferred Language:** ${settings.preferredLanguage}`,
+    `- **Code Style:** ${settings.codeStyle}`,
+    settings.customInstructions ? `- **Custom Instructions:** "${settings.customInstructions}"` : "",
+    ``,
+    `## Memory Items by Category`,
+  ];
+
+  const grouped: Record<string, MemoryItem[]> = {};
+  for (const m of memories) {
+    const cat = m.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(m);
+  }
+
+  for (const [cat, items] of Object.entries(grouped)) {
+    lines.push(`### Category: \`${cat.toUpperCase()}\` (${items.length})`);
+    for (const item of items) {
+      const confirmedTag = item.isConfirmed ? "[CONFIRMED]" : "[INFERRED]";
+      const expiryTag = item.expiresAt ? ` (Expires: ${new Date(item.expiresAt).toLocaleDateString()})` : "";
+      lines.push(`- **${item.importance}/10** ${confirmedTag} ${item.content}${expiryTag}`);
+    }
+    lines.push("");
+  }
+
+  return lines.filter(Boolean).join("\n");
 }
 
 // =============================================================================
@@ -405,7 +554,9 @@ export async function retrieveRelevantMemories(
 ): Promise<MemoryItem[]> {
   const user = normalizeUser(userEmail);
   const allMemories = await getUserMemories(user, workspaceId);
-  const activeMemories = allMemories.filter((m) => m.active && (!workspaceId || !m.workspaceId || m.workspaceId === workspaceId));
+  const activeMemories = allMemories.filter(
+    (m) => m.active && !isMemoryExpired(m) && (!workspaceId || !m.workspaceId || m.workspaceId === workspaceId)
+  );
 
   if (activeMemories.length === 0) return [];
 
@@ -453,7 +604,7 @@ export async function retrieveRelevantMemories(
 // 3. STRUCTURED MEMORY EXTRACTION
 // =============================================================================
 
-const EXTRACTION_INSTRUCTION = `You are the memory extraction engine of TATTVA AI.
+const EXTRACTION_INSTRUCTION = `You are the cognitive memory extraction engine of TATTVA AI.
 Your objective: Extract durable user preferences, ongoing projects, technical proficiencies, communication styles, and explicit instructions from the user's message.
 
 PRIVACY & SAFETY (STRICT):
@@ -467,12 +618,14 @@ CATEGORIES:
 - "language": Explicit language preferences (e.g., Telugu, English, Hindi).
 - "formatting": Tables, bullet points, concise snippets.
 - "instruction": Explicit commands (e.g., "Always use TypeScript", "Never use semicolons").
+- "short_term": Ephemeral context for current focus.
+- "long_term": Permanent user facts and domain context.
 
 Output ONLY a JSON array of objects or an empty array [] if no durable facts were stated:
 [
   {
     "content": "Prefers Next.js App Router for all React projects",
-    "category": "preference" | "project" | "technical_level" | "language" | "formatting" | "instruction",
+    "category": "preference" | "project" | "technical_level" | "language" | "formatting" | "instruction" | "short_term" | "long_term",
     "importance": 1-10
   }
 ]`;
@@ -497,7 +650,7 @@ export async function extractAndStoreMemories(
   try {
     const ai = new GoogleGenAI({ apiKey });
     const result = await ai.models.generateContent({
-      model: "gemini-3.5-flash-lite",
+      model: "gemini-2.5-flash",
       contents: [{ text: `USER MESSAGE:\n"${clean}"` }],
       config: {
         systemInstruction: EXTRACTION_INSTRUCTION,
@@ -538,9 +691,19 @@ export async function getUserPersonalizationSettings(
   userEmail?: string | null
 ): Promise<PersonalizationSettings> {
   const user = normalizeUser(userEmail);
-  const cached = settingsStore.get(user);
+
+  // 1. Check cache
+  const cached = settingsCache.get(user);
   if (cached) return cached;
 
+  // 2. Check tenant disk vault
+  const diskSettings = readTenantFile<PersonalizationSettings | null>(user, "settings.json", null);
+  if (diskSettings) {
+    settingsCache.set(user, diskSettings);
+    return diskSettings;
+  }
+
+  // 3. Check Supabase
   const supabase = getSupabase();
   if (supabase) {
     try {
@@ -562,7 +725,8 @@ export async function getUserPersonalizationSettings(
           customInstructions: data.custom_instructions || "",
           updatedAt: new Date(data.updated_at || data.created_at).getTime(),
         };
-        settingsStore.set(user, loaded);
+        settingsCache.set(user, loaded);
+        writeTenantFile(user, "settings.json", loaded);
         return loaded;
       }
     } catch {
@@ -571,7 +735,8 @@ export async function getUserPersonalizationSettings(
   }
 
   const initial = { ...DEFAULT_PERSONALIZATION_SETTINGS };
-  settingsStore.set(user, initial);
+  settingsCache.set(user, initial);
+  writeTenantFile(user, "settings.json", initial);
   return initial;
 }
 
@@ -587,8 +752,8 @@ export async function updatePersonalizationSettings(
     updatedAt: Date.now(),
   };
 
-  settingsStore.set(user, merged);
-  persistSettings();
+  settingsCache.set(user, merged);
+  writeTenantFile(user, "settings.json", merged);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -626,7 +791,7 @@ export function buildPersonalizationSystemPrompt(
   }
 
   const memoryLines = memories
-    .filter((m) => m.active)
+    .filter((m) => m.active && !isMemoryExpired(m))
     .map((m) => {
       const statusBadge = m.isConfirmed ? "[CONFIRMED]" : "[INFERRED - VERIFY]";
       return `- ${statusBadge} [${m.category.toUpperCase()}] ${m.content} (importance: ${m.importance}/10)`;
@@ -692,10 +857,10 @@ RULES FOR PERSONALIZED GENERATION:
 
 export async function recordMessageFeedback(feedback: MessageFeedback): Promise<boolean> {
   const user = normalizeUser(feedback.userEmail);
-  const list = feedbackStore.get(user) || [];
+  const list = feedbackCache.get(user) || readTenantFile<MessageFeedback[]>(user, "feedback.json", []);
   list.unshift(feedback);
-  feedbackStore.set(user, list);
-  persistFeedback();
+  feedbackCache.set(user, list);
+  writeTenantFile(user, "feedback.json", list);
 
   // Auto-adapt preferences based on recurring feedback
   const recentFeedback = list.slice(0, 10);
@@ -733,7 +898,7 @@ export async function recordMessageFeedback(feedback: MessageFeedback): Promise<
 
 export async function getUserFeedbackSummary(userEmail?: string | null) {
   const user = normalizeUser(userEmail);
-  const list = feedbackStore.get(user) || [];
+  const list = feedbackCache.get(user) || readTenantFile<MessageFeedback[]>(user, "feedback.json", []);
   const total = list.length;
   const positive = list.filter((f) => f.rating === "positive").length;
   const negative = list.filter((f) => f.rating === "negative").length;
