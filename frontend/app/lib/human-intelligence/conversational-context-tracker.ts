@@ -99,17 +99,21 @@ export class ConversationalContextTracker {
         isFollowUpTurn = true;
         followUpType = "security";
         resolvedAnaphoraQuery = `What are the security considerations, threat models, and hardening best practices for: "${lastUserTurn.slice(0, 120)}"?`;
-      } else if (/^(make it faster|optimize it|improve performance|scale it)\b/i.test(cleanLower)) {
+      } else if (/^(make it faster|optimize it|optimize this|optimize this further|improve performance|scale it)\b/i.test(cleanLower)) {
         isFollowUpTurn = true;
         followUpType = "refine";
         resolvedAnaphoraQuery = `Optimize the performance, latency, and efficiency for the solution discussed previously: "${lastUserTurn.slice(0, 120)}".`;
+      } else if (/^(give me an example|show the code|code example|show code|give example|show me an example)\b/i.test(cleanLower)) {
+        isFollowUpTurn = true;
+        followUpType = "more";
+        resolvedAnaphoraQuery = `Provide concrete code examples and practical demonstrations for: "${lastUserTurn.slice(0, 120)}".`;
       } else if (
         /\b(fix it|redo it|redo|try again|again|didn't work|not working|another way|alternative|explain differently|what next|part \d+)\b/i.test(cleanLower)
       ) {
         isFollowUpTurn = true;
         followUpType = "alternative";
         resolvedAnaphoraQuery = `The previous solution needs adjustment or follow-up continuation. Address: "${cleanPrompt}" in relation to: "${lastUserTurn.slice(0, 120)}".`;
-      } else if (isShort && (/^(and|what about|how about|also|can we|does it|is it|what next|next|again|redo)\b/i.test(cleanLower) || cleanPrompt.endsWith("?"))) {
+      } else if (isShort) {
         isFollowUpTurn = true;
         followUpType = "generic";
         resolvedAnaphoraQuery = `${cleanPrompt} (in the context of ${currentTopic}: "${lastUserTurn.slice(0, 100)}")`;

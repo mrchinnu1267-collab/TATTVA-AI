@@ -22,18 +22,18 @@ const DEVANAGARI_SCRIPT_REGEX = /[\u0900-\u097F]/;
 // Common colloquial Romanized Telugu (Tenglish) functional words
 const TENGLISH_MARKERS = [
   /\b(naku|neeku|maaku|meeku|atani|aame|dini|deeni|idi|adi|evi|ivi)\b/i,
-  /\b(ardham|artham|kaledu|kavali|vaddu|undhi|undi|ledu|cheppu|cheppandi)\b/i,
-  /\b(ela|enduku|ekkada|epudu|eppudu|evaru|emiti|enti|cheyyali|chesanu)\b/i,
-  /\b(bagundi|baga|chala|konchem|tvaraga|ippudu|malli|marala|kuda|antha)\b/i,
-  /\b(chesara|cheyali|cheyyandi|vastondi|ravatledu|chudu|chudandi)\b/i,
+  /\b(ardham|artham|kaledu|kavali|vaddu|undhi|undi|ledu|cheppu|cheppandi|cheppava)\b/i,
+  /\b(ela|enduku|ekkada|epudu|eppudu|evaru|emiti|enti|cheyyali|chesanu|cheyacha|cheyadaniki)\b/i,
+  /\b(bagundi|baguntunda|baga|chala|konchem|tvaraga|ippudu|malli|marala|kuda|antha|aindi)\b/i,
+  /\b(chesara|cheyali|cheyyandi|cheyandi|vastondi|ravatledu|chudu|chudandi|chudava|lo)\b/i,
 ];
 
 // Common colloquial Romanized Hindi (Hinglish) functional words
 const HINGLISH_MARKERS = [
-  /\b(mujhe|tujhe|humein|aapko|iska|uska|yeh|woh|kya|kyun|kaise)\b/i,
-  /\b(samajh|aaya|nahi|aara|raha|chahiye|matlab|batao|bataiye|karo)\b/i,
-  /\b(kahan|kab|kaun|bohot|bahut|thoda|jaldi|abhi|phir|bhi|sab)\b/i,
-  /\b(karoge|karna|chal|raha|hoga|hogi|achha|accha|theek|sahi)\b/i,
+  /\b(mujhe|tujhe|humein|aapko|iska|uska|yeh|woh|kya|kyun|kaise|mein)\b/i,
+  /\b(samajh|samjhaiye|aaya|nahi|aara|raha|chahiye|matlab|batao|bataiye|karo|karein)\b/i,
+  /\b(kahan|kab|kaun|bohot|bahut|thoda|jaldi|abhi|phir|bhi|sab|baar)\b/i,
+  /\b(karoge|karna|chal|raha|hoga|hogi|achha|accha|theek|sahi|jata|hai|hain)\b/i,
   /\b(shukriya|dhanyavaad|bhai|yaar|dost|madad|madat)\b/i,
 ];
 

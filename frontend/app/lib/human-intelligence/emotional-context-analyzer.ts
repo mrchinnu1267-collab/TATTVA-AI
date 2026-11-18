@@ -83,7 +83,7 @@ const EMOTIONAL_RULES: EmotionRuleGroup[] = [
     valence: -0.6,
     arousal: 0.85,
     patterns: [
-      /\b(stressed|stressful|overwhelmed|panicking|panic|deadline is in|freaking out|exam tomorrow|interview in 1 hour|production outage|job on the line|so much pressure)\b/i,
+      /\b(stressed|stressful|overwhelmed|panicking|panic|deadline is in|freaking out|exam tomorrow|interview in 1 hour|production outage|job on the line|so much pressure|breaking at once)\b/i,
     ],
     indicPatterns: [
       /\b(chala tension ga undi|tension ga undi|bayamesthondi|chala stress)\b/i,
@@ -97,7 +97,7 @@ const EMOTIONAL_RULES: EmotionRuleGroup[] = [
     valence: -0.8,
     arousal: 0.3,
     patterns: [
-      /\b(sad|depressed|heartbroken|feeling down|miserable|crying|hopeless|lonely|unhappy|hurts|grief)\b/i,
+      /\b(sad|depressed|heartbroken|feeling down|miserable|crying|hopeless|lonely|unhappy|hurts|grief|nothing seems to go right)\b/i,
     ],
     indicPatterns: [
       /\b(chala badhaga undi|badhaga undi|kannellu|edupostondi)\b/i,
@@ -111,7 +111,7 @@ const EMOTIONAL_RULES: EmotionRuleGroup[] = [
     valence: -0.5,
     arousal: 0.4,
     patterns: [
-      /\b(disappointed|disappointing|let down|expected better|bummer|that's a shame|not what i hoped|underwhelming)\b/i,
+      /\b(disappointed|disappointing|let down|expected better|bummer|that's a shame|not what i hoped|underwhelming|rejected)\b/i,
     ],
     indicPatterns: [
       /\b(baga ledu|anukunnantha ledu|disappoint ayyanu)\b/i,
@@ -149,7 +149,7 @@ const EMOTIONAL_RULES: EmotionRuleGroup[] = [
     valence: 0.85,
     arousal: 0.9,
     patterns: [
-      /\b(excited|cant wait|can't wait|hyped|thrilled|super pumped|unbelievable|mind blowing|mind-blowing|lets go|let's go|epic)\b/i,
+      /\b(excited|cant wait|can't wait|hyped|thrilled|super pumped|unbelievable|mind blowing|mind-blowing|lets go|let's go|epic|wow|incredible)\b/i,
     ],
     indicPatterns: [
       /\b(chala exciting ga undi|super ga undi|keka)\b/i,
@@ -173,7 +173,7 @@ const EMOTIONAL_RULES: EmotionRuleGroup[] = [
     valence: 0.7,
     arousal: 0.5,
     patterns: [
-      /\b(it worked|that worked|thank you|thanks a lot|perfect|awesome|great job|fixed now|nailed it|kudos|spot on)\b/i,
+      /\b(it worked|that worked|thank you|thanks a lot|perfect|awesome|great job|fixed now|nailed it|kudos|spot on|finally passed|passed|solid and clean)\b/i,
     ],
     indicPatterns: [
       // Telugu

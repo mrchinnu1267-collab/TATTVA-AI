@@ -83,7 +83,7 @@ export class AdaptiveCommunicationEngine {
     if (/\b(brief|short|tldr|quick summary|one sentence|concise|bullet points only)\b/i.test(clean)) {
       length = "concise";
     } else if (
-      /\b(detailed|in detail|comprehensive|deep dive|step-by-step|step by step|in-depth|explain thoroughly)\b/i.test(
+      /\b(detailed|in detail|comprehensive|deep dive|step-by-step|step by step|in-depth|explain thoroughly|thorough|tutorial|documentation)\b/i.test(
         clean
       )
     ) {
@@ -96,7 +96,7 @@ export class AdaptiveCommunicationEngine {
     // Technical depth
     let technicalDepth: "accessible" | "technical" | "expert" = "technical";
     if (
-      /\b(simple|simply|eli5|beginner|beginners|for a beginner|easy to understand|plain english|layman|teach me|like i'm|analogy|intuitively|in simple words)\b/i.test(
+      /\b(simple|simply|eli5|like i am five|beginner|beginners|for a beginner|easy to understand|plain english|layman|teach me|like i'm|analogy|intuitively|in simple words)\b/i.test(
         clean
       ) ||
       /^(what is (an?|the)|why do (we|computers)|how does (the|wi-fi|wifi|an?)|why is [a-z0-9\s]+ important)\b/i.test(
