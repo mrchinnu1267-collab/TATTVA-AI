@@ -5,9 +5,10 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import os from "node:os";
 import { SpacedRepetitionCard } from "./types";
 
-const STORAGE_DIR = process.env.TMPDIR || process.env.TEMP || "/tmp/.tattva_learning";
+const STORAGE_DIR = path.join(/*turbopackIgnore: true*/ os.tmpdir(), ".tattva_learning");
 
 export class SpacedRepetitionEngine {
   private static cardStore: Map<string, SpacedRepetitionCard[]> = new Map();

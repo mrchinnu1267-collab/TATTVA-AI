@@ -12,7 +12,7 @@ import { GlobalAgentCoordinator } from "../agents/multi-agent-coordinator";
 import { LocalAIEngine } from "../../local-ai-engine/local-engine";
 import type { MultiAgentExecutionPlan } from "../agents/types";
 
-export const PROJECTS_WORKSPACE_ROOT = path.resolve(process.cwd(), ".tattva_vault", "studio_projects");
+export const PROJECTS_WORKSPACE_ROOT = path.resolve(/*turbopackIgnore: true*/ process.cwd(), ".tattva_vault", "studio_projects");
 
 export interface ProjectBuildResult {
   projectId: string;
@@ -51,7 +51,7 @@ export async function buildApplicationFromRequirement(
   const projectId = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const projectDir = options?.targetDirectory || path.join(PROJECTS_WORKSPACE_ROOT, projectId);
 
-  if (!fs.existsSync(projectDir)) {
+  if (!fs.existsSync(/*turbopackIgnore: true*/ projectDir)) {
     fs.mkdirSync(projectDir, { recursive: true });
   }
 

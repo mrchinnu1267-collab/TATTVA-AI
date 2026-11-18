@@ -34,9 +34,9 @@ export function parseStackTrace(
     if (tsErrorMatch) {
       const relFile = tsErrorMatch[1].trim();
       const lineNum = parseInt(tsErrorMatch[2], 10);
-      let fullPath = path.resolve(projectRoot, relFile);
+      let fullPath = path.resolve(/*turbopackIgnore: true*/ projectRoot, relFile);
 
-      if (!fs.existsSync(fullPath)) {
+      if (!fs.existsSync(/*turbopackIgnore: true*/ fullPath)) {
         // Search recursively for file basename within projectRoot
         const basename = path.basename(relFile);
         const searchDir = (dir: string): string | undefined => {
@@ -44,7 +44,7 @@ export function parseStackTrace(
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (const entry of entries) {
               if (entry.name === "node_modules" || entry.name === ".git" || entry.name === ".next") continue;
-              const cur = path.join(dir, entry.name);
+              const cur = path.join(/*turbopackIgnore: true*/ dir, entry.name);
               if (entry.isDirectory()) {
                 const found = searchDir(cur);
                 if (found) return found;
@@ -59,7 +59,7 @@ export function parseStackTrace(
         if (located) fullPath = located;
       }
 
-      if (fs.existsSync(fullPath)) {
+      if (fs.existsSync(/*turbopackIgnore: true*/ fullPath)) {
         return { targetFile: fullPath, line: lineNum, errorSnippet: line.trim() };
       }
     }
@@ -97,9 +97,9 @@ export async function diagnoseAndRepair(
   let applied = false;
   let verified = false;
 
-  if (fs.existsSync(faultyFilePath)) {
+  if (fs.existsSync(/*turbopackIgnore: true*/ faultyFilePath)) {
     GlobalRollbackManager.snapshotFile(sessionId, faultyFilePath, projectRoot);
-    const content = fs.readFileSync(faultyFilePath, "utf-8");
+    const content = fs.readFileSync(/*turbopackIgnore: true*/ faultyFilePath, "utf-8");
 
     // Formulate minimal surgical patch
     let patchedContent = content;

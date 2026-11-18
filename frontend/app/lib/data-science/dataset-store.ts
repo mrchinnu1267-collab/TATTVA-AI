@@ -5,10 +5,11 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import os from "node:os";
 import { Dataset, ColumnSchema } from "./types";
 import { DataParser } from "./data-parser";
 
-const STORAGE_DIR = process.env.TMPDIR || process.env.TEMP || "/tmp/.tattva_datasets";
+const STORAGE_DIR = path.join(/*turbopackIgnore: true*/ os.tmpdir(), ".tattva_datasets");
 
 export class DatasetStore {
   private static store: Map<string, Map<string, Dataset>> = new Map();

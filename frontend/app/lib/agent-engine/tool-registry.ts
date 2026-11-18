@@ -289,8 +289,8 @@ export class CentralizedToolRegistry {
             executionTimeMs: 0,
           };
         }
-        const basePath = path.resolve(process.cwd());
-        const fullPath = path.join(basePath, params.filePath);
+        const basePath = path.resolve(/*turbopackIgnore: true*/ process.cwd());
+        const fullPath = path.join(/*turbopackIgnore: true*/ basePath, params.filePath);
 
         try {
           const content = await fs.readFile(fullPath, "utf-8");

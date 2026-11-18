@@ -33,8 +33,8 @@ export function validateSafePath(
   allowedRoot: string = process.cwd()
 ): { isSafe: boolean; resolvedPath: string; error?: string } {
   try {
-    const resolvedTarget = path.resolve(allowedRoot, targetPath);
-    const resolvedRoot = path.resolve(allowedRoot);
+    const resolvedTarget = path.resolve(/*turbopackIgnore: true*/ allowedRoot, targetPath);
+    const resolvedRoot = path.resolve(/*turbopackIgnore: true*/ allowedRoot);
 
     // 1. Boundary check: must be inside allowedRoot
     const rel = path.relative(resolvedRoot, resolvedTarget);
