@@ -7,7 +7,6 @@ const BASE_URL = "https://tattva-ai-phi.vercel.app";
 const PUBLIC_ROUTES = [
   { path: "", changefreq: "daily", priority: "1.0", lastmod: "2026-11-15" },
   { path: "/chat", changefreq: "daily", priority: "0.9", lastmod: "2026-11-15" },
-  { path: "/image-studio", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-15" },
   { path: "/maps", changefreq: "weekly", priority: "0.8", lastmod: "2026-11-15" },
   { path: "/download", changefreq: "monthly", priority: "0.8", lastmod: "2026-11-15" },
 ];

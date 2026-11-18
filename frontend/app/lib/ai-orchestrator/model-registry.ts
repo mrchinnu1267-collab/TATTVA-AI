@@ -361,44 +361,6 @@ export class ModelRegistry {
       },
 
       // ------------------------------------------------------------------------
-      // 6. Image & Creative Media Models (HuggingFace / Pollinations)
-      // ------------------------------------------------------------------------
-      {
-        id: "black-forest-labs/flux-1-schnell",
-        name: "FLUX.1 Schnell",
-        provider: "huggingface",
-        inputModalities: ["text"],
-        outputModalities: ["image"],
-        contextWindow: 1024,
-        maxOutputTokens: 1024,
-        latencyTier: "medium",
-        pricingPer1MTokens: { prompt: 0.05, completion: 0.05 },
-        strengths: ["image_generation"],
-        verifiedStatus: "verified",
-        supportsStreaming: false,
-        supportsTools: false,
-        supportsReasoning: false,
-        parameterScale: "12B",
-      },
-      {
-        id: "pollinations-flux",
-        name: "Pollinations FLUX",
-        provider: "pollinations",
-        inputModalities: ["text"],
-        outputModalities: ["image"],
-        contextWindow: 2048,
-        maxOutputTokens: 1024,
-        latencyTier: "low",
-        pricingPer1MTokens: { prompt: 0.0, completion: 0.0 },
-        strengths: ["image_generation"],
-        verifiedStatus: "community",
-        supportsStreaming: false,
-        supportsTools: false,
-        supportsReasoning: false,
-        parameterScale: "12B",
-      },
-
-      // ------------------------------------------------------------------------
       // 7. TATTVA Local & Resilient Models
       // ------------------------------------------------------------------------
       {

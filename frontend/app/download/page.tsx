@@ -224,7 +224,6 @@ export default function DownloadPage() {
         <div className="flex items-center gap-4 text-xs font-medium">
           <Link href="/" className="hover:text-cyan-400 transition">Web Chat</Link>
           <Link href="/maps" className="hover:text-cyan-400 transition">Satellite Maps</Link>
-          <Link href="/image-studio" className="hover:text-cyan-400 transition">Image Studio</Link>
         </div>
       </footer>
     </div>

@@ -3,7 +3,7 @@
   "short_name": "TATTVA AI",
   "version": "3.0.0",
   "id": "/?source=pwa_v3",
-  "description": "Next-generation multi-model AI assistant with deep reasoning, document generation, image synthesis, and personalized intelligence.",
+  "description": "Next-generation multi-model AI assistant with deep reasoning, document intelligence, code execution, and personalized intelligence.",
   "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
@@ -54,12 +54,6 @@
       "name": "New Chat",
       "url": "/chat",
       "description": "Start a fresh AI conversation",
-      "icons": [{ "src": "/icon-192-v2.png?v=3", "sizes": "192x192" }]
-    },
-    {
-      "name": "Image Studio",
-      "url": "/image-studio",
-      "description": "Generate and synthesize AI imagery",
       "icons": [{ "src": "/icon-192-v2.png?v=3", "sizes": "192x192" }]
     }
   ]

@@ -9,7 +9,6 @@ export async function GET() {
   const urlList = [
     `https://${host}/`,
     `https://${host}/chat`,
-    `https://${host}/image-studio`,
     `https://${host}/maps`,
     `https://${host}/download`,
   ];

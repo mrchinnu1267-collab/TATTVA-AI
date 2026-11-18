@@ -33,13 +33,7 @@ import {
   moderateVisualImage,
   SAFETY_REJECTION_MESSAGE,
 } from "../content-moderation";
-import {
-  generateImage,
-  generateImageWithMultimodalRAG,
-  formatUserFacingImageError,
-} from "../image-engine";
-import { resolveProviderOrder } from "../image-engine/providers";
-import { createImageJob } from "../image-engine/reliability/job-queue";
+
 import { humanIntelligence } from "../human-intelligence";
 import { detectDocumentIntent, synthesizeResearchToFile } from "../document-engine";
 import { promptAnalyzer, promptEnhancer, responseValidator, AnalyzedPrompt, contextManager } from "./intelligence";
@@ -188,23 +182,7 @@ export class MasterAIOrchestrator {
       promptAnalysis.resolvedPrompt || humanAnalysis.referenceResolution.resolvedQuery || cleanUserPrompt;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // 2. EARLY ROUTING: IMAGE GENERATION & RESEARCH-TO-FILE ENGINE
-    // Detect image-generation intent accurately:
-    // Requests containing terms such as poster, banner, flyer, logo, illustration, wallpaper, and image
-    // MUST route to the Image Generation Engine and never generate a PPTX file.
-    // PPTX generation is reserved strictly for explicit requests for presentations, PowerPoint, or slides.
-    const isExplicitPresentation =
-      /\b(ppt|pptx|powerpoint|presentation|slide deck|slides|slideshow)\b/i.test(queryForClassification || cleanUserPrompt) ||
-      /\b\d+\s*[- ]*(slide|slides|sld)\b/i.test(queryForClassification || cleanUserPrompt);
-
-    const isImageIntent =
-      !hasAttachedFile &&
-      !isExplicitPresentation &&
-      !/\b(excel sheet|xlsx|spreadsheet|workbook|csv file|\.csv|\.xlsx|\.docx|word doc|word document)\b/i.test(queryForClassification || cleanUserPrompt) &&
-      (/\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|painting|avatar)\b/i.test(queryForClassification || cleanUserPrompt) ||
-        /\b(generate|create|make|draw|paint|render|design)\s+.*?\b(poster|banner|flyer|logo|illustration|wallpaper|image|graphic|artwork|drawing|sketch|avatar)\b/i.test(queryForClassification || cleanUserPrompt) ||
-        /\b(photo of|portrait of|picture of|illustration of|render of|wallpaper of|poster of|banner of|logo of)\b/i.test(queryForClassification || cleanUserPrompt));
-
+    // 2. EARLY ROUTING: RESEARCH-TO-FILE ENGINE
     const isInteractiveWebAppOrCode =
       /\b(interactive|single[- ]file|web app|dashboard|pomodoro|timer|calculator|game|todo app|counter|component)\b/i.test(
         queryForClassification || cleanUserPrompt
@@ -216,7 +194,7 @@ export class MasterAIOrchestrator {
         queryForClassification || cleanUserPrompt
       );
 
-    if (!isImageIntent && !isInteractiveWebAppOrCode) {
+    if (!isInteractiveWebAppOrCode) {
       const docIntent = detectDocumentIntent(queryForClassification || cleanUserPrompt, {
         history: messages.map((m) => ({
           role: m.role,
@@ -343,181 +321,17 @@ export class MasterAIOrchestrator {
 
     console.log(`[TATTVA Orchestrator] Task classified as "${effectiveIntent}" (complexity: ${classification.complexityScore}/10)`);
 
-    // 3. PIPELINE ROUTING: IMAGE GENERATION / EDITING
+    // 3. RETIRED CAPABILITY: IMAGE GENERATION & EDITING
     if (effectiveIntent === "image_generation" || effectiveIntent === "image_editing") {
-      const candidatePrompt = cleanUserPrompt || classification.diffusionPrompt || "";
-
-      // Stage 1: Strict Content Moderation on User Prompt
-      const promptModeration = moderateTextPrompt(candidatePrompt);
-      if (!promptModeration.isSafe) {
-        return {
-          role: "assistant",
-          content: SAFETY_REJECTION_MESSAGE,
-          kind: "text",
-          intent: effectiveIntent,
-          modelUsed: "tattva-content-guardrail",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-          warnings: ["Content safety violation: request rejected"],
-        };
-      }
-
-      // Stage 2: Moderate source or reference image
-      const imageToModerate =
-        effectiveIntent === "image_editing" ? sourceImageForEdit : userAttachedImage;
-      if (imageToModerate) {
-        const visualCheck = await moderateVisualImage(imageToModerate);
-        if (!visualCheck.isSafe) {
-          return {
-            role: "assistant",
-            content: SAFETY_REJECTION_MESSAGE,
-            kind: "text",
-            intent: effectiveIntent,
-            modelUsed: "tattva-content-guardrail",
-            provider: "local",
-            latencyMs: Date.now() - startTime,
-            warnings: ["Reference image safety violation: request rejected"],
-          };
-        }
-      }
-
-      // Asynchronous Job Mode: Returns immediately (< 500ms) to prevent Vercel HTTP 504 Gateway Timeout
-      if (context.asyncImageJob) {
-        const order = resolveProviderOrder(
-          context.preferredModel?.toLowerCase().includes("gemini") ? "gemini" : undefined,
-          "balanced",
-          Boolean(imageToModerate)
-        );
-        const selectedProvider = order[0] || "gemini";
-        const selectedModel =
-          selectedProvider === "gemini"
-            ? "gemini-3.1-flash-image"
-            : "@cf/black-forest-labs/flux-1-schnell";
-        const providerName =
-          selectedProvider === "gemini"
-            ? "Google Gemini (gemini-3.1-flash-image)"
-            : "Cloudflare Workers AI FLUX.1 Schnell";
-
-        const job = createImageJob({
-          prompt: candidatePrompt,
-          referenceImage: imageToModerate,
-          quality: "balanced",
-          aspectRatio: "1:1",
-          userId: context.userId || "user_workspace",
-          workspaceId: context.workspaceId || "default",
-          provider: selectedProvider,
-        });
-
-        return {
-          role: "assistant",
-          content: `Crafting your visual asset with ${providerName} and verifying adherence with Gemini Vision...`,
-          kind: "image_job",
-          intent: effectiveIntent,
-          modelUsed: selectedModel,
-          provider: selectedProvider,
-          latencyMs: Date.now() - startTime,
-          imageJob: {
-            id: job.id,
-            status: job.status,
-            currentStage: job.currentStage,
-            progressPercent: job.progressPercent,
-            prompt: job.prompt,
-            quality: job.quality,
-            aspectRatio: job.aspectRatio,
-            providerUsed: selectedProvider,
-            modelUsed: selectedModel,
-            userId: job.userId,
-            workspaceId: job.workspaceId,
-            startedAt: job.startedAt,
-            deadline: job.deadline,
-            timestamps: job.timestamps,
-            statusMessage: job.statusMessage,
-          },
-        };
-      }
-
-      try {
-        const imageResult = imageToModerate
-          ? await generateImageWithMultimodalRAG({
-            prompt: candidatePrompt,
-            referenceImage: imageToModerate,
-            quality: "balanced",
-            userId: context.userId,
-          })
-          : await generateImage({
-            prompt: candidatePrompt,
-            quality: "balanced",
-            userId: context.userId,
-            maxAttempts: 4,
-            targetScore: 95,
-          });
-
-        const failed = imageResult.verification.requirements.filter(
-          (item) => item.met === false
-        );
-        const accuracy = imageResult.accuracy;
-        const summary = [
-          accuracy >= 85
-            ? "Image generated and verified against your request."
-            : "Image generated, but some details need another pass.",
-          `Adherence: ${accuracy}%.`,
-          failed.length > 0
-            ? `Not confirmed: ${failed.map((item) => item.text).join("; ")}.`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-
-        return {
-          role: "assistant",
-          content: summary,
-          kind: "image",
-          intent: effectiveIntent,
-          modelUsed: imageResult.model,
-          provider: imageResult.provider,
-          latencyMs: Date.now() - startTime,
-          image: imageResult.image,
-          imageMetadata: {
-            ...imageResult.metadata,
-            isEdit: effectiveIntent === "image_editing",
-            verification: imageResult.verification,
-            compiled_prompt: imageResult.compiled.positive,
-          },
-          warnings: imageResult.warnings,
-        };
-      } catch (imageError) {
-        const message =
-          imageError instanceof Error ? imageError.message : String(imageError);
-
-        if (
-          message.includes(SAFETY_REJECTION_MESSAGE) ||
-          message.includes("content safety guidelines") ||
-          message.includes("safety policies")
-        ) {
-          return {
-            role: "assistant",
-            content: SAFETY_REJECTION_MESSAGE,
-            kind: "text",
-            intent: effectiveIntent,
-            modelUsed: "tattva-content-guardrail",
-            provider: "local",
-            latencyMs: Date.now() - startTime,
-            warnings: ["Content safety violation: request rejected"],
-          };
-        }
-
-        console.error("[TATTVA Image] Orchestrator generation failed:", message);
-        return {
-          role: "assistant",
-          content: formatUserFacingImageError(imageError),
-          kind: "text",
-          intent: effectiveIntent,
-          modelUsed: "tattva-error-handler",
-          provider: "local",
-          latencyMs: Date.now() - startTime,
-          warnings: ["Image generation failed, formatted safe response"],
-        };
-      }
+      return {
+        role: "assistant",
+        content: "Image generation and image editing capabilities have been permanently retired from TATTVA AI. I am fully available to assist you with conversational reasoning, programming and code execution, web research, document creation, data science, and universal multimodal vision analysis (inspecting and analyzing images, charts, and documents you provide). Please let me know how I can help you with those!",
+        kind: "text",
+        intent: "general_chat",
+        modelUsed: "tattva-orchestrator",
+        provider: "local",
+        latencyMs: Date.now() - startTime,
+      };
     }
 
     // 4. CONTEXT UNDERSTANDING & MEMORY RETRIEVAL

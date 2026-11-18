@@ -485,7 +485,7 @@ export default function AuthPage({ initialMode = "signin" }: { initialMode?: Aut
               {mode === "forgot"
                 ? "Enter your email to receive a password reset link"
                 : mode === "signup"
-                ? "Sign up for limitless AI conversations, image studio & intelligent reasoning"
+                ? "Sign up for limitless AI conversations, document intelligence & advanced reasoning"
                 : "Log in to access your chat history, personalized memory & file vault"}
             </p>
           </div>
