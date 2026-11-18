@@ -1,9 +1,9 @@
 {
   "datasetFile": "MMMLU_HI-IN_456_question_sample.csv",
-  "datasetPath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\datasets\\MMMLU\\MMMLU_HI-IN_456_question_sample.csv",
-  "fileSizeBytes": 415689,
-  "fileSizeFormatted": "405.95 KB",
-  "validatedAt": "2026-11-17T16:55:55.543Z",
+  "datasetPath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\datasets\\MMMLU\\MMMLU_HI-IN_456_question_sample.csv",
+  "fileSizeBytes": 415007,
+  "fileSizeFormatted": "405.28 KB",
+  "validatedAt": "2026-11-18T10:12:15.119Z",
   "isValid": true,
   "totalRecords": 456,
   "validRecords": 456,

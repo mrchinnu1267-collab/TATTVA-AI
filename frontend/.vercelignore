@@ -4,9 +4,20 @@ node_modules
 out
 build
 dist
+.tattva-vault
+.tattva_vault
 .tattva_secure_vault
 .tattva_memory_data
 .tattva_secure_accounts.json
+datasets
+scratch
+tests
+docs
+companion
+graphify-out
+public/generated-tests
 *.log
 *.apk
+*.zip
+*.bak
 

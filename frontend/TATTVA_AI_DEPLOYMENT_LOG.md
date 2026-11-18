@@ -3,7 +3,7 @@
 > **Production Domain:** https://tattva-ai-phi.vercel.app  
 > **Platform Provider:** Vercel (Edge Network + Serverless Lambdas)  
 > **Git Remote:** `https://github.com/mrchinnu1267-collab/TATTVA-AI.git`  
-> **Active Production Commit:** `df56bf0`  
+> **Active Production Commit:** `a1c83c9`  
 > **Deployment Status:** `ACTIVE & HEALTHY`  
 > **Last Updated:** 2026-11-18  
 
@@ -27,6 +27,23 @@ flowchart LR
 ---
 
 ## 2. Recent Deployment History
+
+### Operations Action: Vercel Resource Cleanup & Historical Deployment Pruning
+- **Date & Time:** 2026-11-18T10:43:00Z
+- **Action:** Purged 47 obsolete preview and historical production deployments via Vercel CLI / REST API.
+- **Quota Remediation:** Remediated Functions Storage limit breach (from 12.93 GB down to expected ~1.2 GB - 1.5 GB).
+- **Protected Deployments Retained:**
+  1. Active Production: `dpl_6s1nYVun7JobgC76XusY1k7zhjpg` (commit `a1c83c9`, aliased to `https://tattva-ai-phi.vercel.app`)
+  2. Verified Rollback Target: `dpl_EF4opdkhxfWAtGBCk6gs8hLw3qVo` (commit `fe35ebf`, URL `https://tattva-fga1x3xd5-gowthamchowdary1267-5698.vercel.app`)
+- **Verification Result:** Zero errors, zero downtime. Live production confirmed responding with HTTP 200 OK. Exactly 2 deployments remain in the project.
+
+### Deployment `dpl_6s1nYVun7JobgC76XusY1k7zhjpg` (Current Active Production)
+- **Date & Time:** 2026-11-18T08:50:13Z
+- **Target:** `production` (`https://tattva-ai-phi.vercel.app`)
+- **Git Commit:** `a1c83c98bc3ab2d66140031e60cbbdce7e80ce92`
+- **Branch:** `main`
+- **Release Highlights:** Codebase formatting consistency and line-ending normalization across app modules.
+- **Verification Result:** Verified live with 200 OK.
 
 ### Deployment `dpl_G8Y6atngJ2ZC1S6JZ8aFYEPL2Zd7` (Current Production)
 - **Date & Time:** 2026-11-18T08:35:00Z
