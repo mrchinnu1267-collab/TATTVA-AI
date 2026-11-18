@@ -4,6 +4,7 @@
  */
 
 import { execSync } from "node:child_process";
+import fs from "node:fs";
 
 const targetUrl = process.argv[2] || "https://tattva-ai-phi.vercel.app";
 console.log("===============================================================================");
@@ -67,7 +68,7 @@ try {
   // Check 3: On-Demand Audit Run POST
   console.log("3. Testing /api/ux-audit/run (POST dynamic audit run)...");
   const runPayload = JSON.stringify({ deepCheck: true });
-  execSync(`node -e 'fs.writeFileSync("scratch/test-ux-run.json", ${JSON.stringify(runPayload)})'`);
+  fs.writeFileSync("scratch/test-ux-run.json", runPayload, "utf-8");
   const runRaw = vercelCurl("/api/ux-audit/run", `-X POST -H "Content-Type: application/json" -d @scratch/test-ux-run.json`);
   const runData = parseJson(runRaw);
   if (!runData.success || !runData.auditedModules || runData.auditedModules.length < 15) {
