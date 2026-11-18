@@ -9,6 +9,7 @@ import type { MultilingualAnalysis } from "./multilingual-conversational-engine"
 import type { TrackedConversationState } from "./conversational-context-tracker";
 import type { PersonaConfiguration } from "./adaptive-personality-engine";
 import type { SafetyEvaluationResult } from "./conversational-safety-guard";
+import type { DeepConversationalAnalysis } from "./deep-conversational-analyzer";
 
 export type ConversationalGoal =
   | "direct_question"        // Short factual/conceptual question requiring a concise, direct answer
@@ -77,6 +78,7 @@ export interface HumanContextAnalysis {
   trackedState?: TrackedConversationState;
   persona?: PersonaConfiguration;
   safetyEvaluation?: SafetyEvaluationResult;
+  deepNuances?: DeepConversationalAnalysis;
 }
 
 export interface DeveloperDebugInfo {

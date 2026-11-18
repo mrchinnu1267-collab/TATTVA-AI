@@ -10,6 +10,7 @@ import {
   getDefaultTTLForCategory,
 } from "./memory-types";
 import { generateTextEmbedding, cosineSimilarity, keywordRelevanceScore } from "./embeddings";
+import { validateMemoryCandidate } from "./security";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -201,6 +202,62 @@ export async function getUserMemories(
   return all;
 }
 
+/**
+ * Detects contradictory or outdated memories that conflict with a new memory item
+ */
+export function detectMemoryConflicts(
+  newContent: string,
+  category: MemoryCategory,
+  existingMemories: MemoryItem[]
+): MemoryItem[] {
+  const conflicts: MemoryItem[] = [];
+  const normalizedNew = newContent.toLowerCase();
+
+  const opposingKeywordGroups = [
+    { a: ["python", "django", "flask"], b: ["go", "golang", "fiber", "gin", "rust", "node"] },
+    { a: ["mysql", "mariadb"], b: ["postgres", "postgresql", "mongodb", "supabase"] },
+    { a: ["concise", "brief", "short"], b: ["detailed", "verbose", "comprehensive", "in-depth"] },
+    { a: ["tabs"], b: ["spaces"] },
+    { a: ["dark mode", "dark theme"], b: ["light mode", "light theme"] },
+    { a: ["react", "next.js", "nextjs"], b: ["vue", "angular", "svelte"] },
+  ];
+
+  for (const existing of existingMemories) {
+    if (!existing.active || existing.category !== category) continue;
+    const normalizedOld = existing.content.toLowerCase();
+
+    // Direct supersession phrases
+    if (
+      normalizedNew.includes("instead of") ||
+      normalizedNew.includes("no longer") ||
+      normalizedNew.includes("switched to") ||
+      normalizedNew.includes("migrated to") ||
+      normalizedNew.includes("prefer")
+    ) {
+      const oldWords = normalizedOld.split(/\W+/).filter((w) => w.length > 3);
+      if (oldWords.some((w) => normalizedNew.includes(w))) {
+        conflicts.push(existing);
+        continue;
+      }
+    }
+
+    // Mutually exclusive tech stack / preference domains
+    for (const group of opposingKeywordGroups) {
+      const oldHasA = group.a.some((k) => normalizedOld.includes(k));
+      const oldHasB = group.b.some((k) => normalizedOld.includes(k));
+      const newHasA = group.a.some((k) => normalizedNew.includes(k));
+      const newHasB = group.b.some((k) => normalizedNew.includes(k));
+
+      if ((oldHasA && newHasB) || (oldHasB && newHasA)) {
+        conflicts.push(existing);
+        break;
+      }
+    }
+  }
+
+  return conflicts;
+}
+
 export async function saveMemory(
   userEmail: string | undefined | null,
   content: string,
@@ -214,6 +271,12 @@ export async function saveMemory(
 ): Promise<MemoryItem> {
   const user = normalizeUser(userEmail);
   const cleanContent = content.trim();
+
+  // Validate candidate memory against memory poisoning / prompt injection
+  const validation = validateMemoryCandidate(cleanContent);
+  if (!validation.isValid) {
+    throw new Error(`Memory validation failed: ${validation.reason}`);
+  }
 
   const existing = await getUserMemories(user, workspaceId);
 
@@ -281,6 +344,13 @@ export async function saveMemory(
     memoryCache.set(user, existing);
     writeTenantFile(user, "memories.json", existing);
     return matchedExisting;
+  }
+
+  // Detect and supersede contradictory/conflicting memories
+  const conflicts = detectMemoryConflicts(cleanContent, category, existing);
+  for (const conflict of conflicts) {
+    conflict.active = false;
+    conflict.updatedAt = Date.now();
   }
 
   // Create new memory item

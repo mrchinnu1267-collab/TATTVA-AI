@@ -6,6 +6,7 @@ const nextConfig = {
   experimental: {
     agentUpgrade: "security",
   },
+  serverExternalPackages: ["onnxruntime-node", "@huggingface/transformers"],
   outputFileTracingExcludes: {
     "*": [
       "public/**",
@@ -23,6 +24,12 @@ const nextConfig = {
       "scripts/**",
       "companion/**",
       "graphify-out/**",
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/onnxruntime-web/**",
+      "**/node_modules/@huggingface/**",
+      "**/node_modules/@mohammednagy/**",
+      "**/node_modules/playwright-core/**",
+      "**/node_modules/@playwright/**",
       "**/*.apk",
       "**/*.zip",
       "**/*.parquet",
@@ -33,14 +40,16 @@ const nextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  silent: true,
-  dryRun: !process.env.SENTRY_AUTH_TOKEN,
-  widenClientFileUpload: true,
-  tunnelRoute: "/monitoring",
-  hideSourceMaps: true,
-  disableLogger: true,
-  telemetry: false,
-});
+export default process.env.SENTRY_AUTH_TOKEN
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      silent: true,
+      dryRun: false,
+      widenClientFileUpload: true,
+      tunnelRoute: "/monitoring",
+      hideSourceMaps: true,
+      disableLogger: true,
+      telemetry: false,
+    })
+  : nextConfig;

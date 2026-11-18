@@ -21,6 +21,7 @@ import { multilingualConversationalEngine, MultilingualAnalysis } from "./multil
 import { conversationalContextTracker, TrackedConversationState } from "./conversational-context-tracker";
 import { adaptivePersonalityEngine, PersonaConfiguration } from "./adaptive-personality-engine";
 import { conversationalSafetyGuard, SafetyEvaluationResult } from "./conversational-safety-guard";
+import { deepConversationalAnalyzer, DeepConversationalAnalysis } from "./deep-conversational-analyzer";
 
 export * from "./types";
 export {
@@ -89,6 +90,9 @@ export class HumanIntelligenceEngine {
 
     const projectContext = AdaptiveMemoryManager.extractProjectContext(userPrompt, history);
 
+    // Deep Conversational Understanding (Sarcasm, Humor, Indirect Requests, Corrections, Topic Shifts)
+    const deepNuances = deepConversationalAnalyzer.analyzeNuances(userPrompt, history);
+
     return {
       goal,
       signals,
@@ -104,6 +108,7 @@ export class HumanIntelligenceEngine {
       trackedState,
       persona,
       safetyEvaluation,
+      deepNuances,
     };
   }
 
@@ -121,6 +126,11 @@ export class HumanIntelligenceEngine {
     // 2. Emotional Context Directives
     if (analysis.emotionalContext) {
       parts.push(`EMOTIONAL CONTEXT & EMPATHY DIRECTIVE:\n- Detected User Affect: ${analysis.emotionalContext.primarySignal.toUpperCase()} (Calibrated Confidence: ${Math.round(analysis.emotionalContext.confidence * 100)}%)\n- Empathy Directive: ${analysis.emotionalContext.recommendedTone.empathyDirective}\n- Required Tone Warmth: ${analysis.emotionalContext.recommendedTone.warmth.toUpperCase()} | Pacing: ${analysis.emotionalContext.recommendedTone.pacing.toUpperCase()}\n- SAFE BOUNDARY RULE: Treat emotion as an uncertain contextual signal. Never diagnose mental health conditions, and never claim to know exactly how the user feels.`);
+    }
+
+    // 3. Deep Conversational Understanding (Sarcasm, Humor, Indirect Requests, Topic Shifts)
+    if (analysis.deepNuances?.guidanceDirectives && analysis.deepNuances.guidanceDirectives.length > 0) {
+      parts.push(`DEEP CONVERSATIONAL NUANCES & INTENT INTERPRETATION:\n${analysis.deepNuances.guidanceDirectives.map((d) => `- ${d}`).join("\n")}`);
     }
 
     // 3. Multilingual Directives
