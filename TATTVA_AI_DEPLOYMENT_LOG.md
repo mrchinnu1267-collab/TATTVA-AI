@@ -3,7 +3,7 @@
 > **Production Domain:** https://tattva-ai-phi.vercel.app  
 > **Platform Provider:** Vercel (Edge Network + Serverless Lambdas)  
 > **Git Remote:** `https://github.com/mrchinnu1267-collab/TATTVA-AI.git`  
-> **Active Production Commit:** `8f07718`  
+> **Active Production Commit:** `18f5ea3`  
 > **Deployment Status:** `ACTIVE & HEALTHY`  
 > **Last Updated:** 2026-11-18  
 
@@ -28,7 +28,27 @@ flowchart LR
 
 ## 2. Recent Deployment History
 
-### Deployment `dpl_3xZXggEWXEs866QdpEU3dow36Vcn` (Current Production)
+### Deployment `dpl_5abdSeYwAYWBkrEuXtHbzjtCFFh5` (Current Production)
+- **Date & Time:** 2026-11-18T04:18:22Z
+- **Target:** `production` (`https://tattva-ai-phi.vercel.app`)
+- **Git Commit:** `18f5ea3`
+- **Branch:** `main`
+- **Release Highlights:**
+  - Upgraded Phase 7 Universal Multi-Tenant Cognitive Memory Engine (`memory-service.ts`, `memory-types.ts`, `api/memory/route.ts`)
+  - Isolated multi-tenant storage via SHA-256 partition directories (`.data/memories/<sha256(user)>/`) with atomic write replacements
+  - Added 5-Category Cognitive Taxonomy (`short_term`, `long_term`, `project`, `preference`, `organizational`) with automated TTL pruning
+  - Added GDPR-compliant Markdown and structured JSON cognitive profile exports
+  - Hardened `/api/memory` with zero-trust session identity checks and anti-spoofing rejection
+- **Verification Result:** 9/9 automated production verification checks PASSED (100%).
+
+### Deployment `dpl_CKECmW1uKvyDG8FSUXj74ZrDMZsW` (Preview Staging)
+- **Date & Time:** 2026-11-18T04:14:10Z
+- **Target:** `preview` (`https://tattva-pshbqiw98-gowthamchowdary1267-5698.vercel.app`)
+- **Git Commit:** `18f5ea3`
+- **Branch:** `feature/universal-multi-tenant-memory-engine`
+- **Verification Result:** 9/9 staging verification checks PASSED (100%).
+
+### Deployment `dpl_3xZXggEWXEs866QdpEU3dow36Vcn` (Previous Production)
 - **Date & Time:** 2026-11-18T03:51:47Z
 - **Target:** `production` (`https://tattva-ai-phi.vercel.app`)
 - **Git Commit:** `8f07718`
