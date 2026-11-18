@@ -1,0 +1,8 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a complete Go function `func SumInts(nums []int) int` that sums a slice of integers with test case comments."
+    }
+  ]
+}
