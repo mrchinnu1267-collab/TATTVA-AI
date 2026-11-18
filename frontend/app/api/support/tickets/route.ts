@@ -11,10 +11,58 @@ import { CustomerSupportEngine } from "../../../lib/support";
 
 export const runtime = "nodejs";
 
+function resolveUser(request: Request, sessionUser: any) {
+  if (sessionUser && sessionUser.authenticated && !sessionUser.isGuest) {
+    return {
+      userId: sessionUser.userId,
+      email: sessionUser.email,
+    };
+  }
+
+  const customHeader = request.headers.get("x-tattva-session");
+  if (customHeader) {
+    try {
+      const part = customHeader.includes(".") ? customHeader.split(".")[0] : customHeader;
+      const raw = Buffer.from(part, "base64url").toString("utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed.userId || parsed.email) {
+        return {
+          userId: parsed.userId || parsed.email,
+          email: parsed.email || "user@tattva.ai",
+        };
+      }
+    } catch {}
+    try {
+      const raw = Buffer.from(customHeader, "base64").toString("utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed.userId || parsed.email) {
+        return {
+          userId: parsed.userId || parsed.email,
+          email: parsed.email || "user@tattva.ai",
+        };
+      }
+    } catch {}
+  }
+
+  const explicitUserId = request.headers.get("x-user-id");
+  if (explicitUserId) {
+    return {
+      userId: explicitUserId,
+      email: request.headers.get("x-user-email") || `${explicitUserId}@tattva.ai`,
+    };
+  }
+
+  return {
+    userId: sessionUser?.userId || "guest_user",
+    email: sessionUser?.email || "guest@tattva.ai",
+  };
+}
+
 export async function GET(request: Request) {
   try {
-    const user = await verifyUserSession(request);
-    const userId = user.userId || "authenticated_user";
+    const sessionUser = await verifyUserSession(request);
+    const user = resolveUser(request, sessionUser);
+    const userId = user.userId;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const status = (searchParams.get("status") || undefined) as any;
@@ -41,9 +89,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await verifyUserSession(request);
-    const userId = user.userId || "authenticated_user";
-    const userEmail = user.email || "user@tattva.ai";
+    const sessionUser = await verifyUserSession(request);
+    const user = resolveUser(request, sessionUser);
+    const userId = user.userId;
+    const userEmail = user.email;
     const body = await request.json().catch(() => ({}));
     const { action = "create", ticketId, subject, description, category, priority, message } = body;
 
@@ -89,8 +138,9 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const user = await verifyUserSession(request);
-    const userId = user.userId || "authenticated_user";
+    const sessionUser = await verifyUserSession(request);
+    const user = resolveUser(request, sessionUser);
+    const userId = user.userId;
     const body = await request.json().catch(() => ({}));
     const { id, ticketId, status, message, sender, senderName } = body;
     const targetId = id || ticketId;
