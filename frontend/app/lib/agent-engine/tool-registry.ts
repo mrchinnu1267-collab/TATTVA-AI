@@ -25,6 +25,7 @@ import { CustomerSupportEngine } from "../support";
 import { DataGovernanceEngine } from "../data-governance";
 import { ProductionReliabilityEngine } from "../reliability";
 import { ProductUXAuditEngine } from "../ux-audit";
+import { PlatformCertificationEngine } from "../platform-certification";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -2028,6 +2029,103 @@ export class CentralizedToolRegistry {
               wcagTier: m.wcagTier,
               status: m.status,
             })),
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 42. Platform Certification Status Tool (Phase 50)
+    this.registerTool({
+      name: "get_platform_certification_status",
+      displayName: "Final Platform Certification Status Inspector",
+      description: "Retrieves complete 5-pillar production certification results, compliance scores, and digital release signature.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        pillar: {
+          type: "string",
+          description: "Optional pillar filter: technical_architecture, functional_capabilities, zero_trust_security, sla_performance, disaster_recovery",
+          required: false,
+        },
+      },
+      outputSchema: {
+        releaseVersion: "string",
+        releaseCommit: "string",
+        overallReadinessScore: "number",
+        productionCertified: "boolean",
+        digitalSignature: "string",
+        pillars: "array",
+      },
+      execute: async (params: Record<string, any>) => {
+        const engine = PlatformCertificationEngine.getInstance();
+        const cert = engine.getCertificationStatus();
+
+        let pillars = cert.pillars;
+        if (params.pillar) {
+          pillars = pillars.filter((p) => p.pillar === params.pillar);
+        }
+
+        return {
+          toolName: "get_platform_certification_status",
+          success: true,
+          output: {
+            releaseVersion: cert.releaseVersion,
+            releaseCommit: cert.releaseCommit,
+            certifiedBy: cert.certifiedBy,
+            overallReadinessScore: cert.overallReadinessScore,
+            productionCertified: cert.productionCertified,
+            digitalSignature: cert.digitalSignature,
+            operationalStatus: cert.operationalStatus,
+            pillars: pillars.map((p) => ({
+              pillar: p.pillar,
+              title: p.title,
+              status: p.status,
+              score: p.score,
+              checksPassed: `${p.checksPassed}/${p.totalChecks}`,
+            })),
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 43. Production Readiness Release Gate Tool (Phase 50)
+    this.registerTool({
+      name: "verify_production_readiness_gate",
+      displayName: "Production Release Gate Evaluator",
+      description: "Evaluates production deployment readiness across all 50 roadmap phases, certifying zero blocking deficiencies.",
+      category: "security",
+      permission: "approval_required",
+      timeoutMs: 10000,
+      inputSchema: {
+        targetEnvironment: {
+          type: "string",
+          description: "Target deployment environment ('preview' or 'production')",
+          default: "production",
+        },
+      },
+      outputSchema: {
+        ready: "boolean",
+        overallScore: "number",
+        signature: "string",
+        message: "string",
+      },
+      execute: async (params: Record<string, any>) => {
+        const engine = PlatformCertificationEngine.getInstance();
+        const verification = engine.verifyProductionReadiness();
+
+        return {
+          toolName: "verify_production_readiness_gate",
+          success: true,
+          output: {
+            targetEnvironment: params.targetEnvironment || "production",
+            ready: verification.ready,
+            overallScore: verification.overallScore,
+            failedPillarsCount: verification.failedPillarsCount,
+            digitalSignature: verification.signature,
+            message: verification.message,
           },
           executionTimeMs: 0,
         };
