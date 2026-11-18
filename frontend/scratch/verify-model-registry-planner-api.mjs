@@ -4,26 +4,38 @@
  */
 
 import crypto from "node:crypto";
+import fs from "node:fs";
 import assert from "node:assert/strict";
+import dotenv from "dotenv";
+
+if (fs.existsSync(".env.local")) {
+  dotenv.config({ path: ".env.local" });
+}
 
 const targetUrl = process.argv[2] || "https://tattva-ai-phi.vercel.app";
 console.log(`\n================================================================================`);
 console.log(`  VERIFYING MODEL REGISTRY & EXECUTION PLANNER API: ${targetUrl}`);
 console.log(`================================================================================\n`);
 
-const SESSION_SECRET = process.env.SESSION_SECRET || "tattva-dev-insecure-secret-do-not-use-in-prod-32b";
+function getSigningKey() {
+  const secret = process.env.APP_ENCRYPTION_KEY || process.env.GEMINI_API_KEY || "tattva-default-super-secret-key-change-in-production-min-32-chars";
+  return crypto.createHash("sha256").update(secret).digest();
+}
 
 function createAuthCookie(userId, email = "test.engineer@tattva.ai") {
-  const payload = JSON.stringify({
+  const payload = {
     userId,
-    email,
-    authenticated: true,
-    issuedAt: Date.now(),
-    expiresAt: Date.now() + 3600000,
-  });
-  const b64Payload = Buffer.from(payload).toString("base64url");
-  const signature = crypto.createHmac("sha256", SESSION_SECRET).update(b64Payload).digest("base64url");
-  return `tattva_session=${b64Payload}.${signature}`;
+    email: email.toLowerCase().trim(),
+    name: email.split("@")[0],
+    timestamp: Date.now(),
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    verified: true,
+  };
+  const key = getSigningKey();
+  const serialized = JSON.stringify(payload);
+  const base64Payload = Buffer.from(serialized).toString("base64url");
+  const signature = crypto.createHmac("sha256", key).update(base64Payload).digest("base64url");
+  return `tattva_session=${base64Payload}.${signature}`;
 }
 
 async function runApiVerification() {
