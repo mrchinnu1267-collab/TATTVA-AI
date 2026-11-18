@@ -21,6 +21,7 @@ import { DataSciencePlatformEngine } from "../data-science";
 import { PlatformEvolutionEngine } from "../platform-evolution";
 import { AIGovernanceEngine } from "../ai-governance";
 import { BillingEngine } from "../billing";
+import { CustomerSupportEngine } from "../support";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1512,6 +1513,130 @@ export class CentralizedToolRegistry {
             arrUsd: analytics.arrUsd,
             activeSubscribers: analytics.activeSubscribers,
             marginPercent: analytics.marginPercent,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 31. Support Ticket Creation Tool (Phase 46)
+    this.registerTool({
+      name: "create_support_ticket",
+      displayName: "Customer Support Ticket Creator",
+      description: "Creates an official customer support incident ticket with scrubbed PII, priority triage, and automated resolution queueing.",
+      category: "api",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        subject: { type: "string", description: "Issue title or brief summary", required: true },
+        description: { type: "string", description: "Detailed description of the issue or inquiry", required: true },
+        category: { type: "string", description: "Category: general, technical, billing, account, or feature_request" },
+        priority: { type: "string", description: "Priority: low, normal, high, or urgent" },
+      },
+      outputSchema: {
+        ticketId: "string",
+        ticketNumber: "string",
+        status: "string",
+        category: "string",
+        priority: "string",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const support = CustomerSupportEngine.getInstance();
+        const ticket = await support.createTicket({
+          userId: context.userId,
+          userEmail: context.userEmail || "user@tattva.ai",
+          subject: params.subject,
+          description: params.description,
+          category: params.category,
+          priority: params.priority,
+        });
+        return {
+          toolName: "create_support_ticket",
+          success: true,
+          output: {
+            ticketId: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            status: ticket.status,
+            category: ticket.category,
+            priority: ticket.priority,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 32. Knowledge Base Search Tool (Phase 46)
+    this.registerTool({
+      name: "search_knowledge_base",
+      displayName: "Support Knowledge Base Search",
+      description: "Searches the official TATTVA AI help center and troubleshooting articles for instant solution matching.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        query: { type: "string", description: "Keyword or problem description to look up", required: true },
+      },
+      outputSchema: {
+        count: "number",
+        articles: "array",
+      },
+      execute: async (params: Record<string, any>) => {
+        const support = CustomerSupportEngine.getInstance();
+        const results = support.searchFaqs(params.query || "");
+        return {
+          toolName: "search_knowledge_base",
+          success: true,
+          output: {
+            count: results.length,
+            articles: results.map((art) => ({
+              id: art.id,
+              title: art.title,
+              category: art.category,
+              summary: art.summary,
+              slug: art.slug,
+              helpfulVotes: art.helpfulVotes,
+            })),
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 33. User Feedback & CSAT Collector Tool (Phase 46)
+    this.registerTool({
+      name: "submit_user_feedback",
+      displayName: "User Experience Feedback Collector",
+      description: "Records 1-5 star user satisfaction scores and sentiment feedback for quality telemetry.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        rating: { type: "number", description: "Rating score from 1 to 5", required: true },
+        feedbackText: { type: "string", description: "Optional qualitative user comments" },
+        category: { type: "string", description: "Category: ai_quality, ui_ux, performance, pricing, or general" },
+      },
+      outputSchema: {
+        feedbackId: "string",
+        rating: "number",
+        sentiment: "string",
+        status: "string",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const support = CustomerSupportEngine.getInstance();
+        const feedback = await support.submitFeedback({
+          userId: context.userId,
+          rating: Number(params.rating) || 5,
+          feedbackText: params.feedbackText,
+          category: params.category,
+        });
+        return {
+          toolName: "submit_user_feedback",
+          success: true,
+          output: {
+            feedbackId: feedback.id,
+            rating: feedback.rating,
+            sentiment: feedback.sentiment,
+            status: "recorded",
           },
           executionTimeMs: 0,
         };

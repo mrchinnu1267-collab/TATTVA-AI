@@ -23,6 +23,10 @@ dist/
 .tattva_secure_vault/
 .tattva_memory_data/
 .tattva_secure_accounts.json
+.tattva_billing/
+.tattva_governance/
+.tattva_knowledge_graphs/
+.tattva_support/
 public/vault/
 
 # Logs & Debug
