@@ -20,6 +20,7 @@ import { LearningPlatformEngine, SubjectDomain, DifficultyLevel } from "../learn
 import { DataSciencePlatformEngine } from "../data-science";
 import { PlatformEvolutionEngine } from "../platform-evolution";
 import { AIGovernanceEngine } from "../ai-governance";
+import { BillingEngine } from "../billing";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1393,6 +1394,124 @@ export class CentralizedToolRegistry {
             totalAuditEvents: metrics.totalScans,
             cleanScanRate: metrics.cleanRate,
             injectionsBlocked: metrics.injectionsNeutralized,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 28. Subscription & Quota Verifier Tool (Phase 45)
+    this.registerTool({
+      name: "check_subscription_quota",
+      displayName: "Subscription & Quota Checker",
+      description: "Verifies tenant token consumption, daily request limits, storage capacity, and plan tier entitlements.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        userId: { type: "string", description: "Target tenant user ID", default: "current_user" },
+      },
+      outputSchema: {
+        tier: "string",
+        allowed: "boolean",
+        tokensUsed: "number",
+        remainingTokens: "number",
+        requestsToday: "number",
+        remainingRequests: "number",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const userId = params.userId === "current_user" ? context.userId : params.userId || context.userId;
+        const billing = BillingEngine.getInstance();
+        const sub = billing.getUserSubscription(userId);
+        const quota = billing.getUserUsage(userId, sub.tier);
+        return {
+          toolName: "check_subscription_quota",
+          success: true,
+          output: {
+            tier: sub.tier,
+            allowed: quota.allowed,
+            tokensUsed: quota.tokensUsed,
+            remainingTokens: quota.remainingTokens,
+            requestsToday: quota.requestsToday,
+            remainingRequests: quota.remainingRequests,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 29. Invoice Generator Tool (Phase 45)
+    this.registerTool({
+      name: "generate_billing_invoice",
+      displayName: "Commercial Invoice Generator",
+      description: "Creates an official commercial invoice with line items, tax IDs, and billing statements.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {
+        description: { type: "string", description: "Service or subscription item description" },
+        amount: { type: "number", description: "Item amount in USD" },
+      },
+      outputSchema: {
+        invoiceId: "string",
+        invoiceNumber: "string",
+        total: "number",
+        status: "string",
+      },
+      execute: async (params: Record<string, any>, context: AgentExecutionContext) => {
+        const billing = BillingEngine.getInstance();
+        const invoice = await billing.createInvoice({
+          userId: context.userId,
+          customerName: context.userEmail || "Customer",
+          customerEmail: context.userEmail || "customer@tattva.ai",
+          lineItems: [
+            {
+              description: params.description || "TATTVA AI Autonomous Services",
+              quantity: 1,
+              unitPrice: Number(params.amount) || 20,
+            },
+          ],
+        });
+        return {
+          toolName: "generate_billing_invoice",
+          success: true,
+          output: {
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            total: invoice.total,
+            status: invoice.status,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 30. Commercial Business Analytics Tool (Phase 45)
+    this.registerTool({
+      name: "get_commercial_analytics",
+      displayName: "Commercial Analytics Telemetry",
+      description: "Retrieves business intelligence metrics including MRR, active subscriber counts, cost margins, and token expenditures.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {},
+      outputSchema: {
+        mrrUsd: "number",
+        arrUsd: "number",
+        activeSubscribers: "number",
+        marginPercent: "number",
+      },
+      execute: async () => {
+        const billing = BillingEngine.getInstance();
+        const analytics = billing.getAnalytics();
+        return {
+          toolName: "get_commercial_analytics",
+          success: true,
+          output: {
+            mrrUsd: analytics.mrrUsd,
+            arrUsd: analytics.arrUsd,
+            activeSubscribers: analytics.activeSubscribers,
+            marginPercent: analytics.marginPercent,
           },
           executionTimeMs: 0,
         };
