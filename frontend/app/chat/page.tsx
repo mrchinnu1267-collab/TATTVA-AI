@@ -1228,7 +1228,6 @@ export default function ChatPage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [mapLocationName, setMapLocationName] = useState("Bangalore, Karnataka, India");
   const [isMapLoading, setIsMapLoading] = useState(false);
-  const [imageOutputRatio, setImageOutputRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
 
   function toggleTemporaryChat() {
     setIsTemporaryChat((prev) => {
@@ -3565,27 +3564,7 @@ export default function ChatPage() {
                 <Share2 className="w-4 h-4" />
                 <span>Share Image</span>
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAttachments([
-                    {
-                      name: "modify-target.png",
-                      type: "image/png",
-                      data: imageMenuOpen.image,
-                      preview: imageMenuOpen.image,
-                    },
-                  ]);
-                  setImageMenuOpen(null);
-                  textareaRef.current?.focus();
-                  showToast("Image loaded for targeted modification ✦");
-                }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
-                  }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Modify This Image</span>
-              </button>
+
             </div>
           </div>
         </div>
@@ -5187,36 +5166,11 @@ export default function ChatPage() {
                               </details>
                             )}
 
-                            {/* Generated Image Card (1:1, 16:9, 9:16 Ratios) */}
+                            {/* Message Image View (Clean Lightbox & Download, zero generation UI) */}
                             {msg.image && (
                               <div className="mt-4 overflow-hidden rounded-2xl border border-black/[0.1] dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shadow-sm">
-                                {/* Aspect Ratio Switcher Pills */}
-                                <div className="p-2.5 px-3 border-b border-black/[0.06] dark:border-neutral-800/80 flex items-center justify-between text-xs">
-                                  <span className="font-semibold text-neutral-400 text-[11px] uppercase tracking-wider">Aspect Ratio</span>
-                                  <div className="flex items-center gap-1.5">
-                                    {(["1:1", "16:9", "9:16"] as const).map((r) => (
-                                      <button
-                                        key={r}
-                                        type="button"
-                                        onClick={() => setImageOutputRatio(r)}
-                                        className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold transition cursor-pointer ${imageOutputRatio === r
-                                            ? "bg-cyan-500 text-black shadow-xs"
-                                            : "bg-black/5 dark:bg-white/10 text-neutral-400 hover:text-white"
-                                          }`}
-                                      >
-                                        {r}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-
                                 <div
-                                  className={`relative group cursor-pointer overflow-hidden bg-black/5 flex items-center justify-center ${imageOutputRatio === "16:9"
-                                      ? "aspect-video"
-                                      : imageOutputRatio === "9:16"
-                                        ? "aspect-[9/16] max-h-[520px] mx-auto"
-                                        : "aspect-square max-h-[480px] mx-auto"
-                                    }`}
+                                  className="relative group cursor-pointer overflow-hidden bg-black/5 flex items-center justify-center max-h-[520px] mx-auto"
                                   onClick={() => setLightboxImage(msg.image!)}
                                   onTouchStart={(e) => handleImageTouchStart(msg.image!, e)}
                                   onTouchEnd={handleImageTouchEnd}
@@ -5229,11 +5183,11 @@ export default function ChatPage() {
                                 >
                                   <Image
                                     src={msg.image}
-                                    alt={msg.content}
+                                    alt={msg.content || "Attached image"}
                                     width={800}
                                     height={800}
                                     unoptimized
-                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+                                    className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.01]"
                                   />
 
                                   <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
@@ -5252,17 +5206,6 @@ export default function ChatPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        regenerateResponse(msg.id);
-                                      }}
-                                      className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
-                                      title="Regenerate Image"
-                                    >
-                                      <RefreshCw className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
                                         setImageMenuOpen({ image: msg.image!, x: e.clientX, y: e.clientY });
                                       }}
                                       className="p-2 rounded-xl bg-black/75 text-white hover:bg-black transition shadow-md backdrop-blur-md"
@@ -5275,11 +5218,7 @@ export default function ChatPage() {
 
                                 <div className="flex items-center justify-between border-t border-black/[0.06] dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 px-3 text-xs">
                                   <div className="text-neutral-500 font-mono text-[11px] flex items-center gap-1.5">
-                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">HD 1024px</span>
-                                    <span>{msg.imageMetadata?.model || "FLUX.1 Schnell"}</span>
-                                    {msg.imageMetadata?.generation_time_seconds && (
-                                      <span> • {msg.imageMetadata.generation_time_seconds}s</span>
-                                    )}
+                                    <span>Image Preview</span>
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     <button
@@ -5290,15 +5229,6 @@ export default function ChatPage() {
                                     >
                                       <Download className="w-3.5 h-3.5" />
                                       <span>Download</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => regenerateResponse(msg.id)}
-                                      className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition cursor-pointer"
-                                      title="Regenerate Image"
-                                    >
-                                      <RefreshCw className="w-3.5 h-3.5" />
-                                      <span>Regenerate</span>
                                     </button>
                                   </div>
                                 </div>

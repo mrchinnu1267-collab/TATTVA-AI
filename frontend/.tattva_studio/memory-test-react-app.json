@@ -96,6 +96,14 @@
       "resolution": "Surgical patch applied",
       "id": "bug_1794923390043",
       "verifiedAt": "2026-11-17T13:49:50.043Z"
+    },
+    {
+      "errorSignature": "TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35)",
+      "faultyFile": "CategoryFilter.tsx",
+      "rootCause": "Identified null_reference: TypeError: Cannot read properties of undefined (reading 'execute') at CategoryFilter.tsx(14,35).",
+      "resolution": "Surgical patch applied",
+      "id": "bug_1795010861798",
+      "verifiedAt": "2026-11-18T14:07:41.798Z"
     }
   ],
   "verifiedTestBaselines": {},
@@ -104,5 +112,5 @@
     "preferredModel": "qwen2.5-coder-3b-q4",
     "sandboxMode": "strict"
   },
-  "lastUpdated": "2026-11-17T13:49:50.043Z"
+  "lastUpdated": "2026-11-18T14:07:41.798Z"
 }

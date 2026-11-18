@@ -254,10 +254,10 @@ export default function Dashboard() {
           <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "18px" }}>✦</span>
             <span>
-              <strong>TATTVA AI Chat & Studio</strong> — Multilingual Assistant + Complex Prompt Image Diffusion.
+              <strong>TATTVA AI Intelligence Platform</strong> — Multilingual Assistant + Deep Reasoning & Code Architecture.
             </span>
           </span>
-          <span style={{ fontWeight: "700" }}>Open Studio →</span>
+          <span style={{ fontWeight: "700" }}>Open Chat →</span>
         </a>
 
         <div className="dashboard-eyebrow">

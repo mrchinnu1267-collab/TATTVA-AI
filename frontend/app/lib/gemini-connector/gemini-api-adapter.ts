@@ -180,11 +180,7 @@ export class GeminiApiAdapter implements GeminiProvider {
   ): Promise<ImageResult> {
     // Standard Gemini text/multimodal models do not generate images.
     // Accurately report this limitation rather than mocking images.
-    throw new Error(
-      "The connected Google Gemini model does not support native image generation. " +
-      "Image generation requires a dedicated Imagen 3 model deployment with verified credentials. " +
-      "Per TATTVA AI honest provenance policy, mock image output is strictly forbidden."
-    );
+    throw new Error("Image generation capabilities have been permanently retired from TATTVA AI.");
   }
 
   public async getUsage(): Promise<UsageStatus> {

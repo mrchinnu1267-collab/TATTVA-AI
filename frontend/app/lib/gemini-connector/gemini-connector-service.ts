@@ -98,8 +98,7 @@ export class GeminiConnectorService {
 
     if (task === "image") {
       throw new Error(
-        "Direct image generation is not supported on the standard Gemini language model. " +
-        "Please use TATTVA AI Image Studio's User-Assisted Workflow for image creation."
+        "Image generation capabilities have been permanently retired from TATTVA AI."
       );
     }
 

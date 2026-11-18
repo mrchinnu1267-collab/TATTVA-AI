@@ -183,8 +183,7 @@ export class GeminiApiGatewayAdapter implements AIProvider {
     options?: ImageOptions
   ): Promise<ImageResult> {
     throw new Error(
-      "The connected Google Gemini language model does not support native image generation. " +
-      "Image creation requires a dedicated vision model or TATTVA AI Image Studio's User-Assisted Workflow."
+      "Image generation capabilities have been permanently retired from TATTVA AI."
     );
   }
 

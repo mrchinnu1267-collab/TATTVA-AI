@@ -4,10 +4,120 @@
  * Standardized across Image Generation, Editing, Reference Uploads, Prompt Enhancement, and Chat Orchestration.
  */
 
-import { geminiVision, geminiText, getGeminiApiKey } from "./image-engine/gemini";
-
 export const SAFETY_REJECTION_MESSAGE =
-  "Sorry, TATTVA AI cannot generate this image because it violates our content safety guidelines. Please try a different prompt.";
+  "Sorry, TATTVA AI cannot process this request because it violates our content safety guidelines. Please try a different prompt.";
+
+export function getGeminiApiKey(): string | undefined {
+  const key =
+    process.env.NANO_BANANA_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY;
+  return key ? key.trim() : undefined;
+}
+
+const GEMINI_TEXT_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
+
+const GEMINI_VISION_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
+
+function parseDataUri(dataUri: string): { mimeType: string; data: string } | null {
+  const match = /^data:([^;]+);base64,([\s\S]+)$/.exec(dataUri);
+  if (!match) return null;
+  return { mimeType: match[1], data: match[2] };
+}
+
+async function callGemini(
+  model: string,
+  parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>,
+  options: { temperature?: number; json?: boolean; apiKey: string; timeoutMs?: number }
+) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${options.apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        temperature: options.temperature ?? 0.2,
+        ...(options.json ? { responseMimeType: "application/json" } : {}),
+      },
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as any)?.error?.message || `Gemini HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function textFromResponse(data: any): string {
+  return (
+    data?.candidates?.[0]?.content?.parts
+      ?.map((part: any) => part.text || "")
+      .filter(Boolean)
+      .join("\n") || ""
+  );
+}
+
+export async function geminiText(
+  prompt: string,
+  options: { json?: boolean; temperature?: number; timeoutMs?: number } = {}
+): Promise<{ text: string; model: string }> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
+  let lastError: unknown;
+  for (const model of GEMINI_TEXT_MODELS) {
+    try {
+      const data = await callGemini(model, [{ text: prompt }], {
+        apiKey,
+        json: options.json,
+        temperature: options.temperature,
+        timeoutMs: options.timeoutMs,
+      });
+      const text = textFromResponse(data);
+      if (text) return { text, model };
+      lastError = new Error(`Gemini ${model} returned empty response.`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Gemini text moderation request failed.");
+}
+
+export async function geminiVision(
+  prompt: string,
+  imageDataUri: string,
+  options: { json?: boolean; temperature?: number; timeoutMs?: number } = {}
+): Promise<{ text: string; model: string }> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
+  const parsed = parseDataUri(imageDataUri);
+  if (!parsed) throw new Error("Invalid image data URI.");
+  let lastError: unknown;
+  for (const model of GEMINI_VISION_MODELS) {
+    try {
+      const data = await callGemini(
+        model,
+        [{ text: prompt }, { inlineData: { mimeType: parsed.mimeType, data: parsed.data } }],
+        { apiKey, json: options.json, temperature: options.temperature, timeoutMs: options.timeoutMs }
+      );
+      const text = textFromResponse(data);
+      if (text) return { text, model };
+      lastError = new Error(`Gemini vision ${model} returned empty response.`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Gemini vision moderation request failed.");
+}
 
 export type ModerationCategory =
   | "ADULT_EXPLICIT_SEXUAL"

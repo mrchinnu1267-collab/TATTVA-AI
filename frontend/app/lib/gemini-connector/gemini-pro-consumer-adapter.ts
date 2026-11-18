@@ -69,10 +69,7 @@ export class GeminiProConsumerAdapter implements GeminiProvider {
     prompt: string,
     options?: ImageOptions
   ): Promise<ImageResult> {
-    throw new Error(
-      "Consumer Google AI Pro subscription image generation is unavailable via backend API. " +
-      "Google does not expose an official endpoint for consumer image generation to third-party servers."
-    );
+    throw new Error("Image generation capabilities have been permanently retired from TATTVA AI.");
   }
 
   public async getUsage(): Promise<UsageStatus> {

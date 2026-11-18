@@ -7,7 +7,6 @@ import { AIProvider, ConnectionStatus, GatewayRequest, TaskType } from "./types"
 import { GeminiApiGatewayAdapter } from "./adapters/gemini-api.adapter";
 import { GeminiConsumerGatewayAdapter } from "./adapters/gemini-consumer.adapter";
 import { LocalProceduralGatewayAdapter } from "./adapters/local-procedural.adapter";
-import { CloudflareImageGatewayAdapter } from "./adapters/cloudflare-image.adapter";
 
 export class ProviderManager {
   private providers: Map<string, AIProvider> = new Map();
@@ -21,7 +20,6 @@ export class ProviderManager {
     this.register("gemini_api", new GeminiApiGatewayAdapter());
     this.register("gemini_consumer", new GeminiConsumerGatewayAdapter());
     this.register("local_procedural", new LocalProceduralGatewayAdapter());
-    this.register("cloudflare", new CloudflareImageGatewayAdapter());
   }
 
   public register(id: string, provider: AIProvider) {

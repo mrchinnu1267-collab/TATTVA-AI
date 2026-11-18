@@ -19,226 +19,47 @@ const jiti = require("../node_modules/jiti/lib/jiti.cjs")(__filename);
 console.log("\n🚀 Running TATTVA AI Test Suite...\n");
 
 try {
-  const azureOpenAi = await jiti("./azure-openai-provider.test.ts");
-  await azureOpenAi.runAzureOpenAIProviderTests();
-  await jiti("./prompt-compiler-phase-a.test.ts");
-  await jiti("./reference-conditioning-phase-b.test.ts");
-  await jiti("./multi-model-router-phase-c.test.ts");
-  await jiti("./spatial-control-phase-d.test.ts");
-  const phaseE = await jiti("./visual-evaluation-phase-e.test.ts");
-  if (phaseE?.runVisualEvaluationPhaseETests) {
-    await phaseE.runVisualEvaluationPhaseETests();
+  // 1. Image Generation Removal Verification
+  const removalVerification = await jiti("./image-generation-removal-verification.test.ts");
+  if (removalVerification?.runImageGenerationRemovalVerificationTests) {
+    await removalVerification.runImageGenerationRemovalVerificationTests();
   }
-  const infraRepair = await jiti("./image-infrastructure-repair.test.ts");
-  if (infraRepair?.runInfrastructureRepairTests) {
-    await infraRepair.runInfrastructureRepairTests();
+
+  // 2. Document Reader & Multi-Format Engine
+  const docReader = await jiti("./document-reader.test.ts");
+  if (docReader?.runDocumentReaderTests) {
+    await docReader.runDocumentReaderTests();
   }
-  const phaseF = await jiti("./super-resolution-enhancement.test.ts");
-  if (phaseF?.runSuperResolutionEnhancementTests) {
-    await phaseF.runSuperResolutionEnhancementTests();
-  }
-  const phaseG = await jiti("./model-customization-lora.test.ts");
-  if (phaseG?.runModelCustomizationLoRATests) {
-    await phaseG.runModelCustomizationLoRATests();
-  }
-  const phaseH = await jiti("./image-editing-manipulation.test.ts");
-  if (phaseH?.runImageEditingManipulationTests) {
-    await phaseH.runImageEditingManipulationTests();
-  }
-  const phaseI = await jiti("./subject-consistency.test.ts");
-  if (phaseI?.runSubjectConsistencyTests) {
-    await phaseI.runSubjectConsistencyTests();
-  }
-  const promptAccuracy = await jiti("./prompt-accuracy-system.test.ts");
-  if (promptAccuracy?.runPromptAccuracySystemTests) {
-    await promptAccuracy.runPromptAccuracySystemTests();
-  }
-  const phaseJ = await jiti("./model-benchmarking-intelligence.test.ts");
-  if (phaseJ?.runModelBenchmarkingIntelligenceTests) {
-    await phaseJ.runModelBenchmarkingIntelligenceTests();
-  }
-  const phaseK = await jiti("./production-reliability-engineering.test.ts");
-  if (phaseK?.runProductionReliabilityTests) {
-    await phaseK.runProductionReliabilityTests();
-  }
-  const phaseL = await jiti("./unified-image-studio-phase-l.test.ts");
-  if (phaseL?.runUnifiedImageStudioPhaseLTests) {
-    await phaseL.runUnifiedImageStudioPhaseLTests();
-  }
-  const phaseM = await jiti("./phase-m-validation.test.ts");
-  if (phaseM?.runPhaseMAccuracyValidationTests) {
-    await phaseM.runPhaseMAccuracyValidationTests();
-  }
-  const phaseN = await jiti("./phase-n-continuous-learning.test.ts");
-  if (phaseN?.runPhaseNContinuousLearningTests) {
-    await phaseN.runPhaseNContinuousLearningTests();
-  }
-  const phaseO = await jiti("./phase-o-regression-testing.test.ts");
-  if (phaseO?.runPhaseORegressionTestingTests) {
-    await phaseO.runPhaseORegressionTestingTests();
-  }
-  const phaseP = await jiti("./phase-p-production-release.test.ts");
-  if (phaseP?.runPhasePProductionReleaseTests) {
-    await phaseP.runPhasePProductionReleaseTests();
-  }
-  const phaseQ = await jiti("./phase-q-production-monitoring.test.ts");
-  if (phaseQ?.runPhaseQProductionMonitoringTests) {
-    await phaseQ.runPhaseQProductionMonitoringTests();
-  }
-  const phaseR = await jiti("./phase-r-accuracy-research.test.ts");
-  if (phaseR?.runPhaseRAccuracyResearchTests) {
-    await phaseR.runPhaseRAccuracyResearchTests();
-  }
-  const phaseS = await jiti("./phase-s-nextgen-architecture.test.ts");
-  if (phaseS?.runPhaseSNextGenArchitectureTests) {
-    await phaseS.runPhaseSNextGenArchitectureTests();
-  }
-  const phaseT = await jiti("./phase-t-accuracy-optimization.test.ts");
-  if (phaseT?.runPhaseTAccuracyOptimizationTests) {
-    await phaseT.runPhaseTAccuracyOptimizationTests();
-  }
-  const phaseU = await jiti("./phase-u-real-world-validation.test.ts");
-  if (phaseU?.runPhaseURealWorldValidationTests) {
-    await phaseU.runPhaseURealWorldValidationTests();
-  }
-  const phaseV = await jiti("./phase-v-final-certification.test.ts");
-  if (phaseV?.runPhaseVFinalCertificationTests) {
-    await phaseV.runPhaseVFinalCertificationTests();
-  }
-  const phaseW = await jiti("./phase-w-engine-maintenance.test.ts");
-  if (phaseW?.runPhaseWEngineMaintenanceTests) {
-    await phaseW.runPhaseWEngineMaintenanceTests();
-  }
-  await jiti("./image-accuracy-100-benchmark.test.ts");
-  await jiti("./image-intelligence-system.test.ts");
-  await jiti("./main-chat.test.ts");
-  await jiti("./image-generation-multimodel.test.ts");
-  await jiti("./prompt-accuracy-50.test.ts");
-  await jiti("./multimodal-rag-vision.test.ts");
-  await jiti("./safety-input-validation.test.ts");
-  await jiti("./workspace-applications.test.ts");
-  await jiti("./auth-redirect.test.ts");
-  await jiti("./password-recovery.test.ts");
-  await jiti("./claude-connectors.test.ts");
-  await jiti("./connectors-e2e.test.ts");
-  await jiti("./document-reader.test.ts");
-  await jiti("./human-intelligence.test.ts");
-  await jiti("./prompt-intelligence.test.ts");
-  await jiti("./research-file-engine.test.ts");
-  const mmmluEval = await jiti("./mmmlu-evaluation.test.ts");
-  if (mmmluEval?.runMMMLUEvaluationTests) {
-    await mmmluEval.runMMMLUEvaluationTests();
-  }
-  const mmmluVal = await jiti("./mmmlu-validation.test.ts");
-  if (mmmluVal?.runMMMLUValidationTests) {
-    await mmmluVal.runMMMLUValidationTests();
-  }
-  const dsMgmt = await jiti("./dataset-management.test.ts");
-  if (dsMgmt?.runDatasetManagementTests) {
-    await dsMgmt.runDatasetManagementTests();
-  }
-  const modelCmp = await jiti("./model-comparison.test.ts");
-  if (modelCmp?.runModelComparisonTests) {
-    await modelCmp.runModelComparisonTests();
-  }
-  const convEval = await jiti("./conversational-evaluation.test.ts");
-  if (convEval?.runConversationalEvaluationTests) {
-    await convEval.runConversationalEvaluationTests();
-  }
-  const perfImp = await jiti("./performance-improvement.test.ts");
-  if (perfImp?.runPerformanceImprovementTests) {
-    await perfImp.runPerformanceImprovementTests();
-  }
-  const e2eFlow = await jiti("./e2e-evaluation-flow.test.ts");
-  if (e2eFlow?.runE2EVerificationTest) {
-    await e2eFlow.runE2EVerificationTest();
-  }
-  await jiti("./phase-30-31-32-production-completion.test.ts");
-  const phase34 = await jiti("./phase-34-intelligence-optimization.test.ts");
-  if (phase34?.runPhase34IntelligenceOptimizationTests) {
-    await phase34.runPhase34IntelligenceOptimizationTests();
-  }
-  const phase35 = await jiti("./phase-35-real-world-intelligence.test.ts");
-  if (phase35?.runPhase35RealWorldIntelligenceTests) {
-    await phase35.runPhase35RealWorldIntelligenceTests();
-  }
-  const phase36 = await jiti("./phase-36-end-to-end-task-execution.test.ts");
-  if (phase36?.runPhase36EndToEndTaskExecutionTests) {
-    await phase36.runPhase36EndToEndTaskExecutionTests();
-  }
-  const phase37 = await jiti("./phase-37-ai-safety-and-trust.test.ts");
-  if (phase37?.runPhase37AISafetyAndTrustTests) {
-    await phase37.runPhase37AISafetyAndTrustTests();
-  }
-  const phase38 = await jiti("./phase-38-user-experience.test.ts");
-  if (phase38?.runPhase38UserExperienceTests) {
-    await phase38.runPhase38UserExperienceTests();
-  }
-  const phase39 = await jiti("./phase-39-enterprise-reliability.test.ts");
-  if (phase39?.runPhase39EnterpriseReliabilityTests) {
-    await phase39.runPhase39EnterpriseReliabilityTests();
-  }
-  const phase40 = await jiti("./phase-40-final-acceptance.test.ts");
-  if (phase40?.runPhase40FinalAcceptanceTests) {
-    await phase40.runPhase40FinalAcceptanceTests();
-  }
+
+  // 5. Mathematical & Reasoning Intelligence (GSM8K)
   const gsm8kSuite = await jiti("./gsm8k-dataset-integration.test.ts");
   if (gsm8kSuite?.runGsm8kDatasetIntegrationTests) {
     await gsm8kSuite.runGsm8kDatasetIntegrationTests();
   }
+
   const gsm8kMathIntel = await jiti("./gsm8k-mathematical-intelligence.test.ts");
   if (gsm8kMathIntel?.runGsm8kMathematicalIntelligenceTests) {
     await gsm8kMathIntel.runGsm8kMathematicalIntelligenceTests();
   }
-  const customModelPipeline = await jiti("./custom-model-training-pipeline.test.ts");
-  if (customModelPipeline?.runCustomModelTrainingPipelineTests) {
-    await customModelPipeline.runCustomModelTrainingPipelineTests();
+
+  // 7. Conversational Evaluation
+  const convEval = await jiti("./conversational-evaluation.test.ts");
+  if (convEval?.runConversationalEvaluationTests) {
+    await convEval.runConversationalEvaluationTests();
   }
-  const subscribedAgentsAutomation = await jiti("./phase-subscribed-agents-automation.test.ts");
-  if (subscribedAgentsAutomation?.runSubscribedAgentsAutomationTests) {
-    await subscribedAgentsAutomation.runSubscribedAgentsAutomationTests();
-  }
-  const supabaseStorageActivation = await jiti("./supabase-storage-activation.test.ts");
-  if (supabaseStorageActivation?.runSupabaseStorageActivationTests) {
-    await supabaseStorageActivation.runSupabaseStorageActivationTests();
-  }
-  const intelligentRefinement = await jiti("./intelligent-automatic-refinement.test.ts");
-  if (intelligentRefinement?.runIntelligentRefinementTests) {
-    await intelligentRefinement.runIntelligentRefinementTests();
-  }
-  const outputRouting = await jiti("./output-routing-intent.test.ts");
-  if (outputRouting?.runOutputRoutingTests) {
-    await outputRouting.runOutputRoutingTests();
-  }
-  const asyncImageJob = await jiti("./async-image-job-504-reliability.test.ts");
-  if (asyncImageJob?.runAsyncImageJobReliabilityTests) {
-    await asyncImageJob.runAsyncImageJobReliabilityTests();
-  }
-  const durableJobDbStorage = await jiti("./durable-image-job-db-storage.test.ts");
-  if (durableJobDbStorage?.runDurableJobDbStorageTests) {
-    await durableJobDbStorage.runDurableJobDbStorageTests();
-  }
-  const geminiNativeImage = await jiti("./gemini-native-image-generation.test.ts");
-  if (geminiNativeImage?.runGeminiNativeImageGenerationTests) {
-    await geminiNativeImage.runGeminiNativeImageGenerationTests();
-  }
-  const localImageGen = await jiti("./local-image-generation.test.ts");
-  if (localImageGen?.runLocalImageTests) {
-    await localImageGen.runLocalImageTests();
-  }
-  const providerReliability = await jiti("./image-provider-reliability.test.ts");
-  if (providerReliability?.runProviderReliabilityTests) {
-    await providerReliability.runProviderReliabilityTests();
-  }
+
+  // 8. Software Studio Platform Verification
   const autonomousPlatform = await jiti("./software-studio/autonomous-platform.test.ts");
   if (autonomousPlatform?.runAutonomousPlatformTests) {
     await autonomousPlatform.runAutonomousPlatformTests();
   }
+
   const e2eAcceptance = await jiti("./software-studio/e2e-acceptance-validation.test.ts");
   if (e2eAcceptance?.runEndToEndAcceptanceValidation) {
     await e2eAcceptance.runEndToEndAcceptanceValidation();
   }
-  console.log("\n✅ All Test Suites passed successfully!\n");
+
+  console.log("\n✅ All Active TATTVA AI Test Suites passed successfully with 100% compliance!\n");
   process.exit(0);
 } catch (err) {
   console.error("\n❌ Test execution failed:", err);

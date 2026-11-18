@@ -1,12 +1,18 @@
 {
-  "rootPath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app",
-  "scannedAt": "2026-11-17T13:49:49.994Z",
+  "rootPath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app",
+  "scannedAt": "2026-11-18T14:07:41.745Z",
   "totalFiles": 4,
   "totalLines": 49,
   "languages": {
     "typescript": 3,
     "javascript": 0,
     "python": 0,
+    "go": 0,
+    "rust": 0,
+    "java": 0,
+    "c": 0,
+    "cpp": 0,
+    "php": 0,
     "dart": 0,
     "kotlin": 0,
     "sql": 0,
@@ -28,11 +34,11 @@
   "databaseSchemas": [],
   "files": {
     "package.json": {
-      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\package.json",
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\package.json",
       "relativePath": "package.json",
       "language": "json",
       "sizeBytes": 231,
-      "lastModifiedMs": 1794923389985.9976,
+      "lastModifiedMs": 1795010861736.5686,
       "hash": "139eb77357dc9dcb",
       "imports": [],
       "exports": [],
@@ -40,11 +46,11 @@
       "lineCount": 14
     },
     "src/App.tsx": {
-      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\src\\App.tsx",
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\App.tsx",
       "relativePath": "src/App.tsx",
       "language": "typescript",
       "sizeBytes": 239,
-      "lastModifiedMs": 1794923389993.4104,
+      "lastModifiedMs": 1795010861743.6802,
       "hash": "aed2f7da6ec69c3b",
       "imports": [
         "react",
@@ -57,7 +63,7 @@
         {
           "name": "App",
           "kind": "component",
-          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\src\\App.tsx",
+          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\App.tsx",
           "line": 4,
           "isExported": true,
           "signature": "export const App: React.FC = () => {"
@@ -66,11 +72,11 @@
       "lineCount": 12
     },
     "src/components/ProductList.tsx": {
-      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\src\\components\\ProductList.tsx",
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\components\\ProductList.tsx",
       "relativePath": "src/components/ProductList.tsx",
       "language": "typescript",
       "sizeBytes": 386,
-      "lastModifiedMs": 1794923389991.7664,
+      "lastModifiedMs": 1795010861741.5144,
       "hash": "183ba09390e7ed80",
       "imports": [
         "react",
@@ -83,7 +89,7 @@
         {
           "name": "ProductList",
           "kind": "component",
-          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\src\\components\\ProductList.tsx",
+          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\components\\ProductList.tsx",
           "line": 4,
           "isExported": true,
           "signature": "export const ProductList: React.FC<{ items: ProductItem[] }> = ({ items }) => {"
@@ -92,11 +98,11 @@
       "lineCount": 16
     },
     "src/types.ts": {
-      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\src\\types.ts",
+      "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\types.ts",
       "relativePath": "src/types.ts",
       "language": "typescript",
       "sizeBytes": 100,
-      "lastModifiedMs": 1794923389989.5017,
+      "lastModifiedMs": 1795010861739.835,
       "hash": "949dcf74d8a33975",
       "imports": [],
       "exports": [
@@ -106,7 +112,7 @@
         {
           "name": "ProductItem",
           "kind": "interface",
-          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\tattva-security-upgrade-worktree\\frontend\\.tattva_vault\\test_react_app\\src\\types.ts",
+          "filePath": "C:\\Users\\mrchi\\TATTVA_AI\\TATTVA_AI\\frontend\\.tattva_vault\\test_react_app\\src\\types.ts",
           "line": 1,
           "isExported": true,
           "signature": "export interface ProductItem {"

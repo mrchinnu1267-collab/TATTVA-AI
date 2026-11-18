@@ -40,20 +40,7 @@ export class AIGateway {
 
       // 3. Execution based on TaskType
       if (taskType === "image") {
-        if (!provider.generateImage) {
-          throw new Error(`Provider '${providerId}' does not support image generation`);
-        }
-        const rawImageResult = await provider.generateImage(request.prompt, request.imageOptions);
-        const verifiedImageResult = await this.resultManager.verifyImage(rawImageResult);
-
-        return this.resultManager.buildSuccessResult({
-          taskType,
-          providerId,
-          providerName: selectedProviderName,
-          imageResult: verifiedImageResult,
-          provenance: verifiedImageResult.images[0]?.provenance,
-          latencyMs: Date.now() - startTime,
-        });
+        throw new Error("Image generation has been permanently retired from TATTVA AI.");
       } else {
         // Text / Reasoning / Coding / Multimodal / Analysis
         let effectivePrompt = request.prompt;

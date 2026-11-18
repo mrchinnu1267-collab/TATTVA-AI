@@ -260,7 +260,7 @@ export default function GeminiConnectorPanel({ isDark = true }: { isDark?: boole
       <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-neutral-400">
         <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
         <div>
-          <span className="font-semibold text-neutral-300">Zero-Secret & Honest Provenance Guarantee:</span> All authentication credentials remain strictly on the backend. No consumer subscription scraping is permitted. Standard text models do not advertise image generation unless an authorized vision generation model is connected.
+          <span className="font-semibold text-neutral-300">Zero-Secret & Honest Provenance Guarantee:</span> All authentication credentials remain strictly on the backend. No consumer subscription scraping is permitted. Connected models provide conversational reasoning, code generation, and universal multimodal vision analysis.
         </div>
       </div>
     </div>

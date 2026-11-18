@@ -40,22 +40,7 @@ export class TaskRouter {
       };
     }
 
-    // 3. Image generation intent
-    const imageKeywords = [
-      "generate image", "create image", "draw", "render an image",
-      "create a poster", "illustration of", "photorealistic", "cinematic shot",
-      "picture of", "image of", "visual of"
-    ];
-    if (imageKeywords.some(kw => prompt.includes(kw))) {
-      return {
-        taskType: "image",
-        confidence: 0.9,
-        reason: "Matched image generation keywords in prompt",
-        suggestedProvider: "local_procedural", // safe procedural fallback or user assisted
-      };
-    }
-
-    // 4. Code & Reasoning
+    // 3. Code & Reasoning
     const codeKeywords = [
       "function", "write code", "typescript", "javascript", "python",
       "bug", "fix", "refactor", "component", "sql", "api route", "class", "async"
@@ -115,8 +100,6 @@ export class TaskRouter {
 
   private getSuggestedProvider(taskType: TaskType): string {
     switch (taskType) {
-      case "image":
-        return "cloudflare";
       case "coding":
       case "reasoning":
       case "text":
