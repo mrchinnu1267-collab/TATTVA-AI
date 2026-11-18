@@ -8,9 +8,11 @@
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { createClient } from "@supabase/supabase-js";
 
-const LOCAL_VAULT_DIR = path.resolve(process.cwd(), ".tattva-vault");
+// Use OS temporary directory to prevent dynamic Turbopack tracing of the repository
+const LOCAL_VAULT_DIR = path.resolve(os.tmpdir(), "tattva-vault");
 
 function ensureVaultDir(userId: string): string {
   const safeId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
