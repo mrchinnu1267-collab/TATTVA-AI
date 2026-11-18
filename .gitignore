@@ -40,10 +40,26 @@
 # OS / Editor Files
 .DS_Store
 Thumbs.db
-*.log
 .vscode/
 .cursor/
 .idea/
+
+# Logs, Telemetry & Temporary Debug Outputs
+**/*.log
+**/*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Test Reports, Benchmarks & Validation Artifacts
+**/reports/
+**/validation-report.json
+**/*-report.json
+
+# Temporary Payloads & Local Scratch Probes
+**/scratch/test-preview-*-payload.json
+**/scratch/chat-*-req.json
 
 # Graphify Local Output & Cache
 **/graphify-out/

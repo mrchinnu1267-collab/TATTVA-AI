@@ -30,12 +30,21 @@ dist/
 .tattva_support/
 public/vault/
 
-# Logs & Debug
+# Logs, Telemetry & Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 *.log
+**/*.log
+**/*.log.*
+
+# Test Reports, Benchmarks & Validation Artifacts
+reports/
+validation-report.json
+*-report.json
+scratch/test-preview-*-payload.json
+scratch/chat-*-req.json
 
 # System files
 .DS_Store
