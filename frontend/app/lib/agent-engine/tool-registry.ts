@@ -18,6 +18,7 @@ import { advancedProgrammingAgent, TargetLanguage, GeneratedProjectFile } from "
 import { KnowledgeGraphEngine } from "../knowledge-graph";
 import { LearningPlatformEngine, SubjectDomain, DifficultyLevel } from "../learning";
 import { DataSciencePlatformEngine } from "../data-science";
+import { PlatformEvolutionEngine } from "../platform-evolution";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -1098,6 +1099,157 @@ export class CentralizedToolRegistry {
             isSignificant: res.isSignificant,
             conclusion: res.conclusion,
             interpretation: res.interpretation,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 20. Platform Health & Performance Metrics Tool
+    this.registerTool({
+      name: "get_platform_health_metrics",
+      displayName: "Platform Health & Telemetry Monitor",
+      description: "Retrieves real-time P50/P95 latencies, error rates, system uptime, and active performance degradations.",
+      category: "data",
+      permission: "safe",
+      timeoutMs: 10000,
+      inputSchema: {},
+      outputSchema: {
+        status: "string",
+        uptimeSeconds: "number",
+        overallErrorRatePercent: "number",
+        chatP50Ms: "number",
+        chatP95Ms: "number",
+        alertsCount: "number",
+      },
+      execute: async () => {
+        const snap = PlatformEvolutionEngine.getPerformanceSnapshot();
+        return {
+          toolName: "get_platform_health_metrics",
+          success: true,
+          output: {
+            status: snap.status,
+            uptimeSeconds: snap.uptimeSeconds,
+            overallErrorRatePercent: snap.overallErrorRatePercent,
+            chatP50Ms: snap.chatLatency.p50Ms,
+            chatP95Ms: snap.chatLatency.p95Ms,
+            alertsCount: snap.performanceDegradations.length,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 21. AI Quality Benchmark Evaluation Tool
+    this.registerTool({
+      name: "run_ai_quality_eval",
+      displayName: "AI Quality Benchmark Evaluator",
+      description: "Evaluates AI model responses across 8 permanent quality benchmarks against baseline validation thresholds.",
+      category: "research",
+      permission: "safe",
+      timeoutMs: 20000,
+      inputSchema: {
+        targetModel: { type: "string", description: "Target model ID to evaluate", default: "gemini-2.5-flash" },
+      },
+      outputSchema: {
+        overallScorePercent: "number",
+        baselineScorePercent: "number",
+        passedValidationGate: "boolean",
+        summary: "string",
+      },
+      execute: async (params) => {
+        const res = PlatformEvolutionEngine.runQualityEvaluation(params.targetModel || "gemini-2.5-flash");
+        return {
+          toolName: "run_ai_quality_eval",
+          success: true,
+          output: {
+            overallScorePercent: res.overallScorePercent,
+            baselineScorePercent: res.baselineScorePercent,
+            passedValidationGate: res.passedValidationGate,
+            summary: res.summary,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 22. Model Provider Canary Testing Tool
+    this.registerTool({
+      name: "test_model_canary",
+      displayName: "Model Canary Tester",
+      description: "Executes isolated candidate model canary evaluation before promoting to live production routing.",
+      category: "code",
+      permission: "approval_required",
+      timeoutMs: 25000,
+      inputSchema: {
+        candidateModelId: { type: "string", description: "Candidate model ID" },
+        displayName: { type: "string", description: "Candidate model display name" },
+        provider: { type: "string", description: "Model provider", default: "google-gemini" },
+      },
+      outputSchema: {
+        candidateModelId: "string",
+        accuracyDeltaPercent: "number",
+        latencyDeltaPercent: "number",
+        recommendation: "string",
+      },
+      execute: async (params) => {
+        const candidate = {
+          id: params.candidateModelId || "gemini-canary",
+          displayName: params.displayName || "Gemini Canary Test",
+          provider: params.provider || "google-gemini",
+          tier: "fast",
+          contextWindowTokens: 1000000,
+          costPer1MTokensInUsd: 0.075,
+          costPer1MTokensOutUsd: 0.3,
+          isAvailable: true,
+          consecutiveFailures: 0,
+          averageLatencyMs: 370,
+          errorRatePercent: 0.1,
+          circuitState: "CLOSED",
+        };
+        const res = PlatformEvolutionEngine.testModelCanary(candidate as any);
+        return {
+          toolName: "test_model_canary",
+          success: true,
+          output: {
+            candidateModelId: res.candidateModelId,
+            accuracyDeltaPercent: res.accuracyDeltaPercent,
+            latencyDeltaPercent: res.latencyDeltaPercent,
+            recommendation: res.recommendation,
+            rationale: res.detailedRationale,
+          },
+          executionTimeMs: 0,
+        };
+      },
+    });
+
+    // 23. Backup & Recovery Verifier Tool
+    this.registerTool({
+      name: "verify_backup_recovery",
+      displayName: "Backup & Recovery Verifier",
+      description: "Performs cryptographic checksum checks on database backups, storage files, and verifies rollback readiness.",
+      category: "security",
+      permission: "safe",
+      timeoutMs: 15000,
+      inputSchema: {},
+      outputSchema: {
+        databaseStatus: "string",
+        tableCount: "number",
+        fileStorageStatus: "string",
+        rollbackReady: "boolean",
+        overallHealthy: "boolean",
+      },
+      execute: async () => {
+        const res = PlatformEvolutionEngine.verifyBackupIntegrity();
+        return {
+          toolName: "verify_backup_recovery",
+          success: true,
+          output: {
+            databaseStatus: res.databaseIntegrity.status,
+            tableCount: res.databaseIntegrity.tableCount,
+            fileStorageStatus: res.fileStorageIntegrity.status,
+            rollbackReady: res.deploymentRollbackTarget.status === "available",
+            overallHealthy: res.overallBackupHealthy,
           },
           executionTimeMs: 0,
         };
