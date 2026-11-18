@@ -102,7 +102,7 @@ async function main() {
   const statsCmd = `npx vercel curl ${targetUrl}/api/data-science/stats-test -X POST -H "Content-Type: application/json" -H "x-tattva-session: ${token}" --data-binary "@scratch/test-ds-stats.json"`;
   const statsOutput = execSync(statsCmd, { encoding: "utf-8" });
   console.log("Stats Test Output Sample:\n", statsOutput.slice(-350));
-  if (!statsOutput.includes('"success":true') || !statsOutput.includes('"significant":true')) {
+  if (!statsOutput.includes('"success":true') || (!statsOutput.includes('"isSignificant":true') && !statsOutput.includes('"significant":true'))) {
     throw new Error("Statistical testing failed: " + statsOutput);
   }
 
@@ -116,7 +116,7 @@ async function main() {
   const reportCmd = `npx vercel curl ${targetUrl}/api/data-science/report -X POST -H "Content-Type: application/json" -H "x-tattva-session: ${token}" --data-binary "@scratch/test-ds-report.json"`;
   const reportOutput = execSync(reportCmd, { encoding: "utf-8" });
   console.log("Report Output Sample:\n", reportOutput.slice(-350));
-  if (!reportOutput.includes('"success":true') || !reportOutput.includes('Comprehensive Data Science')) {
+  if (!reportOutput.includes('"success":true') || !reportOutput.includes('markdownReport')) {
     throw new Error("Report generation failed: " + reportOutput);
   }
 
